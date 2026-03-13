@@ -122,8 +122,6 @@ class _HttpCallDetailScreenState extends State<HttpCallDetailScreen> {
     setState(() {
       _currentMatchIndex =
           (_currentMatchIndex - 1 + _matches.length) % _matches.length;
-      final target = _matches[_currentMatchIndex];
-      DefaultTabController.of(context).animateTo(target.tabIndex);
     });
   }
 
@@ -131,8 +129,6 @@ class _HttpCallDetailScreenState extends State<HttpCallDetailScreen> {
     if (_matches.isEmpty) return;
     setState(() {
       _currentMatchIndex = (_currentMatchIndex + 1) % _matches.length;
-      final target = _matches[_currentMatchIndex];
-      DefaultTabController.of(context).animateTo(target.tabIndex);
     });
   }
 
@@ -460,6 +456,13 @@ class _DetailTabView extends StatelessWidget {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       onMatchesChanged(q.isEmpty ? const [] : matches);
+      final active = activeLocation;
+      if (active != null) {
+        final controller = DefaultTabController.of(context);
+        if (controller.index != active.tabIndex) {
+          controller.animateTo(active.tabIndex);
+        }
+      }
     });
 
     return TabBarView(
@@ -626,11 +629,7 @@ class _BodySection extends StatelessWidget {
       });
     }
 
-    return Container(
-      key: key,
-      color: isActive ? const Color(0x40FFF59D) : Colors.transparent,
-      child: child,
-    );
+    return Container(key: key, child: child);
   }
 }
 
