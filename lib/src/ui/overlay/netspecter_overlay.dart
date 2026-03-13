@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../../storage/inspector_session.dart';
@@ -98,15 +99,11 @@ class _NetSpecterOverlayState extends State<NetSpecterOverlay> {
   }
 
   void _openInspector(BuildContext context) {
-    final route = MaterialPageRoute<void>(
-      builder: (_) => NetSpecterScreen(session: widget.session),
+    openInspectorIfNotOpen(
+      session: widget.session,
+      nav: _registeredNavigatorKey?.currentState,
+      context: context,
     );
-    final nav = _registeredNavigatorKey?.currentState;
-    if (nav != null) {
-      nav.push(route);
-    } else {
-      Navigator.of(context, rootNavigator: true).push(route);
-    }
   }
 
   @override
@@ -119,9 +116,20 @@ class _NetSpecterOverlayState extends State<NetSpecterOverlay> {
     Widget content = widget.child;
 
     if (triggers.contains(InspectorTrigger.longPress)) {
-      content = GestureDetector(
+      content = RawGestureDetector(
         behavior: HitTestBehavior.translucent,
-        onLongPress: () => _openInspector(context),
+        gestures: {
+          LongPressGestureRecognizer:
+              GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
+            () => LongPressGestureRecognizer(
+              duration: widget.config.longPressDuration,
+              debugOwner: this,
+            ),
+            (instance) {
+              instance.onLongPress = () => _openInspector(context);
+            },
+          ),
+        },
         child: content,
       );
     }
@@ -182,3 +190,37 @@ GlobalKey<NavigatorState>? _registeredNavigatorKey;
 
 /// Read-only access for [NetSpecter.showInspector].
 GlobalKey<NavigatorState>? get registeredNavigatorKey => _registeredNavigatorKey;
+
+/// True while the inspector screen is on the navigation stack.
+///
+/// Shared across all entry points (overlay triggers, [NetSpecter.showInspector])
+/// so that no matter which trigger fires, only one inspector is ever pushed.
+bool _inspectorIsOpen = false;
+
+/// Pushes the inspector screen onto the navigator, unless it is already open.
+///
+/// All entry points ([_NetSpecterOverlayState], [NetSpecter.showInspector])
+/// must route through this function so the guard is always enforced.
+void openInspectorIfNotOpen({
+  required InspectorSession session,
+  NavigatorState? nav,
+  BuildContext? context,
+}) {
+  if (_inspectorIsOpen) return;
+
+  final navigator = nav ??
+      _registeredNavigatorKey?.currentState ??
+      (context != null
+          ? Navigator.maybeOf(context, rootNavigator: true)
+          : null);
+  if (navigator == null) return;
+
+  _inspectorIsOpen = true;
+  navigator
+      .push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => NetSpecterScreen(session: session),
+        ),
+      )
+      .whenComplete(() => _inspectorIsOpen = false);
+}

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
+import '../../core/request_id.dart';
 import '../../model/raw_capture.dart';
 import '../../storage/inspector_session.dart';
 
@@ -18,7 +19,7 @@ class NetSpecterDioInterceptor extends Interceptor {
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     options.extra[_startedAtKey] = DateTime.now();
-    options.extra[_requestIdKey] = DateTime.now().microsecondsSinceEpoch.toString();
+    options.extra[_requestIdKey] = RequestId.generate();
     handler.next(options);
   }
 
@@ -51,9 +52,9 @@ class NetSpecterDioInterceptor extends Interceptor {
     String? errorType,
     String? errorMessage,
   }) {
-    final startedAt = options.extra[_startedAtKey] as DateTime? ?? DateTime.now();
-    final id = options.extra[_requestIdKey] as String? ??
-        DateTime.now().microsecondsSinceEpoch.toString();
+    final startedAt =
+        options.extra[_startedAtKey] as DateTime? ?? DateTime.now();
+    final id = options.extra[_requestIdKey] as String? ?? RequestId.generate();
     final durationMs = DateTime.now().difference(startedAt).inMilliseconds;
 
     final reqBytes = _toBytes(options.data, options.contentType);
@@ -104,7 +105,7 @@ class NetSpecterDioInterceptor extends Interceptor {
 
     if (data is Map || data is List) {
       try {
-        return utf8.encode(const JsonEncoder.withIndent('  ').convert(data));
+        return utf8.encode(jsonEncode(data));
       } catch (_) {
         return utf8.encode(data.toString());
       }

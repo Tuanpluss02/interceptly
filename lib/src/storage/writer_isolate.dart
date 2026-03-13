@@ -39,6 +39,10 @@ class _ClearMessage {
   const _ClearMessage();
 }
 
+class _ClearAck {
+  const _ClearAck();
+}
+
 class _DisposeMessage {
   const _DisposeMessage();
 }
@@ -59,6 +63,7 @@ class WriterIsolate {
   Isolate? _isolate;
   SendPort? _sendPort;
   ReceivePort? _receivePort;
+  Completer<void>? _clearCompleter;
 
   final StreamController<IndexEntry> _resultController =
       StreamController<IndexEntry>.broadcast();
@@ -81,6 +86,9 @@ class WriterIsolate {
         completer.complete(message);
       } else if (message is IndexEntry) {
         _resultController.add(message);
+      } else if (message is _ClearAck) {
+        _clearCompleter?.complete();
+        _clearCompleter = null;
       }
     });
 
@@ -101,11 +109,22 @@ class WriterIsolate {
     _sendPort?.send(_WriteMessage(capture: capture));
   }
 
-  Future<void> clear({required String tempDirPath}) async {
-    _sendPort?.send(_ClearMessage());
+  /// Sends a clear request and waits for the isolate to confirm the file has
+  /// been reset. Completes only after all previously queued writes are done.
+  Future<void> clear() async {
+    if (_sendPort == null) return;
+    final completer = Completer<void>();
+    _clearCompleter = completer;
+    _sendPort!.send(const _ClearMessage());
+    await completer.future;
   }
 
   Future<void> dispose() async {
+    // Unblock any in-progress clear so its awaiter doesn't hang.
+    if (_clearCompleter != null && !_clearCompleter!.isCompleted) {
+      _clearCompleter!.complete();
+    }
+    _clearCompleter = null;
     _sendPort?.send(const _DisposeMessage());
     await Future<void>.delayed(const Duration(milliseconds: 50));
     _isolate?.kill(priority: Isolate.immediate);
@@ -140,6 +159,7 @@ Future<void> _isolateEntry(_InitMessage init) async {
       init.replyPort.send(entry);
     } else if (message is _ClearMessage) {
       await bodyStore.resetFile(init.tempDirPath);
+      init.replyPort.send(const _ClearAck());
     } else if (message is _DisposeMessage) {
       await bodyStore.dispose();
       break;

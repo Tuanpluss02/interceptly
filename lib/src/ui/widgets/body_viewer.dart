@@ -35,6 +35,10 @@ enum _DisplayMode { raw, pretty, decoded }
 class _BodyViewerState extends State<BodyViewer> {
   late _DisplayMode _mode;
   late _BodyKind _kind;
+  // Cache the pretty-printed result so jsonDecode + JsonEncoder don't run
+  // on every rebuild — computed once per body/mode change.
+  String? _prettyCache;
+  String? _prettyCacheInput;
 
   @override
   void initState() {
@@ -50,6 +54,8 @@ class _BodyViewerState extends State<BodyViewer> {
         oldWidget.contentType != widget.contentType) {
       _kind = _detectKind(widget.contentType, widget.body);
       _mode = _defaultMode(_kind);
+      _prettyCache = null;
+      _prettyCacheInput = null;
     }
   }
 
@@ -94,19 +100,22 @@ class _BodyViewerState extends State<BodyViewer> {
     );
   }
 
-  static String _buildDisplayText(
-    String body,
-    _DisplayMode mode,
-    _BodyKind kind,
-  ) {
+  String _buildDisplayText(String body, _DisplayMode mode, _BodyKind kind) {
     if (kind == _BodyKind.binary) return body;
-
     if (mode == _DisplayMode.raw) return body;
 
     if (kind == _BodyKind.json && mode != _DisplayMode.raw) {
+      // Cache the result: jsonDecode + JsonEncoder can take 10–50 ms for
+      // large payloads, so we compute it once and reuse on subsequent builds.
+      if (_prettyCache != null && _prettyCacheInput == body) {
+        return _prettyCache!;
+      }
       try {
-        final decoded = jsonDecode(body);
-        return const JsonEncoder.withIndent('  ').convert(decoded);
+        final result =
+            const JsonEncoder.withIndent('  ').convert(jsonDecode(body));
+        _prettyCache = result;
+        _prettyCacheInput = body;
+        return result;
       } catch (_) {
         return body;
       }

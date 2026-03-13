@@ -9,8 +9,8 @@ import '../model/net_specter_settings.dart';
 import '../model/raw_capture.dart';
 import '../model/request_record.dart';
 import '../storage/inspector_session.dart';
-import '../ui/overlay/netspecter_overlay.dart' show registeredNavigatorKey;
-import '../ui/screens/netspecter_screen.dart';
+import '../ui/overlay/netspecter_overlay.dart'
+    show openInspectorIfNotOpen, registeredNavigatorKey;
 
 export '../storage/inspector_session.dart' show InspectorSession;
 
@@ -102,22 +102,16 @@ class NetSpecter extends ChangeNotifier {
   /// NetSpecter.showInspector();
   /// ```
   static void showInspector([BuildContext? context]) {
-    final session = InspectorSession.instance;
-    final route = MaterialPageRoute<void>(
-      builder: (_) => NetSpecterScreen(session: session),
+    assert(
+      registeredNavigatorKey != null || context != null,
+      'NetSpecter.showInspector() requires either a BuildContext or a '
+      'navigatorKey passed to NetSpecterOverlay.',
     );
-    final nav = registeredNavigatorKey?.currentState;
-    if (nav != null) {
-      nav.push(route);
-    } else if (context != null) {
-      Navigator.of(context, rootNavigator: true).push(route);
-    } else {
-      assert(
-        false,
-        'NetSpecter.showInspector() requires either a BuildContext or a '
-        'navigatorKey passed to NetSpecterOverlay.',
-      );
-    }
+    openInspectorIfNotOpen(
+      session: InspectorSession.instance,
+      nav: registeredNavigatorKey?.currentState,
+      context: context,
+    );
   }
 
   // ---------------------------------------------------------------------------

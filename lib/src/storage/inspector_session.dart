@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../core/queue/bounded_event_queue.dart';
 import '../model/body_location.dart';
 import '../model/http_call_filter.dart';
 import '../model/index_entry.dart';
@@ -25,6 +26,7 @@ class InspectorSession extends ChangeNotifier {
       : settings = settings ?? const NetSpecterSettings() {
     _memoryIndex = MemoryIndex(maxEntries: this.settings.maxEntries);
     _writerIsolate = WriterIsolate(this.settings);
+    _preInitQueue = BoundedEventQueue(maxSize: this.settings.maxQueuedEvents);
   }
 
   static InspectorSession? _instance;
@@ -36,11 +38,17 @@ class InspectorSession extends ChangeNotifier {
   final NetSpecterSettings settings;
   late final MemoryIndex _memoryIndex;
   late final WriterIsolate _writerIsolate;
+  late final BoundedEventQueue<RawCapture> _preInitQueue;
   StreamSubscription<IndexEntry>? _resultSub;
 
   Future<void>? _initFuture;
   bool _initialized = false;
   bool _enabled = true;
+  bool _clearing = false;
+
+  /// Captures sent to the isolate but not yet returned as [IndexEntry].
+  int _inFlight = 0;
+  int _droppedCount = 0;
 
   /// Pre-resolved temp file path (set during [initialize], main isolate only).
   String? _tempFilePath;
@@ -50,7 +58,7 @@ class InspectorSession extends ChangeNotifier {
   HttpCallFilter get filter => _filter;
   List<IndexEntry> get entries => _memoryIndex.filtered(_filter);
   int get totalEntries => _memoryIndex.length;
-  int get droppedCount => 0;
+  int get droppedCount => _droppedCount;
   bool get isEnabled => _enabled;
 
   // ---------------------------------------------------------------------------
@@ -73,9 +81,18 @@ class InspectorSession extends ChangeNotifier {
     await _writerIsolate.start(tempDirPath: dir.path);
     _resultSub = _writerIsolate.results.listen(_onEntryReady);
     _initialized = true;
+
+    // Flush captures buffered before the isolate was ready.
+    // Runs synchronously (no awaits) so no new record() call can interleave.
+    _droppedCount += _preInitQueue.droppedCount;
+    RawCapture? pending;
+    while ((pending = _preInitQueue.removeFirstOrNull()) != null) {
+      _sendCapture(pending!);
+    }
   }
 
   void _onEntryReady(IndexEntry entry) {
+    _inFlight--;
     _memoryIndex.add(entry);
     notifyListeners();
   }
@@ -97,10 +114,24 @@ class InspectorSession extends ChangeNotifier {
 
   /// Fire-and-forget: enqueue a [RawCapture] for background processing.
   /// Returns immediately — never blocks the interceptor.
-  /// No-op when [isEnabled] is false.
+  /// No-op when [isEnabled] is false or the queue is full.
   void record(RawCapture capture) {
     if (!_enabled) return;
-    if (!_initialized) initialize();
+    if (!_initialized) {
+      // Buffer until the isolate is ready; bounded by maxQueuedEvents.
+      _preInitQueue.add(capture);
+      initialize();
+      return;
+    }
+    _sendCapture(capture);
+  }
+
+  void _sendCapture(RawCapture capture) {
+    if (_inFlight >= settings.maxQueuedEvents) {
+      _droppedCount++;
+      return;
+    }
+    _inFlight++;
     _writerIsolate.send(capture);
   }
 
@@ -133,8 +164,10 @@ class InspectorSession extends ChangeNotifier {
     bool isTruncated = entry.isBodyTruncated;
 
     if (entry.bodyLocation == BodyLocation.memory) {
-      reqPreview = _decodeBody(entry.inlineRequestBody, entry.requestContentType);
-      resPreview = _decodeBody(entry.inlineResponseBody, entry.responseContentType);
+      reqPreview =
+          _decodeBody(entry.inlineRequestBody, entry.requestContentType);
+      resPreview =
+          _decodeBody(entry.inlineResponseBody, entry.responseContentType);
     } else {
       final offset = entry.fileOffset;
       final length = entry.fileLength;
@@ -144,7 +177,9 @@ class InspectorSession extends ChangeNotifier {
         try {
           // Static read — creates a read-only handle, never modifies the file.
           final raw = await BodyStore.readBytes(filePath, offset, length);
-          final decoded = _unpackBodies(raw);
+          final decoded = raw.length > _kComputeThreshold
+              ? await compute(_unpackBodies, raw)
+              : _unpackBodies(raw);
           reqPreview = decoded.$1;
           resPreview = decoded.$2;
           isTruncated = isTruncated || decoded.$3;
@@ -179,12 +214,23 @@ class InspectorSession extends ChangeNotifier {
   // ---------------------------------------------------------------------------
 
   Future<void> clear() async {
-    if (_tempFilePath != null) {
-      await _writerIsolate.clear(tempDirPath: _tempFilePath!);
+    if (_clearing) return;
+    _clearing = true;
+    try {
+      if (_initialized) {
+        // Wait for the isolate to finish all pending writes AND reset the file
+        // before clearing the in-memory index, so offsets never go stale.
+        await _writerIsolate.clear();
+      } else {
+        _preInitQueue.clear();
+      }
+      _droppedCount = 0;
+      _memoryIndex.clear();
+      _filter = const HttpCallFilter();
+      notifyListeners();
+    } finally {
+      _clearing = false;
     }
-    _memoryIndex.clear();
-    _filter = const HttpCallFilter();
-    notifyListeners();
   }
 
   @override
@@ -192,14 +238,20 @@ class InspectorSession extends ChangeNotifier {
     await _resultSub?.cancel();
     await _writerIsolate.dispose();
     await _memoryIndex.dispose();
+    _preInitQueue.clear();
     _initialized = false;
+    _inFlight = 0;
     _initFuture = null;
     super.dispose();
   }
 
   // ---------------------------------------------------------------------------
-  // Body decode helpers (main isolate only)
+  // Body decode helpers
   // ---------------------------------------------------------------------------
+
+  /// Bytes above this threshold are decoded in a background isolate via
+  /// [compute] to avoid blocking the main isolate for tens of milliseconds.
+  static const int _kComputeThreshold = 100 * 1024; // 100 KB
 
   static String? _decodeBody(Uint8List? bytes, String? contentType) {
     if (bytes == null || bytes.isEmpty) return null;
