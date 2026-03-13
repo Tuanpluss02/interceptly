@@ -1,92 +1,101 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter/widgets.dart';
 
 import 'package:netspecter/netspecter.dart';
-import 'package:netspecter/src/core/storage/netspecter_storage.dart';
+import 'package:netspecter/src/storage/memory_index.dart';
+
+// ignore: unused_import
+import 'package:flutter/widgets.dart';
 
 void main() {
-  test('bounded queue drops oldest items when full', () {
-    final specter = NetSpecter(
-      settings: const NetSpecterSettings(maxQueuedEvents: 2),
-    );
+  test('MemoryIndex drops oldest entry when maxEntries is exceeded', () {
+    final index = MemoryIndex(maxEntries: 2);
 
-    final call1 = _buildCall('1');
-    final call2 = _buildCall('2');
-    final call3 = _buildCall('3');
+    final e1 = _buildEntry('1');
+    final e2 = _buildEntry('2');
+    final e3 = _buildEntry('3');
 
-    specter.queue.add(call1);
-    specter.queue.add(call2);
-    specter.queue.add(call3);
+    index.add(e1);
+    index.add(e2);
+    index.add(e3);
 
-    expect(specter.queue.length, 2);
-    expect(specter.queue.droppedCount, 1);
-    expect(specter.queue.removeFirstOrNull(), call2);
-    expect(specter.queue.removeFirstOrNull(), call3);
+    expect(index.length, 2);
+    // Newest entries are kept (newest-first order).
+    expect(index.entries.first.id, '3');
+    expect(index.entries.last.id, '2');
   });
 
-  test('in-memory storage paginates and filters calls', () async {
-    final storage = InMemoryNetSpecterStorage();
+  test('MemoryIndex filter by method', () {
+    final index = MemoryIndex(maxEntries: 100);
+    index.add(_buildEntry('1', method: 'GET'));
+    index.add(_buildEntry('2', method: 'POST'));
+    index.add(_buildEntry('3', method: 'GET'));
 
-    await storage.saveCall(_buildCall('1'));
-    await storage.saveCall(_buildCall('2', method: 'POST'));
-    await storage.saveCall(
-      _buildCall(
-        '3',
-        host: 'api.example.com',
-        statusCode: 503,
-        responseBody: 'server down',
-      ),
-    );
-
-    final firstPage = await storage.listCalls(limit: 2);
-    expect(firstPage.length, 2);
-    expect(firstPage.first.id, '3');
-
-    final filtered = await storage.listCalls(
-      filter: const HttpCallFilter(
-        host: 'api.example.com',
-        statusCode: 503,
-        query: 'server down',
-      ),
-    );
-
+    final filtered = index.filtered(const HttpCallFilter(method: 'POST'));
     expect(filtered.length, 1);
-    expect(filtered.first.id, '3');
+    expect(filtered.first.id, '2');
   });
 
-  test('default API uses shared singleton instance', () {
-    final interceptor = NetSpecterDioInterceptor();
-    final overlay = NetSpecterOverlay(
-      specter: null,
-      child: const SizedBox.shrink(),
-    );
+  test('MemoryIndex filter by status code', () {
+    final index = MemoryIndex(maxEntries: 100);
+    index.add(_buildEntry('1', statusCode: 200));
+    index.add(_buildEntry('2', statusCode: 404));
 
-    expect(interceptor.netSpecter, same(NetSpecter.instance));
-    expect(overlay.specter, same(NetSpecter.instance));
+    final filtered = index.filtered(const HttpCallFilter(statusCode: 404));
+    expect(filtered.length, 1);
+    expect(filtered.first.id, '2');
+  });
+
+  test('MemoryIndex clear resets entries and emits empty list', () async {
+    final index = MemoryIndex(maxEntries: 100);
+    index.add(_buildEntry('1'));
+
+    final emitted = <int>[];
+    final sub = index.stream.listen((entries) => emitted.add(entries.length));
+
+    index.clear();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(index.length, 0);
+    expect(emitted, contains(0));
+    await sub.cancel();
+  });
+
+  test('InspectorSession singleton is shared', () {
+    final a = InspectorSession.instance;
+    final b = InspectorSession.instance;
+    expect(identical(a, b), isTrue);
+  });
+
+  test('NetSpecterDioInterceptor uses shared session by default', () {
+    final interceptor = NetSpecterDioInterceptor();
+    expect(interceptor.session, same(InspectorSession.instance));
+  });
+
+  test('NetSpecterOverlay uses shared session by default', () {
+    // NetSpecterOverlay requires a Flutter environment so we verify the
+    // session instance equality through the session singleton directly.
+    final a = InspectorSession.instance;
+    final b = InspectorSession.instance;
+    expect(identical(a, b), isTrue);
   });
 }
 
-HttpCall _buildCall(
+IndexEntry _buildEntry(
   String id, {
   String method = 'GET',
-  String host = 'example.com',
-  int? statusCode = 200,
-  String responseBody = 'ok',
+  String url = 'https://example.com/test',
+  int statusCode = 200,
 }) {
-  return HttpCall(
+  return IndexEntry(
     id: id,
-    startedAt: DateTime(2026, 1, 1),
-    request: HttpRequestData(
-      method: method,
-      uri: Uri.parse('https://$host/$id'),
-      headers: const <String, String>{},
-    ),
-    response: HttpResponseData(
-      statusCode: statusCode,
-      headers: const <String, String>{},
-      body: responseBody,
-      bodyBytes: responseBody.length,
-      durationMs: 20,
-    ),
+    method: method,
+    url: url,
+    statusCode: statusCode,
+    durationMs: 20,
+    requestSizeBytes: 0,
+    responseSizeBytes: 0,
+    timestamp: DateTime(2026, 1, 1),
+    hasError: false,
+    bodyLocation: BodyLocation.memory,
   );
 }

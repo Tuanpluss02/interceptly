@@ -1,25 +1,44 @@
 import 'package:flutter/material.dart';
 
-import '../../core/models/http_call.dart';
+import '../../model/index_entry.dart';
+import '../../model/request_record.dart';
+import '../../storage/inspector_session.dart';
+import '../widgets/body_viewer.dart';
 
-class HttpCallDetailScreen extends StatelessWidget {
+class HttpCallDetailScreen extends StatefulWidget {
   const HttpCallDetailScreen({
     super.key,
-    required this.call,
+    required this.entry,
+    required this.session,
   });
 
-  final HttpCall call;
+  final IndexEntry entry;
+  final InspectorSession session;
+
+  @override
+  State<HttpCallDetailScreen> createState() => _HttpCallDetailScreenState();
+}
+
+class _HttpCallDetailScreenState extends State<HttpCallDetailScreen> {
+  late Future<RequestRecord> _recordFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _recordFuture = widget.session.loadDetail(widget.entry);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final response = call.response;
-    final error = call.error;
+    final entry = widget.entry;
 
     return DefaultTabController(
       length: 4,
       child: Scaffold(
         appBar: AppBar(
-          title: Text('${call.request.method} ${call.request.uri.host}'),
+          title: Text(
+            '${entry.method} ${Uri.tryParse(entry.url)?.host ?? entry.url}',
+          ),
           bottom: const TabBar(
             isScrollable: true,
             tabs: <Widget>[
@@ -30,99 +49,115 @@ class HttpCallDetailScreen extends StatelessWidget {
             ],
           ),
         ),
-        body: TabBarView(
-          children: <Widget>[
-            _DetailSection(
-              children: <Widget>[
-                _DetailRow(label: 'Method', value: call.request.method),
-                _DetailRow(label: 'URL', value: call.request.uri.toString()),
-                _DetailRow(
-                  label: 'Status',
-                  value: response?.statusCode?.toString() ?? 'N/A',
-                ),
-                _DetailRow(
-                  label: 'Duration',
-                  value: response?.durationMs == null
-                      ? 'N/A'
-                      : '${response!.durationMs} ms',
-                ),
-                _DetailRow(label: 'Has error', value: call.hasError.toString()),
-              ],
-            ),
-            _DetailSection(
-              children: <Widget>[
-                _DetailRow(
-                  label: 'Headers',
-                  value: _formatMap(call.request.headers),
-                ),
-                _DetailRow(
-                  label: 'Body',
-                  value: call.request.body ?? '(empty)',
-                ),
-              ],
-            ),
-            _DetailSection(
-              children: <Widget>[
-                _DetailRow(
-                  label: 'Headers',
-                  value: _formatMap(response?.headers ?? const <String, String>{}),
-                ),
-                _DetailRow(
-                  label: 'Body',
-                  value: response?.body ?? '(empty)',
-                ),
-              ],
-            ),
-            _DetailSection(
-              children: <Widget>[
-                _DetailRow(
-                  label: 'Type',
-                  value: error?.type ?? 'No error',
-                ),
-                _DetailRow(
-                  label: 'Message',
-                  value: error?.message ?? 'No error',
-                ),
-              ],
-            ),
-          ],
+        body: FutureBuilder<RequestRecord>(
+          future: _recordFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(child: Text('Error: ${snapshot.error}'));
+            }
+            return _DetailTabView(record: snapshot.data!);
+          },
         ),
       ),
     );
   }
+}
 
-  String _formatMap(Map<String, String> value) {
-    if (value.isEmpty) {
-      return '(empty)';
-    }
-    return value.entries.map((entry) => '${entry.key}: ${entry.value}').join('\n');
+class _DetailTabView extends StatelessWidget {
+  const _DetailTabView({required this.record});
+
+  final RequestRecord record;
+
+  @override
+  Widget build(BuildContext context) {
+    return TabBarView(
+      children: <Widget>[
+        // ── Overview ──────────────────────────────────────────────────────
+        _Section(children: <Widget>[
+          _Row(label: 'Method', value: record.method),
+          _Row(label: 'URL', value: record.url),
+          _Row(
+            label: 'Status',
+            value: record.statusCode > 0 ? record.statusCode.toString() : 'N/A',
+          ),
+          _Row(label: 'Duration', value: '${record.durationMs} ms'),
+          _Row(label: 'Time', value: record.timestamp.toIso8601String()),
+          if (record.isBodyTruncated)
+            const _Row(
+              label: 'Note',
+              value: 'Body truncated — response exceeded the size limit.',
+            ),
+        ]),
+
+        // ── Request ───────────────────────────────────────────────────────
+        _Section(children: <Widget>[
+          _Row(
+            label: 'Content-Type',
+            value: record.requestContentType ?? '(none)',
+          ),
+          _Row(
+            label: 'Headers',
+            value: _formatMap(record.requestHeaders),
+          ),
+          const SizedBox(height: 4),
+          BodyViewer(
+            body: record.requestBodyPreview,
+            contentType: record.requestContentType,
+          ),
+        ]),
+
+        // ── Response ──────────────────────────────────────────────────────
+        _Section(children: <Widget>[
+          _Row(
+            label: 'Content-Type',
+            value: record.responseContentType ?? '(none)',
+          ),
+          _Row(
+            label: 'Headers',
+            value: _formatMap(record.responseHeaders),
+          ),
+          const SizedBox(height: 4),
+          BodyViewer(
+            body: record.responseBodyPreview,
+            contentType: record.responseContentType,
+          ),
+        ]),
+
+        // ── Error ─────────────────────────────────────────────────────────
+        _Section(children: <Widget>[
+          _Row(label: 'Type', value: record.errorType ?? 'No error'),
+          _Row(label: 'Message', value: record.errorMessage ?? 'No error'),
+        ]),
+      ],
+    );
+  }
+
+  static String _formatMap(Map<String, String> map) {
+    if (map.isEmpty) return '(empty)';
+    return map.entries.map((e) => '${e.key}: ${e.value}').join('\n');
   }
 }
 
-class _DetailSection extends StatelessWidget {
-  const _DetailSection({
-    required this.children,
-  });
-
+class _Section extends StatelessWidget {
+  const _Section({required this.children});
   final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
     return ListView.separated(
       padding: const EdgeInsets.all(16),
-      itemBuilder: (context, index) => children[index],
-      separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemCount: children.length,
+      itemBuilder: (_, i) => children[i],
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
     );
   }
 }
 
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({
-    required this.label,
-    required this.value,
-  });
-
+class _Row extends StatelessWidget {
+  const _Row({required this.label, required this.value});
   final String label;
   final String value;
 
@@ -131,10 +166,7 @@ class _DetailRow extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Text(
-          label,
-          style: Theme.of(context).textTheme.labelLarge,
-        ),
+        Text(label, style: Theme.of(context).textTheme.labelLarge),
         const SizedBox(height: 4),
         SelectableText(value),
       ],

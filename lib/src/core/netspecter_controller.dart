@@ -1,150 +1,142 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
-import 'models/http_call.dart';
-import 'models/http_call_filter.dart';
-import 'models/net_specter_settings.dart';
-import 'processing/payload_processor.dart';
-import 'queue/bounded_event_queue.dart';
-import 'retention/retention_policy.dart';
-import 'storage/isar/isar_netspecter_storage.dart';
-import 'storage/netspecter_storage.dart';
+import '../capture/dio/netspecter_dio_interceptor.dart';
+import '../capture/http/netspecter_http_client.dart';
+import '../model/http_call_filter.dart';
+import '../model/index_entry.dart';
+import '../model/net_specter_settings.dart';
+import '../model/raw_capture.dart';
+import '../model/request_record.dart';
+import '../storage/inspector_session.dart';
+import '../ui/overlay/netspecter_overlay.dart';
+import '../ui/screens/netspecter_screen.dart';
 
+export '../storage/inspector_session.dart' show InspectorSession;
+
+/// Thin public facade over [InspectorSession].
+///
+/// Exposes a stable API surface for users who prefer `NetSpecter.xxx` style
+/// calls. All state lives in [InspectorSession]; this class has no extra state.
 class NetSpecter extends ChangeNotifier {
-  static const int _defaultPageSize = 50;
-  static NetSpecter? _instance;
-
   NetSpecter({
-    this.settings = const NetSpecterSettings(),
-    NetSpecterStorage? storage,
-  })  : storage = storage ?? InMemoryNetSpecterStorage(),
-        retentionPolicy = RetentionPolicy.fromSettings(settings),
-        queue = BoundedEventQueue<HttpCall>(maxSize: settings.maxQueuedEvents);
+    NetSpecterSettings? settings,
+    InspectorSession? session,
+  }) : _session = session ?? InspectorSession(settings: settings) {
+    _session.addListener(notifyListeners);
+  }
 
-  final NetSpecterSettings settings;
-  final NetSpecterStorage storage;
-  final RetentionPolicy retentionPolicy;
-  final BoundedEventQueue<HttpCall> queue;
+  static NetSpecter? _sharedInstance;
 
-  Future<void>? _initializationFuture;
-  List<HttpCall> _calls = const <HttpCall>[];
-  HttpCallFilter _filter = const HttpCallFilter();
-  bool _isLoading = false;
-  bool _hasMore = true;
-  int _offset = 0;
-
-  List<HttpCall> get calls => _calls;
-  HttpCallFilter get filter => _filter;
-  bool get isLoading => _isLoading;
-  bool get hasMore => _hasMore;
-
-  int get droppedEvents => queue.droppedCount;
-
+  /// The shared singleton instance backed by [InspectorSession.instance].
   static NetSpecter get instance {
-    return _instance ??= NetSpecter.withIsar();
-  }
-
-  factory NetSpecter.withIsar({
-    NetSpecterSettings settings = const NetSpecterSettings(),
-    String? directory,
-  }) {
-    final retentionPolicy = RetentionPolicy.fromSettings(settings);
-    return NetSpecter(
-      settings: settings,
-      storage: IsarNetSpecterStorage(
-        retentionPolicy: retentionPolicy,
-        directory: directory,
-      ),
+    return _sharedInstance ??= NetSpecter(
+      session: InspectorSession.instance,
     );
   }
 
-  Future<void> initialize() async {
-    _initializationFuture ??= _performInitialization();
-    await _initializationFuture;
-  }
+  /// A [GlobalKey] compatible with GoRouter / MaterialApp.router.
+  ///
+  /// Register as `MaterialApp.navigatorKey` or `GoRouter.navigatorKey` so
+  /// the inspector can push screens onto the correct navigator.
+  static GlobalKey<NavigatorState> get navigatorKey => netSpecterNavigatorKey;
 
-  Future<void> recordCall(HttpCall call) async {
-    await initialize();
-    queue.add(call);
-    final next = queue.removeFirstOrNull();
-    if (next == null) {
-      return;
+  final InspectorSession _session;
+
+  // ---------------------------------------------------------------------------
+  // Passthrough getters
+  // ---------------------------------------------------------------------------
+
+  InspectorSession get session => _session;
+  NetSpecterSettings get settings => _session.settings;
+  List<IndexEntry> get calls => _session.entries;
+  HttpCallFilter get filter => _session.filter;
+  int get droppedEvents => _session.droppedCount;
+  bool get isEnabled => _session.isEnabled;
+
+  // ---------------------------------------------------------------------------
+  // Capture control
+  // ---------------------------------------------------------------------------
+
+  /// Enables request capture. Capture is enabled by default.
+  void enable() => _session.enable();
+
+  /// Disables request capture without removing the interceptor.
+  ///
+  /// The interceptor keeps running but all [recordCapture] calls are silently
+  /// dropped. Useful for sensitive screens (e.g. payment flows).
+  void disable() => _session.disable();
+
+  Future<void> initialize() => _session.initialize();
+
+  void recordCapture(RawCapture capture) => _session.record(capture);
+
+  Future<RequestRecord> loadDetail(IndexEntry entry) =>
+      _session.loadDetail(entry);
+
+  void applyFilter(HttpCallFilter filter) => _session.applyFilter(filter);
+
+  Future<void> clear() => _session.clear();
+
+  // ---------------------------------------------------------------------------
+  // Navigation
+  // ---------------------------------------------------------------------------
+
+  /// Opens the inspector screen.
+  ///
+  /// Prefers [navigatorKey] if registered; falls back to [context].
+  ///
+  /// ```dart
+  /// // From a button:
+  /// NetSpecter.showInspector(context);
+  ///
+  /// // From a notification handler (navigatorKey must be registered):
+  /// NetSpecter.showInspector();
+  /// ```
+  static void showInspector([BuildContext? context]) {
+    final session = InspectorSession.instance;
+    final route = MaterialPageRoute<void>(
+      builder: (_) => NetSpecterScreen(session: session),
+    );
+    final nav = netSpecterNavigatorKey.currentState;
+    if (nav != null) {
+      nav.push(route);
+    } else if (context != null) {
+      Navigator.of(context, rootNavigator: true).push(route);
+    } else {
+      assert(
+        false,
+        'NetSpecter.showInspector() requires either a BuildContext or a '
+        'registered NetSpecter.navigatorKey.',
+      );
     }
-
-    final processedCall = await PayloadProcessor.processCall(
-      next,
-      settings: settings,
-    );
-    await storage.saveCall(processedCall);
-    await refreshCalls();
   }
 
-  Future<void> refreshCalls({
-    HttpCallFilter? filter,
-  }) async {
-    await initialize();
-    _filter = filter ?? _filter;
-    _offset = 0;
-    _hasMore = true;
-    _isLoading = true;
-    notifyListeners();
+  // ---------------------------------------------------------------------------
+  // Interceptor / client factories
+  // ---------------------------------------------------------------------------
 
-    final nextPage = await storage.listCalls(
-      filter: _filter,
-      offset: _offset,
-      limit: _defaultPageSize,
-    );
+  /// A ready-to-use Dio interceptor backed by [InspectorSession.instance].
+  ///
+  /// ```dart
+  /// dio.interceptors.add(NetSpecter.dioInterceptor);
+  /// ```
+  static NetSpecterDioInterceptor get dioInterceptor =>
+      NetSpecterDioInterceptor(InspectorSession.instance);
 
-    _calls = nextPage;
-    _offset = nextPage.length;
-    _hasMore = nextPage.length == _defaultPageSize;
-    _isLoading = false;
-    notifyListeners();
-  }
+  /// Wraps an [http.Client] so all its requests are captured.
+  ///
+  /// ```dart
+  /// final client = NetSpecter.wrapHttpClient(http.Client());
+  /// ```
+  static NetSpecterHttpClient wrapHttpClient(http.Client inner) =>
+      NetSpecterHttpClient.wrap(inner, InspectorSession.instance);
 
-  Future<void> loadMore() async {
-    await initialize();
-    if (_isLoading || !_hasMore) {
-      return;
-    }
+  // ---------------------------------------------------------------------------
 
-    _isLoading = true;
-    notifyListeners();
-
-    final nextPage = await storage.listCalls(
-      filter: _filter,
-      offset: _offset,
-      limit: _defaultPageSize,
-    );
-
-    _calls = <HttpCall>[..._calls, ...nextPage];
-    _offset += nextPage.length;
-    _hasMore = nextPage.length == _defaultPageSize;
-    _isLoading = false;
-    notifyListeners();
-  }
-
-  Future<void> clear() async {
-    await initialize();
-    queue.clear();
-    await storage.clear();
-    _calls = const <HttpCall>[];
-    _offset = 0;
-    _hasMore = false;
-    notifyListeners();
-  }
-
-  Future<void> _performInitialization() async {
-    await storage.initialize();
-
-    final nextPage = await storage.listCalls(
-      filter: _filter,
-      offset: 0,
-      limit: _defaultPageSize,
-    );
-
-    _calls = nextPage;
-    _offset = nextPage.length;
-    _hasMore = nextPage.length == _defaultPageSize;
-    notifyListeners();
+  @override
+  void dispose() {
+    _session.removeListener(notifyListeners);
+    super.dispose();
   }
 }

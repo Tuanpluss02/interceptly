@@ -1,61 +1,55 @@
 Running `(cd /Users/tuanpluss02/.pub-cache/hosted/pub.dev/objective_c-9.3.0/; TMPDIR=/var/folders/pc/bd4mv3rx2m3_zhh4xxrynpxr0000gn/T/ PATH=/Users/tuanpluss02/fvm/versions/3.41.4/bin:/Users/tuanpluss02/.local/bin:/Users/tuanpluss02/.antigravity/antigravity/bin:/opt/homebrew/opt/openjdk@17/bin:/Users/tuanpluss02/fvm/default/bin:/Users/tuanpluss02/Library/Android/sdk/platform-tools:/opt/homebrew/lib/ruby/gems/3.4.0/bin:/Users/tuanpluss02/.gem/bin:/opt/homebrew/opt/ruby@3.4/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/Library/Apple/usr/bin:/Users/tuanpluss02/.local/bin:/Users/tuanpluss02/.antigravity/antigravity/bin:/opt/homebrew/opt/openjdk@17/bin:/Users/tuanpluss02/Library/pnpm:/Users/tuanpluss02/fvm/default/bin:/Users/tuanpluss02/Library/Android/sdk/platform-tools:/opt/homebrew/lib/ruby/gems/3.4.0/bin:/Users/tuanpluss02/.gem/bin:/opt/homebrew/opt/ruby@3.4/bin:/Users/tuanpluss02/.pub-cache/bin:/Users/tuanpluss02/.spicetify:/Users/tuanpluss02/.pub-cache/bin:/Users/tuanpluss02/.spicetify:/Users/tuanpluss02/.pub-cache/bin:/Users/tuanpluss02/.pub-cache/bin HOME=/Users/tuanpluss02 /Users/tuanpluss02/fvm/versions/3.41.4/bin/cache/dart-sdk/bin/dart --packages=/Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/package_config.json /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/objective_c/7ad245dadc/hook.dill --config=/Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/objective_c/7ad245dadc/input.json )`.
-INFO: 2026-03-13 20:57:59.066452: Running `/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang --version`.
+INFO: 2026-03-13 22:55:28.234714: Running `/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang --version`.
 
-INFO: 2026-03-13 20:57:59.078722: Running `/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang --version`.
+INFO: 2026-03-13 22:55:28.249581: Running `/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang --version`.
 
-INFO: 2026-03-13 20:57:59.090516: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.1.sdk -target arm64-apple-darwin -mmacos-version-min=13 -c /Users/tuanpluss02/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/include/dart_api_dl.c -fpic -I src -o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/include/dart_api_dl.c.o
+INFO: 2026-03-13 22:55:28.262641: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.1.sdk -target arm64-apple-darwin -mmacos-version-min=13 -c /Users/tuanpluss02/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/include/dart_api_dl.c -fpic -I src -o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/include/dart_api_dl.c.o
 
-INFO: 2026-03-13 20:57:59.090805: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.1.sdk -target arm64-apple-darwin -mmacos-version-min=13 -c /Users/tuanpluss02/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/objective_c.c -fpic -I src -o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.c.o
+INFO: 2026-03-13 22:55:28.262923: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.1.sdk -target arm64-apple-darwin -mmacos-version-min=13 -c /Users/tuanpluss02/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/objective_c.c -fpic -I src -o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.c.o
 
-INFO: 2026-03-13 20:57:59.090965: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.1.sdk -target arm64-apple-darwin -mmacos-version-min=13 -c /Users/tuanpluss02/.pub-cache/hosted/pub.dev/objective_c-9.3.0/test/util.c -fpic -I src -o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/test/util.c.o
+INFO: 2026-03-13 22:55:28.263043: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.1.sdk -target arm64-apple-darwin -mmacos-version-min=13 -c /Users/tuanpluss02/.pub-cache/hosted/pub.dev/objective_c-9.3.0/test/util.c -fpic -I src -o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/test/util.c.o
 
-INFO: 2026-03-13 20:57:59.091058: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.1.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/tuanpluss02/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/input_stream_adapter.m -fpic -I src -o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/input_stream_adapter.m.o
+INFO: 2026-03-13 22:55:28.263140: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.1.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/tuanpluss02/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/input_stream_adapter.m -fpic -I src -o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/input_stream_adapter.m.o
 
-INFO: 2026-03-13 20:57:59.091187: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.1.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/tuanpluss02/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/objective_c.m -fpic -I src -o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.m.o
+INFO: 2026-03-13 22:55:28.263231: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.1.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/tuanpluss02/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/objective_c.m -fpic -I src -o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.m.o
 
-INFO: 2026-03-13 20:57:59.091266: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.1.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/tuanpluss02/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/observer.m -fpic -I src -o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/observer.m.o
+INFO: 2026-03-13 22:55:28.263332: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.1.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/tuanpluss02/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/observer.m -fpic -I src -o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/observer.m.o
 
-INFO: 2026-03-13 20:57:59.091504: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.1.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/tuanpluss02/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/objective_c_bindings_generated.m -fpic -I src -o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c_bindings_generated.m.o
+INFO: 2026-03-13 22:55:28.263418: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.1.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/tuanpluss02/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/ns_number.m -fpic -I src -o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/ns_number.m.o
 
-/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.1.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/tuanpluss02/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/protocol.m -fpic -I src -o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/protocol.m.o
+INFO: 2026-03-13 22:55:28.263502: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.1.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/tuanpluss02/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/protocol.m -fpic -I src -o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/protocol.m.o
 
-INFO: 2026-03-13 20:57:59.127988: 
-INFO: 2026-03-13 20:57:59.128032: 
-INFO: 2026-03-13 20:57:59.128042: Generated /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.c.o
+INFO: 2026-03-13 22:55:28.263669: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.1.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/tuanpluss02/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/objective_c_bindings_generated.m -fpic -I src -o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c_bindings_generated.m.o
+
+INFO: 2026-03-13 22:55:28.337321: 
+INFO: 2026-03-13 22:55:28.337393: 
+INFO: 2026-03-13 22:55:28.337425: Generated /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.c.o
 
 dl.c.o
+INFO: 2026-03-13 22:55:28.337537: 
+INFO: 2026-03-13 22:55:28.337547: 
 
-INFO: 2026-03-13 20:57:59.144021: 
-INFO: 2026-03-13 20:57:59.144054: 
-INFO: 2026-03-13 20:57:59.144064: Generated /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/protocol.m.o
+INFO: 2026-03-13 22:55:28.337766: 
+INFO: 2026-03-13 22:55:28.337774: 
+INFO: 2026-03-13 22:55:28.337782: Generated /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/protocol.m.o
 
-INFO: 2026-03-13 20:57:59.144839: 
-INFO: 2026-03-13 20:57:59.144858: 
-INFO: 2026-03-13 20:57:59.144869: Generated /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/observer.m.o
+INFO: 2026-03-13 22:55:28.543519: 
+INFO: 2026-03-13 22:55:28.543593: 
+INFO: 2026-03-13 22:55:28.543605: Generated /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/ns_number.m.o
 
-INFO: 2026-03-13 20:57:59.145386: 
-INFO: 2026-03-13 20:57:59.145411: 
-INFO: 2026-03-13 20:57:59.145420: Generated /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/test/util.c.o
+INFO: 2026-03-13 22:55:28.552566: 
+INFO: 2026-03-13 22:55:28.552577: 
+INFO: 2026-03-13 22:55:28.552585: Generated /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.m.o
 
-INFO: 2026-03-13 20:57:59.320799: 
-INFO: 2026-03-13 20:57:59.320833: 
-INFO: 2026-03-13 20:57:59.320843: Generated /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/ns_number.m.o
+ter.m.o
 
-INFO: 2026-03-13 20:57:59.323379: 
-INFO: 2026-03-13 20:57:59.323407: 
-INFO: 2026-03-13 20:57:59.323416: Generated /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.m.o
+INFO: 2026-03-13 22:55:28.561383: 
+INFO: 2026-03-13 22:55:28.561411: 
+INFO: 2026-03-13 22:55:28.561420: Generated /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c_bindings_generated.m.o
 
-INFO: 2026-03-13 20:57:59.325025: 
-INFO: 2026-03-13 20:57:59.325056: 
-INFO: 2026-03-13 20:57:59.325070: Generated /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/input_stream_adapter.m.o
+INFO: 2026-03-13 22:55:28.561794: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -shared -Wl,-encryptable -undefined dynamic_lookup -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.1.sdk -target arm64-apple-darwin -mmacos-version-min=13 /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/include/dart_api_dl.c.o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.c.o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/test/util.c.o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/input_stream_adapter.m.o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.m.o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/observer.m.o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/ns_number.m.o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/protocol.m.o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c_bindings_generated.m.o -o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/objective_c.dylib
 
-INFO: 2026-03-13 20:57:59.337656: 
-INFO: 2026-03-13 20:57:59.337686: 
-INFO: 2026-03-13 20:57:59.337696: Generated /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c_bindings_generated.m.o
-
-INFO: 2026-03-13 20:57:59.337942: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -shared -Wl,-encryptable -undefined dynamic_lookup -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.1.sdk -target arm64-apple-darwin -mmacos-version-min=13 /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/include/dart_api_dl.c.o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.c.o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/test/util.c.o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/input_stream_adapter.m.o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.m.o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/observer.m.o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/ns_number.m.o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/protocol.m.o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c_bindings_generated.m.o -o /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/objective_c.dylib
-
-INFO: 2026-03-13 20:57:59.367515: 
-INFO: 2026-03-13 20:57:59.367602: 
-INFO: 2026-03-13 20:57:59.367632: Generated /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/objective_c.dylib
+INFO: 2026-03-13 22:55:28.666715: 
+INFO: 2026-03-13 22:55:28.666769: 
+INFO: 2026-03-13 22:55:28.666785: Generated /Users/tuanpluss02/Documents/StormX/NetSpecter/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/objective_c.dylib
 

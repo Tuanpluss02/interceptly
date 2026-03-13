@@ -1,9 +1,9 @@
-import '../core/models/http_call.dart';
+import '../model/request_record.dart';
 
 class HarExporter {
   const HarExporter._();
 
-  static Map<String, Object?> fromCalls(List<HttpCall> calls) {
+  static Map<String, Object?> fromRecords(List<RequestRecord> records) {
     return <String, Object?>{
       'log': <String, Object?>{
         'version': '1.2',
@@ -11,26 +11,38 @@ class HarExporter {
           'name': 'NetSpecter',
           'version': '0.0.1',
         },
-        'entries': calls
+        'entries': records
             .map(
-              (call) => <String, Object?>{
-                'startedDateTime': call.startedAt.toIso8601String(),
+              (r) => <String, Object?>{
+                'startedDateTime': r.timestamp.toIso8601String(),
+                'time': r.durationMs,
                 'request': <String, Object?>{
-                  'method': call.request.method,
-                  'url': call.request.uri.toString(),
-                  'headers': call.request.headers.entries
-                      .map(
-                        (entry) => <String, String>{
-                          'name': entry.key,
-                          'value': entry.value,
-                        },
-                      )
+                  'method': r.method,
+                  'url': r.url,
+                  'headers': r.requestHeaders.entries
+                      .map((e) => <String, String>{
+                            'name': e.key,
+                            'value': e.value,
+                          })
                       .toList(),
+                  'postData': r.requestBodyPreview == null
+                      ? null
+                      : <String, Object?>{
+                          'mimeType': r.requestContentType ?? '',
+                          'text': r.requestBodyPreview,
+                        },
                 },
                 'response': <String, Object?>{
-                  'status': call.response?.statusCode ?? 0,
+                  'status': r.statusCode,
+                  'headers': r.responseHeaders.entries
+                      .map((e) => <String, String>{
+                            'name': e.key,
+                            'value': e.value,
+                          })
+                      .toList(),
                   'content': <String, Object?>{
-                    'text': call.response?.body ?? '',
+                    'mimeType': r.responseContentType ?? '',
+                    'text': r.responseBodyPreview ?? '',
                   },
                 },
               },

@@ -3,15 +3,21 @@ import 'package:flutter/material.dart';
 import 'package:netspecter/netspecter.dart';
 
 void main() {
-  final dio = Dio()..interceptors.add(NetSpecterDioInterceptor());
+  final session = InspectorSession.instance;
+  final dio = Dio()..interceptors.add(NetSpecterDioInterceptor(session));
 
-  runApp(NetSpecterExampleApp(dio: dio));
+  runApp(NetSpecterExampleApp(dio: dio, session: session));
 }
 
 class NetSpecterExampleApp extends StatelessWidget {
-  const NetSpecterExampleApp({super.key, required this.dio});
+  const NetSpecterExampleApp({
+    super.key,
+    required this.dio,
+    required this.session,
+  });
 
   final Dio dio;
+  final InspectorSession session;
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +26,10 @@ class NetSpecterExampleApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
       ),
-      home: NetSpecterOverlay(child: ExampleHomePage(dio: dio)),
+      home: NetSpecterOverlay(
+        session: session,
+        child: ExampleHomePage(dio: dio),
+      ),
     );
   }
 }
@@ -49,49 +58,14 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
 
     try {
       final response = await action();
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _status = '$label complete: ${response.statusCode}';
-      });
+      if (!mounted) return;
+      setState(() => _status = '$label complete: ${response.statusCode}');
     } on DioException catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _status = '$label failed: ${error.message}';
-      });
+      if (!mounted) return;
+      setState(() => _status = '$label failed: ${error.message}');
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  Future<Response<dynamic>> _sendGet() {
-    return widget.dio.get<dynamic>(
-      'https://jsonplaceholder.typicode.com/posts/1',
-    );
-  }
-
-  Future<Response<dynamic>> _sendPost() {
-    return widget.dio.post<dynamic>(
-      'https://jsonplaceholder.typicode.com/posts',
-      data: <String, Object?>{
-        'title': 'NetSpecter',
-        'body': 'Smoke test payload',
-        'userId': 1,
-      },
-    );
-  }
-
-  Future<Response<dynamic>> _sendServerError() {
-    return widget.dio.get<dynamic>('https://httpstat.us/503');
   }
 
   @override
@@ -108,26 +82,44 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
             FilledButton(
               onPressed: _isLoading
                   ? null
-                  : () => _runRequest('GET request', _sendGet),
+                  : () => _runRequest(
+                        'GET',
+                        () => widget.dio.get<dynamic>(
+                          'https://jsonplaceholder.typicode.com/posts/1',
+                        ),
+                      ),
               child: const Text('Send GET'),
             ),
             const SizedBox(height: 12),
             FilledButton(
               onPressed: _isLoading
                   ? null
-                  : () => _runRequest('POST request', _sendPost),
+                  : () => _runRequest(
+                        'POST',
+                        () => widget.dio.post<dynamic>(
+                          'https://jsonplaceholder.typicode.com/posts',
+                          data: <String, Object?>{
+                            'title': 'NetSpecter',
+                            'body': 'Smoke test payload',
+                            'userId': 1,
+                          },
+                        ),
+                      ),
               child: const Text('Send POST'),
             ),
             const SizedBox(height: 12),
             OutlinedButton(
               onPressed: _isLoading
                   ? null
-                  : () => _runRequest('Error request', _sendServerError),
+                  : () => _runRequest(
+                        'Error',
+                        () => widget.dio.get<dynamic>('https://httpstat.us/503'),
+                      ),
               child: const Text('Send Error Request'),
             ),
             const SizedBox(height: 24),
             const Text(
-              'Use the floating network button to open the inspector after generating traffic.',
+              'Use the floating bug button to open the inspector after generating traffic.',
             ),
           ],
         ),

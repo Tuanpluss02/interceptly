@@ -1,41 +1,84 @@
 import 'package:flutter/material.dart';
 
-import '../../core/netspecter_controller.dart';
+import '../../storage/inspector_session.dart';
 
 class NetSpecterSettingsScreen extends StatelessWidget {
   const NetSpecterSettingsScreen({
     super.key,
-    required this.specter,
+    required this.session,
   });
 
-  final NetSpecter specter;
+  final InspectorSession session;
 
   @override
   Widget build(BuildContext context) {
-    final settings = specter.settings;
+    final settings = session.settings;
 
     return Scaffold(
       appBar: AppBar(title: const Text('NetSpecter Settings')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      body: AnimatedBuilder(
+        animation: session,
+        builder: (context, _) {
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: <Widget>[
+              _SettingRow(
+                label: 'Body offload threshold',
+                value: '${settings.bodyOffloadThreshold} bytes',
+              ),
+              _SettingRow(
+                label: 'Preview truncation',
+                value: '${settings.previewTruncationBytes} bytes',
+              ),
+              _SettingRow(
+                label: 'Max body storage',
+                value: '${settings.maxBodyBytes} bytes',
+              ),
+              _SettingRow(
+                label: 'Max queued captures',
+                value: '${settings.maxQueuedEvents}',
+              ),
+              _SettingRow(
+                label: 'Max entries in memory',
+                value: '${settings.maxEntries}',
+              ),
+              const Divider(height: 32),
+              _SettingRow(
+                label: 'Captured entries',
+                value: '${session.totalEntries}',
+              ),
+              _SettingRow(
+                label: 'Dropped captures',
+                value: '${session.droppedCount}',
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SettingRow extends StatelessWidget {
+  const _SettingRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: <Widget>[
-          Text('Retention days: ${settings.retentionDays}'),
-          const SizedBox(height: 12),
-          Text('Max storage: ${settings.maxStorageBytes} bytes'),
-          const SizedBox(height: 12),
-          Text('Isolate threshold: ${settings.isolateThresholdBytes} bytes'),
-          const SizedBox(height: 12),
+          Text(label, style: Theme.of(context).textTheme.bodyMedium),
           Text(
-            'Preview truncation: ${settings.previewTruncationBytes} bytes',
+            value,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
           ),
-          const SizedBox(height: 12),
-          Text('Max body storage: ${settings.maxBodyBytes} bytes'),
-          const SizedBox(height: 12),
-          Text('Max queued events: ${settings.maxQueuedEvents}'),
-          const SizedBox(height: 12),
-          Text('Dropped events: ${specter.droppedEvents}'),
-          const SizedBox(height: 12),
-          Text('Captured calls in memory: ${specter.calls.length}'),
         ],
       ),
     );

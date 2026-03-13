@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../core/models/http_call.dart';
-import '../../core/models/http_call_filter.dart';
-import '../../core/netspecter_controller.dart';
+import '../../model/http_call_filter.dart';
+import '../../model/index_entry.dart';
+import '../../storage/inspector_session.dart';
 import '../widgets/http_call_tile.dart';
 import 'http_call_detail_screen.dart';
 import 'netspecter_settings_screen.dart';
@@ -10,10 +10,10 @@ import 'netspecter_settings_screen.dart';
 class NetSpecterScreen extends StatefulWidget {
   const NetSpecterScreen({
     super.key,
-    required this.specter,
+    required this.session,
   });
 
-  final NetSpecter specter;
+  final InspectorSession session;
 
   @override
   State<NetSpecterScreen> createState() => _NetSpecterScreenState();
@@ -22,43 +22,22 @@ class NetSpecterScreen extends StatefulWidget {
 class _NetSpecterScreenState extends State<NetSpecterScreen> {
   final TextEditingController _hostController = TextEditingController();
   final TextEditingController _queryController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
 
   String? _selectedMethod;
   String? _selectedStatus;
 
-  NetSpecter get specter => widget.specter;
-
-  @override
-  void initState() {
-    super.initState();
-    _scrollController.addListener(_onScroll);
-  }
+  InspectorSession get session => widget.session;
 
   @override
   void dispose() {
     _hostController.dispose();
     _queryController.dispose();
-    _scrollController
-      ..removeListener(_onScroll)
-      ..dispose();
     super.dispose();
   }
 
-  void _onScroll() {
-    if (!_scrollController.hasClients) {
-      return;
-    }
-
-    final threshold = _scrollController.position.maxScrollExtent - 240;
-    if (_scrollController.position.pixels >= threshold) {
-      specter.loadMore();
-    }
-  }
-
-  Future<void> _applyFilters() {
-    return specter.refreshCalls(
-      filter: HttpCallFilter(
+  void _applyFilters() {
+    session.applyFilter(
+      HttpCallFilter(
         method: _selectedMethod,
         statusCode: _selectedStatus == null ? null : int.tryParse(_selectedStatus!),
         host: _hostController.text.trim().isEmpty ? null : _hostController.text.trim(),
@@ -67,123 +46,92 @@ class _NetSpecterScreenState extends State<NetSpecterScreen> {
     );
   }
 
-  Future<void> _clearFilters() async {
+  void _clearFilters() {
     _hostController.clear();
     _queryController.clear();
     setState(() {
       _selectedMethod = null;
       _selectedStatus = null;
     });
-    await specter.refreshCalls(filter: const HttpCallFilter());
+    session.clearFilter();
+  }
+
+  void _openSettings() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => NetSpecterSettingsScreen(session: session),
+      ),
+    );
+  }
+
+  Future<void> _clearAll() async {
+    await session.clear();
+    if (mounted) _clearFilters();
+  }
+
+  void _openEntry(BuildContext context, IndexEntry entry) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => HttpCallDetailScreen(entry: entry, session: session),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: widget.specter,
-      builder: (context, _) {
-        final calls = specter.calls;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('NetSpecter'),
+        actions: <Widget>[
+          IconButton(
+            onPressed: _openSettings,
+            icon: const Icon(Icons.settings_outlined),
+          ),
+          IconButton(
+            onPressed: _clearAll,
+            icon: const Icon(Icons.delete_outline),
+          ),
+        ],
+      ),
+      body: Column(
+        children: <Widget>[
+          _FilterBar(
+            hostController: _hostController,
+            queryController: _queryController,
+            selectedMethod: _selectedMethod,
+            selectedStatus: _selectedStatus,
+            onMethodChanged: (v) => setState(() => _selectedMethod = v),
+            onStatusChanged: (v) => setState(() => _selectedStatus = v),
+            onApply: _applyFilters,
+            onClear: _clearFilters,
+          ),
+          Expanded(
+            child: AnimatedBuilder(
+              animation: session,
+              builder: (context, _) {
+                final entries = session.entries;
 
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('NetSpecter'),
-            actions: <Widget>[
-              IconButton(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => NetSpecterSettingsScreen(
-                        specter: specter,
-                      ),
-                    ),
+                if (entries.isEmpty) {
+                  return const Center(
+                    child: Text('No captured requests yet.'),
                   );
-                },
-                icon: const Icon(Icons.settings_outlined),
-              ),
-              IconButton(
-                onPressed: () async {
-                  await specter.clear();
-                  if (mounted) {
-                    await _clearFilters();
-                  }
-                },
-                icon: const Icon(Icons.delete_outline),
-              ),
-            ],
+                }
+
+                return ListView.builder(
+                  itemCount: entries.length,
+                  itemBuilder: (context, index) {
+                    final entry = entries[index];
+                    return HttpCallTile(
+                      key: ValueKey(entry.id),
+                      entry: entry,
+                      onTap: () => _openEntry(context, entry),
+                    );
+                  },
+                );
+              },
+            ),
           ),
-          body: Column(
-            children: <Widget>[
-              _FilterBar(
-                hostController: _hostController,
-                queryController: _queryController,
-                selectedMethod: _selectedMethod,
-                selectedStatus: _selectedStatus,
-                onMethodChanged: (value) {
-                  setState(() {
-                    _selectedMethod = value;
-                  });
-                },
-                onStatusChanged: (value) {
-                  setState(() {
-                    _selectedStatus = value;
-                  });
-                },
-                onApply: _applyFilters,
-                onClear: _clearFilters,
-              ),
-              Expanded(
-                child: calls.isEmpty && !specter.isLoading
-                    ? const Center(
-                        child: Text('No captured requests yet.'),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: () => specter.refreshCalls(),
-                        child: ListView.builder(
-                          controller: _scrollController,
-                          itemCount: calls.length + 1,
-                          itemBuilder: (context, index) {
-                            if (index >= calls.length) {
-                              if (specter.isLoading) {
-                                return const Padding(
-                                  padding: EdgeInsets.all(16),
-                                  child: Center(
-                                    child: CircularProgressIndicator(),
-                                  ),
-                                );
-                              }
-
-                              if (!specter.hasMore) {
-                                return const Padding(
-                                  padding: EdgeInsets.all(16),
-                                  child: Center(
-                                    child: Text('End of captured requests.'),
-                                  ),
-                                );
-                              }
-
-                              return const SizedBox.shrink();
-                            }
-
-                            final call = calls[index];
-                            return HttpCallTile(
-                              call: call,
-                              onTap: () => _openCall(context, call),
-                            );
-                          },
-                        ),
-                      ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  void _openCall(BuildContext context, HttpCall call) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => HttpCallDetailScreen(call: call),
+        ],
       ),
     );
   }
@@ -207,8 +155,8 @@ class _FilterBar extends StatelessWidget {
   final String? selectedStatus;
   final ValueChanged<String?> onMethodChanged;
   final ValueChanged<String?> onStatusChanged;
-  final Future<void> Function() onApply;
-  final Future<void> Function() onClear;
+  final VoidCallback onApply;
+  final VoidCallback onClear;
 
   @override
   Widget build(BuildContext context) {
@@ -247,11 +195,11 @@ class _FilterBar extends StatelessWidget {
                       border: OutlineInputBorder(),
                     ),
                     items: const <DropdownMenuItem<String>>[
-                      DropdownMenuItem<String>(value: 'GET', child: Text('GET')),
-                      DropdownMenuItem<String>(value: 'POST', child: Text('POST')),
-                      DropdownMenuItem<String>(value: 'PUT', child: Text('PUT')),
-                      DropdownMenuItem<String>(value: 'PATCH', child: Text('PATCH')),
-                      DropdownMenuItem<String>(value: 'DELETE', child: Text('DELETE')),
+                      DropdownMenuItem(value: 'GET', child: Text('GET')),
+                      DropdownMenuItem(value: 'POST', child: Text('POST')),
+                      DropdownMenuItem(value: 'PUT', child: Text('PUT')),
+                      DropdownMenuItem(value: 'PATCH', child: Text('PATCH')),
+                      DropdownMenuItem(value: 'DELETE', child: Text('DELETE')),
                     ],
                     onChanged: onMethodChanged,
                   ),
@@ -266,13 +214,13 @@ class _FilterBar extends StatelessWidget {
                       border: OutlineInputBorder(),
                     ),
                     items: const <DropdownMenuItem<String>>[
-                      DropdownMenuItem<String>(value: '200', child: Text('200')),
-                      DropdownMenuItem<String>(value: '201', child: Text('201')),
-                      DropdownMenuItem<String>(value: '400', child: Text('400')),
-                      DropdownMenuItem<String>(value: '401', child: Text('401')),
-                      DropdownMenuItem<String>(value: '404', child: Text('404')),
-                      DropdownMenuItem<String>(value: '500', child: Text('500')),
-                      DropdownMenuItem<String>(value: '503', child: Text('503')),
+                      DropdownMenuItem(value: '200', child: Text('200')),
+                      DropdownMenuItem(value: '201', child: Text('201')),
+                      DropdownMenuItem(value: '400', child: Text('400')),
+                      DropdownMenuItem(value: '401', child: Text('401')),
+                      DropdownMenuItem(value: '404', child: Text('404')),
+                      DropdownMenuItem(value: '500', child: Text('500')),
+                      DropdownMenuItem(value: '503', child: Text('503')),
                     ],
                     onChanged: onStatusChanged,
                   ),
