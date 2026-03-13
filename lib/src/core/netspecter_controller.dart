@@ -9,7 +9,7 @@ import '../model/net_specter_settings.dart';
 import '../model/raw_capture.dart';
 import '../model/request_record.dart';
 import '../storage/inspector_session.dart';
-import '../ui/overlay/netspecter_overlay.dart';
+import '../ui/overlay/netspecter_overlay.dart' show registeredNavigatorKey;
 import '../ui/screens/netspecter_screen.dart';
 
 export '../storage/inspector_session.dart' show InspectorSession;
@@ -35,11 +35,6 @@ class NetSpecter extends ChangeNotifier {
     );
   }
 
-  /// A [GlobalKey] compatible with GoRouter / MaterialApp.router.
-  ///
-  /// Register as `MaterialApp.navigatorKey` or `GoRouter.navigatorKey` so
-  /// the inspector can push screens onto the correct navigator.
-  static GlobalKey<NavigatorState> get navigatorKey => netSpecterNavigatorKey;
 
   final InspectorSession _session;
 
@@ -93,12 +88,25 @@ class NetSpecter extends ChangeNotifier {
   /// // From a notification handler (navigatorKey must be registered):
   /// NetSpecter.showInspector();
   /// ```
+  /// Opens the inspector screen.
+  ///
+  /// Uses the navigator key registered via [NetSpecterOverlay.navigatorKey]
+  /// if available, otherwise falls back to [context].
+  ///
+  /// ```dart
+  /// // From a button (context always available):
+  /// NetSpecter.showInspector(context);
+  ///
+  /// // From a notification handler (navigatorKey must have been passed to
+  /// // NetSpecterOverlay first):
+  /// NetSpecter.showInspector();
+  /// ```
   static void showInspector([BuildContext? context]) {
     final session = InspectorSession.instance;
     final route = MaterialPageRoute<void>(
       builder: (_) => NetSpecterScreen(session: session),
     );
-    final nav = netSpecterNavigatorKey.currentState;
+    final nav = registeredNavigatorKey?.currentState;
     if (nav != null) {
       nav.push(route);
     } else if (context != null) {
@@ -107,7 +115,7 @@ class NetSpecter extends ChangeNotifier {
       assert(
         false,
         'NetSpecter.showInspector() requires either a BuildContext or a '
-        'registered NetSpecter.navigatorKey.',
+        'navigatorKey passed to NetSpecterOverlay.',
       );
     }
   }

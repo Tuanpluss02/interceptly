@@ -25,8 +25,7 @@ export 'src/export/curl_generator.dart';
 export 'src/export/har_exporter.dart';
 
 // UI
-export 'src/ui/overlay/netspecter_overlay.dart'
-    show NetSpecterOverlay, netSpecterNavigatorKey;
+export 'src/ui/overlay/netspecter_overlay.dart' show NetSpecterOverlay;
 export 'src/ui/screens/http_call_detail_screen.dart';
 export 'src/ui/screens/netspecter_screen.dart';
 export 'src/ui/screens/netspecter_settings_screen.dart';

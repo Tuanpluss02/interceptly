@@ -14,6 +14,7 @@ class NetSpecterOverlay extends StatefulWidget {
     super.key,
     InspectorSession? session,
     NetSpecterConfig? config,
+    this.navigatorKey,
     this.customTrigger,
     required this.child,
   })  : session = session ?? InspectorSession.instance,
@@ -22,22 +23,33 @@ class NetSpecterOverlay extends StatefulWidget {
   final InspectorSession session;
   final NetSpecterConfig config;
 
-  /// An arbitrary stream whose events open the inspector.
+  /// The app's existing [GlobalKey<NavigatorState>].
   ///
-  /// Use this to wire any external trigger — local notifications, remote
-  /// config flags, custom gestures — without modifying the overlay widget.
+  /// Pass the **same key** you registered on `MaterialApp` or `GoRouter`.
+  /// The overlay stores it internally so that [NetSpecter.showInspector()]
+  /// can push the inspector screen without a [BuildContext].
   ///
   /// ```dart
-  /// final _triggerController = StreamController<void>.broadcast();
+  /// // Your app already owns this key:
+  /// final navigatorKey = GlobalKey<NavigatorState>();
   ///
-  /// // Wire to a local notification tap:
-  /// onNotificationTap: (_) => _triggerController.add(null),
+  /// GoRouter(navigatorKey: navigatorKey, ...)
   ///
   /// NetSpecterOverlay(
-  ///   customTrigger: _triggerController.stream,
+  ///   navigatorKey: navigatorKey, // ← pass it here
   ///   child: ...,
   /// )
   /// ```
+  ///
+  /// If omitted, every navigation falls back to
+  /// `Navigator.of(context, rootNavigator: true)` — which works fine for
+  /// plain `MaterialApp` setups without a custom router.
+  final GlobalKey<NavigatorState>? navigatorKey;
+
+  /// An arbitrary stream whose events open the inspector.
+  ///
+  /// Use this to wire any external trigger — local notification taps,
+  /// remote config flags, custom gestures — without modifying the overlay.
   final Stream<void>? customTrigger;
 
   final Widget child;
@@ -53,12 +65,20 @@ class _NetSpecterOverlayState extends State<NetSpecterOverlay> {
   void initState() {
     super.initState();
     widget.session.initialize();
+    // Store the developer's key so showInspector() can use it without context.
+    if (widget.navigatorKey != null) {
+      _registeredNavigatorKey = widget.navigatorKey;
+    }
     _subscribeCustomTrigger();
   }
 
   @override
   void didUpdateWidget(NetSpecterOverlay oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.navigatorKey != widget.navigatorKey &&
+        widget.navigatorKey != null) {
+      _registeredNavigatorKey = widget.navigatorKey;
+    }
     if (oldWidget.customTrigger != widget.customTrigger) {
       _customTriggerSub?.cancel();
       _subscribeCustomTrigger();
@@ -81,7 +101,7 @@ class _NetSpecterOverlayState extends State<NetSpecterOverlay> {
     final route = MaterialPageRoute<void>(
       builder: (_) => NetSpecterScreen(session: widget.session),
     );
-    final nav = netSpecterNavigatorKey.currentState;
+    final nav = _registeredNavigatorKey?.currentState;
     if (nav != null) {
       nav.push(route);
     } else {
@@ -98,7 +118,6 @@ class _NetSpecterOverlayState extends State<NetSpecterOverlay> {
 
     Widget content = widget.child;
 
-    // Long-press trigger: wraps child in a transparent GestureDetector.
     if (triggers.contains(InspectorTrigger.longPress)) {
       content = GestureDetector(
         behavior: HitTestBehavior.translucent,
@@ -107,7 +126,6 @@ class _NetSpecterOverlayState extends State<NetSpecterOverlay> {
       );
     }
 
-    // Shake trigger: wraps in the accelerometer listener widget.
     if (triggers.contains(InspectorTrigger.shake)) {
       content = ShakeDetector(
         threshold: widget.config.shakeThreshold,
@@ -117,7 +135,6 @@ class _NetSpecterOverlayState extends State<NetSpecterOverlay> {
       );
     }
 
-    // Floating button trigger: overlay the DraggableFab on top.
     if (triggers.contains(InspectorTrigger.floatingButton)) {
       final fabChild = widget.config.fabChild ??
           const Icon(Icons.bug_report, size: 20, color: Colors.white);
@@ -157,10 +174,11 @@ class _NetSpecterOverlayState extends State<NetSpecterOverlay> {
   }
 }
 
-/// A [GlobalKey] that can be registered as `MaterialApp.navigatorKey`.
+/// The developer's navigator key, stored when [NetSpecterOverlay] is built.
 ///
-/// When registered, [NetSpecterOverlay] uses this key to push inspector
-/// screens, enabling correct navigation with GoRouter.
-final GlobalKey<NavigatorState> _kNavigatorKey = GlobalKey<NavigatorState>();
+/// Used by [NetSpecter.showInspector()] to navigate without a [BuildContext].
+/// Null until the developer passes a key via [NetSpecterOverlay.navigatorKey].
+GlobalKey<NavigatorState>? _registeredNavigatorKey;
 
-GlobalKey<NavigatorState> get netSpecterNavigatorKey => _kNavigatorKey;
+/// Read-only access for [NetSpecter.showInspector].
+GlobalKey<NavigatorState>? get registeredNavigatorKey => _registeredNavigatorKey;

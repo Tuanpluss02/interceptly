@@ -144,14 +144,17 @@ The interceptor keeps running; data is silently dropped while disabled.
 
 ## `MaterialApp.router` / GoRouter
 
-Register `NetSpecter.navigatorKey` so the inspector can push screens onto the correct navigator:
+Your app **already owns** a `GlobalKey<NavigatorState>`. Pass it into `NetSpecterOverlay` — the package uses it for navigation without asking you to change anything else.
 
 ```dart
 import 'package:go_router/go_router.dart';
 import 'package:netspecter/netspecter.dart';
 
+// 1. Your app owns and controls this key (as always):
+final _navigatorKey = GlobalKey<NavigatorState>();
+
 final _router = GoRouter(
-  navigatorKey: NetSpecter.navigatorKey, // ← register here
+  navigatorKey: _navigatorKey, // ← your key, your router
   routes: [ /* ... */ ],
 );
 
@@ -161,14 +164,17 @@ class MyApp extends StatelessWidget {
     return MaterialApp.router(
       routerConfig: _router,
       builder: (context, child) {
-        return NetSpecterOverlay(child: child ?? const SizedBox());
+        return NetSpecterOverlay(
+          navigatorKey: _navigatorKey, // ← pass your key here
+          child: child ?? const SizedBox(),
+        );
       },
     );
   }
 }
 ```
 
-Once `navigatorKey` is registered, `NetSpecter.showInspector()` works without a `BuildContext`.
+Once the key is passed, `NetSpecter.showInspector()` works without a `BuildContext`.
 
 ---
 
@@ -230,11 +236,11 @@ void main() {
 
 ## Integration matrix
 
-| Setup | Placement | `navigatorKey` needed? |
+| Setup | Placement | Pass `navigatorKey` to overlay? |
 |---|---|---|
-| `MaterialApp` | `home:` or anywhere inside | No |
-| `MaterialApp.router` + GoRouter | `builder:` callback | Yes — set on `GoRouter` |
-| `MaterialApp` + existing key | inside `MaterialApp` | Replace with `NetSpecter.navigatorKey` |
+| `MaterialApp` (plain) | `home:` or inside `builder:` | Not required — falls back to context |
+| `MaterialApp.router` + GoRouter | `builder:` callback | **Yes** — pass your existing GoRouter key |
+| `MaterialApp` with custom key | inside `MaterialApp` | **Yes** — pass your existing key |
 
 ---
 
