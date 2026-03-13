@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:netspecter/src/ui/netspecter_theme.dart';
 import 'package:netspecter/src/ui/detail/request_detail_overlay.dart';
+import '../../storage/inspector_session.dart';
 
 class NetworkTab extends StatelessWidget {
-  const NetworkTab({super.key});
+  const NetworkTab({super.key, required this.session});
+
+  final InspectorSession session;
 
   @override
   Widget build(BuildContext context) {
@@ -39,35 +42,59 @@ class NetworkTab extends StatelessWidget {
           
           // Request List
           Expanded(
-            child: ListView.separated(
-              itemCount: _mockRequests.length,
-              separatorBuilder: (context, index) => Divider(
-                height: 1,
-                color: Colors.white.withValues(alpha: 0.05),
-              ),
-              itemBuilder: (context, index) {
-                final req = _mockRequests[index];
-                return _RequestLogItem(
-                  method: req['method'] as String,
-                  path: req['path'] as String,
-                  time: req['time'] as String,
-                  duration: req['duration'] as String,
-                  status: req['status'] as int,
-                  onTap: () {
-                    // Open Detail Overlay with slide up transition
-                    Navigator.of(context).push(PageRouteBuilder(
-                      pageBuilder: (context, animation, secondaryAnimation) => RequestDetailOverlay(request: req),
-                      transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                        const begin = Offset(0.0, 1.0);
-                        const end = Offset.zero;
-                        const curve = Curves.easeOutCubic;
-                        var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-                        return SlideTransition(
-                          position: animation.drive(tween),
-                          child: child,
-                        );
+            child: AnimatedBuilder(
+              animation: session,
+              builder: (context, _) {
+                final entries = session.entries;
+                
+                if (entries.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'No network requests yet.',
+                      style: TextStyle(color: NetSpecterTheme.textMuted),
+                    ),
+                  );
+                }
+
+                return ListView.separated(
+                  itemCount: entries.length,
+                  separatorBuilder: (context, index) => Divider(
+                    height: 1,
+                    color: Colors.white.withValues(alpha: 0.05),
+                  ),
+                  itemBuilder: (context, index) {
+                    final req = entries[index];
+                    
+                    // Format time
+                    final time = '${req.timestamp.hour.toString().padLeft(2, '0')}:${req.timestamp.minute.toString().padLeft(2, '0')}:${req.timestamp.second.toString().padLeft(2, '0')}';
+                    final path = Uri.tryParse(req.url)?.path ?? req.url;
+
+                    return _RequestLogItem(
+                      method: req.method,
+                      path: path,
+                      time: time,
+                      duration: '${req.durationMs}ms',
+                      status: req.statusCode,
+                      onTap: () {
+                        // Open Detail Overlay with slide up transition
+                        Navigator.of(context).push(PageRouteBuilder(
+                          pageBuilder: (context, animation, secondaryAnimation) => RequestDetailOverlay(
+                            entry: req,
+                            session: session,
+                          ),
+                          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                            const begin = Offset(0.0, 1.0);
+                            const end = Offset.zero;
+                            const curve = Curves.easeOutCubic;
+                            var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+                            return SlideTransition(
+                              position: animation.drive(tween),
+                              child: child,
+                            );
+                          },
+                        ));
                       },
-                    ));
+                    );
                   },
                 );
               },
@@ -181,26 +208,4 @@ class _RequestLogItem extends StatelessWidget {
   }
 }
 
-// Mock Data matching ui.html
-const _mockRequests = [
-  {
-    'id': 1, 'method': 'GET', 'path': '/api/v1/users/profile',
-    'status': 200, 'time': '14:05:22', 'duration': '120ms',
-  },
-  {
-    'id': 2, 'method': 'POST', 'path': '/api/v1/auth/login',
-    'status': 201, 'time': '14:04:10', 'duration': '350ms',
-  },
-  {
-    'id': 3, 'method': 'GET', 'path': '/api/v1/products?limit=10',
-    'status': 404, 'time': '14:00:15', 'duration': '85ms',
-  },
-  {
-    'id': 4, 'method': 'DELETE', 'path': '/api/v1/cart/items/12',
-    'status': 500, 'time': '13:55:02', 'duration': '1200ms',
-  },
-  {
-    'id': 5, 'method': 'WS', 'path': 'wss://chat.server.com/socket',
-    'status': 101, 'time': '13:50:00', 'duration': 'Active',
-  }
-];
+

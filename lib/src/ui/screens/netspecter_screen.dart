@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:netspecter/src/ui/netspecter_theme.dart';
+import 'package:netspecter/src/ui/settings/settings_bottom_sheet.dart';
+import 'package:netspecter/src/ui/tabs/network_tab.dart';
+import 'package:netspecter/src/ui/tabs/logs_tab.dart';
+import 'package:netspecter/src/ui/widgets/toast_notification.dart';
 
-import '../../model/index_entry.dart';
 import '../../storage/inspector_session.dart';
-import '../widgets/http_call_tile.dart';
-import 'http_call_detail_screen.dart';
-import 'netspecter_settings_screen.dart';
 
 class NetSpecterScreen extends StatefulWidget {
   const NetSpecterScreen({
@@ -19,164 +20,140 @@ class NetSpecterScreen extends StatefulWidget {
 }
 
 class _NetSpecterScreenState extends State<NetSpecterScreen> {
-  final TextEditingController _searchController = TextEditingController();
+  int _currentIndex = 0;
+  final PageController _pageController = PageController();
 
-  InspectorSession get session => widget.session;
+  void _onTabTapped(int index) {
+    setState(() {
+      _currentIndex = index;
+    });
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _showSettings() {
+    SettingsBottomSheet.show(context);
+  }
+
+  void _clearLogs() {
+    widget.session.clear();
+    ToastNotification.show(context, 'Cleared all logs!');
+  }
 
   @override
   void dispose() {
-    _searchController.dispose();
+    _pageController.dispose();
     super.dispose();
-  }
-
-  void _openSettings() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => NetSpecterSettingsScreen(session: session),
-      ),
-    );
-  }
-
-  Future<void> _clearAll() async {
-    await session.clear();
-    if (mounted) {
-      _searchController.clear();
-    }
-  }
-
-  void _onSearchSubmitted(String value) {
-    session.startMasterSearch(value);
-  }
-
-  void _onClearSearch() {
-    _searchController.clear();
-    session.cancelMasterSearch();
-  }
-
-  void _openEntry(BuildContext context, IndexEntry entry) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => HttpCallDetailScreen(entry: entry, session: session),
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('NetSpecter'),
-        actions: <Widget>[
-          IconButton(
-            onPressed: _openSettings,
-            icon: const Icon(Icons.settings_outlined),
-          ),
-          IconButton(
-            onPressed: _clearAll,
-            icon: const Icon(Icons.delete_outline),
-          ),
-        ],
-      ),
-      body: Column(
-        children: <Widget>[
-          _SearchBar(
-            controller: _searchController,
-            session: session,
-            onSubmitted: _onSearchSubmitted,
-            onClear: _onClearSearch,
-          ),
-          Expanded(
-            child: AnimatedBuilder(
-              animation: session,
-              builder: (context, _) {
-                final entries = session.entries;
-
-                if (entries.isEmpty) {
-                  return const Center(
-                    child: Text('No captured requests yet.'),
-                  );
-                }
-
-                return ListView.builder(
-                  itemCount: entries.length,
-                  itemBuilder: (context, index) {
-                    final entry = entries[index];
-                    return HttpCallTile(
-                      key: ValueKey(entry.id),
-                      entry: entry,
-                      onTap: () => _openEntry(context, entry),
-                    );
-                  },
-                );
-              },
+    return Theme(
+      data: NetSpecterTheme.darkTheme,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('NetSpecter'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              onPressed: _clearLogs,
+              tooltip: 'Clear logs',
+            ),
+            IconButton(
+              icon: const Icon(Icons.settings_outlined),
+              onPressed: _showSettings,
+              tooltip: 'Settings',
+            ),
+          ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(1.0),
+            child: Container(
+              color: Colors.white.withValues(alpha: 0.05),
+              height: 1.0,
             ),
           ),
-        ],
+        ),
+        body: PageView(
+          controller: _pageController,
+          onPageChanged: (index) {
+            setState(() {
+              _currentIndex = index;
+            });
+          },
+          children: [
+            NetworkTab(session: widget.session),
+            const LogsTab(),
+          ],
+        ),
+        bottomNavigationBar: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(height: 1, color: Colors.white.withValues(alpha: 0.05)),
+            BottomNavigationBar(
+              currentIndex: _currentIndex,
+              onTap: _onTabTapped,
+              items: [
+                BottomNavigationBarItem(
+                  icon: _CustomNavIcon(
+                    icon: Icons.power_outlined,
+                    isActive: _currentIndex == 0,
+                  ),
+                  label: 'Network',
+                ),
+                BottomNavigationBarItem(
+                  icon: _CustomNavIcon(
+                    icon: Icons.terminal_outlined,
+                    isActive: _currentIndex == 1,
+                  ),
+                  label: 'App Logs',
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _SearchBar extends StatelessWidget {
-  const _SearchBar({
-    required this.controller,
-    required this.session,
-    required this.onSubmitted,
-    required this.onClear,
-  });
+class _CustomNavIcon extends StatelessWidget {
+  final IconData icon;
+  final bool isActive;
 
-  final TextEditingController controller;
-  final InspectorSession session;
-  final ValueChanged<String> onSubmitted;
-  final VoidCallback onClear;
+  const _CustomNavIcon({
+    required this.icon,
+    required this.isActive,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Theme.of(context).colorScheme.surfaceContainerLowest,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            TextField(
-              controller: controller,
-              onSubmitted: onSubmitted,
-              decoration: InputDecoration(
-                labelText: 'Search URL, headers, body, response…',
-                isDense: true,
-                border: const OutlineInputBorder(),
-                suffixIcon: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    if (session.isScanningBodies || session.isScanningFiles)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 8),
-                        child: SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      ),
-                    IconButton(
-                      icon: const Icon(Icons.clear),
-                      tooltip: 'Clear search',
-                      onPressed: onClear,
-                    ),
-                  ],
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.center,
+      children: [
+        if (isActive)
+          Positioned(
+            top: -12, // Align with the top edge of BottomNavigationBar
+            child: Container(
+              width: 32,
+              height: 3,
+              decoration: const BoxDecoration(
+                color: NetSpecterTheme.indigo500,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(4),
+                  bottomRight: Radius.circular(4),
                 ),
               ),
             ),
-            const SizedBox(height: 4),
-            if (session.masterQuery != null)
-              Text(
-                'Searching for: "${session.masterQuery}"'
-                '${session.isScanningFiles ? ' (including large bodies...)' : ''}',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-          ],
+          ),
+        Padding(
+          padding: const EdgeInsets.only(top: 4.0, bottom: 4.0),
+          child: Icon(icon),
         ),
-      ),
+      ],
     );
   }
 }

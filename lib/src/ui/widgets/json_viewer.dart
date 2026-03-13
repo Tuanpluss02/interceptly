@@ -2,8 +2,13 @@ import 'package:flutter/material.dart';
 
 class JsonViewer extends StatefulWidget {
   final dynamic data;
+  final String? searchQuery;
 
-  const JsonViewer({super.key, required this.data});
+  const JsonViewer({
+    super.key,
+    required this.data,
+    this.searchQuery,
+  });
 
   @override
   State<JsonViewer> createState() => _JsonViewerState();
@@ -42,6 +47,7 @@ class _JsonViewerState extends State<JsonViewer> {
           value: widget.data,
           isLast: true,
           root: true,
+          searchQuery: widget.searchQuery,
         ),
       ),
     );
@@ -53,12 +59,14 @@ class _JsonNode extends StatefulWidget {
   final dynamic value;
   final bool isLast;
   final bool root;
+  final String? searchQuery;
 
   const _JsonNode({
     this.nodeKey,
     required this.value,
     this.isLast = false,
     this.root = false,
+    this.searchQuery,
   });
 
   @override
@@ -103,7 +111,59 @@ class _JsonNodeState extends State<_JsonNode> {
       return _buildLine(keyHtml, TextSpan(text: widget.value.toString(), style: const TextStyle(color: _JsonViewerState._numberColor)), comma);
     }
     if (widget.value is String) {
-      return _buildLine(keyHtml, TextSpan(text: '"${widget.value}"', style: const TextStyle(color: _JsonViewerState._stringColor)), comma);
+      final text = widget.value as String;
+      final query = widget.searchQuery?.toLowerCase().trim();
+
+      if (query == null || query.isEmpty) {
+        return _buildLine(
+          keyHtml,
+          TextSpan(
+            text: '"$text"',
+            style: const TextStyle(color: _JsonViewerState._stringColor),
+          ),
+          comma,
+        );
+      }
+
+      final lower = text.toLowerCase();
+      var start = 0;
+      final spans = <TextSpan>[];
+      while (true) {
+        final index = lower.indexOf(query, start);
+        if (index < 0) {
+          spans.add(
+            TextSpan(
+              text: text.substring(start),
+              style: const TextStyle(color: _JsonViewerState._stringColor),
+            ),
+          );
+          break;
+        }
+        if (index > start) {
+          spans.add(
+            TextSpan(
+              text: text.substring(start, index),
+              style: const TextStyle(color: _JsonViewerState._stringColor),
+            ),
+          );
+        }
+        spans.add(
+          TextSpan(
+            text: text.substring(index, index + query.length),
+            style: const TextStyle(
+              color: _JsonViewerState._stringColor,
+              backgroundColor: Color(0x80FFF59D),
+            ),
+          ),
+        );
+        start = index + query.length;
+      }
+
+      return _buildLine(
+        keyHtml,
+        TextSpan(children: spans),
+        comma,
+      );
     }
 
     if (widget.value is List) {
@@ -119,6 +179,7 @@ class _JsonNodeState extends State<_JsonNode> {
           children: list.asMap().entries.map((e) => _JsonNode(
                 value: e.value,
                 isLast: e.key == list.length - 1,
+                searchQuery: widget.searchQuery,
               )).toList(),
       );
     }
@@ -138,6 +199,7 @@ class _JsonNodeState extends State<_JsonNode> {
               nodeKey: e.value.key.toString(),
               value: e.value.value,
               isLast: e.key == entries.length - 1,
+              searchQuery: widget.searchQuery,
             )).toList(),
       );
     }

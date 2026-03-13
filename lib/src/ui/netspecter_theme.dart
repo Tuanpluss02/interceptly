@@ -4,8 +4,7 @@ class NetSpecterTheme {
   static const Color surface = Color(0xFF121212);
   static const Color surfaceContainer = Color(0xFF1E1E1E);
 
-  // Text colors based on Tailwind gray scale (approximate)
-  static const Color textPrimary = Color(0xFFF3F4F6); // gray-100
+  static const Color textPrimary = Color(0xFFF3F4F6);
   static const Color textSecondary = Color(0xFFE5E7EB); // gray-200
   static const Color textTertiary = Color(0xFFD1D5DB); // gray-300
   static const Color textQuaternary = Color(0xFF9CA3AF); // gray-400
@@ -18,7 +17,7 @@ class NetSpecterTheme {
   // Status & Method colors
   static const Color green500 = Color(0xFF22C55E);
   static const Color green400 = Color(0xFF4ADE80);
-  
+
   static const Color blue500 = Color(0xFF3B82F6);
   static const Color blue400 = Color(0xFF60A5FA);
 
@@ -64,8 +63,10 @@ class NetSpecterTheme {
         unselectedItemColor: textMuted,
         showUnselectedLabels: true,
         type: BottomNavigationBarType.fixed,
-        selectedLabelStyle: TextStyle(fontSize: 10, fontWeight: FontWeight.w500),
-        unselectedLabelStyle: TextStyle(fontSize: 10, fontWeight: FontWeight.w500),
+        selectedLabelStyle:
+            TextStyle(fontSize: 10, fontWeight: FontWeight.w500),
+        unselectedLabelStyle:
+            TextStyle(fontSize: 10, fontWeight: FontWeight.w500),
       ),
       textSelectionTheme: const TextSelectionThemeData(
         cursorColor: indigo500,
