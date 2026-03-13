@@ -24,7 +24,6 @@ class _HttpCallDetailScreenState extends State<HttpCallDetailScreen> {
 
   final TextEditingController _searchController = TextEditingController();
   String _query = '';
-  List<_DetailMatchLocation> _matches = const [];
   int _currentMatchIndex = 0;
 
   @override
@@ -70,16 +69,29 @@ class _HttpCallDetailScreenState extends State<HttpCallDetailScreen> {
               return Center(child: Text('Error: ${snapshot.error}'));
             }
             final record = snapshot.data!;
+            final matches = _computeMatches(record, _query);
+            final totalMatches = matches.length;
+
+            int effectiveIndex = _currentMatchIndex;
+            if (totalMatches == 0) {
+              effectiveIndex = 0;
+            } else {
+              effectiveIndex %= totalMatches;
+              if (effectiveIndex < 0) {
+                effectiveIndex += totalMatches;
+              }
+            }
             final activeLocation =
-                _matches.isEmpty ? null : _matches[_currentMatchIndex];
+                totalMatches == 0 ? null : matches[effectiveIndex];
+
             return Column(
               children: <Widget>[
                 _DetailSearchBar(
                   controller: _searchController,
                   query: _query,
-                  totalMatches: _matches.length,
+                  totalMatches: totalMatches,
                   currentIndex:
-                      _matches.isEmpty ? 0 : _currentMatchIndex + 1,
+                      totalMatches == 0 ? 0 : (effectiveIndex + 1),
                   onSubmitted: _onSearchSubmitted,
                   onClear: _onClearSearch,
                   onPrev: _onPrevMatch,
@@ -90,7 +102,6 @@ class _HttpCallDetailScreenState extends State<HttpCallDetailScreen> {
                     record: record,
                     query: _query,
                     activeLocation: activeLocation,
-                    onMatchesChanged: _onMatchesChanged,
                   ),
                 ),
               ],
@@ -112,42 +123,19 @@ class _HttpCallDetailScreenState extends State<HttpCallDetailScreen> {
     _searchController.clear();
     setState(() {
       _query = '';
-      _matches = const [];
       _currentMatchIndex = 0;
     });
   }
 
   void _onPrevMatch() {
-    if (_matches.isEmpty) return;
     setState(() {
-      _currentMatchIndex =
-          (_currentMatchIndex - 1 + _matches.length) % _matches.length;
+      _currentMatchIndex--;
     });
   }
 
   void _onNextMatch() {
-    if (_matches.isEmpty) return;
     setState(() {
-      _currentMatchIndex = (_currentMatchIndex + 1) % _matches.length;
-    });
-  }
-
-  void _onMatchesChanged(List<_DetailMatchLocation> matches) {
-    if (_query.isEmpty) {
-      if (_matches.isEmpty) return;
-      setState(() {
-        _matches = const [];
-        _currentMatchIndex = 0;
-      });
-      return;
-    }
-    setState(() {
-      _matches = matches;
-      if (_matches.isEmpty) {
-        _currentMatchIndex = 0;
-      } else if (_currentMatchIndex >= _matches.length) {
-        _currentMatchIndex = 0;
-      }
+      _currentMatchIndex++;
     });
   }
 }
@@ -185,6 +173,7 @@ class _DetailSearchBar extends StatelessWidget {
               child: TextField(
                 controller: controller,
                 onSubmitted: onSubmitted,
+                onChanged: onSubmitted,
                 decoration: InputDecoration(
                   labelText: 'Search in this request…',
                   isDense: true,
@@ -227,23 +216,15 @@ class _DetailTabView extends StatelessWidget {
     required this.record,
     required this.query,
     required this.activeLocation,
-    required this.onMatchesChanged,
   });
 
   final RequestRecord record;
   final String query;
   final _DetailMatchLocation? activeLocation;
-  final ValueChanged<List<_DetailMatchLocation>> onMatchesChanged;
 
   @override
   Widget build(BuildContext context) {
     final q = query.trim().toLowerCase();
-    final matches = <_DetailMatchLocation>[];
-
-    bool contains(String? text) {
-      if (text == null || text.isEmpty || q.isEmpty) return false;
-      return text.toLowerCase().contains(q);
-    }
 
     Widget overviewSection() {
       return _Section(
@@ -253,24 +234,14 @@ class _DetailTabView extends StatelessWidget {
             value: record.method,
             query: q,
             isActive: _isActive(0, _DetailSection.overviewMethod),
-            register: (hasMatch) => _registerMatch(
-              matches,
-              tabIndex: 0,
-              section: _DetailSection.overviewMethod,
-              hasMatch: hasMatch,
-            ),
+            onTap: () {},
           ),
           _HighlightRow(
             label: 'URL',
             value: record.url,
             query: q,
             isActive: _isActive(0, _DetailSection.overviewUrl),
-            register: (hasMatch) => _registerMatch(
-              matches,
-              tabIndex: 0,
-              section: _DetailSection.overviewUrl,
-              hasMatch: hasMatch,
-            ),
+            onTap: () {},
           ),
           _HighlightRow(
             label: 'Status',
@@ -278,36 +249,21 @@ class _DetailTabView extends StatelessWidget {
                 record.statusCode > 0 ? record.statusCode.toString() : 'N/A',
             query: q,
             isActive: _isActive(0, _DetailSection.overviewStatus),
-            register: (hasMatch) => _registerMatch(
-              matches,
-              tabIndex: 0,
-              section: _DetailSection.overviewStatus,
-              hasMatch: hasMatch,
-            ),
+            onTap: () {},
           ),
           _HighlightRow(
             label: 'Duration',
             value: '${record.durationMs} ms',
             query: q,
             isActive: _isActive(0, _DetailSection.overviewDuration),
-            register: (hasMatch) => _registerMatch(
-              matches,
-              tabIndex: 0,
-              section: _DetailSection.overviewDuration,
-              hasMatch: hasMatch,
-            ),
+            onTap: () {},
           ),
           _HighlightRow(
             label: 'Time',
             value: record.timestamp.toIso8601String(),
             query: q,
             isActive: _isActive(0, _DetailSection.overviewTime),
-            register: (hasMatch) => _registerMatch(
-              matches,
-              tabIndex: 0,
-              section: _DetailSection.overviewTime,
-              hasMatch: hasMatch,
-            ),
+            onTap: () {},
           ),
           if (record.isBodyTruncated)
             _HighlightRow(
@@ -315,12 +271,7 @@ class _DetailTabView extends StatelessWidget {
               value: 'Body truncated — response exceeded the size limit.',
               query: q,
               isActive: _isActive(0, _DetailSection.overviewNote),
-              register: (hasMatch) => _registerMatch(
-                matches,
-                tabIndex: 0,
-                section: _DetailSection.overviewNote,
-                hasMatch: hasMatch,
-              ),
+              onTap: () {},
             ),
         ],
       );
@@ -335,36 +286,24 @@ class _DetailTabView extends StatelessWidget {
             value: record.requestContentType ?? '(none)',
             query: q,
             isActive: _isActive(1, _DetailSection.requestContentType),
-            register: (hasMatch) => _registerMatch(
-              matches,
-              tabIndex: 1,
-              section: _DetailSection.requestContentType,
-              hasMatch: hasMatch,
-            ),
+            onTap: () {},
           ),
           _HighlightRow(
             label: 'Headers',
             value: headersText,
             query: q,
             isActive: _isActive(1, _DetailSection.requestHeaders),
-            register: (hasMatch) => _registerMatch(
-              matches,
-              tabIndex: 1,
-              section: _DetailSection.requestHeaders,
-              hasMatch: hasMatch,
-            ),
+            onTap: () {},
           ),
           const SizedBox(height: 4),
           _BodySection(
+            isActive: _isActive(1, _DetailSection.requestBody),
+            tabIndex: 1,
+            section: _DetailSection.requestBody,
             child: BodyViewer(
               body: record.requestBodyPreview,
               contentType: record.requestContentType,
             ),
-            hasMatch: contains(record.requestBodyPreview),
-            isActive: _isActive(1, _DetailSection.requestBody),
-            tabIndex: 1,
-            section: _DetailSection.requestBody,
-            matches: matches,
           ),
         ],
       );
@@ -379,36 +318,24 @@ class _DetailTabView extends StatelessWidget {
             value: record.responseContentType ?? '(none)',
             query: q,
             isActive: _isActive(2, _DetailSection.responseContentType),
-            register: (hasMatch) => _registerMatch(
-              matches,
-              tabIndex: 2,
-              section: _DetailSection.responseContentType,
-              hasMatch: hasMatch,
-            ),
+            onTap: () {},
           ),
           _HighlightRow(
             label: 'Headers',
             value: headersText,
             query: q,
             isActive: _isActive(2, _DetailSection.responseHeaders),
-            register: (hasMatch) => _registerMatch(
-              matches,
-              tabIndex: 2,
-              section: _DetailSection.responseHeaders,
-              hasMatch: hasMatch,
-            ),
+            onTap: () {},
           ),
           const SizedBox(height: 4),
           _BodySection(
+            isActive: _isActive(2, _DetailSection.responseBody),
+            tabIndex: 2,
+            section: _DetailSection.responseBody,
             child: BodyViewer(
               body: record.responseBodyPreview,
               contentType: record.responseContentType,
             ),
-            hasMatch: contains(record.responseBodyPreview),
-            isActive: _isActive(2, _DetailSection.responseBody),
-            tabIndex: 2,
-            section: _DetailSection.responseBody,
-            matches: matches,
           ),
         ],
       );
@@ -424,24 +351,14 @@ class _DetailTabView extends StatelessWidget {
             value: typeText,
             query: q,
             isActive: _isActive(3, _DetailSection.errorType),
-            register: (hasMatch) => _registerMatch(
-              matches,
-              tabIndex: 3,
-              section: _DetailSection.errorType,
-              hasMatch: hasMatch,
-            ),
+            onTap: () {},
           ),
           _HighlightRow(
             label: 'Message',
             value: msgText,
             query: q,
             isActive: _isActive(3, _DetailSection.errorMessage),
-            register: (hasMatch) => _registerMatch(
-              matches,
-              tabIndex: 3,
-              section: _DetailSection.errorMessage,
-              hasMatch: hasMatch,
-            ),
+            onTap: () {},
           ),
         ],
       );
@@ -455,7 +372,6 @@ class _DetailTabView extends StatelessWidget {
     ];
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      onMatchesChanged(q.isEmpty ? const [] : matches);
       final active = activeLocation;
       if (active != null) {
         final controller = DefaultTabController.of(context);
@@ -475,18 +391,6 @@ class _DetailTabView extends StatelessWidget {
     return active != null &&
         active.tabIndex == tabIndex &&
         active.section == section;
-  }
-
-  static void _registerMatch(
-    List<_DetailMatchLocation> matches, {
-    required int tabIndex,
-    required _DetailSection section,
-    required bool hasMatch,
-  }) {
-    if (!hasMatch) return;
-    matches.add(
-      _DetailMatchLocation(tabIndex: tabIndex, section: section),
-    );
   }
 
   static String _formatMap(Map<String, String> map) {
@@ -516,21 +420,20 @@ class _HighlightRow extends StatelessWidget {
     required this.value,
     required this.query,
     required this.isActive,
-    required this.register,
+    required this.onTap,
   });
 
   final String label;
   final String value;
   final String query;
   final bool isActive;
-  final ValueChanged<bool> register;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final lower = query.trim().toLowerCase();
     final spans = <TextSpan>[];
 
-    bool hasMatch = false;
     if (lower.isEmpty) {
       spans.add(TextSpan(text: value));
     } else {
@@ -554,12 +457,9 @@ class _HighlightRow extends StatelessWidget {
             ),
           ),
         );
-        hasMatch = true;
         start = index + lower.length;
       }
     }
-
-    register(hasMatch);
 
     final key = GlobalKey();
     if (isActive) {
@@ -579,11 +479,14 @@ class _HighlightRow extends StatelessWidget {
       children: <Widget>[
         Text(label, style: Theme.of(context).textTheme.labelLarge),
         const SizedBox(height: 4),
-        Container(
-          key: key,
-          color: isActive ? const Color(0x40FFF59D) : Colors.transparent,
-          child: SelectableText.rich(
-            TextSpan(children: spans),
+        GestureDetector(
+          onTap: onTap,
+          child: Container(
+            key: key,
+            color: isActive ? const Color(0x40FFF59D) : Colors.transparent,
+            child: SelectableText.rich(
+              TextSpan(children: spans),
+            ),
           ),
         ),
       ],
@@ -594,28 +497,18 @@ class _HighlightRow extends StatelessWidget {
 class _BodySection extends StatelessWidget {
   const _BodySection({
     required this.child,
-    required this.hasMatch,
     required this.isActive,
     required this.tabIndex,
     required this.section,
-    required this.matches,
   });
 
   final Widget child;
-  final bool hasMatch;
   final bool isActive;
   final int tabIndex;
   final _DetailSection section;
-  final List<_DetailMatchLocation> matches;
 
   @override
   Widget build(BuildContext context) {
-    if (hasMatch) {
-      matches.add(
-        _DetailMatchLocation(tabIndex: tabIndex, section: section),
-      );
-    }
-
     final key = GlobalKey();
     if (isActive) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -658,4 +551,97 @@ class _DetailMatchLocation {
 
   final int tabIndex;
   final _DetailSection section;
+}
+
+List<_DetailMatchLocation> _computeMatches(
+  RequestRecord record,
+  String query,
+) {
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) return const [];
+
+  final matches = <_DetailMatchLocation>[];
+
+  bool contains(String? text) {
+    if (text == null || text.isEmpty) return false;
+    return text.toLowerCase().contains(q);
+  }
+
+  void addIf(bool cond, int tab, _DetailSection section) {
+    if (cond) {
+      matches.add(_DetailMatchLocation(tabIndex: tab, section: section));
+    }
+  }
+
+  // Overview
+  addIf(contains(record.method), 0, _DetailSection.overviewMethod);
+  addIf(contains(record.url), 0, _DetailSection.overviewUrl);
+  addIf(
+    contains(record.statusCode > 0 ? record.statusCode.toString() : 'N/A'),
+    0,
+    _DetailSection.overviewStatus,
+  );
+  addIf(contains('${record.durationMs} ms'), 0, _DetailSection.overviewDuration);
+  addIf(
+    contains(record.timestamp.toIso8601String()),
+    0,
+    _DetailSection.overviewTime,
+  );
+  if (record.isBodyTruncated) {
+    addIf(
+      contains(
+        'Body truncated — response exceeded the size limit.',
+      ),
+      0,
+      _DetailSection.overviewNote,
+    );
+  }
+
+  // Request
+  addIf(
+    contains(record.requestContentType ?? '(none)'),
+    1,
+    _DetailSection.requestContentType,
+  );
+  addIf(
+    contains(_DetailTabView._formatMap(record.requestHeaders)),
+    1,
+    _DetailSection.requestHeaders,
+  );
+  addIf(
+    contains(record.requestBodyPreview),
+    1,
+    _DetailSection.requestBody,
+  );
+
+  // Response
+  addIf(
+    contains(record.responseContentType ?? '(none)'),
+    2,
+    _DetailSection.responseContentType,
+  );
+  addIf(
+    contains(_DetailTabView._formatMap(record.responseHeaders)),
+    2,
+    _DetailSection.responseHeaders,
+  );
+  addIf(
+    contains(record.responseBodyPreview),
+    2,
+    _DetailSection.responseBody,
+  );
+
+  // Error
+  addIf(
+    contains(record.errorType ?? 'No error'),
+    3,
+    _DetailSection.errorType,
+  );
+  addIf(
+    contains(record.errorMessage ?? 'No error'),
+    3,
+    _DetailSection.errorMessage,
+  );
+
+  return matches;
 }
