@@ -17,10 +17,25 @@ class NetworkTab extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: TextField(
+              onChanged: (value) {
+                final q = value.trim();
+                if (q.isEmpty) {
+                  session.cancelMasterSearch();
+                } else {
+                  session.startMasterSearch(q);
+                }
+              },
               decoration: InputDecoration(
-                hintText: 'Search URLs...',
-                hintStyle: const TextStyle(color: NetSpecterTheme.textMuted, fontSize: 14),
-                prefixIcon: const Icon(Icons.search, color: NetSpecterTheme.textMuted, size: 20),
+                hintText: 'Search URL, headers, body…',
+                hintStyle: const TextStyle(
+                  color: NetSpecterTheme.textMuted,
+                  fontSize: 14,
+                ),
+                prefixIcon: const Icon(
+                  Icons.search,
+                  color: NetSpecterTheme.textMuted,
+                  size: 20,
+                ),
                 filled: true,
                 fillColor: NetSpecterTheme.surfaceContainer,
                 isDense: true,
@@ -31,10 +46,16 @@ class NetworkTab extends StatelessWidget {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(30.0),
-                  borderSide: const BorderSide(color: NetSpecterTheme.indigo500, width: 1.0),
+                  borderSide: const BorderSide(
+                    color: NetSpecterTheme.indigo500,
+                    width: 1.0,
+                  ),
                 ),
               ),
-              style: const TextStyle(color: NetSpecterTheme.textSecondary, fontSize: 14),
+              style: const TextStyle(
+                color: NetSpecterTheme.textSecondary,
+                fontSize: 14,
+              ),
             ),
           ),
           

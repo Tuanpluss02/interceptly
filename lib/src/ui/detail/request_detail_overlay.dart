@@ -391,6 +391,18 @@ class _RequestDetailOverlayState extends State<RequestDetailOverlay>
     TextStyle? valueStyle,
     bool highlight = false,
   }) {
+    final key = GlobalKey();
+    if (highlight) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final ctx = key.currentContext;
+        if (ctx != null) {
+          Scrollable.ensureVisible(
+            ctx,
+            duration: const Duration(milliseconds: 200),
+          );
+        }
+      });
+    }
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -417,6 +429,7 @@ class _RequestDetailOverlayState extends State<RequestDetailOverlay>
               backgroundColor:
                   highlight ? const Color(0x40FFF59D) : null,
             ),
+            key: key,
           ),
         ),
       ],
@@ -620,9 +633,22 @@ class _RequestDetailOverlayState extends State<RequestDetailOverlay>
     dynamic data, {
     bool highlight = false,
   }) {
+    final key = GlobalKey();
+    if (highlight) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final ctx = key.currentContext;
+        if (ctx != null) {
+          Scrollable.ensureVisible(
+            ctx,
+            duration: const Duration(milliseconds: 200),
+          );
+        }
+      });
+    }
     return Stack(
       children: [
         Container(
+          key: key,
           width: double.infinity,
           padding: const EdgeInsets.all(12.0),
           decoration: BoxDecoration(
