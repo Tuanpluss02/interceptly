@@ -341,6 +341,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                         matches: matches,
                         activeGlobalIndex: activeGlobalIndex,
                         query: _query,
+                        urlDecodeEnabled: widget.session.urlDecodeEnabled,
                         tryParseJson: _tryParseJson,
                       );
                       return IndexedStack(

@@ -10,6 +10,7 @@ class DetailTabsBuilder {
   final List<DetailMatch> matches;
   final int? activeGlobalIndex;
   final String query;
+  final bool urlDecodeEnabled;
   final dynamic Function(String?) tryParseJson;
 
   DetailTabsBuilder({
@@ -17,6 +18,7 @@ class DetailTabsBuilder {
     required this.matches,
     required this.activeGlobalIndex,
     required this.query,
+    required this.urlDecodeEnabled,
     required this.tryParseJson,
   });
 
@@ -24,7 +26,11 @@ class DetailTabsBuilder {
     final mStyle = NetSpecterTheme.getMethodStyle(record.method);
 
     String displayUrl = record.url;
-    // Note: URL decode logic can be added back if needed
+    if (urlDecodeEnabled) {
+      try {
+        displayUrl = Uri.decodeFull(record.url);
+      } catch (_) {}
+    }
 
     return ListView(
       padding: const EdgeInsets.all(16.0),
@@ -78,7 +84,14 @@ class DetailTabsBuilder {
   }
 
   Widget buildRequestTab() {
-    final uri = Uri.tryParse(record.url);
+    var urlForParsing = record.url;
+    if (urlDecodeEnabled) {
+      try {
+        urlForParsing = Uri.decodeFull(record.url);
+      } catch (_) {}
+    }
+
+    final uri = Uri.tryParse(urlForParsing);
     final hasQueryParams = uri != null && uri.queryParameters.isNotEmpty;
 
     return ListView(
