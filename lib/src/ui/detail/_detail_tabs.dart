@@ -109,6 +109,110 @@ class DetailTabsBuilder {
     );
   }
 
+  Widget _buildMessageItem(Map<String, dynamic> msg) {
+    final isOut = msg['type'] == 'out';
+    final iconColor =
+        isOut ? NetSpecterTheme.green400 : NetSpecterTheme.blue400;
+    final icon = isOut ? Icons.call_made : Icons.call_received;
+    final bgColor = isOut
+        ? NetSpecterTheme.green500.withValues(alpha: 0.1)
+        : NetSpecterTheme.blue500.withValues(alpha: 0.1);
+    final label = isOut ? 'SENT' : 'RECV';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12.0),
+      decoration: BoxDecoration(
+        color: NetSpecterTheme.surfaceContainer,
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        borderRadius: BorderRadius.circular(12.0),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+            decoration: BoxDecoration(
+              color: bgColor,
+              border: Border(
+                bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, color: iconColor, size: 16),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: iconColor,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  msg['time'] ?? '',
+                  style: const TextStyle(
+                    fontFamily: NetSpecterTheme.fontFamily,
+                    package: NetSpecterTheme.fontPackage,
+                    fontSize: 10,
+                    color: NetSpecterTheme.textMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: JsonViewer(
+              data: msg['data'],
+              searchQuery: query.isEmpty ? null : query,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessagesHeader() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text(
+            'CONNECTION FRAMES',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: NetSpecterTheme.purple400,
+              letterSpacing: 1.0,
+            ),
+          ),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8.0, vertical: 2.0),
+            decoration: BoxDecoration(
+              color: NetSpecterTheme.green500.withValues(alpha: 0.1),
+              border: Border.all(
+                  color: NetSpecterTheme.green500.withValues(alpha: 0.2)),
+              borderRadius: BorderRadius.circular(4.0),
+            ),
+            child: const Text(
+              'Live',
+              style: TextStyle(
+                fontFamily: NetSpecterTheme.fontFamily,
+                package: NetSpecterTheme.fontPackage,
+                fontSize: 10,
+                color: NetSpecterTheme.green400,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget buildRequestTab() {
     var urlForParsing = record.url;
     if (urlDecodeEnabled) {
@@ -264,109 +368,9 @@ class DetailTabsBuilder {
       itemCount: messages.length + 1,
       itemBuilder: (context, index) {
         if (index == 0) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 16.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'CONNECTION FRAMES',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: NetSpecterTheme.purple400,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8.0, vertical: 2.0),
-                  decoration: BoxDecoration(
-                    color: NetSpecterTheme.green500.withValues(alpha: 0.1),
-                    border: Border.all(
-                        color: NetSpecterTheme.green500.withValues(alpha: 0.2)),
-                    borderRadius: BorderRadius.circular(4.0),
-                  ),
-                  child: const Text(
-                    'Live',
-                    style: TextStyle(
-                      fontFamily: NetSpecterTheme.fontFamily,
-                      package: NetSpecterTheme.fontPackage,
-                      fontSize: 10,
-                      color: NetSpecterTheme.green400,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
+          return _buildMessagesHeader();
         }
-
-        final msg = messages[index - 1];
-        final isOut = msg['type'] == 'out';
-        final iconColor =
-            isOut ? NetSpecterTheme.green400 : NetSpecterTheme.blue400;
-        final icon = isOut ? Icons.call_made : Icons.call_received;
-        final bgColor = isOut
-            ? NetSpecterTheme.green500.withValues(alpha: 0.1)
-            : NetSpecterTheme.blue500.withValues(alpha: 0.1);
-        final label = isOut ? 'SENT' : 'RECV';
-
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12.0),
-          decoration: BoxDecoration(
-            color: NetSpecterTheme.surfaceContainer,
-            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-            borderRadius: BorderRadius.circular(12.0),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-                decoration: BoxDecoration(
-                  color: bgColor,
-                  border: Border(
-                    bottom:
-                        BorderSide(color: Colors.white.withValues(alpha: 0.05)),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(icon, color: iconColor, size: 16),
-                    const SizedBox(width: 8),
-                    Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: iconColor,
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      msg['time'] ?? '',
-                      style: const TextStyle(
-                        fontFamily: NetSpecterTheme.fontFamily,
-                        package: NetSpecterTheme.fontPackage,
-                        fontSize: 10,
-                        color: NetSpecterTheme.textMuted,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: JsonViewer(
-                  data: msg['data'],
-                  searchQuery: query.isEmpty ? null : query,
-                ),
-              ),
-            ],
-          ),
-        );
+        return _buildMessageItem(messages[index - 1]);
       },
     );
   }
