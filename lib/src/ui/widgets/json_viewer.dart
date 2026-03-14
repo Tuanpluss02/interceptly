@@ -450,12 +450,28 @@ class _JsonNodeState extends State<_JsonNode> {
       }
     }
 
+    final hasActiveMatchInHeader = _spanHasActiveHighlight(keyHtml);
+    final headerKey = hasActiveMatchInHeader ? GlobalKey() : null;
+    if (hasActiveMatchInHeader) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final ctx = headerKey?.currentContext;
+        if (ctx != null && ctx.mounted) {
+          Scrollable.ensureVisible(
+            ctx,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+          );
+        }
+      });
+    }
+
     return Padding(
       padding: EdgeInsets.only(left: widget.root ? 0 : 16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           InkWell(
+            key: headerKey,
             onTap: _toggle,
             hoverColor: Colors.white.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(4),
@@ -576,6 +592,22 @@ class _JsonNodeState extends State<_JsonNode> {
     }
 
     return spans;
+  }
+
+  static bool _spanHasActiveHighlight(TextSpan span) {
+    final style = span.style;
+    if (style?.backgroundColor == _JsonViewerState._activeHighlightColor) {
+      return true;
+    }
+
+    final children = span.children;
+    if (children == null || children.isEmpty) return false;
+    for (final child in children) {
+      if (_spanHasActiveHighlight(child as TextSpan)) {
+        return true;
+      }
+    }
+    return false;
   }
 }
 

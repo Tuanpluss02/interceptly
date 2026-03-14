@@ -8,6 +8,7 @@ import '../../model/request_record.dart';
 import '../../storage/inspector_session.dart';
 import '_detail_search.dart';
 import '_detail_tabs.dart';
+import '_replay_handler.dart';
 import '_share_handler.dart';
 
 class RequestDetailPage extends StatefulWidget {
@@ -196,6 +197,12 @@ class _RequestDetailPageState extends State<RequestDetailPage>
           ),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Replay request',
+            icon:
+                const Icon(Icons.play_arrow, color: NetSpecterTheme.indigo400),
+            onPressed: _showReplayMenu,
+          ),
           Container(
             margin: const EdgeInsets.only(right: 16.0),
             padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
@@ -268,176 +275,174 @@ class _RequestDetailPageState extends State<RequestDetailPage>
             });
           }
 
-          return SelectionArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Detail Search Bar
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0,
-                    vertical: 12.0,
-                  ),
-                  decoration: BoxDecoration(
-                    color: NetSpecterTheme.surface,
-                    border: Border(
-                      bottom: BorderSide(
-                        color: Colors.white.withValues(alpha: 0.05),
-                      ),
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Detail Search Bar
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 12.0,
+                ),
+                decoration: BoxDecoration(
+                  color: NetSpecterTheme.surface,
+                  border: Border(
+                    bottom: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.05),
                     ),
                   ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _searchController,
-                          textInputAction: TextInputAction.search,
-                          onSubmitted: (value) {
-                            setState(() {
-                              _query = value.trim();
-                              _currentMatchIndex = 0;
-                            });
-                          },
-                          decoration: InputDecoration(
-                            hintText: 'Search in details...',
-                            hintStyle: const TextStyle(
-                              color: NetSpecterTheme.textMuted,
-                              fontSize: 14,
-                            ),
-                            prefixIcon: const Icon(
-                              Icons.search,
-                              color: NetSpecterTheme.textMuted,
-                              size: 20,
-                            ),
-                            filled: true,
-                            fillColor: NetSpecterTheme.surfaceContainer,
-                            isDense: true,
-                            contentPadding:
-                                const EdgeInsets.symmetric(vertical: 12.0),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(30.0),
-                              borderSide: BorderSide.none,
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(30.0),
-                              borderSide: const BorderSide(
-                                color: NetSpecterTheme.indigo500,
-                                width: 1.0,
-                              ),
-                            ),
-                          ),
-                          style: const TextStyle(
-                            color: NetSpecterTheme.textSecondary,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        textInputAction: TextInputAction.search,
+                        onSubmitted: (value) {
+                          setState(() {
+                            _query = value.trim();
+                            _currentMatchIndex = 0;
+                          });
+                        },
+                        decoration: InputDecoration(
+                          hintText: 'Search in details...',
+                          hintStyle: const TextStyle(
+                            color: NetSpecterTheme.textMuted,
                             fontSize: 14,
                           ),
+                          prefixIcon: const Icon(
+                            Icons.search,
+                            color: NetSpecterTheme.textMuted,
+                            size: 20,
+                          ),
+                          filled: true,
+                          fillColor: NetSpecterTheme.surfaceContainer,
+                          isDense: true,
+                          contentPadding:
+                              const EdgeInsets.symmetric(vertical: 12.0),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(30.0),
+                            borderSide: BorderSide.none,
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(30.0),
+                            borderSide: const BorderSide(
+                              color: NetSpecterTheme.indigo500,
+                              width: 1.0,
+                            ),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        totalMatches == 0
-                            ? '0 / 0'
-                            : '${effectiveIndex + 1} / $totalMatches',
                         style: const TextStyle(
-                          fontSize: 12,
-                          color: NetSpecterTheme.textMuted,
+                          color: NetSpecterTheme.textSecondary,
+                          fontSize: 14,
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.keyboard_arrow_up,
-                          size: 20,
-                          color: NetSpecterTheme.textMuted,
-                        ),
-                        tooltip: 'Previous match',
-                        onPressed: totalMatches == 0
-                            ? null
-                            : () {
-                                setState(() {
-                                  _currentMatchIndex--;
-                                });
-                              },
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      totalMatches == 0
+                          ? '0 / 0'
+                          : '${effectiveIndex + 1} / $totalMatches',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: NetSpecterTheme.textMuted,
                       ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.keyboard_arrow_down,
-                          size: 20,
-                          color: NetSpecterTheme.textMuted,
-                        ),
-                        tooltip: 'Next match',
-                        onPressed: totalMatches == 0
-                            ? null
-                            : () {
-                                setState(() {
-                                  _currentMatchIndex++;
-                                });
-                              },
+                    ),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.keyboard_arrow_up,
+                        size: 20,
+                        color: NetSpecterTheme.textMuted,
                       ),
-                    ],
-                  ),
+                      tooltip: 'Previous match',
+                      onPressed: totalMatches == 0
+                          ? null
+                          : () {
+                              setState(() {
+                                _currentMatchIndex--;
+                              });
+                            },
+                    ),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.keyboard_arrow_down,
+                        size: 20,
+                        color: NetSpecterTheme.textMuted,
+                      ),
+                      tooltip: 'Next match',
+                      onPressed: totalMatches == 0
+                          ? null
+                          : () {
+                              setState(() {
+                                _currentMatchIndex++;
+                              });
+                            },
+                    ),
+                  ],
                 ),
-                // TabBar
-                TabBar(
-                  controller: _tabController,
-                  indicatorColor: NetSpecterTheme.indigo500,
-                  labelColor: NetSpecterTheme.indigo400,
-                  unselectedLabelColor: NetSpecterTheme.textQuaternary,
-                  dividerColor: Colors.transparent,
-                  tabs: isWs
-                      ? const [
-                          Tab(text: 'Overview'),
-                          Tab(text: 'Messages'),
-                        ]
-                      : const [
-                          Tab(text: 'Overview'),
-                          Tab(text: 'Request'),
-                          Tab(text: 'Response'),
-                          Tab(text: 'Messages'),
-                        ],
+              ),
+              // TabBar
+              TabBar(
+                controller: _tabController,
+                indicatorColor: NetSpecterTheme.indigo500,
+                labelColor: NetSpecterTheme.indigo400,
+                unselectedLabelColor: NetSpecterTheme.textQuaternary,
+                dividerColor: Colors.transparent,
+                tabs: isWs
+                    ? const [
+                        Tab(text: 'Overview'),
+                        Tab(text: 'Messages'),
+                      ]
+                    : const [
+                        Tab(text: 'Overview'),
+                        Tab(text: 'Request'),
+                        Tab(text: 'Response'),
+                        Tab(text: 'Messages'),
+                      ],
+              ),
+              Expanded(
+                child: AnimatedBuilder(
+                  animation: _tabController,
+                  builder: (context, _) {
+                    final tabIndex = _tabController.index;
+                    final tabsBuilder = DetailTabsBuilder(
+                      record: record,
+                      matches: matches,
+                      activeGlobalIndex: activeGlobalIndex,
+                      query: _query,
+                      urlDecodeEnabled: widget.session.urlDecodeEnabled,
+                      tryParseJson: _tryParseJson,
+                    );
+                    return IndexedStack(
+                      index: tabIndex,
+                      children: isWs
+                          ? [
+                              _visitedTabs.contains(0)
+                                  ? tabsBuilder.buildOverviewTab()
+                                  : const SizedBox.shrink(),
+                              _visitedTabs.contains(1)
+                                  ? tabsBuilder.buildMessagesTab()
+                                  : const SizedBox.shrink(),
+                            ]
+                          : [
+                              _visitedTabs.contains(0)
+                                  ? tabsBuilder.buildOverviewTab()
+                                  : const SizedBox.shrink(),
+                              _visitedTabs.contains(1)
+                                  ? tabsBuilder.buildRequestTab()
+                                  : const SizedBox.shrink(),
+                              _visitedTabs.contains(2)
+                                  ? tabsBuilder.buildResponseTab()
+                                  : const SizedBox.shrink(),
+                              _visitedTabs.contains(3)
+                                  ? tabsBuilder.buildErrorTab()
+                                  : const SizedBox.shrink(),
+                            ],
+                    );
+                  },
                 ),
-                Expanded(
-                  child: AnimatedBuilder(
-                    animation: _tabController,
-                    builder: (context, _) {
-                      final tabIndex = _tabController.index;
-                      final tabsBuilder = DetailTabsBuilder(
-                        record: record,
-                        matches: matches,
-                        activeGlobalIndex: activeGlobalIndex,
-                        query: _query,
-                        urlDecodeEnabled: widget.session.urlDecodeEnabled,
-                        tryParseJson: _tryParseJson,
-                      );
-                      return IndexedStack(
-                        index: tabIndex,
-                        children: isWs
-                            ? [
-                                _visitedTabs.contains(0)
-                                    ? tabsBuilder.buildOverviewTab()
-                                    : const SizedBox.shrink(),
-                                _visitedTabs.contains(1)
-                                    ? tabsBuilder.buildMessagesTab()
-                                    : const SizedBox.shrink(),
-                              ]
-                            : [
-                                _visitedTabs.contains(0)
-                                    ? tabsBuilder.buildOverviewTab()
-                                    : const SizedBox.shrink(),
-                                _visitedTabs.contains(1)
-                                    ? tabsBuilder.buildRequestTab()
-                                    : const SizedBox.shrink(),
-                                _visitedTabs.contains(2)
-                                    ? tabsBuilder.buildResponseTab()
-                                    : const SizedBox.shrink(),
-                                _visitedTabs.contains(3)
-                                    ? tabsBuilder.buildErrorTab()
-                                    : const SizedBox.shrink(),
-                              ],
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           );
         },
       ),
@@ -460,5 +465,16 @@ class _RequestDetailPageState extends State<RequestDetailPage>
       fabKey: _fabKey,
     );
     shareHandler.showShareMenu(record);
+  }
+
+  void _showReplayMenu() {
+    final record = _cachedRecord;
+    if (record == null) return;
+
+    final replayHandler = ReplayHandler(
+      context: context,
+      session: widget.session,
+    );
+    replayHandler.showReplayMenu(record);
   }
 }
