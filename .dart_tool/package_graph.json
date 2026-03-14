@@ -7,6 +7,7 @@
       "name": "netspecter",
       "version": "0.0.1",
       "dependencies": [
+        "chopper",
         "dio",
         "flutter",
         "http",
@@ -396,6 +397,34 @@
       "name": "vm_service",
       "version": "15.0.2",
       "dependencies": []
+    },
+    {
+      "name": "chopper",
+      "version": "7.4.0",
+      "dependencies": [
+        "equatable",
+        "http",
+        "logging",
+        "meta",
+        "qs_dart"
+      ]
+    },
+    {
+      "name": "qs_dart",
+      "version": "1.7.3",
+      "dependencies": [
+        "collection",
+        "equatable",
+        "meta"
+      ]
+    },
+    {
+      "name": "equatable",
+      "version": "2.0.8",
+      "dependencies": [
+        "collection",
+        "meta"
+      ]
     }
   ],
   "configVersion": 1

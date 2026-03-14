@@ -66,7 +66,6 @@ class _NetSpecterOverlayState extends State<NetSpecterOverlay> {
   void initState() {
     super.initState();
     widget.session.initialize();
-    // Store the developer's key so showInspector() can use it without context.
     if (widget.navigatorKey != null) {
       _registeredNavigatorKey = widget.navigatorKey;
     }

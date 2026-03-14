@@ -8,12 +8,13 @@ environment:
   flutter: ">=3.10.0"
 
 dependencies:
-  dio: ^5.9.2
-  http: ^1.2.0
+  dio: ^5.0.0
+  http: ^1.0.0
   sensors_plus: ^4.0.0
   flutter:
     sdk: flutter
   path_provider: ^2.1.5
+  chopper: ^7.0.0
 
 dev_dependencies:
   flutter_test:

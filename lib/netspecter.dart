@@ -1,6 +1,7 @@
 // Capture
 export 'src/capture/dio/netspecter_dio_interceptor.dart';
 export 'src/capture/http/netspecter_http_client.dart';
+export 'src/capture/chopper/netspecter_chopper_interceptor.dart';
 
 // Models
 export 'src/model/body_location.dart';

@@ -20,6 +20,12 @@
       "languageVersion": "3.4"
     },
     {
+      "name": "chopper",
+      "rootUri": "file:///Users/tuanpluss02/.pub-cache/hosted/pub.dev/chopper-7.4.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
+    },
+    {
       "name": "clock",
       "rootUri": "file:///Users/tuanpluss02/.pub-cache/hosted/pub.dev/clock-1.1.2",
       "packageUri": "lib/",
@@ -42,6 +48,12 @@
       "rootUri": "file:///Users/tuanpluss02/.pub-cache/hosted/pub.dev/dio_web_adapter-2.1.2",
       "packageUri": "lib/",
       "languageVersion": "3.3"
+    },
+    {
+      "name": "equatable",
+      "rootUri": "file:///Users/tuanpluss02/.pub-cache/hosted/pub.dev/equatable-2.0.8",
+      "packageUri": "lib/",
+      "languageVersion": "2.12"
     },
     {
       "name": "fake_async",
@@ -196,6 +208,12 @@
     {
       "name": "plugin_platform_interface",
       "rootUri": "file:///Users/tuanpluss02/.pub-cache/hosted/pub.dev/plugin_platform_interface-2.1.8",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
+    },
+    {
+      "name": "qs_dart",
+      "rootUri": "file:///Users/tuanpluss02/.pub-cache/hosted/pub.dev/qs_dart-1.7.3",
       "packageUri": "lib/",
       "languageVersion": "3.0"
     },
