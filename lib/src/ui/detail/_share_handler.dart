@@ -90,8 +90,9 @@ class ShareHandler {
 
       // Save to temp directory (system will auto-clean)
       final directory = await getTemporaryDirectory();
+      final sanitizedMethod = _sanitizeFilename(record.method);
       final fileName =
-          'request_${record.method}_${DateTime.now().millisecondsSinceEpoch}.har';
+          'request_${sanitizedMethod}_${DateTime.now().millisecondsSinceEpoch}.har';
       final file = File('${directory.path}/$fileName');
 
       await file.writeAsString(harJson);
@@ -134,6 +135,12 @@ class ShareHandler {
       width: 1,
       height: 1,
     );
+  }
+
+  /// Replaces non-alphanumeric characters with underscores to prevent
+  /// path traversal or other filesystem issues.
+  static String _sanitizeFilename(String input) {
+    return input.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
   }
 
   void _showError(String message) {
