@@ -1,17 +1,14 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:netspecter/src/ui/netspecter_theme.dart';
-import 'package:netspecter/src/ui/widgets/json_viewer.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 
-import '../../export/curl_generator.dart';
-import '../../export/har_exporter.dart';
 import '../../model/index_entry.dart';
 import '../../model/request_record.dart';
 import '../../storage/inspector_session.dart';
+import '_detail_search.dart';
+import '_detail_tabs.dart';
+import '_share_handler.dart';
 
 class RequestDetailPage extends StatefulWidget {
   final IndexEntry entry;
@@ -39,7 +36,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
 
   // Cached data
   RequestRecord? _cachedRecord;
-  List<_DetailMatch> _cachedMatches = const [];
+  List<DetailMatch> _cachedMatches = const [];
   String _cachedQuery = '';
 
   // Track which tabs have been visited (for lazy building)
@@ -90,7 +87,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
       return;
     }
     final isWs = widget.entry.method == 'WS';
-    _cachedMatches = _computeMatches(record, _query, isWs, _tryParseJson);
+    _cachedMatches = computeMatches(record, _query, isWs, _tryParseJson);
     _cachedQuery = _query;
   }
 
@@ -338,34 +335,36 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                     animation: _tabController,
                     builder: (context, _) {
                       final tabIndex = _tabController.index;
+                      final tabsBuilder = DetailTabsBuilder(
+                        record: record,
+                        matches: matches,
+                        activeGlobalIndex: activeGlobalIndex,
+                        query: _query,
+                        tryParseJson: _tryParseJson,
+                      );
                       return IndexedStack(
                         index: tabIndex,
                         children: isWs
                             ? [
                                 _visitedTabs.contains(0)
-                                    ? _buildOverviewTab(
-                                        record, matches, activeGlobalIndex)
+                                    ? tabsBuilder.buildOverviewTab()
                                     : const SizedBox.shrink(),
                                 _visitedTabs.contains(1)
-                                    ? _buildMessagesTab(record)
+                                    ? tabsBuilder.buildMessagesTab()
                                     : const SizedBox.shrink(),
                               ]
                             : [
                                 _visitedTabs.contains(0)
-                                    ? _buildOverviewTab(
-                                        record, matches, activeGlobalIndex)
+                                    ? tabsBuilder.buildOverviewTab()
                                     : const SizedBox.shrink(),
                                 _visitedTabs.contains(1)
-                                    ? _buildRequestTab(
-                                        record, matches, activeGlobalIndex)
+                                    ? tabsBuilder.buildRequestTab()
                                     : const SizedBox.shrink(),
                                 _visitedTabs.contains(2)
-                                    ? _buildResponseTab(
-                                        record, matches, activeGlobalIndex)
+                                    ? tabsBuilder.buildResponseTab()
                                     : const SizedBox.shrink(),
                                 _visitedTabs.contains(3)
-                                    ? _buildErrorTab(
-                                        record, matches, activeGlobalIndex)
+                                    ? tabsBuilder.buildErrorTab()
                                     : const SizedBox.shrink(),
                               ],
                       );
@@ -387,630 +386,14 @@ class _RequestDetailPageState extends State<RequestDetailPage>
     );
   }
 
-  Widget _buildOverviewTab(RequestRecord record, List<_DetailMatch> matches,
-      int? activeGlobalIndex) {
-    final mStyle = NetSpecterTheme.getMethodStyle(record.method);
-
-    String displayUrl = record.url;
-    if (widget.session.urlDecodeEnabled) {
-      try {
-        displayUrl = Uri.decodeFull(record.url);
-      } catch (_) {}
-    }
-
-    return ListView(
-      padding: const EdgeInsets.all(16.0),
-      children: [
-        _buildOverviewRow('URL', displayUrl, _DetailSection.overviewUrl,
-            matches, activeGlobalIndex),
-        const SizedBox(height: 16),
-        _buildOverviewRow(
-          'Method',
-          record.method,
-          _DetailSection.overviewMethod,
-          matches,
-          activeGlobalIndex,
-          valueStyle: TextStyle(
-            color: mStyle.text,
-            fontFamily: 'monospace',
-            fontWeight: FontWeight.bold,
-            fontSize: 12,
-          ),
-        ),
-        const SizedBox(height: 16),
-        _buildOverviewRow(
-          'Status',
-          '${record.statusCode}',
-          _DetailSection.overviewStatus,
-          matches,
-          activeGlobalIndex,
-        ),
-        const SizedBox(height: 16),
-        _buildOverviewRow(
-          'Duration',
-          '${record.durationMs} ms',
-          _DetailSection.overviewDuration,
-          matches,
-          activeGlobalIndex,
-        ),
-        const SizedBox(height: 16),
-        _buildOverviewRow(
-          'Time',
-          record.timestamp.toIso8601String(),
-          _DetailSection.overviewTime,
-          matches,
-          activeGlobalIndex,
-        ),
-        if (record.isBodyTruncated) ...[
-          const SizedBox(height: 16),
-          _buildOverviewRow(
-            'Note',
-            'Body truncated — response exceeded the size limit.',
-            _DetailSection.overviewNote,
-            matches,
-            activeGlobalIndex,
-            valueStyle: const TextStyle(
-              color: NetSpecterTheme.yellow400,
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildOverviewRow(
-    String label,
-    String value,
-    _DetailSection section,
-    List<_DetailMatch> matches,
-    int? activeGlobalIndex, {
-    TextStyle? valueStyle,
-  }) {
-    int matchOffset = matches.indexWhere((m) => m.section == section);
-    if (matchOffset < 0) matchOffset = 0;
-    final sectionMatchCount = matches.where((m) => m.section == section).length;
-
-    final highlight = activeGlobalIndex != null &&
-        activeGlobalIndex >= matchOffset &&
-        activeGlobalIndex < matchOffset + sectionMatchCount;
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 80,
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              color: NetSpecterTheme.textMuted,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: (valueStyle ??
-                    const TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 12,
-                      color: NetSpecterTheme.textSecondary,
-                    ))
-                .copyWith(
-              backgroundColor: highlight ? const Color(0x40FFF59D) : null,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildRequestTab(RequestRecord record, List<_DetailMatch> matches,
-      int? activeGlobalIndex) {
-    final uri = Uri.tryParse(record.url);
-    final hasQueryParams = uri != null && uri.queryParameters.isNotEmpty;
-
-    return ListView(
-      padding: const EdgeInsets.all(16.0).copyWith(bottom: 100),
-      children: [
-        _buildSectionHeader('Request Headers'),
-        _buildJsonBox(
-          record.requestHeaders,
-          _DetailSection.requestHeaders,
-          matches,
-          activeGlobalIndex,
-        ),
-        const SizedBox(height: 24),
-        if (hasQueryParams) ...[
-          _buildSectionHeader('Query Parameters'),
-          _buildJsonBox(
-            uri.queryParameters,
-            _DetailSection.queryParams,
-            matches,
-            activeGlobalIndex,
-          ),
-          const SizedBox(height: 24),
-        ],
-        _buildSectionHeader('Request Body', color: NetSpecterTheme.indigo400),
-        _buildJsonBox(
-          _tryParseJson(record.requestBodyPreview),
-          _DetailSection.requestBody,
-          matches,
-          activeGlobalIndex,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildResponseTab(RequestRecord record, List<_DetailMatch> matches,
-      int? activeGlobalIndex) {
-    return ListView(
-      padding: const EdgeInsets.all(16.0).copyWith(bottom: 100),
-      children: [
-        _buildSectionHeader('Response Headers'),
-        _buildJsonBox(
-          record.responseHeaders,
-          _DetailSection.responseHeaders,
-          matches,
-          activeGlobalIndex,
-        ),
-        const SizedBox(height: 24),
-        _buildSectionHeader('Response Body', color: NetSpecterTheme.green400),
-        _buildJsonBox(
-          _tryParseJson(record.responseBodyPreview),
-          _DetailSection.responseBody,
-          matches,
-          activeGlobalIndex,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildErrorTab(RequestRecord record, List<_DetailMatch> matches,
-      int? activeGlobalIndex) {
-    return ListView(
-      padding: const EdgeInsets.all(16.0).copyWith(bottom: 100),
-      children: [
-        _buildSectionHeader('Error Type', color: NetSpecterTheme.yellow400),
-        _buildJsonBox(
-          record.errorType ?? 'None',
-          _DetailSection.errorType,
-          matches,
-          activeGlobalIndex,
-        ),
-        const SizedBox(height: 24),
-        _buildSectionHeader('Error Message', color: NetSpecterTheme.yellow400),
-        _buildJsonBox(
-          record.errorMessage ?? 'None',
-          _DetailSection.errorMessage,
-          matches,
-          activeGlobalIndex,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMessagesTab(RequestRecord record) {
-    // Note: If WebSockets messages are not captured by RequestRecord, this will simply say no messages
-    final messages = [];
-
-    if (messages.isEmpty) {
-      return const Center(
-          child: Text('No WebSocket messages captured.',
-              style: TextStyle(color: NetSpecterTheme.textMuted)));
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(16.0),
-      itemCount: messages.length + 1,
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 16.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'CONNECTION FRAMES',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: NetSpecterTheme.purple400,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8.0, vertical: 2.0),
-                  decoration: BoxDecoration(
-                    color: NetSpecterTheme.green500.withValues(alpha: 0.1),
-                    border: Border.all(
-                        color: NetSpecterTheme.green500.withValues(alpha: 0.2)),
-                    borderRadius: BorderRadius.circular(4.0),
-                  ),
-                  child: const Text(
-                    'Live',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 10,
-                      color: NetSpecterTheme.green400,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-
-        final msg = messages[index - 1];
-        final isOut = msg['type'] == 'out';
-        final iconColor =
-            isOut ? NetSpecterTheme.green400 : NetSpecterTheme.blue400;
-        final icon = isOut ? Icons.call_made : Icons.call_received;
-        final bgColor = isOut
-            ? NetSpecterTheme.green500.withValues(alpha: 0.1)
-            : NetSpecterTheme.blue500.withValues(alpha: 0.1);
-        final label = isOut ? 'SENT' : 'RECV';
-
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12.0),
-          decoration: BoxDecoration(
-            color: NetSpecterTheme.surfaceContainer,
-            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-            borderRadius: BorderRadius.circular(12.0),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-                decoration: BoxDecoration(
-                  color: bgColor,
-                  border: Border(
-                    bottom:
-                        BorderSide(color: Colors.white.withValues(alpha: 0.05)),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(icon, color: iconColor, size: 16),
-                    const SizedBox(width: 8),
-                    Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: iconColor,
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      msg['time'],
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 10,
-                        color: NetSpecterTheme.textMuted,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: JsonViewer(
-                  data: msg['data'],
-                  searchQuery: _query.isEmpty ? null : _query,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildSectionHeader(String title, {Color? color}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Text(
-        title.toUpperCase(),
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: color ?? NetSpecterTheme.textMuted,
-          letterSpacing: 1.0,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildJsonBox(
-    dynamic data,
-    _DetailSection section,
-    List<_DetailMatch> matches,
-    int? activeGlobalIndex,
-  ) {
-    int matchOffset = matches.indexWhere((m) => m.section == section);
-    if (matchOffset < 0) matchOffset = 0;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12.0),
-      decoration: BoxDecoration(
-        color: NetSpecterTheme.surfaceContainer,
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-        borderRadius: BorderRadius.circular(12.0),
-      ),
-      child: JsonViewer(
-        data: data,
-        searchQuery: _query.isEmpty ? null : _query,
-        matchOffset: matchOffset,
-        activeGlobalIndex: activeGlobalIndex,
-      ),
-    );
-  }
-
   void _showShareMenu() {
     final record = _cachedRecord;
     if (record == null) return;
 
-    showModalBottomSheet(
+    final shareHandler = ShareHandler(
       context: context,
-      backgroundColor: NetSpecterTheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-      ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.copy, color: NetSpecterTheme.indigo500),
-              title: const Text('Copy cURL'),
-              subtitle: const Text('Copy request as cURL command',
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
-              onTap: () {
-                Navigator.pop(context);
-                _copyCurlCommand(record);
-              },
-            ),
-            const Divider(color: Colors.white12, height: 1),
-            ListTile(
-              leading:
-                  const Icon(Icons.download, color: NetSpecterTheme.indigo500),
-              title: const Text('Export HAR'),
-              subtitle: const Text('Download HAR file',
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
-              onTap: () {
-                Navigator.pop(context);
-                _exportHarFile(record);
-              },
-            ),
-          ],
-        ),
-      ),
+      fabKey: _fabKey,
     );
+    shareHandler.showShareMenu(record);
   }
-
-  void _copyCurlCommand(RequestRecord record) {
-    try {
-      final curl = CurlGenerator.fromRecord(record);
-      _getSharePositionOrigin().then((origin) {
-        Share.share(
-          curl,
-          subject: 'cURL Command',
-          sharePositionOrigin: origin,
-        );
-      });
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            duration: const Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
-  }
-
-  void _exportHarFile(RequestRecord record) async {
-    try {
-      final harData = HarExporter.fromRecords([record]);
-      final harJson = jsonEncode(harData);
-
-      // Save to temp directory (system will auto-clean)
-      final directory = await getTemporaryDirectory();
-      final fileName =
-          'request_${record.method}_${DateTime.now().millisecondsSinceEpoch}.har';
-      final file = File('${directory.path}/$fileName');
-
-      await file.writeAsString(harJson);
-
-      // Share file using system share UI
-      if (mounted) {
-        final origin = await _getSharePositionOrigin();
-        await Share.shareXFiles(
-          [XFile(file.path)],
-          subject: 'HAR Export',
-          text: 'Network request HAR export',
-          sharePositionOrigin: origin,
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error exporting HAR: $e'),
-            duration: const Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<Rect> _getSharePositionOrigin() async {
-    try {
-      final box = _fabKey.currentContext?.findRenderObject() as RenderBox?;
-      if (box != null) {
-        final offset = box.localToGlobal(Offset.zero);
-        final size = box.size;
-        return Rect.fromLTWH(
-          offset.dx,
-          offset.dy,
-          size.width,
-          size.height,
-        );
-      }
-    } catch (e) {
-      // Ignore, will use default
-    }
-    // Fallback: center of screen
-    return Rect.fromCenter(
-      center: Offset(MediaQuery.of(context).size.width / 2,
-          MediaQuery.of(context).size.height / 2),
-      width: 1,
-      height: 1,
-    );
-  }
-}
-
-class _DetailMatch {
-  const _DetailMatch({required this.tabIndex, required this.section});
-  final int tabIndex;
-  final _DetailSection section;
-}
-
-enum _DetailSection {
-  overviewUrl,
-  overviewMethod,
-  overviewStatus,
-  overviewDuration,
-  overviewTime,
-  overviewNote,
-  queryParams,
-  requestHeaders,
-  requestBody,
-  responseHeaders,
-  responseBody,
-  errorType,
-  errorMessage,
-}
-
-List<_DetailMatch> _computeMatches(
-  RequestRecord record,
-  String query,
-  bool isWs,
-  dynamic Function(String?) tryParseJson,
-) {
-  final q = query.trim().toLowerCase();
-  if (q.isEmpty) return const [];
-
-  final matches = <_DetailMatch>[];
-
-  int countOccurrences(String? text) {
-    if (text == null || text.isEmpty) return 0;
-    int c = 0;
-    int start = 0;
-    final lower = text.toLowerCase();
-    while (true) {
-      final idx = lower.indexOf(q, start);
-      if (idx < 0) break;
-      c++;
-      start = idx + q.length;
-    }
-    return c;
-  }
-
-  void addMatches(int count, int tabIndex, _DetailSection section) {
-    for (int i = 0; i < count; i++) {
-      matches.add(_DetailMatch(tabIndex: tabIndex, section: section));
-    }
-  }
-
-  // Overview
-  addMatches(countOccurrences(record.url), 0, _DetailSection.overviewUrl);
-  addMatches(countOccurrences(record.method), 0, _DetailSection.overviewMethod);
-  addMatches(
-    countOccurrences(
-        record.statusCode > 0 ? record.statusCode.toString() : 'N/A'),
-    0,
-    _DetailSection.overviewStatus,
-  );
-  addMatches(
-    countOccurrences('${record.durationMs} ms'),
-    0,
-    _DetailSection.overviewDuration,
-  );
-  addMatches(
-    countOccurrences(record.timestamp.toIso8601String()),
-    0,
-    _DetailSection.overviewTime,
-  );
-  if (record.isBodyTruncated) {
-    addMatches(
-      countOccurrences('Body truncated — response exceeded the size limit.'),
-      0,
-      _DetailSection.overviewNote,
-    );
-  }
-
-  if (!isWs) {
-    // Request tab index 1
-    final uri = Uri.tryParse(record.url);
-    if (uri != null && uri.queryParameters.isNotEmpty) {
-      addMatches(JsonViewer.countMatches(uri.queryParameters, query), 1,
-          _DetailSection.queryParams);
-    }
-    addMatches(
-      JsonViewer.countMatches(record.requestHeaders, query),
-      1,
-      _DetailSection.requestHeaders,
-    );
-    addMatches(
-      JsonViewer.countMatches(tryParseJson(record.requestBodyPreview), query),
-      1,
-      _DetailSection.requestBody,
-    );
-
-    // Response tab index 2
-    addMatches(
-      JsonViewer.countMatches(record.responseHeaders, query),
-      2,
-      _DetailSection.responseHeaders,
-    );
-    addMatches(
-      JsonViewer.countMatches(tryParseJson(record.responseBodyPreview), query),
-      2,
-      _DetailSection.responseBody,
-    );
-
-    // Error tab index 3
-    addMatches(
-      JsonViewer.countMatches(record.errorType ?? 'None', query),
-      3,
-      _DetailSection.errorType,
-    );
-    addMatches(
-      JsonViewer.countMatches(record.errorMessage ?? 'None', query),
-      3,
-      _DetailSection.errorMessage,
-    );
-  }
-
-  return matches;
 }
