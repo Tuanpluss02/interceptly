@@ -6,12 +6,21 @@ import 'package:netspecter/src/ui/netspecter_theme.dart';
 
 import 'toast_notification.dart';
 
+/// Collapsible JSON renderer with search highlighting and copy support.
 class JsonViewer extends StatefulWidget {
+  /// JSON-like data (Map/List/scalars/String) to render.
   final dynamic data;
+
+  /// Optional search term to highlight in rendered nodes.
   final String? searchQuery;
+
+  /// Global match index offset for coordinated tab search navigation.
   final int matchOffset;
+
+  /// Active global match index currently selected by parent UI.
   final int? activeGlobalIndex;
 
+  /// Creates a JSON viewer for [data] with optional search metadata.
   const JsonViewer({
     super.key,
     required this.data,
@@ -40,6 +49,7 @@ class JsonViewer extends StatefulWidget {
     }
   }
 
+  /// Counts case-insensitive query matches within structured JSON data.
   static int countMatches(dynamic data, String query) {
     if (query.isEmpty) return 0;
     final q = query.toLowerCase();

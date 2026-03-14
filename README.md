@@ -1,40 +1,23 @@
 # NetSpecter
 
-A Flutter network inspector — zero heavy dependencies, session-only storage, no lag even with thousands of large requests.
+NetSpecter is a Flutter network inspector for `dio`, `http`, and `chopper`.
 
-Tested with: **Flutter 3.22+ / Dart 3.5+**
+- Session-only storage (memory + temp file)
+- Handles large payloads without blocking UI
+- Built-in inspector overlay + replay tools
 
----
-
-## How it works
-
-```
-Body < 50 KB   →  Kept inline in RAM (Uint8List)
-Body ≥ 50 KB   →  Offloaded to temp file — only (offset, length) kept in RAM
-List view      →  Reads MemoryIndex only — zero file I/O on scroll
-Detail view    →  RandomAccessFile.setPosition(offset) — reads only the needed region
-Session end    →  Memory + temp file cleared; OS cleans up on crash
-```
-
-Large-body serialisation runs in a dedicated `dart:isolate` — the main thread is never blocked.
+Current package version in this repository: `0.0.1`
 
 ---
 
-## Features
+## Requirements
 
-- Capture `dio` requests/responses/errors — zero-copy via `TransferableTypedData`
-- Capture `dart:http` requests via `NetSpecterHttpClient`
-- Session-only storage — no database, no leftover files, no `build_runner`
-- **Multiple open triggers:** floating button, shake, long-press, or any custom stream
-- **Open programmatically** from anywhere — `NetSpecter.showInspector()`
-- **Enable/disable capture** at runtime without touching the interceptor
-- Filter by method, status code, host, and text query — pure in-memory, instant
-- Body viewer with **JSON pretty-print**, **URL-decode**, and copy button
-- Export to HAR or copy as cURL
+- Dart: `>=3.5.0 <4.0.0`
+- Flutter: `>=3.10.0`
 
 ---
 
-## Getting Started
+## Install
 
 ```yaml
 dependencies:
@@ -43,7 +26,7 @@ dependencies:
 
 ---
 
-## Quick Start
+## Quick start (Dio)
 
 ```dart
 import 'package:dio/dio.dart';
@@ -51,158 +34,173 @@ import 'package:flutter/material.dart';
 import 'package:netspecter/netspecter.dart';
 
 void main() {
-  final dio = Dio()..interceptors.add(NetSpecterDioInterceptor());
+  final dio = Dio()..interceptors.add(NetSpecter.dioInterceptor);
 
   runApp(
     MaterialApp(
-      home: NetSpecterOverlay(child: MyApp(dio: dio)),
+      home: NetSpecterOverlay(
+        child: MyApp(dio: dio),
+      ),
     ),
   );
 }
 ```
 
-`NetSpecterOverlay` uses `InspectorSession.instance` internally — no manual init needed.
+---
+
+## Integrations
+
+### Dio
+
+```dart
+final dio = Dio()..interceptors.add(NetSpecter.dioInterceptor);
+
+// Or explicit constructor
+// dio.interceptors.add(NetSpecterDioInterceptor());
+```
+
+### HTTP (`package:http`)
+
+```dart
+import 'package:http/http.dart' as http;
+
+final client = NetSpecter.wrapHttpClient(http.Client());
+// or NetSpecterHttpClient(http.Client())
+
+final res = await client.get(Uri.parse('https://api.example.com/users'));
+```
+
+### Chopper
+
+```dart
+import 'package:chopper/chopper.dart';
+
+final chopper = ChopperClient(
+  interceptors: [
+    NetSpecterChopperInterceptor(),
+  ],
+  // ... your converter/services
+);
+```
 
 ---
 
-## Triggers
+## Open inspector
 
-Control how the inspector is opened via `NetSpecterConfig`.
+```dart
+// Always works with context
+NetSpecter.showInspector(context);
 
-### Built-in triggers
+// Works without context if navigatorKey was passed to NetSpecterOverlay
+NetSpecter.showInspector();
+```
+
+---
+
+## Overlay triggers
+
+Configure triggers via `NetSpecterConfig`:
 
 ```dart
 NetSpecterOverlay(
   config: NetSpecterConfig(
     triggers: {
-      InspectorTrigger.floatingButton, // draggable red bug button (default)
-      InspectorTrigger.shake,          // shake the device
-      InspectorTrigger.longPress,      // long-press any blank area
+      InspectorTrigger.floatingButton, // default
+      InspectorTrigger.shake,
+      InspectorTrigger.longPress,
     },
-
-    // Shake tuning
-    shakeThreshold: 15.0,                          // m/s², default 15
-    shakeMinInterval: Duration(milliseconds: 1000), // cooldown, default 1s
-
-    // Long-press tuning
-    longPressDuration: Duration(milliseconds: 800), // default 800ms
-
-    // Custom floating button icon (optional)
+    shakeThreshold: 15.0,
+    shakeMinInterval: Duration(milliseconds: 1000),
+    longPressDuration: Duration(milliseconds: 800),
     fabChild: Icon(Icons.network_check, color: Colors.white),
   ),
   child: ...,
 )
 ```
 
-### Custom trigger stream
-
-Wire any external event source — local notifications, remote flags, custom gestures:
+You can also open via any custom stream:
 
 ```dart
-final _triggerController = StreamController<void>.broadcast();
-
-// Example: local notification tap
-notificationsPlugin.onDidReceiveNotificationResponse = (_) {
-  _triggerController.add(null);
-};
-
 NetSpecterOverlay(
-  customTrigger: _triggerController.stream,
+  customTrigger: myTriggerStream,
   child: ...,
 )
 ```
 
 ---
 
-## Open inspector programmatically
+## Features
 
-```dart
-// With a BuildContext (always works)
-NetSpecter.showInspector(context);
-
-// Without context — requires navigatorKey to be registered (see GoRouter section)
-NetSpecter.showInspector();
-```
-
----
-
-## Enable / Disable capture
-
-Pause capturing without removing the interceptor — useful for sensitive screens:
-
-```dart
-// On entering a payment screen
-NetSpecter.instance.disable();
-
-// On leaving
-NetSpecter.instance.enable();
-```
-
-The interceptor keeps running; data is silently dropped while disabled.
+- Capture request lifecycle early (pending shown immediately, then updated on response/error)
+- Detail pages for request/response/error/message tabs
+- URL decode toggle in UI
+- Search inside details with match navigation
+- Export HAR and copy as cURL
+- Replay tools in detail screen:
+  - `Retry Request`
+  - `Duplicate & Edit` (Postman-like editor with `Params / Headers / Body`)
+- JSON editors in replay screen:
+  - Header JSON editor
+  - Body JSON editor
+  - JSON format + validation + syntax highlight
+- Better body rendering:
+  - `application/x-www-form-urlencoded` formatter
+  - `multipart/form-data` summary formatter
+  - GraphQL payload formatter
+  - Binary preview metadata (image/pdf/protobuf/msgpack fallback)
+  - Content-Encoding indicator (`gzip` / `br` decode status)
 
 ---
 
-## `MaterialApp.router` / GoRouter
+## Network simulation (DevTools-like)
 
-Your app **already owns** a `GlobalKey<NavigatorState>`. Pass it into `NetSpecterOverlay` — the package uses it for navigation without asking you to change anything else.
+NetSpecter supports runtime network simulation profiles:
+
+- `No throttling`
+- `Offline`
+- `Slow 3G`
+- `Fast 3G`
+- `4G`
+- `Wi‑Fi`
+- `Custom` (latency/upload/download sliders in settings)
+
+Programmatic control:
 
 ```dart
-import 'package:go_router/go_router.dart';
-import 'package:netspecter/netspecter.dart';
+NetSpecter.instance.setNetworkSimulation(NetworkSimulationProfile.slow3G);
 
-// 1. Your app owns and controls this key (as always):
-final _navigatorKey = GlobalKey<NavigatorState>();
-
-final _router = GoRouter(
-  navigatorKey: _navigatorKey, // ← your key, your router
-  routes: [ /* ... */ ],
+NetSpecter.instance.setNetworkSimulation(
+  const NetworkSimulationProfile(
+    name: 'Custom',
+    offline: false,
+    latencyMs: 250,
+    downloadKbps: 1200,
+    uploadKbps: 600,
+  ),
 );
 
-class MyApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp.router(
-      routerConfig: _router,
-      builder: (context, child) {
-        return NetSpecterOverlay(
-          navigatorKey: _navigatorKey, // ← pass your key here
-          child: child ?? const SizedBox(),
-        );
-      },
-    );
-  }
-}
+NetSpecter.instance.clearNetworkSimulation();
 ```
 
-Once the key is passed, `NetSpecter.showInspector()` works without a `BuildContext`.
+> Note: Simulation only applies to requests going through NetSpecter wrappers/interceptors.
 
 ---
 
-## `dart:http` integration
+## Capture control
 
 ```dart
-import 'package:http/http.dart' as http;
-import 'package:netspecter/netspecter.dart';
-
-// Option A — factory helper
-final client = NetSpecter.wrapHttpClient(http.Client());
-
-// Option B — direct constructor
-final client = NetSpecterHttpClient(http.Client());
-
-final response = await client.get(Uri.parse('https://api.example.com/data'));
+NetSpecter.instance.disable(); // stop recording
+NetSpecter.instance.enable();  // resume
 ```
 
 ---
 
 ## Custom session
 
-Useful for tests or running multiple isolated inspectors side by side:
-
 ```dart
 final session = InspectorSession(
-  settings: NetSpecterSettings(
-    bodyOffloadThreshold: 100 * 1024, // 100 KB before offloading to file
+  settings: const NetSpecterSettings(
+    bodyOffloadThreshold: 100 * 1024,
     maxEntries: 1000,
   ),
 );
@@ -211,68 +209,64 @@ final dio = Dio()..interceptors.add(NetSpecterDioInterceptor(session));
 
 runApp(
   MaterialApp(
-    home: NetSpecterOverlay(session: session, child: MyApp(dio: dio)),
+    home: NetSpecterOverlay(
+      session: session,
+      child: MyApp(dio: dio),
+    ),
   ),
 );
 ```
 
 ---
 
-## Debug-only usage (recommended)
+## Storage model
 
-```dart
-import 'package:flutter/foundation.dart';
-
-void main() {
-  final dio = Dio();
-  if (kDebugMode) {
-    dio.interceptors.add(NetSpecterDioInterceptor());
-  }
-  runApp(MyApp(dio: dio));
-}
+```text
+Body < bodyOffloadThreshold  -> kept inline in memory
+Body >= bodyOffloadThreshold -> offloaded to temp file (offset/length in RAM)
+List view                    -> reads memory index only
+Detail view                  -> lazy loads only selected record
 ```
 
----
-
-## Integration matrix
-
-| Setup | Placement | Pass `navigatorKey` to overlay? |
-|---|---|---|
-| `MaterialApp` (plain) | `home:` or inside `builder:` | Not required — falls back to context |
-| `MaterialApp.router` + GoRouter | `builder:` callback | **Yes** — pass your existing GoRouter key |
-| `MaterialApp` with custom key | inside `MaterialApp` | **Yes** — pass your existing key |
+Large-body serialization/writes are done via a background isolate.
 
 ---
 
-## Settings
+## NetSpecterSettings
 
 | Parameter | Default | Description |
 |---|---|---|
-| `bodyOffloadThreshold` | 50 KB | Bodies above this are written to a temp file; below stays in RAM |
-| `previewTruncationBytes` | 16 KB | Max bytes shown in body preview before `[truncated]` suffix |
-| `maxBodyBytes` | 2 MB | Hard cap — bodies larger than this are truncated before storage |
-| `maxQueuedEvents` | 500 | Write queue depth; oldest unprocessed entry is dropped when full |
-| `maxEntries` | 5 000 | Max entries in the memory index; oldest is evicted when exceeded |
+| `bodyOffloadThreshold` | `50 * 1024` | Body size threshold for file offload |
+| `previewTruncationBytes` | `16 * 1024` | Max bytes kept when body is truncated |
+| `maxBodyBytes` | `2 * 1024 * 1024` | Hard cap before truncation |
+| `maxQueuedEvents` | `500` | Max pending write queue events |
+| `maxEntries` | `5000` | Max items kept in memory index |
+| `urlDecodeEnabled` | `true` | Initial URL decode state in UI |
 
 ---
 
-## Body viewer
+## Router / navigatorKey setup
 
-The detail screen automatically detects body format and offers display modes:
+If you use `MaterialApp.router` / GoRouter, pass your app navigator key to the overlay so `NetSpecter.showInspector()` can work without context.
 
-| Content-Type | Default view | Available toggles |
-|---|---|---|
-| `application/json` | Pretty (indented) | Raw · Pretty |
-| `application/x-www-form-urlencoded` | Decoded (key/value table) | Raw · Decoded |
-| Binary (`image/*`, `application/octet-stream`, …) | `[binary: N bytes]` | — |
-| Other text | Raw | — |
+```dart
+final navigatorKey = GlobalKey<NavigatorState>();
 
-A **Copy** button on each body section copies the currently displayed text.
+MaterialApp.router(
+  routerConfig: router,
+  builder: (context, child) {
+    return NetSpecterOverlay(
+      navigatorKey: navigatorKey,
+      child: child ?? const SizedBox(),
+    );
+  },
+)
+```
 
 ---
 
 ## Notes
 
-- The floating button snaps to the nearest screen edge when released.
-- Session data (memory + temp file) is cleared on `session.clear()` or `session.dispose()`. If the app crashes, the temp file sits in `getTemporaryDirectory()` and is cleaned up by the OS.
-- For a complete runnable example, see the `example/` folder.
+- The floating trigger button is draggable.
+- Session data is in-memory + temp file only (no DB).
+- For runnable integration examples, check the `example/` folder.

@@ -6,12 +6,15 @@ import 'package:netspecter/src/ui/widgets/toast_notification.dart';
 
 import '../../storage/inspector_session.dart';
 
+/// Main inspector screen showing captured network calls and actions.
 class NetSpecterScreen extends StatefulWidget {
+  /// Creates the inspector screen bound to [session].
   const NetSpecterScreen({
     super.key,
     required this.session,
   });
 
+  /// Session used to read and mutate captured data.
   final InspectorSession session;
 
   @override

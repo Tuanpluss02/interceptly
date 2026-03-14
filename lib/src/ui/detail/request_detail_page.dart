@@ -11,10 +11,15 @@ import '_detail_tabs.dart';
 import '_replay_handler.dart';
 import '_share_handler.dart';
 
+/// Detail screen for an individual captured request/response record.
 class RequestDetailPage extends StatefulWidget {
+  /// Indexed entry selected from the list tab.
   final IndexEntry entry;
+
+  /// Session used to load full detail and replay actions.
   final InspectorSession session;
 
+  /// Creates a detail page for [entry] using [session].
   const RequestDetailPage({
     super.key,
     required this.entry,

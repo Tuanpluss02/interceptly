@@ -8,15 +8,19 @@ import '../../model/network_simulation.dart';
 import '../../model/raw_capture.dart';
 import '../../storage/inspector_session.dart';
 
+/// A Dio interceptor that captures requests and responses for NetSpecter.
 class NetSpecterDioInterceptor extends Interceptor {
+  /// Creates an interceptor backed by [session] or the shared singleton.
   NetSpecterDioInterceptor([InspectorSession? session])
       : session = session ?? InspectorSession.instance;
 
+  /// Session that stores all captured events.
   final InspectorSession session;
 
   static const String _startedAtKey = 'netspecter_started_at';
   static const String _requestIdKey = 'netspecter_request_id';
 
+  /// Captures a pending request and applies pre-request simulation.
   @override
   Future<void> onRequest(
       RequestOptions options, RequestInterceptorHandler handler) async {
@@ -63,6 +67,7 @@ class NetSpecterDioInterceptor extends Interceptor {
     handler.next(options);
   }
 
+  /// Captures a successful response and applies post-response simulation.
   @override
   Future<void> onResponse(
     Response<dynamic> response,
@@ -81,6 +86,7 @@ class NetSpecterDioInterceptor extends Interceptor {
     handler.next(response);
   }
 
+  /// Captures a Dio failure response or transport error.
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
     _record(

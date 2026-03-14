@@ -42,12 +42,25 @@ class NetSpecter extends ChangeNotifier {
   // Passthrough getters
   // ---------------------------------------------------------------------------
 
+  /// Underlying session that owns captured data and settings.
   InspectorSession get session => _session;
+
+  /// Effective capture and storage settings.
   NetSpecterSettings get settings => _session.settings;
+
+  /// Current list of indexed network calls.
   List<IndexEntry> get calls => _session.entries;
+
+  /// Active filter used by the inspector list.
   HttpCallFilter get filter => _session.filter;
+
+  /// Number of events dropped due to bounded queue pressure.
   int get droppedEvents => _session.droppedCount;
+
+  /// Whether capture is currently enabled.
   bool get isEnabled => _session.isEnabled;
+
+  /// Active network simulation profile.
   NetworkSimulationProfile get networkSimulation => _session.networkSimulation;
 
   // ---------------------------------------------------------------------------
@@ -63,37 +76,33 @@ class NetSpecter extends ChangeNotifier {
   /// dropped. Useful for sensitive screens (e.g. payment flows).
   void disable() => _session.disable();
 
+  /// Initializes background resources used by the session.
   Future<void> initialize() => _session.initialize();
 
+  /// Records a completed capture payload.
   void recordCapture(RawCapture capture) => _session.record(capture);
 
+  /// Loads full request/response detail for an indexed entry.
   Future<RequestRecord> loadDetail(IndexEntry entry) =>
       _session.loadDetail(entry);
 
+  /// Applies list filtering in the inspector UI.
   void applyFilter(HttpCallFilter filter) => _session.applyFilter(filter);
 
+  /// Sets runtime network simulation to [profile].
   void setNetworkSimulation(NetworkSimulationProfile profile) =>
       _session.setNetworkSimulation(profile);
 
+  /// Clears simulation and returns to no-throttling behavior.
   void clearNetworkSimulation() => _session.clearNetworkSimulation();
 
+  /// Clears captured entries and body storage for the current session.
   Future<void> clear() => _session.clear();
 
   // ---------------------------------------------------------------------------
   // Navigation
   // ---------------------------------------------------------------------------
 
-  /// Opens the inspector screen.
-  ///
-  /// Prefers [navigatorKey] if registered; falls back to [context].
-  ///
-  /// ```dart
-  /// // From a button:
-  /// NetSpecter.showInspector(context);
-  ///
-  /// // From a notification handler (navigatorKey must be registered):
-  /// NetSpecter.showInspector();
-  /// ```
   /// Opens the inspector screen.
   ///
   /// Uses the navigator key registered via [NetSpecterOverlay.navigatorKey]

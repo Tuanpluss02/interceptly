@@ -1,7 +1,8 @@
+/// Where body bytes are persisted for a captured request.
 enum BodyLocation {
-  /// Body nhỏ (<50KB) — giữ thẳng trong RAM dưới dạng Uint8List.
+  /// Small body (<50KB), kept inline in memory.
   memory,
 
-  /// Body lớn (≥50KB) — chỉ lưu offset + length, dữ liệu trong temp file.
+  /// Large body (≥50KB), stored in temp file with offset and length.
   file,
 }

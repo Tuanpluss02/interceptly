@@ -1,8 +1,10 @@
 import 'package:netspecter/netspecter.dart';
 
+/// Exports captured request records to HAR 1.2 compatible maps.
 class HarExporter {
   const HarExporter._();
 
+  /// Converts [records] into a HAR root object.
   static Map<String, Object?> fromRecords(List<RequestRecord> records) {
     return {
       'log': {
@@ -62,7 +64,7 @@ class HarExporter {
     };
   }
 
-  // Trả về string rỗng thay vì placeholder binary
+  /// Returns empty text for binary placeholders in HAR content.
   static String _safeBody(String? body) {
     if (body == null || body.startsWith('[')) return '';
     return body;

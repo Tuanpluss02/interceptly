@@ -1,8 +1,10 @@
 import 'package:netspecter/netspecter.dart';
 
+/// Builds cURL commands from captured request records.
 class CurlGenerator {
   const CurlGenerator._();
 
+  /// Converts a [RequestRecord] into a shell-safe cURL command.
   static String fromRecord(RequestRecord record) {
     final buffer = StringBuffer('curl');
 

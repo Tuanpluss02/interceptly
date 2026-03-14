@@ -4,11 +4,15 @@ import 'package:netspecter/src/ui/netspecter_theme.dart';
 import '../../model/network_simulation.dart';
 import '../../storage/inspector_session.dart';
 
+/// Bottom-sheet UI for inspector runtime settings.
 class SettingsBottomSheet extends StatefulWidget {
+  /// Session to read/update URL decode and simulation options.
   final InspectorSession session;
 
+  /// Creates a settings sheet bound to [session].
   const SettingsBottomSheet({super.key, required this.session});
 
+  /// Opens the settings bottom sheet for [session].
   static Future<void> show(BuildContext context, InspectorSession session) {
     return showModalBottomSheet(
       context: context,

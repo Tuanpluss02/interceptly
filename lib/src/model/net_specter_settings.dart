@@ -1,3 +1,4 @@
+/// Configuration for NetSpecter capture and storage behavior.
 class NetSpecterSettings {
   const NetSpecterSettings({
     this.bodyOffloadThreshold = 50 * 1024,
