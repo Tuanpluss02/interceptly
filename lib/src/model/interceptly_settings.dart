@@ -13,7 +13,7 @@ class InterceptlySettings {
   /// Below this threshold the raw bytes are kept inline in RAM.
   final int bodyOffloadThreshold;
 
-  /// Max characters shown in the body preview before '[truncated]' suffix.
+  /// Max characters shown in the body preview before the "truncated" suffix.
   final int previewTruncationBytes;
 
   /// Hard cap: bodies larger than this are truncated before storage.
@@ -23,7 +23,7 @@ class InterceptlySettings {
   /// When full, the oldest unprocessed item is dropped.
   final int maxQueuedEvents;
 
-  /// Maximum number of [IndexEntry]s kept in the [MemoryIndex].
+  /// Maximum number of `IndexEntry` items kept in the in-memory index.
   /// When exceeded, the oldest entry is removed.
   final int maxEntries;
 

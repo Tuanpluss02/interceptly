@@ -1,7 +1,7 @@
 /// Defines how the inspector can be opened.
 ///
 /// Multiple triggers can be combined in [NetSpecterConfig.triggers].
-/// If [customTrigger] is passed to [NetSpecterOverlay], it opens the
+/// If `customTrigger` is passed to `NetSpecterOverlay`, it opens the
 /// inspector on every event regardless of this set.
 enum InspectorTrigger {
   /// A draggable floating bug button (default).

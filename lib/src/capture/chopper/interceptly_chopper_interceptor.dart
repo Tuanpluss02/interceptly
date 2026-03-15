@@ -10,8 +10,7 @@ import '../../model/raw_capture.dart';
 import '../../storage/inspector_session.dart';
 
 /// A Chopper interceptor that captures all requests and responses.
-class InterceptlyChopperInterceptor
-    implements RequestInterceptor, ResponseInterceptor {
+class InterceptlyChopperInterceptor implements Interceptor {
   InterceptlyChopperInterceptor([InspectorSession? session])
       : session = session ?? InspectorSession.instance;
 
@@ -21,7 +20,10 @@ class InterceptlyChopperInterceptor
   static const String _requestIdKey = 'interceptly_request_id';
 
   @override
-  FutureOr<Request> onRequest(Request request) async {
+  FutureOr<Response<BodyType>> intercept<BodyType>(
+    Chain<BodyType> chain,
+  ) async {
+    final request = chain.request;
     final startedAt = DateTime.now();
     final requestId = RequestId.generate();
 
@@ -61,22 +63,21 @@ class InterceptlyChopperInterceptor
       rethrow;
     }
 
-    return request.copyWith(
+    final enrichedRequest = request.copyWith(
       parameters: {
         ...request.parameters,
         _startedAtKey: startedAt.toIso8601String(),
         _requestIdKey: requestId,
       },
     );
-  }
 
-  @override
-  FutureOr<Response> onResponse(Response response) {
+    final response = await chain.proceed(enrichedRequest);
+
     final requestUri = response.base.request?.url;
-    final requestId =
+    final recordedRequestId =
         requestUri?.queryParameters[_requestIdKey] ?? RequestId.generate();
     final startedAtStr = requestUri?.queryParameters[_startedAtKey];
-    final startedAt = startedAtStr != null
+    final recordedStartedAt = startedAtStr != null
         ? DateTime.tryParse(startedAtStr) ?? DateTime.now()
         : DateTime.now();
 
@@ -90,43 +91,44 @@ class InterceptlyChopperInterceptor
           .toString();
     }
 
-    final durationMs = DateTime.now().difference(startedAt).inMilliseconds;
+    final durationMs =
+        DateTime.now().difference(recordedStartedAt).inMilliseconds;
 
-    final reqBody = _extractBody(response.base.request?.method == 'POST' ||
-            response.base.request?.method == 'PUT' ||
-            response.base.request?.method == 'PATCH'
-        ? (response.base.request as dynamic).body
-        : null);
+    final responseRequestBody = _extractBody(
+        response.base.request?.method == 'POST' ||
+                response.base.request?.method == 'PUT' ||
+                response.base.request?.method == 'PATCH'
+            ? (response.base.request as dynamic).body
+            : null);
 
     final resBody = _extractBody(response.body);
 
-    return Future<Response>.sync(() async {
-      await session.applyNetworkSimulationAfterResponse(
-        downloadBytes: resBody?.length ?? 0,
-      );
+    await session.applyNetworkSimulationAfterResponse(
+      downloadBytes: resBody?.length ?? 0,
+    );
 
-      final capture = RawCapture(
-        id: requestId,
-        method: response.base.request?.method ?? 'UNKNOWN',
-        url: captureUrl,
-        requestHeaders: response.base.request?.headers ?? {},
-        responseHeaders: response.base.headers,
-        statusCode: response.statusCode,
-        durationMs: durationMs,
-        timestamp: startedAt,
-        requestBodyBytes: RawCapture.wrapBytes(
-            reqBody != null ? Uint8List.fromList(reqBody) : null),
-        responseBodyBytes: RawCapture.wrapBytes(
-            resBody != null ? Uint8List.fromList(resBody) : null),
-        requestContentType: response.base.request?.headers['content-type'],
-        responseContentType: response.base.headers['content-type'],
-        errorType: response.isSuccessful ? null : 'ChopperError',
-        errorMessage: response.isSuccessful ? null : response.error?.toString(),
-      );
+    final capture = RawCapture(
+      id: recordedRequestId,
+      method: response.base.request?.method ?? 'UNKNOWN',
+      url: captureUrl,
+      requestHeaders: response.base.request?.headers ?? {},
+      responseHeaders: response.base.headers,
+      statusCode: response.statusCode,
+      durationMs: durationMs,
+      timestamp: recordedStartedAt,
+      requestBodyBytes: RawCapture.wrapBytes(responseRequestBody != null
+          ? Uint8List.fromList(responseRequestBody)
+          : null),
+      responseBodyBytes: RawCapture.wrapBytes(
+          resBody != null ? Uint8List.fromList(resBody) : null),
+      requestContentType: response.base.request?.headers['content-type'],
+      responseContentType: response.base.headers['content-type'],
+      errorType: response.isSuccessful ? null : 'ChopperError',
+      errorMessage: response.isSuccessful ? null : response.error?.toString(),
+    );
 
-      session.record(capture);
-      return response;
-    });
+    session.record(capture);
+    return response;
   }
 
   List<int>? _extractBody(dynamic body) {

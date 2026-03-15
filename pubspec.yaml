@@ -11,14 +11,14 @@ environment:
   flutter: ">=3.10.0"
 
 dependencies:
-  dio: ^5.0.0
+  dio: ^5.4.0
   http: ^1.0.0
-  sensors_plus: ^4.0.0
+  sensors_plus: ^7.0.0
   flutter:
     sdk: flutter
   path_provider: ^2.1.5
-  chopper: ^7.0.0
-  share_plus: ^7.0.0
+  chopper: ^8.0.0
+  share_plus: ^12.0.1
 
 dev_dependencies:
   flutter_test:
@@ -31,16 +31,9 @@ dev_dependencies:
 # The following section is specific to Flutter packages.
 flutter:
 
-  # To add assets to your package, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
-  #
-  # For details regarding assets in packages, see
-  # https://flutter.dev/to/asset-from-package
-  #
-  # An image asset can refer to one or more resolution-specific "variants", see
-  # https://flutter.dev/to/resolution-aware-images
+  # Font assets must be declared so consuming apps can bundle them (e.g. iOS).
+  assets:
+    - assets/fonts/
 
   fonts:
     - family: JetBrainsMono

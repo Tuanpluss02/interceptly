@@ -30,8 +30,8 @@ class InterceptlyExampleApp extends StatelessWidget {
       navigatorKey: navigatorKey,
       title: 'Interceptly Example',
       themeMode: ThemeMode.system,
-      theme: InterceptlyTheme.lightTheme,
-      darkTheme: InterceptlyTheme.darkTheme,
+      theme: ThemeData.from(colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue)),
+      darkTheme: ThemeData.dark(useMaterial3: true),
       builder: (context, child) {
         InterceptlyTheme.bind(context: context, themeMode: ThemeMode.system);
         return child ?? const SizedBox.shrink();
@@ -83,7 +83,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
     return Scaffold(
       appBar: AppBar(title: const Text('Interceptly Example')),
       body: Padding(
-        padding: EdgeInsets.all(InterceptlyTheme.spacing.md),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[

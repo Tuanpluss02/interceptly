@@ -39,7 +39,7 @@ class RequestRecord {
   final String? requestContentType;
   final String? responseContentType;
 
-  /// UTF-8 decoded body text, or '[binary: N bytes]' for non-text content.
+  /// UTF-8 decoded body text, or a `binary: N bytes` placeholder for non-text content.
   final String? requestBodyPreview;
   final String? responseBodyPreview;
   final Uint8List? requestBodyBytesPreview;

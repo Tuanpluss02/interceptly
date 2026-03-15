@@ -111,10 +111,12 @@ class ShareHandler {
     try {
       final curl = CurlGenerator.fromRecord(record);
       _getSharePositionOrigin().then((origin) {
-        Share.share(
-          curl,
-          subject: 'cURL Command',
-          sharePositionOrigin: origin,
+        SharePlus.instance.share(
+          ShareParams(
+            text: curl,
+            subject: 'cURL Command',
+            sharePositionOrigin: origin,
+          ),
         );
       });
     } catch (e) {
@@ -138,11 +140,13 @@ class ShareHandler {
 
       // Share file using system share UI
       final origin = await _getSharePositionOrigin();
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        subject: 'HAR Export',
-        text: 'Network request HAR export',
-        sharePositionOrigin: origin,
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path)],
+          subject: 'HAR Export',
+          text: 'Network request HAR export',
+          sharePositionOrigin: origin,
+        ),
       );
     } catch (e) {
       _showError('Error exporting HAR: $e');
