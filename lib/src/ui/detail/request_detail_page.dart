@@ -211,40 +211,18 @@ class _RequestDetailPageState extends State<RequestDetailPage>
               ),
             ),
             actions: [
-              IconButton(
-                tooltip: 'Replay request',
-                icon: const Icon(Icons.play_arrow,
-                    color: InterceptlyTheme.indigo400),
-                onPressed: _showReplayMenu,
+              Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: _buildReplayChip(),
               ),
-              Container(
-                margin: const EdgeInsets.only(right: 16.0),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-                decoration: BoxDecoration(
-                  color: sStyle.bg,
-                  borderRadius: BorderRadius.circular(4.0),
+              Padding(
+                padding: const EdgeInsets.only(right: 16.0),
+                child: _buildStatusChip(
+                  entry: entry,
+                  isPending: isPending,
+                  isErrorWithoutStatus: isErrorWithoutStatus,
+                  statusStyle: sStyle,
                 ),
-                alignment: Alignment.center,
-                child: isPending
-                    ? SizedBox(
-                        width: 12,
-                        height: 12,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 1.8,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(sStyle.text),
-                        ),
-                      )
-                    : Text(
-                        isErrorWithoutStatus
-                            ? 'ERR'
-                            : '${entry.statusCode} ${entry.statusCode == 200 ? 'OK' : ''}',
-                        style: InterceptlyTheme.typography.labelSmallMedium
-                            .copyWith(
-                          color: sStyle.text,
-                        ),
-                      ),
               ),
             ],
           ),
@@ -463,6 +441,90 @@ class _RequestDetailPageState extends State<RequestDetailPage>
           ),
         );
       },
+    );
+  }
+
+  Widget _buildReplayChip() {
+    return Material(
+      color: InterceptlyTheme.surfaceContainer,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: _showReplayMenu,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.play_arrow_rounded,
+                size: 16,
+                color: InterceptlyTheme.indigo400,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'Replay',
+                style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
+                  fontSize: 12,
+                  color: InterceptlyTheme.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusChip({
+    required IndexEntry entry,
+    required bool isPending,
+    required bool isErrorWithoutStatus,
+    required StatusStyle statusStyle,
+  }) {
+    final label = isPending
+        ? 'PENDING'
+        : isErrorWithoutStatus
+            ? 'ERR'
+            : '${entry.statusCode}';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: statusStyle.bg.withValues(alpha: 0.18),
+        border: Border.all(color: statusStyle.bg.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isPending)
+            SizedBox(
+              width: 10,
+              height: 10,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.6,
+                valueColor: AlwaysStoppedAnimation<Color>(statusStyle.bg),
+              ),
+            )
+          else
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: statusStyle.bg,
+                shape: BoxShape.circle,
+              ),
+            ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: InterceptlyTheme.typography.labelSmallMedium.copyWith(
+              color: InterceptlyTheme.textPrimary,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

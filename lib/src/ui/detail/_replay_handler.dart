@@ -35,28 +35,48 @@ class ReplayHandler {
               height: 4,
               margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
-                color: InterceptlyGlobalColor.white.withValues(alpha: 0.2),
+                color: InterceptlyTheme.controlMuted,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
             ListTile(
               leading:
                   const Icon(Icons.refresh, color: InterceptlyTheme.indigo500),
-              title: const Text('Retry Request'),
-              subtitle: const Text('Send the same request again',
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
+              title: Text(
+                'Retry Request',
+                style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
+                  color: InterceptlyTheme.textPrimary,
+                ),
+              ),
+              subtitle: Text('Send the same request again',
+                  style: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
+                    color: InterceptlyTheme.textMuted,
+                    fontSize: 12,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis),
               onTap: () {
                 Navigator.pop(context);
                 retry(record);
               },
             ),
-            const Divider(color: InterceptlyGlobalColor.black12, height: 1),
+            Divider(color: InterceptlyTheme.dividerSubtle, height: 1),
             ListTile(
               leading: const Icon(Icons.edit_note,
                   color: InterceptlyTheme.indigo500),
-              title: const Text('Duplicate & Edit'),
-              subtitle: const Text('Modify request then send as new',
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
+              title: Text(
+                'Duplicate & Edit',
+                style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
+                  color: InterceptlyTheme.textPrimary,
+                ),
+              ),
+              subtitle: Text('Modify request then send as new',
+                  style: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
+                    color: InterceptlyTheme.textMuted,
+                    fontSize: 12,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis),
               onTap: () {
                 Navigator.pop(context);
                 duplicateAndEdit(record);
@@ -446,19 +466,33 @@ class _ReplayEditorSheetState extends State<_ReplayEditorSheet>
                     initialValue: _methods.contains(_methodController.text)
                         ? _methodController.text
                         : 'GET',
+                    dropdownColor: InterceptlyTheme.surfaceContainer,
+                    style: InterceptlyTheme.typography.bodyMediumRegular
+                        .copyWith(color: InterceptlyTheme.textPrimary),
+                    iconEnabledColor: InterceptlyTheme.textSecondary,
                     items: _methods
                         .map((m) => DropdownMenuItem<String>(
                               value: m,
-                              child: Text(m),
+                              child: Text(
+                                m,
+                                style: InterceptlyTheme
+                                    .typography.bodyMediumRegular
+                                    .copyWith(
+                                  color: InterceptlyTheme.textPrimary,
+                                  fontSize: 13,
+                                ),
+                              ),
                             ))
                         .toList(),
                     onChanged: (value) {
                       if (value == null) return;
                       _methodController.text = value;
                     },
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       isDense: true,
                       labelText: 'Method',
+                      labelStyle: InterceptlyTheme.typography.bodyMediumRegular
+                          .copyWith(color: InterceptlyTheme.textMuted),
                     ),
                   ),
                 ),
