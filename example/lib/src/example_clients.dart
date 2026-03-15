@@ -16,7 +16,7 @@ class ExampleClients {
     final dio = Dio()..interceptors.add(InterceptlyDioInterceptor());
     final httpClient = Interceptly.wrapHttpClient(http.Client());
     final chopperClient = chopper.ChopperClient(
-      baseUrl: Uri.parse('https://jsonplaceholder.typicode.com'),
+      baseUrl: Uri.parse('https://reqres.in/api'),
       interceptors: <chopper.Interceptor>[InterceptlyChopperInterceptor()],
     );
 

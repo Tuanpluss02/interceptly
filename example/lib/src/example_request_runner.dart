@@ -14,18 +14,25 @@ class ExampleRequestRunner {
   final chopper.ChopperClient chopperClient;
 
   Future<ExampleRequestResult> runDioGet() async {
-    final response = await dio.get<dynamic>(
-      'https://jsonplaceholder.typicode.com/posts/1',
-    );
-    return ExampleRequestResult(
-      statusCode: response.statusCode ?? 0,
-      preview: response.data.toString(),
-    );
+    try {
+      final response = await dio.get<dynamic>(
+        'https://reqres.in/api/users?page=1',
+      );
+      return ExampleRequestResult(
+        statusCode: response.statusCode ?? 0,
+        preview: response.data.toString(),
+      );
+    } on DioException catch (e) {
+      final statusCode = e.response?.statusCode ?? 0;
+      final preview =
+          e.response?.data?.toString() ?? e.message ?? e.type.name;
+      return ExampleRequestResult(statusCode: statusCode, preview: preview);
+    }
   }
 
   Future<ExampleRequestResult> runHttpGet() async {
     final response = await httpClient.get(
-      Uri.parse('https://jsonplaceholder.typicode.com/posts/2'),
+      Uri.parse('https://reqres.in/api/users/2'),
     );
     return ExampleRequestResult(
       statusCode: response.statusCode,
@@ -35,7 +42,7 @@ class ExampleRequestRunner {
 
   Future<ExampleRequestResult> runChopperGet() async {
     final response = await chopperClient.get<dynamic, dynamic>(
-      Uri.parse('/posts/3'),
+      Uri.parse('/users/3'),
     );
     return ExampleRequestResult(
       statusCode: response.statusCode,
@@ -44,11 +51,19 @@ class ExampleRequestRunner {
   }
 
   Future<ExampleRequestResult> runDioError() async {
-    final response = await dio.get<dynamic>('https://httpbin.org/status/503');
-    return ExampleRequestResult(
-      statusCode: response.statusCode ?? 0,
-      preview: 'Unexpected success',
-    );
+    try {
+      final response =
+          await dio.get<dynamic>('https://httpbin.org/status/503');
+      return ExampleRequestResult(
+        statusCode: response.statusCode ?? 0,
+        preview: 'Unexpected success',
+      );
+    } on DioException catch (e) {
+      final statusCode = e.response?.statusCode ?? 0;
+      final preview =
+          e.response?.data?.toString() ?? e.message ?? e.type.name;
+      return ExampleRequestResult(statusCode: statusCode, preview: preview);
+    }
   }
 
   void dispose() {
