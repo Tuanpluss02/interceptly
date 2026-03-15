@@ -1,6 +1,6 @@
 ## 1.0.0
 
-Initial release of NetSpecter.
+Initial release of Interceptly.
 
 - Added network capture for Dio, package:http, and Chopper.
 - Added inspector overlay with floating button, shake, long-press, and custom stream triggers.
