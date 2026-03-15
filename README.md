@@ -12,9 +12,7 @@ Interceptly is a high-performance network inspector for Flutter. It provides rea
 
 | Inspector Overview | Request Details | Replay Tool |
 | :---: | :---: | :---: |
-| ![Main UI](https://raw.githubusercontent.com/Tuanpluss02/interceptly/main/screenshots/main.gif) | ![Details](https://raw.githubusercontent.com/Tuanpluss02/interceptly/main/screenshots/details.png) | ![Replay](https://raw.githubusercontent.com/Tuanpluss02/interceptly/main/screenshots/replay.png) |
-
-> Note: Replace the URLs above with your actual screenshot/GIF paths once uploaded to GitHub.
+| <img src="assets/images/overview_demo.gif" width="250"> | <img src="assets/images/request_detail_demo.gif" width="250"> | <img src="assets/images/relay_tool_demo.gif" width="250"> |
 
 ---
 
