@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../../storage/inspector_session.dart';
+import '../interceptly_theme.dart';
 import '../screens/interceptly_screen.dart';
 import '../trigger/inspector_trigger.dart';
 import '../trigger/interceptly_config.dart';
@@ -15,7 +16,7 @@ class InterceptlyOverlay extends StatefulWidget {
     super.key,
     InspectorSession? session,
     InterceptlyConfig? config,
-    this.navigatorKey,
+    required this.navigatorKey,
     this.customTrigger,
     required this.child,
   })  : session = session ?? InspectorSession.instance,
@@ -42,10 +43,7 @@ class InterceptlyOverlay extends StatefulWidget {
   /// )
   /// ```
   ///
-  /// If omitted, every navigation falls back to
-  /// `Navigator.of(context, rootNavigator: true)` — which works fine for
-  /// plain `MaterialApp` setups without a custom router.
-  final GlobalKey<NavigatorState>? navigatorKey;
+  final GlobalKey<NavigatorState> navigatorKey;
 
   /// An arbitrary stream whose events open the inspector.
   ///
@@ -66,17 +64,14 @@ class _InterceptlyOverlayState extends State<InterceptlyOverlay> {
   void initState() {
     super.initState();
     widget.session.initialize();
-    if (widget.navigatorKey != null) {
-      _registeredNavigatorKey = widget.navigatorKey;
-    }
+    _registeredNavigatorKey = widget.navigatorKey;
     _subscribeCustomTrigger();
   }
 
   @override
   void didUpdateWidget(covariant InterceptlyOverlay oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.navigatorKey != widget.navigatorKey &&
-        widget.navigatorKey != null) {
+    if (oldWidget.navigatorKey != widget.navigatorKey) {
       _registeredNavigatorKey = widget.navigatorKey;
     }
     if (oldWidget.customTrigger != widget.customTrigger) {
@@ -100,7 +95,7 @@ class _InterceptlyOverlayState extends State<InterceptlyOverlay> {
   void _openInspector(BuildContext context) {
     openInspectorIfNotOpen(
       session: widget.session,
-      nav: _registeredNavigatorKey?.currentState,
+      nav: widget.navigatorKey.currentState,
       context: context,
     );
   }
@@ -144,7 +139,11 @@ class _InterceptlyOverlayState extends State<InterceptlyOverlay> {
 
     if (triggers.contains(InspectorTrigger.floatingButton)) {
       final fabChild = widget.config.fabChild ??
-          const Icon(Icons.bug_report, size: 20, color: Colors.white);
+          const Icon(
+            Icons.bug_report,
+            size: 20,
+            color: InterceptlyGlobalColor.white,
+          );
 
       content = Stack(
         children: <Widget>[
@@ -159,7 +158,7 @@ class _InterceptlyOverlayState extends State<InterceptlyOverlay> {
                   width: 44,
                   height: 44,
                   child: Material(
-                    color: Colors.red,
+                    color: InterceptlyGlobalColor.red500,
                     elevation: 2,
                     shape: const CircleBorder(),
                     clipBehavior: Clip.antiAlias,

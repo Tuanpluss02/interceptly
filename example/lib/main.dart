@@ -3,32 +3,41 @@ import 'package:flutter/material.dart';
 import 'package:interceptly/interceptly.dart';
 
 void main() {
-  final session = InspectorSession.instance;
-  final dio = Dio()..interceptors.add(InterceptlyDioInterceptor(session));
+  final dio = Dio()..interceptors.add(InterceptlyDioInterceptor());
+  final appNavigatorKey = GlobalKey<NavigatorState>();
 
-  runApp(InterceptlyExampleApp(dio: dio, session: session));
+  runApp(
+    InterceptlyExampleApp(
+      dio: dio,
+      navigatorKey: appNavigatorKey,
+    ),
+  );
 }
 
 class InterceptlyExampleApp extends StatelessWidget {
   const InterceptlyExampleApp({
     super.key,
     required this.dio,
-    required this.session,
+    required this.navigatorKey,
   });
 
   final Dio dio;
-  final InspectorSession session;
+  final GlobalKey<NavigatorState> navigatorKey;
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'Interceptly Example',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
-        fontFamily: 'JetBrainsMono',
-      ),
+      themeMode: ThemeMode.system,
+      theme: InterceptlyTheme.lightTheme,
+      darkTheme: InterceptlyTheme.darkTheme,
+      builder: (context, child) {
+        InterceptlyTheme.bind(context: context, themeMode: ThemeMode.system);
+        return child ?? const SizedBox.shrink();
+      },
       home: InterceptlyOverlay(
-        session: session,
+        navigatorKey: navigatorKey,
         child: ExampleHomePage(dio: dio),
       ),
     );
@@ -74,7 +83,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
     return Scaffold(
       appBar: AppBar(title: const Text('Interceptly Example')),
       body: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(InterceptlyTheme.spacing.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[

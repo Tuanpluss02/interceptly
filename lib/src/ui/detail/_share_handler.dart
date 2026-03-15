@@ -24,40 +24,78 @@ class ShareHandler {
       context: context,
       backgroundColor: InterceptlyTheme.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (context) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        padding: const EdgeInsets.symmetric(vertical: 14),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
               width: 40,
               height: 4,
-              margin: const EdgeInsets.only(bottom: 16),
+              margin: const EdgeInsets.only(bottom: 12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
+                color: InterceptlyTheme.controlMuted,
                 borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
+              child: Row(
+                children: [
+                  Text(
+                    'Share Request',
+                    style: InterceptlyTheme.typography.bodyMediumBold.copyWith(
+                      color: InterceptlyTheme.textPrimary,
+                      fontSize: 15,
+                    ),
+                  ),
+                ],
               ),
             ),
             ListTile(
               leading:
                   const Icon(Icons.copy, color: InterceptlyTheme.indigo500),
-              title: const Text('Copy cURL'),
-              subtitle: const Text('Copy request as cURL command',
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
+              title: Text(
+                'Copy cURL',
+                style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
+                  color: InterceptlyTheme.textPrimary,
+                ),
+              ),
+              subtitle: Text(
+                'Copy request as cURL command',
+                style: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
+                  color: InterceptlyTheme.textMuted,
+                  fontSize: 12,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
               onTap: () {
                 Navigator.pop(context);
                 shareCurlCommand(record);
               },
             ),
-            const Divider(color: Colors.white12, height: 1),
+            Divider(color: InterceptlyTheme.dividerSubtle, height: 1),
             ListTile(
               leading:
                   const Icon(Icons.download, color: InterceptlyTheme.indigo500),
-              title: const Text('Export HAR'),
-              subtitle: const Text('Download HAR file',
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
+              title: Text(
+                'Export HAR',
+                style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
+                  color: InterceptlyTheme.textPrimary,
+                ),
+              ),
+              subtitle: Text(
+                'Download HAR file',
+                style: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
+                  color: InterceptlyTheme.textMuted,
+                  fontSize: 12,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
               onTap: () {
                 Navigator.pop(context);
                 exportHarFile(record);

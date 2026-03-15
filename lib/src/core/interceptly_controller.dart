@@ -105,8 +105,9 @@ class Interceptly extends ChangeNotifier {
 
   /// Opens the inspector screen.
   ///
-  /// Uses the navigator key registered via [InterceptlyOverlay.navigatorKey]
-  /// if available, otherwise falls back to [context].
+  /// Uses the navigator key registered via [InterceptlyOverlay.navigatorKey].
+  ///
+  /// Pass a [context] only if the overlay has not registered yet.
   ///
   /// ```dart
   /// // From a button (context always available):
@@ -120,7 +121,7 @@ class Interceptly extends ChangeNotifier {
     assert(
       registeredNavigatorKey != null || context != null,
       'Interceptly.showInspector() requires either a BuildContext or a '
-      'navigatorKey passed to InterceptlyOverlay.',
+      'registered navigatorKey from InterceptlyOverlay.',
     );
     openInspectorIfNotOpen(
       session: InspectorSession.instance,

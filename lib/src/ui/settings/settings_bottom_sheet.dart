@@ -17,7 +17,7 @@ class SettingsBottomSheet extends StatefulWidget {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: InterceptlyGlobalColor.transparent,
       builder: (context) => SettingsBottomSheet(session: session),
     );
   }
@@ -29,17 +29,31 @@ class SettingsBottomSheet extends StatefulWidget {
 class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
   bool _urlDecodeEnabled = true;
   late NetworkSimulationProfile _networkSimulation;
+  ThemeMode _themeMode = ThemeMode.system;
 
   static const String _customPresetName = 'Custom';
 
   List<NetworkSimulationProfile> get _presetProfiles =>
       NetworkSimulationProfile.presets;
+  InterceptlyColors get _colors => InterceptlyTheme.colors;
+  InterceptlyTypography get _typography => InterceptlyTheme.typography;
 
   bool get _isCustomSelected => _selectedPresetName == _customPresetName;
 
   String get _selectedPresetName {
     final known = _presetProfiles.any((p) => p.name == _networkSimulation.name);
     return known ? _networkSimulation.name : _customPresetName;
+  }
+
+  String get _themeModeLabel {
+    switch (_themeMode) {
+      case ThemeMode.light:
+        return 'Light';
+      case ThemeMode.dark:
+        return 'Dark';
+      case ThemeMode.system:
+        return 'System';
+    }
   }
 
   @override
@@ -49,15 +63,18 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
     // right now just initialize URL decoding correctly.
     _urlDecodeEnabled = widget.session.urlDecodeEnabled;
     _networkSimulation = widget.session.networkSimulation;
+    _themeMode = widget.session.themeMode;
   }
 
   @override
   Widget build(BuildContext context) {
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
-      decoration: const BoxDecoration(
-        color: InterceptlyTheme.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24.0)),
+      decoration: BoxDecoration(
+        color: _colors.surfacePrimary,
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(InterceptlyTheme.radius.lg * 2),
+        ),
       ),
       child: Column(
         children: [
@@ -65,12 +82,13 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
           Container(
             padding: const EdgeInsets.only(top: 12.0, bottom: 12.0),
             decoration: BoxDecoration(
-              color: InterceptlyTheme.surface,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(24.0)),
+              color: _colors.surfacePrimary,
+              borderRadius: BorderRadius.vertical(
+                top: Radius.circular(InterceptlyTheme.radius.lg * 2),
+              ),
               border: Border(
-                  bottom:
-                      BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+                bottom: BorderSide(color: InterceptlyTheme.dividerSubtle),
+              ),
             ),
             child: Column(
               children: [
@@ -78,7 +96,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                   width: 48,
                   height: 6,
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.1),
+                    color: InterceptlyTheme.controlMuted,
                     borderRadius: BorderRadius.circular(10.0),
                   ),
                 ),
@@ -88,10 +106,11 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
+                      Text(
                         'Settings',
-                        style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold),
+                        style: _typography.titleSmallBold.copyWith(
+                          color: _colors.textPrimary,
+                        ),
                       ),
                     ],
                   ),
@@ -108,12 +127,48 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                 _buildSectionTitle('1. UI & Behavior'),
                 _buildSectionCard([
                   _SettingsTile(
+                    icon: Icons.dark_mode_outlined,
+                    title: 'Theme Mode',
+                    subtitle: 'Current: $_themeModeLabel',
+                    trailing: DropdownButtonHideUnderline(
+                      child: DropdownButton<ThemeMode>(
+                        dropdownColor: _colors.surfaceSecondary,
+                        style: _typography.bodyMediumRegular.copyWith(
+                          color: _colors.textPrimary,
+                          fontSize: 12,
+                        ),
+                        iconEnabledColor: _colors.textSecondary,
+                        iconDisabledColor: _colors.textTertiary,
+                        value: _themeMode,
+                        items: [
+                          const DropdownMenuItem(
+                            value: ThemeMode.system,
+                            child: Text('System'),
+                          ),
+                          const DropdownMenuItem(
+                            value: ThemeMode.light,
+                            child: Text('Light'),
+                          ),
+                          const DropdownMenuItem(
+                            value: ThemeMode.dark,
+                            child: Text('Dark'),
+                          ),
+                        ],
+                        onChanged: (mode) {
+                          if (mode == null) return;
+                          setState(() => _themeMode = mode);
+                          widget.session.setThemeMode(mode);
+                        },
+                      ),
+                    ),
+                  ),
+                  _SettingsTile(
                     icon: Icons.link,
                     title: 'URL Decoding',
                     subtitle: 'Decode URL endpoints in list & detail',
                     trailing: _CustomSwitch(
                       value: _urlDecodeEnabled,
-                      activeColor: InterceptlyTheme.indigo500,
+                      activeColor: _colors.actionPrimary,
                       onChanged: (val) {
                         setState(() => _urlDecodeEnabled = val);
                         widget.session.setUrlDecodeEnabled(val);
@@ -131,7 +186,13 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                     subtitle: _selectedPresetName,
                     trailing: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
-                        dropdownColor: InterceptlyTheme.surfaceContainer,
+                        dropdownColor: _colors.surfaceSecondary,
+                        style: _typography.bodyMediumRegular.copyWith(
+                          color: _colors.textPrimary,
+                          fontSize: 12,
+                        ),
+                        iconEnabledColor: _colors.textSecondary,
+                        iconDisabledColor: _colors.textTertiary,
                         value: _selectedPresetName,
                         items: [
                           ..._presetProfiles,
@@ -147,8 +208,9 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                                   value: p.name,
                                   child: Text(
                                     p.name,
-                                    style: const TextStyle(
-                                      color: InterceptlyTheme.textPrimary,
+                                    style:
+                                        _typography.bodyMediumRegular.copyWith(
+                                      color: _colors.textPrimary,
                                       fontSize: 12,
                                     ),
                                   ),
@@ -241,9 +303,11 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: InterceptlyTheme.surfaceContainer,
+        color: _colors.surfaceSecondary,
         borderRadius: BorderRadius.circular(12.0),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(
+          color: InterceptlyTheme.dividerSubtle,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -253,17 +317,14 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
             children: [
               Text(
                 title,
-                style: const TextStyle(
+                style: _typography.bodyMediumMedium.copyWith(
                   fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: InterceptlyTheme.textPrimary,
+                  color: _colors.textPrimary,
                 ),
               ),
               Text(
                 '${value.round()} $unit',
-                style: const TextStyle(
-                  fontFamily: InterceptlyTheme.fontFamily,
-                  package: InterceptlyTheme.fontPackage,
+                style: _typography.bodyMediumRegular.copyWith(
                   fontSize: 12,
                   color: InterceptlyTheme.textMuted,
                 ),
@@ -272,10 +333,10 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
           ),
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
-              activeTrackColor: InterceptlyTheme.indigo500,
-              inactiveTrackColor: Colors.white.withValues(alpha: 0.1),
-              thumbColor: InterceptlyTheme.indigo400,
-              overlayColor: InterceptlyTheme.indigo500.withValues(alpha: 0.2),
+              activeTrackColor: _colors.actionPrimary,
+              inactiveTrackColor: InterceptlyTheme.controlMuted,
+              thumbColor: _colors.actionSecondary,
+              overlayColor: _colors.actionPrimary.withValues(alpha: 0.2),
             ),
             child: Slider(
               value: value.clamp(0, max),
@@ -295,10 +356,9 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
       padding: const EdgeInsets.only(left: 4.0, bottom: 12.0),
       child: Text(
         title.toUpperCase(),
-        style: const TextStyle(
+        style: _typography.bodyMediumBold.copyWith(
           fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: InterceptlyTheme.indigo400,
+          color: _colors.actionSecondary,
           letterSpacing: 1.0,
         ),
       ),
@@ -312,7 +372,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
       if (i < children.length - 1) {
         separatedChildren.add(Divider(
           height: 1,
-          color: Colors.white.withValues(alpha: 0.05),
+          color: InterceptlyTheme.dividerSubtle,
           indent: 16, // Optional indent
         ));
       }
@@ -320,9 +380,11 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
 
     return Container(
       decoration: BoxDecoration(
-        color: InterceptlyTheme.surfaceContainer,
+        color: _colors.surfaceSecondary,
         borderRadius: BorderRadius.circular(12.0),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(
+          color: InterceptlyTheme.dividerSubtle,
+        ),
       ),
       child: Column(
         children: separatedChildren,
@@ -346,13 +408,16 @@ class _SettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = InterceptlyTheme.colors;
+    final typography = InterceptlyTheme.typography;
+
     return InkWell(
-      hoverColor: Colors.white.withValues(alpha: 0.05),
+      hoverColor: InterceptlyTheme.hoverOverlay,
       child: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Row(
           children: [
-            Icon(icon, color: Colors.grey[400], size: 20),
+            Icon(icon, color: colors.textTertiary, size: 20),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -360,16 +425,15 @@ class _SettingsTile extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: typography.bodyMediumMedium.copyWith(
                       fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: InterceptlyTheme.textPrimary,
+                      color: colors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: const TextStyle(
+                    style: typography.bodyMediumRegular.copyWith(
                       fontSize: 11,
                       color: InterceptlyTheme.textMuted,
                     ),
@@ -407,7 +471,7 @@ class _CustomSwitch extends StatelessWidget {
         height: 24,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12.0),
-          color: value ? activeColor : Colors.white.withValues(alpha: 0.1),
+          color: value ? activeColor : InterceptlyTheme.controlMuted,
         ),
         child: AnimatedAlign(
           duration: const Duration(milliseconds: 200),
@@ -419,11 +483,12 @@ class _CustomSwitch extends StatelessWidget {
             height: 20,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.white,
-              border: Border.all(color: Colors.black12, width: 0.5),
+              color: InterceptlyGlobalColor.white,
+              border:
+                  Border.all(color: InterceptlyGlobalColor.black12, width: 0.5),
               boxShadow: const [
                 BoxShadow(
-                  color: Colors.black26,
+                  color: InterceptlyGlobalColor.black26,
                   blurRadius: 4,
                   offset: Offset(0, 2),
                 ),

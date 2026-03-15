@@ -6,7 +6,7 @@ Interceptly is a Flutter network inspector for `dio`, `http`, and `chopper`.
 - Handles large payloads without blocking UI
 - Built-in inspector overlay + replay tools
 
-Current package version in this repository: `0.0.1`
+Current package version in this repository: `1.0.0`
 
 ---
 
@@ -21,7 +21,7 @@ Current package version in this repository: `0.0.1`
 
 ```yaml
 dependencies:
-  interceptly: ^0.0.1
+  interceptly: ^1.0.0
 ```
 
 ---
@@ -234,14 +234,14 @@ Large-body serialization/writes are done via a background isolate.
 
 ## InterceptlySettings
 
-| Parameter | Default | Description |
-|---|---|---|
-| `bodyOffloadThreshold` | `50 * 1024` | Body size threshold for file offload |
-| `previewTruncationBytes` | `16 * 1024` | Max bytes kept when body is truncated |
-| `maxBodyBytes` | `2 * 1024 * 1024` | Hard cap before truncation |
-| `maxQueuedEvents` | `500` | Max pending write queue events |
-| `maxEntries` | `5000` | Max items kept in memory index |
-| `urlDecodeEnabled` | `true` | Initial URL decode state in UI |
+| Parameter                | Default           | Description                           |
+| ------------------------ | ----------------- | ------------------------------------- |
+| `bodyOffloadThreshold`   | `50 * 1024`       | Body size threshold for file offload  |
+| `previewTruncationBytes` | `16 * 1024`       | Max bytes kept when body is truncated |
+| `maxBodyBytes`           | `2 * 1024 * 1024` | Hard cap before truncation            |
+| `maxQueuedEvents`        | `500`             | Max pending write queue events        |
+| `maxEntries`             | `5000`            | Max items kept in memory index        |
+| `urlDecodeEnabled`       | `true`            | Initial URL decode state in UI        |
 
 ---
 

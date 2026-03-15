@@ -51,11 +51,8 @@ class DetailTabsBuilder {
           'Method',
           record.method,
           DetailSection.overviewMethod,
-          valueStyle: TextStyle(
+          valueStyle: InterceptlyTheme.typography.bodyMediumBold.copyWith(
             color: mStyle.text,
-            fontFamily: InterceptlyTheme.fontFamily,
-            package: InterceptlyTheme.fontPackage,
-            fontWeight: FontWeight.bold,
             fontSize: 12,
           ),
         ),
@@ -81,7 +78,7 @@ class DetailTabsBuilder {
             'Error',
             shortError,
             DetailSection.errorType,
-            valueStyle: const TextStyle(
+            valueStyle: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
               color: InterceptlyTheme.yellow400,
               fontSize: 12,
             ),
@@ -99,7 +96,7 @@ class DetailTabsBuilder {
             'Note',
             'Body truncated — response exceeded the size limit.',
             DetailSection.overviewNote,
-            valueStyle: const TextStyle(
+            valueStyle: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
               color: InterceptlyTheme.yellow400,
               fontSize: 12,
             ),
@@ -158,15 +155,16 @@ class DetailTabsBuilder {
     );
 
     if (isPending) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(color: InterceptlyTheme.indigo500),
-            SizedBox(height: 12),
+            const CircularProgressIndicator(color: InterceptlyTheme.indigo500),
+            const SizedBox(height: 12),
             Text(
               'Waiting for response...',
-              style: TextStyle(color: InterceptlyTheme.textMuted),
+              style: InterceptlyTheme.typography.bodyMediumRegular
+                  .copyWith(color: InterceptlyTheme.textMuted),
             ),
           ],
         ),
@@ -181,9 +179,8 @@ class DetailTabsBuilder {
             Text(
               shortError,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
                 color: InterceptlyTheme.yellow400,
-                fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 6),
@@ -191,7 +188,8 @@ class DetailTabsBuilder {
               record.errorMessage ??
                   'Request failed before receiving a response.',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: InterceptlyTheme.textMuted),
+              style: InterceptlyTheme.typography.bodyMediumRegular
+                  .copyWith(color: InterceptlyTheme.textMuted),
             ),
           ],
         ),
@@ -220,6 +218,16 @@ class DetailTabsBuilder {
   }
 
   Widget buildErrorTab() {
+    if (!record.hasError) {
+      return Center(
+        child: Text(
+          'No errors for this request.',
+          style: InterceptlyTheme.typography.bodyMediumRegular
+              .copyWith(color: InterceptlyTheme.textMuted),
+        ),
+      );
+    }
+
     final shortError = summarizeRequestError(
       errorType: record.errorType,
       errorMessage: record.errorMessage,
@@ -254,9 +262,10 @@ class DetailTabsBuilder {
     final messages = <Map<String, dynamic>>[];
 
     if (messages.isEmpty) {
-      return const Center(
+      return Center(
           child: Text('No WebSocket messages captured.',
-              style: TextStyle(color: InterceptlyTheme.textMuted)));
+              style: InterceptlyTheme.typography.bodyMediumRegular
+                  .copyWith(color: InterceptlyTheme.textMuted)));
     }
 
     return ListView.builder(
@@ -269,11 +278,10 @@ class DetailTabsBuilder {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'CONNECTION FRAMES',
-                  style: TextStyle(
+                  style: InterceptlyTheme.typography.bodyMediumBold.copyWith(
                     fontSize: 12,
-                    fontWeight: FontWeight.bold,
                     color: InterceptlyTheme.purple400,
                     letterSpacing: 1.0,
                   ),
@@ -288,14 +296,10 @@ class DetailTabsBuilder {
                             InterceptlyTheme.green500.withValues(alpha: 0.2)),
                     borderRadius: BorderRadius.circular(4.0),
                   ),
-                  child: const Text(
+                  child: Text(
                     'Live',
-                    style: TextStyle(
-                      fontFamily: InterceptlyTheme.fontFamily,
-                      package: InterceptlyTheme.fontPackage,
-                      fontSize: 10,
-                      color: InterceptlyTheme.green400,
-                    ),
+                    style: InterceptlyTheme.typography.labelSmallMedium
+                        .copyWith(color: InterceptlyTheme.green400),
                   ),
                 ),
               ],
@@ -317,7 +321,9 @@ class DetailTabsBuilder {
           margin: const EdgeInsets.only(bottom: 12.0),
           decoration: BoxDecoration(
             color: InterceptlyTheme.surfaceContainer,
-            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+            border: Border.all(
+              color: InterceptlyTheme.dividerSubtle,
+            ),
             borderRadius: BorderRadius.circular(12.0),
           ),
           child: Column(
@@ -329,8 +335,9 @@ class DetailTabsBuilder {
                 decoration: BoxDecoration(
                   color: bgColor,
                   border: Border(
-                    bottom:
-                        BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+                    bottom: BorderSide(
+                      color: InterceptlyTheme.dividerSubtle,
+                    ),
                   ),
                 ),
                 child: Row(
@@ -339,18 +346,16 @@ class DetailTabsBuilder {
                     const SizedBox(width: 8),
                     Text(
                       label,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
+                      style:
+                          InterceptlyTheme.typography.labelSmallMedium.copyWith(
                         color: iconColor,
                       ),
                     ),
                     const Spacer(),
                     Text(
                       msg['time'] ?? '',
-                      style: const TextStyle(
-                        fontFamily: InterceptlyTheme.fontFamily,
-                        package: InterceptlyTheme.fontPackage,
+                      style: InterceptlyTheme.typography.bodyMediumRegular
+                          .copyWith(
                         fontSize: 10,
                         color: InterceptlyTheme.textMuted,
                       ),
@@ -393,7 +398,7 @@ class DetailTabsBuilder {
           width: 80,
           child: Text(
             label,
-            style: const TextStyle(
+            style: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
               fontSize: 12,
               color: InterceptlyTheme.textMuted,
             ),
@@ -403,14 +408,13 @@ class DetailTabsBuilder {
           child: Text(
             value,
             style: (valueStyle ??
-                    const TextStyle(
-                      fontFamily: InterceptlyTheme.fontFamily,
-                      package: InterceptlyTheme.fontPackage,
+                    InterceptlyTheme.typography.bodyMediumRegular.copyWith(
                       fontSize: 12,
                       color: InterceptlyTheme.textSecondary,
                     ))
                 .copyWith(
-              backgroundColor: highlight ? const Color(0x40FFF59D) : null,
+              backgroundColor:
+                  highlight ? InterceptlyGlobalColor.highlightSoft : null,
             ),
           ),
         ),
@@ -479,14 +483,14 @@ class DetailTabsBuilder {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: InterceptlyTheme.surfaceContainer,
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(
+          color: InterceptlyTheme.dividerSubtle,
+        ),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
         text,
-        style: const TextStyle(
-          fontFamily: InterceptlyTheme.fontFamily,
-          package: InterceptlyTheme.fontPackage,
+        style: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
           fontSize: 11,
           color: InterceptlyTheme.textMuted,
         ),
@@ -651,7 +655,9 @@ class DetailTabsBuilder {
             constraints: const BoxConstraints(maxHeight: 240),
             decoration: BoxDecoration(
               color: InterceptlyTheme.surfaceContainer,
-              border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+              border: Border.all(
+                color: InterceptlyTheme.dividerSubtle,
+              ),
               borderRadius: BorderRadius.circular(12.0),
             ),
             clipBehavior: Clip.antiAlias,
@@ -659,11 +665,12 @@ class DetailTabsBuilder {
               bodyBytes,
               fit: BoxFit.contain,
               errorBuilder: (context, error, stackTrace) {
-                return const Padding(
+                return Padding(
                   padding: EdgeInsets.all(12.0),
                   child: Text(
                     'Unable to render thumbnail from current preview bytes.',
-                    style: TextStyle(color: InterceptlyTheme.textMuted),
+                    style: InterceptlyTheme.typography.bodyMediumRegular
+                        .copyWith(color: InterceptlyTheme.textMuted),
                   ),
                 );
               },
@@ -756,9 +763,8 @@ class DetailTabsBuilder {
       padding: const EdgeInsets.only(bottom: 8.0),
       child: Text(
         title.toUpperCase(),
-        style: TextStyle(
+        style: InterceptlyTheme.typography.bodyMediumBold.copyWith(
           fontSize: 12,
-          fontWeight: FontWeight.bold,
           color: color ?? InterceptlyTheme.textMuted,
           letterSpacing: 1.0,
         ),
@@ -778,7 +784,9 @@ class DetailTabsBuilder {
       padding: const EdgeInsets.all(12.0),
       decoration: BoxDecoration(
         color: InterceptlyTheme.surfaceContainer,
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(
+          color: InterceptlyTheme.dividerSubtle,
+        ),
         borderRadius: BorderRadius.circular(12.0),
       ),
       child: JsonViewer(

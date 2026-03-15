@@ -96,14 +96,14 @@ class JsonViewer extends StatefulWidget {
 }
 
 class _JsonViewerState extends State<JsonViewer> {
-  static const _keyColor = Color(0xFF9CDCFE);
-  static const _stringColor = Color(0xFFCE9178);
-  static const _numberColor = Color(0xFFB5CEA8);
-  static const _boolColor = Color(0xFF569CD6);
-  static const _nullColor = Color(0xFF569CD6);
-  static const _punctuationColor = Color(0xFF9CA3AF);
-  static const _highlightColor = Color(0x80FFF59D);
-  static const _activeHighlightColor = Colors.orange;
+  static const _keyColor = InterceptlyGlobalColor.blue400;
+  static const _stringColor = InterceptlyGlobalColor.red400;
+  static const _numberColor = InterceptlyGlobalColor.green400;
+  static const _boolColor = InterceptlyGlobalColor.blue500;
+  static const _nullColor = InterceptlyGlobalColor.blue500;
+  static const _punctuationColor = InterceptlyGlobalColor.textQuaternary;
+  static const _highlightColor = InterceptlyGlobalColor.highlightStrong;
+  static const _activeHighlightColor = InterceptlyGlobalColor.orange;
 
   void _copyToClipboard() {
     final formatted = JsonViewer.formatData(widget.data);
@@ -117,11 +117,14 @@ class _JsonViewerState extends State<JsonViewer> {
   @override
   Widget build(BuildContext context) {
     if (widget.data == null) {
-      return const Padding(
+      return Padding(
         padding: EdgeInsets.all(8.0),
         child: Text(
           'No Data',
-          style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
+          style: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
+            fontStyle: FontStyle.italic,
+            color: InterceptlyTheme.textMuted,
+          ),
         ),
       );
     }
@@ -131,9 +134,7 @@ class _JsonViewerState extends State<JsonViewer> {
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: DefaultTextStyle(
-              style: const TextStyle(
-                fontFamily: InterceptlyTheme.fontFamily,
-                package: InterceptlyTheme.fontPackage,
+              style: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
                 fontFamilyFallback: ['monospace'],
                 fontSize: 12,
                 height: 1.5,
@@ -154,9 +155,13 @@ class _JsonViewerState extends State<JsonViewer> {
           top: 0,
           right: 0,
           child: Material(
-            color: Colors.transparent,
+            color: InterceptlyGlobalColor.transparent,
             child: IconButton(
-              icon: const Icon(Icons.copy, size: 16, color: Colors.grey),
+              icon: const Icon(
+                Icons.copy,
+                size: 16,
+                color: InterceptlyTheme.textMuted,
+              ),
               tooltip: 'Copy JSON',
               onPressed: _copyToClipboard,
               splashRadius: 16,
@@ -277,18 +282,21 @@ class _JsonNodeState extends State<_JsonNode> {
         currentOffset += JsonViewer._countIn(keyText, query);
         keyHtml = TextSpan(children: [
           ...keySpans,
-          const TextSpan(
+          TextSpan(
               text: ': ',
-              style: TextStyle(color: _JsonViewerState._punctuationColor)),
+              style: InterceptlyTheme.typography.bodyMediumRegular
+                  .copyWith(color: _JsonViewerState._punctuationColor)),
         ]);
       } else {
         keyHtml = TextSpan(children: [
           TextSpan(
               text: keyText,
-              style: const TextStyle(color: _JsonViewerState._keyColor)),
-          const TextSpan(
+              style: InterceptlyTheme.typography.bodyMediumRegular
+                  .copyWith(color: _JsonViewerState._keyColor)),
+          TextSpan(
               text: ': ',
-              style: TextStyle(color: _JsonViewerState._punctuationColor)),
+              style: InterceptlyTheme.typography.bodyMediumRegular
+                  .copyWith(color: _JsonViewerState._punctuationColor)),
         ]);
       }
     } else {
@@ -297,9 +305,10 @@ class _JsonNodeState extends State<_JsonNode> {
 
     final comma = widget.isLast
         ? const TextSpan()
-        : const TextSpan(
+        : TextSpan(
             text: ',',
-            style: TextStyle(color: _JsonViewerState._punctuationColor));
+            style: InterceptlyTheme.typography.bodyMediumRegular
+                .copyWith(color: _JsonViewerState._punctuationColor));
 
     // Leaf nodes
     if (widget.value == null) {
@@ -377,8 +386,11 @@ class _JsonNodeState extends State<_JsonNode> {
           s.style?.backgroundColor == _JsonViewerState._activeHighlightColor);
       valueSpan = TextSpan(children: spans);
     } else {
-      valueSpan =
-          TextSpan(text: valueText, style: TextStyle(color: valueColor));
+      valueSpan = TextSpan(
+        text: valueText,
+        style: InterceptlyTheme.typography.bodyMediumRegular
+            .copyWith(color: valueColor),
+      );
     }
 
     final key = hasActiveMatch ? GlobalKey() : null;
@@ -415,8 +427,8 @@ class _JsonNodeState extends State<_JsonNode> {
             keySpan,
             TextSpan(
                 text: text,
-                style:
-                    const TextStyle(color: _JsonViewerState._punctuationColor)),
+                style: InterceptlyTheme.typography.bodyMediumRegular
+                    .copyWith(color: _JsonViewerState._punctuationColor)),
             commaSpan,
           ],
         ),
@@ -483,7 +495,7 @@ class _JsonNodeState extends State<_JsonNode> {
           InkWell(
             key: headerKey,
             onTap: _toggle,
-            hoverColor: Colors.white.withValues(alpha: 0.05),
+            hoverColor: InterceptlyTheme.hoverOverlay,
             borderRadius: BorderRadius.circular(4),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -491,7 +503,7 @@ class _JsonNodeState extends State<_JsonNode> {
                 Transform.rotate(
                   angle: _isExpanded ? 0 : -1.5708,
                   child: const Icon(Icons.arrow_drop_down,
-                      size: 16, color: Colors.grey),
+                      size: 16, color: InterceptlyTheme.textMuted),
                 ),
                 Text.rich(
                   TextSpan(
@@ -500,19 +512,25 @@ class _JsonNodeState extends State<_JsonNode> {
                       keyHtml,
                       TextSpan(
                         text: openBracket,
-                        style: const TextStyle(
-                            color: _JsonViewerState._punctuationColor),
+                        style: InterceptlyTheme.typography.bodyMediumRegular
+                            .copyWith(
+                                color: _JsonViewerState._punctuationColor),
                       ),
                       if (!_isExpanded)
-                        const TextSpan(
+                        TextSpan(
                           text: ' ... ',
-                          style: TextStyle(color: Colors.grey, fontSize: 10),
+                          style: InterceptlyTheme.typography.bodyMediumRegular
+                              .copyWith(
+                            color: InterceptlyTheme.textMuted,
+                            fontSize: 10,
+                          ),
                         ),
                       if (!_isExpanded)
                         TextSpan(
                           text: closeBracket,
-                          style: const TextStyle(
-                              color: _JsonViewerState._punctuationColor),
+                          style: InterceptlyTheme.typography.bodyMediumRegular
+                              .copyWith(
+                                  color: _JsonViewerState._punctuationColor),
                         ),
                       if (!_isExpanded) comma,
                     ],
@@ -528,7 +546,7 @@ class _JsonNodeState extends State<_JsonNode> {
                 decoration: BoxDecoration(
                   border: Border(
                     left: BorderSide(
-                      color: Colors.white.withValues(alpha: 0.1),
+                      color: InterceptlyTheme.dividerSubtle,
                       width: 1.0,
                     ),
                   ),
@@ -546,8 +564,8 @@ class _JsonNodeState extends State<_JsonNode> {
                 children: [
                   TextSpan(
                     text: closeBracket,
-                    style: const TextStyle(
-                        color: _JsonViewerState._punctuationColor),
+                    style: InterceptlyTheme.typography.bodyMediumRegular
+                        .copyWith(color: _JsonViewerState._punctuationColor),
                   ),
                   comma,
                 ],
@@ -572,7 +590,8 @@ class _JsonNodeState extends State<_JsonNode> {
         if (start < text.length) {
           spans.add(TextSpan(
             text: text.substring(start),
-            style: TextStyle(color: baseColor),
+            style: InterceptlyTheme.typography.bodyMediumRegular
+                .copyWith(color: baseColor),
           ));
         }
         break;
@@ -581,7 +600,8 @@ class _JsonNodeState extends State<_JsonNode> {
       if (index > start) {
         spans.add(TextSpan(
           text: text.substring(start, index),
-          style: TextStyle(color: baseColor),
+          style: InterceptlyTheme.typography.bodyMediumRegular
+              .copyWith(color: baseColor),
         ));
       }
 
@@ -590,7 +610,7 @@ class _JsonNodeState extends State<_JsonNode> {
 
       spans.add(TextSpan(
         text: text.substring(index, index + lowerQuery.length),
-        style: TextStyle(
+        style: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
           color: baseColor,
           backgroundColor: isActive
               ? _JsonViewerState._activeHighlightColor

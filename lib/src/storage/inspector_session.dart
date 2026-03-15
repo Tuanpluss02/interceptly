@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../core/queue/bounded_event_queue.dart';
@@ -47,6 +48,7 @@ class InspectorSession extends ChangeNotifier {
   bool _enabled = true;
   bool _clearing = false;
   bool _urlDecodeEnabled = false;
+  ThemeMode _themeMode = ThemeMode.system;
   NetworkSimulationProfile _networkSimulation = NetworkSimulationProfile.none;
   final Map<String, Timer> _pendingTimers = {};
   static const Duration _pendingTimeout = Duration(seconds: 45);
@@ -79,6 +81,7 @@ class InspectorSession extends ChangeNotifier {
   int get droppedCount => _droppedCount;
   bool get isEnabled => _enabled;
   bool get urlDecodeEnabled => _urlDecodeEnabled;
+  ThemeMode get themeMode => _themeMode;
   NetworkSimulationProfile get networkSimulation => _networkSimulation;
 
   String? get masterQuery => _masterQuery;
@@ -149,6 +152,12 @@ class InspectorSession extends ChangeNotifier {
 
   void setNetworkSimulation(NetworkSimulationProfile profile) {
     _networkSimulation = profile;
+    notifyListeners();
+  }
+
+  void setThemeMode(ThemeMode mode) {
+    if (_themeMode == mode) return;
+    _themeMode = mode;
     notifyListeners();
   }
 

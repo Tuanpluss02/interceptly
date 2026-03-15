@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../interceptly_theme.dart';
+
 class ToastNotification extends StatefulWidget {
   final String message;
 
@@ -78,16 +80,16 @@ class _ToastNotificationState extends State<ToastNotification>
         opacity: _opacityAnimation,
         child: Center(
           child: Material(
-            color: Colors.transparent,
+            color: InterceptlyGlobalColor.transparent,
             child: Container(
               padding:
                   const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: InterceptlyGlobalColor.white,
                 borderRadius: BorderRadius.circular(20.0),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
+                    color: InterceptlyGlobalColor.black.withValues(alpha: 0.2),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   )
@@ -95,10 +97,8 @@ class _ToastNotificationState extends State<ToastNotification>
               ),
               child: Text(
                 widget.message,
-                style: const TextStyle(
-                  color: Colors.black,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
+                style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
+                  color: InterceptlyGlobalColor.black,
                 ),
               ),
             ),

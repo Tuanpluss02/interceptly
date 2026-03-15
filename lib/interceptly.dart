@@ -13,6 +13,7 @@ export 'src/model/raw_capture.dart';
 export 'src/model/request_record.dart';
 export 'src/storage/inspector_session.dart';
 export 'src/ui/detail/request_detail_page.dart';
+export 'src/ui/interceptly_theme.dart';
 export 'src/ui/overlay/interceptly_overlay.dart' show InterceptlyOverlay;
 export 'src/ui/screens/interceptly_screen.dart';
 export 'src/ui/settings/settings_bottom_sheet.dart';
