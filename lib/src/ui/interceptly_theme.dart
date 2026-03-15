@@ -48,15 +48,26 @@ class InterceptlyTheme {
     }
   }
 
-  static const Color surface = InterceptlyGlobalColor.surfaceDark;
-  static const Color surfaceContainer =
-      InterceptlyGlobalColor.surfaceContainerDark;
+  static Color get surface => colors.surfacePrimary;
+  static Color get surfaceContainer => colors.surfaceSecondary;
 
-  static const Color textPrimary = InterceptlyGlobalColor.textPrimaryDark;
-  static const Color textSecondary = InterceptlyGlobalColor.textSecondaryDark;
-  static const Color textTertiary = InterceptlyGlobalColor.textTertiaryDark;
+  static Color get textPrimary => colors.textPrimary;
+  static Color get textSecondary => colors.textSecondary;
+  static Color get textTertiary => colors.textTertiary;
   static const Color textQuaternary = InterceptlyGlobalColor.textQuaternary;
   static const Color textMuted = InterceptlyGlobalColor.textMuted;
+
+  static Color get dividerSubtle => brightness == Brightness.dark
+      ? InterceptlyGlobalColor.white.withValues(alpha: 0.06)
+      : InterceptlyGlobalColor.black.withValues(alpha: 0.08);
+
+  static Color get hoverOverlay => brightness == Brightness.dark
+      ? InterceptlyGlobalColor.white.withValues(alpha: 0.05)
+      : InterceptlyGlobalColor.black.withValues(alpha: 0.04);
+
+  static Color get controlMuted => brightness == Brightness.dark
+      ? InterceptlyGlobalColor.white.withValues(alpha: 0.1)
+      : InterceptlyGlobalColor.black.withValues(alpha: 0.12);
 
   static const Color indigo500 = InterceptlyGlobalColor.indigo500;
   static const Color indigo400 = InterceptlyGlobalColor.indigo400;

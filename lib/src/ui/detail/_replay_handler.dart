@@ -483,7 +483,7 @@ class _ReplayEditorSheetState extends State<_ReplayEditorSheet>
                 color: InterceptlyTheme.surfaceContainer,
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                  color: InterceptlyGlobalColor.white.withValues(alpha: 0.05),
+                  color: InterceptlyTheme.dividerSubtle,
                 ),
               ),
               child: TabBar(

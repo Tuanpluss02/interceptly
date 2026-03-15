@@ -87,9 +87,8 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                 top: Radius.circular(InterceptlyTheme.radius.lg * 2),
               ),
               border: Border(
-                  bottom: BorderSide(
-                      color: InterceptlyGlobalColor.white
-                          .withValues(alpha: 0.05))),
+                bottom: BorderSide(color: InterceptlyTheme.dividerSubtle),
+              ),
             ),
             child: Column(
               children: [
@@ -97,7 +96,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                   width: 48,
                   height: 6,
                   decoration: BoxDecoration(
-                    color: InterceptlyGlobalColor.white.withValues(alpha: 0.1),
+                    color: InterceptlyTheme.controlMuted,
                     borderRadius: BorderRadius.circular(10.0),
                   ),
                 ),
@@ -295,7 +294,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
         color: _colors.surfaceSecondary,
         borderRadius: BorderRadius.circular(12.0),
         border: Border.all(
-          color: InterceptlyGlobalColor.white.withValues(alpha: 0.05),
+          color: InterceptlyTheme.dividerSubtle,
         ),
       ),
       child: Column(
@@ -323,8 +322,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
               activeTrackColor: _colors.actionPrimary,
-              inactiveTrackColor:
-                  InterceptlyGlobalColor.white.withValues(alpha: 0.1),
+              inactiveTrackColor: InterceptlyTheme.controlMuted,
               thumbColor: _colors.actionSecondary,
               overlayColor: _colors.actionPrimary.withValues(alpha: 0.2),
             ),
@@ -362,7 +360,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
       if (i < children.length - 1) {
         separatedChildren.add(Divider(
           height: 1,
-          color: InterceptlyGlobalColor.white.withValues(alpha: 0.05),
+          color: InterceptlyTheme.dividerSubtle,
           indent: 16, // Optional indent
         ));
       }
@@ -373,7 +371,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
         color: _colors.surfaceSecondary,
         borderRadius: BorderRadius.circular(12.0),
         border: Border.all(
-          color: InterceptlyGlobalColor.white.withValues(alpha: 0.05),
+          color: InterceptlyTheme.dividerSubtle,
         ),
       ),
       child: Column(
@@ -402,7 +400,7 @@ class _SettingsTile extends StatelessWidget {
     final typography = InterceptlyTheme.typography;
 
     return InkWell(
-      hoverColor: InterceptlyGlobalColor.white.withValues(alpha: 0.05),
+      hoverColor: InterceptlyTheme.hoverOverlay,
       child: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Row(
@@ -461,9 +459,7 @@ class _CustomSwitch extends StatelessWidget {
         height: 24,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12.0),
-          color: value
-              ? activeColor
-              : InterceptlyGlobalColor.white.withValues(alpha: 0.1),
+          color: value ? activeColor : InterceptlyTheme.controlMuted,
         ),
         child: AnimatedAlign(
           duration: const Duration(milliseconds: 200),

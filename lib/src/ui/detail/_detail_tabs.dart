@@ -312,7 +312,7 @@ class DetailTabsBuilder {
           decoration: BoxDecoration(
             color: InterceptlyTheme.surfaceContainer,
             border: Border.all(
-              color: InterceptlyGlobalColor.white.withValues(alpha: 0.05),
+              color: InterceptlyTheme.dividerSubtle,
             ),
             borderRadius: BorderRadius.circular(12.0),
           ),
@@ -326,8 +326,7 @@ class DetailTabsBuilder {
                   color: bgColor,
                   border: Border(
                     bottom: BorderSide(
-                      color:
-                          InterceptlyGlobalColor.white.withValues(alpha: 0.05),
+                      color: InterceptlyTheme.dividerSubtle,
                     ),
                   ),
                 ),
@@ -475,7 +474,7 @@ class DetailTabsBuilder {
       decoration: BoxDecoration(
         color: InterceptlyTheme.surfaceContainer,
         border: Border.all(
-          color: InterceptlyGlobalColor.white.withValues(alpha: 0.08),
+          color: InterceptlyTheme.dividerSubtle,
         ),
         borderRadius: BorderRadius.circular(6),
       ),
@@ -647,7 +646,7 @@ class DetailTabsBuilder {
             decoration: BoxDecoration(
               color: InterceptlyTheme.surfaceContainer,
               border: Border.all(
-                color: InterceptlyGlobalColor.white.withValues(alpha: 0.05),
+                color: InterceptlyTheme.dividerSubtle,
               ),
               borderRadius: BorderRadius.circular(12.0),
             ),
@@ -776,7 +775,7 @@ class DetailTabsBuilder {
       decoration: BoxDecoration(
         color: InterceptlyTheme.surfaceContainer,
         border: Border.all(
-          color: InterceptlyGlobalColor.white.withValues(alpha: 0.05),
+          color: InterceptlyTheme.dividerSubtle,
         ),
         borderRadius: BorderRadius.circular(12.0),
       ),

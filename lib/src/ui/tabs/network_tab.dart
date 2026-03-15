@@ -62,7 +62,7 @@ class NetworkTab extends StatelessWidget {
 
           Divider(
             height: 1,
-            color: InterceptlyGlobalColor.white.withValues(alpha: 0.05),
+            color: InterceptlyTheme.dividerSubtle,
           ),
 
           // Request List
@@ -86,7 +86,7 @@ class NetworkTab extends StatelessWidget {
                   itemCount: entries.length,
                   separatorBuilder: (context, index) => Divider(
                     height: 1,
-                    color: InterceptlyGlobalColor.white.withValues(alpha: 0.05),
+                    color: InterceptlyTheme.dividerSubtle,
                   ),
                   itemBuilder: (context, index) {
                     final req = entries[index];
@@ -175,7 +175,7 @@ class _RequestLogItem extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      hoverColor: InterceptlyGlobalColor.white.withValues(alpha: 0.05),
+      hoverColor: InterceptlyTheme.hoverOverlay,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
         child: Row(

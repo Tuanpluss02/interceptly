@@ -64,7 +64,7 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
               bottom: PreferredSize(
                 preferredSize: const Size.fromHeight(1.0),
                 child: Container(
-                  color: InterceptlyGlobalColor.white.withValues(alpha: 0.05),
+                  color: InterceptlyTheme.dividerSubtle,
                   height: 1.0,
                 ),
               ),

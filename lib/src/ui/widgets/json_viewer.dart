@@ -495,7 +495,7 @@ class _JsonNodeState extends State<_JsonNode> {
           InkWell(
             key: headerKey,
             onTap: _toggle,
-            hoverColor: InterceptlyGlobalColor.white.withValues(alpha: 0.05),
+            hoverColor: InterceptlyTheme.hoverOverlay,
             borderRadius: BorderRadius.circular(4),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -546,8 +546,7 @@ class _JsonNodeState extends State<_JsonNode> {
                 decoration: BoxDecoration(
                   border: Border(
                     left: BorderSide(
-                      color:
-                          InterceptlyGlobalColor.white.withValues(alpha: 0.1),
+                      color: InterceptlyTheme.dividerSubtle,
                       width: 1.0,
                     ),
                   ),
