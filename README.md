@@ -6,7 +6,15 @@
 
 Interceptly is a high-performance network inspector for Flutter. It provides real-time traffic visualization for Dio, Http, and Chopper with minimal impact on UI performance.
 
-[Features](#features) | [Installation](#install) | [Quick Start](#quick-start-dio) | [Integrations](#integrations) | [Network Simulation](#network-simulation)
+---
+
+## Preview
+
+| Inspector Overview | Request Details | Replay Tool |
+| :---: | :---: | :---: |
+| ![Main UI](https://raw.githubusercontent.com/Tuanpluss02/interceptly/main/screenshots/main.gif) | ![Details](https://raw.githubusercontent.com/Tuanpluss02/interceptly/main/screenshots/details.png) | ![Replay](https://raw.githubusercontent.com/Tuanpluss02/interceptly/main/screenshots/replay.png) |
+
+> Note: Replace the URLs above with your actual screenshot/GIF paths once uploaded to GitHub.
 
 ---
 
@@ -40,13 +48,11 @@ import 'package:flutter/material.dart';
 import 'package:interceptly/interceptly.dart';
 
 void main() {
-  // 1. Initialize interceptor
   final dio = Dio()..interceptors.add(Interceptly.dioInterceptor);
 
   runApp(
     MaterialApp(
       home: InterceptlyOverlay(
-        // 2. Wrap your application
         child: MyApp(dio: dio),
       ),
     ),
@@ -58,11 +64,6 @@ void main() {
 
 ## Integrations
 
-### Dio
-```dart
-final dio = Dio()..interceptors.add(Interceptly.dioInterceptor);
-```
-
 ### HTTP (package:http)
 ```dart
 import 'package:http/http.dart' as http;
@@ -73,8 +74,6 @@ final res = await client.get(Uri.parse('[https://api.example.com/data](https://a
 
 ### Chopper
 ```dart
-import 'package:chopper/chopper.dart';
-
 final chopper = ChopperClient(
   interceptors: [InterceptlyChopperInterceptor()],
 );
@@ -99,9 +98,6 @@ Interceptly.instance.setNetworkSimulation(
     uploadKbps: 500,
   ),
 );
-
-// Disable simulation
-Interceptly.instance.clearNetworkSimulation();
 ```
 
 ---
@@ -112,10 +108,9 @@ Interceptly.instance.clearNetworkSimulation();
 
 | Parameter | Default | Description |
 | :--- | :--- | :--- |
-| `bodyOffloadThreshold` | `50 * 1024` | Threshold (bytes) to move body to temp file |
+| `bodyOffloadThreshold` | `50 KB` | Threshold to move body to temp file |
 | `maxEntries` | `5000` | Maximum requests kept in history |
-| `maxBodyBytes` | `2 * 1024 * 1024` | Hard cap for body size before truncation |
-| `urlDecodeEnabled` | `true` | Initial state of URL decoding in UI |
+| `maxBodyBytes` | `2 MB` | Hard cap for body size before truncation |
 
 ### UI Triggers
 ```dart
@@ -126,7 +121,6 @@ InterceptlyOverlay(
       InspectorTrigger.shake,
       InspectorTrigger.longPress,
     },
-    shakeThreshold: 15.0,
   ),
   child: MyApp(),
 )
@@ -136,7 +130,7 @@ InterceptlyOverlay(
 
 ## Navigator Setup (MaterialApp.router)
 
-To use `Interceptly.showInspector()` without context in Router-based applications, pass the navigator key to the overlay:
+If using `MaterialApp.router`, pass the navigator key to the overlay:
 
 ```dart
 final navigatorKey = GlobalKey();
@@ -157,14 +151,14 @@ MaterialApp.router(
 ## Storage Model
 
 - **Small Payloads**: Kept in memory for instant access.
-- **Large Payloads**: Written to temporary files via background isolates to keep memory footprint low.
-- **Lazy Loading**: Body data is only loaded from disk when a record is selected for inspection.
+- **Large Payloads**: Written to temporary files via background isolates.
+- **Lazy Loading**: Data is only read from disk when a record is selected.
 
 ---
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 Published by [stormx.dev](https://stormx.dev)

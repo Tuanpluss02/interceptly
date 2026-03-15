@@ -128,49 +128,57 @@ class _JsonViewerState extends State<JsonViewer> {
         ),
       );
     }
-    return Stack(
-      children: [
-        SelectionArea(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DefaultTextStyle(
-              style: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
-                fontFamilyFallback: ['monospace'],
-                fontSize: 12,
-                height: 1.5,
-              ),
-              child: _JsonNode(
-                nodeKey: null,
-                value: widget.data,
-                isLast: true,
-                root: true,
-                searchQuery: widget.searchQuery,
-                matchOffset: widget.matchOffset,
-                activeGlobalIndex: widget.activeGlobalIndex,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 24),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          SelectionArea(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DefaultTextStyle(
+                style: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
+                  fontFamilyFallback: ['monospace'],
+                  fontSize: 12,
+                  height: 1.5,
+                ),
+                child: _JsonNode(
+                  nodeKey: null,
+                  value: widget.data,
+                  isLast: true,
+                  root: true,
+                  searchQuery: widget.searchQuery,
+                  matchOffset: widget.matchOffset,
+                  activeGlobalIndex: widget.activeGlobalIndex,
+                ),
               ),
             ),
           ),
-        ),
-        Positioned(
-          top: 0,
-          right: 0,
-          child: Material(
-            color: InterceptlyGlobalColor.transparent,
-            child: IconButton(
-              icon: const Icon(
-                Icons.copy,
-                size: 16,
-                color: InterceptlyTheme.textMuted,
+          Positioned(
+            top: -10,
+            right: -10,
+            child: Material(
+              color: InterceptlyGlobalColor.transparent,
+              child: IconButton(
+                icon: const Icon(
+                  Icons.copy,
+                  size: 16,
+                  color: InterceptlyTheme.textMuted,
+                ),
+                tooltip: 'Copy JSON',
+                onPressed: _copyToClipboard,
+                splashRadius: 16,
+                constraints: const BoxConstraints.tightFor(
+                  width: 24,
+                  height: 24,
+                ),
+                padding: EdgeInsets.zero,
+                alignment: Alignment.topCenter,
               ),
-              tooltip: 'Copy JSON',
-              onPressed: _copyToClipboard,
-              splashRadius: 16,
-              constraints: const BoxConstraints(),
-              padding: const EdgeInsets.all(4),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

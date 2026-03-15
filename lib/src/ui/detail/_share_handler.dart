@@ -63,15 +63,6 @@ class ShareHandler {
                   color: InterceptlyTheme.textPrimary,
                 ),
               ),
-              subtitle: Text(
-                'Copy request as cURL command',
-                style: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
-                  color: InterceptlyTheme.textMuted,
-                  fontSize: 12,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
               onTap: () {
                 Navigator.pop(context);
                 shareCurlCommand(record);
@@ -86,15 +77,6 @@ class ShareHandler {
                 style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
                   color: InterceptlyTheme.textPrimary,
                 ),
-              ),
-              subtitle: Text(
-                'Download HAR file',
-                style: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
-                  color: InterceptlyTheme.textMuted,
-                  fontSize: 12,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
               onTap: () {
                 Navigator.pop(context);

@@ -45,17 +45,6 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
     return known ? _networkSimulation.name : _customPresetName;
   }
 
-  String get _themeModeLabel {
-    switch (_themeMode) {
-      case ThemeMode.light:
-        return 'Light';
-      case ThemeMode.dark:
-        return 'Dark';
-      case ThemeMode.system:
-        return 'System';
-    }
-  }
-
   @override
   void initState() {
     super.initState();
@@ -124,12 +113,11 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
             child: ListView(
               padding: const EdgeInsets.all(16.0),
               children: [
-                _buildSectionTitle('1. UI & Behavior'),
+                _buildSectionTitle('UI & Behavior'),
                 _buildSectionCard([
                   _SettingsTile(
                     icon: Icons.dark_mode_outlined,
                     title: 'Theme Mode',
-                    subtitle: 'Current: $_themeModeLabel',
                     trailing: DropdownButtonHideUnderline(
                       child: DropdownButton<ThemeMode>(
                         dropdownColor: _colors.surfaceSecondary,
@@ -165,7 +153,6 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                   _SettingsTile(
                     icon: Icons.link,
                     title: 'URL Decoding',
-                    subtitle: 'Decode URL endpoints in list & detail',
                     trailing: _CustomSwitch(
                       value: _urlDecodeEnabled,
                       activeColor: _colors.actionPrimary,
@@ -178,12 +165,11 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                 ]),
 
                 const SizedBox(height: 20),
-                _buildSectionTitle('2. Network Simulation'),
+                _buildSectionTitle('Network Simulation'),
                 _buildSectionCard([
                   _SettingsTile(
                     icon: Icons.network_check,
                     title: 'Preset',
-                    subtitle: _selectedPresetName,
                     trailing: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
                         dropdownColor: _colors.surfaceSecondary,
@@ -396,13 +382,11 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
 class _SettingsTile extends StatelessWidget {
   final IconData icon;
   final String title;
-  final String subtitle;
   final Widget trailing;
 
   const _SettingsTile({
     required this.icon,
     required this.title,
-    required this.subtitle,
     required this.trailing,
   });
 
@@ -428,14 +412,6 @@ class _SettingsTile extends StatelessWidget {
                     style: typography.bodyMediumMedium.copyWith(
                       fontSize: 14,
                       color: colors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: typography.bodyMediumRegular.copyWith(
-                      fontSize: 11,
-                      color: InterceptlyTheme.textMuted,
                     ),
                   ),
                 ],

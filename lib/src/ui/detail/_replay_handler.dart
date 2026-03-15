@@ -49,13 +49,6 @@ class ReplayHandler {
                   color: InterceptlyTheme.textPrimary,
                 ),
               ),
-              subtitle: Text('Send the same request again',
-                  style: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
-                    color: InterceptlyTheme.textMuted,
-                    fontSize: 12,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis),
               onTap: () {
                 Navigator.pop(context);
                 retry(record);
@@ -71,13 +64,6 @@ class ReplayHandler {
                   color: InterceptlyTheme.textPrimary,
                 ),
               ),
-              subtitle: Text('Modify request then send as new',
-                  style: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
-                    color: InterceptlyTheme.textMuted,
-                    fontSize: 12,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis),
               onTap: () {
                 Navigator.pop(context);
                 duplicateAndEdit(record);
@@ -582,10 +568,6 @@ class _ReplayEditorSheetState extends State<_ReplayEditorSheet>
                                     ),
                                     TextButton.icon(
                                       onPressed: _formatHeadersJson,
-                                      icon: const Icon(
-                                        Icons.auto_fix_high,
-                                        size: 14,
-                                      ),
                                       label: const Text('Format JSON'),
                                     ),
                                   ],
@@ -634,10 +616,6 @@ class _ReplayEditorSheetState extends State<_ReplayEditorSheet>
                                     ),
                                     TextButton.icon(
                                       onPressed: _formatJsonBody,
-                                      icon: const Icon(
-                                        Icons.auto_fix_high,
-                                        size: 14,
-                                      ),
                                       label: const Text('Format JSON'),
                                     ),
                                   ],
