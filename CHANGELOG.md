@@ -1,3 +1,6 @@
+## 1.0.2
+- Fix broken image links in README.
+
 ## 1.0.1
 
 - Added light/dark theme toggle support for better accessibility and user preference.

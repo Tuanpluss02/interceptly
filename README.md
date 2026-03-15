@@ -10,9 +10,9 @@ Interceptly is a high-performance network inspector for Flutter. It provides rea
 
 ## Preview
 
-| Inspector Overview | Request Details | Replay Tool |
-| :---: | :---: | :---: |
-| <img src="assets/images/overview_demo.gif" width="250"> | <img src="assets/images/request_detail_demo.gif" width="250"> | <img src="assets/images/relay_tool_demo.gif" width="250"> |
+|                                             Inspector Overview                                              |                                                 Request Details                                                  |                                                 Replay Tool                                                 |
+| :---------------------------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------------------------------------------: |
+| ![Overview](https://raw.githubusercontent.com/Tuanpluss02/interceptly/main/assets/images/overview_demo.gif) | ![Details](https://raw.githubusercontent.com/Tuanpluss02/interceptly/main/assets/images/request_detail_demo.gif) | ![Replay](https://raw.githubusercontent.com/Tuanpluss02/interceptly/main/assets/images/relay_tool_demo.gif) |
 
 ---
 
@@ -104,11 +104,11 @@ Interceptly.instance.setNetworkSimulation(
 
 ### InterceptlySettings
 
-| Parameter | Default | Description |
-| :--- | :--- | :--- |
-| `bodyOffloadThreshold` | `50 KB` | Threshold to move body to temp file |
-| `maxEntries` | `5000` | Maximum requests kept in history |
-| `maxBodyBytes` | `2 MB` | Hard cap for body size before truncation |
+| Parameter              | Default | Description                              |
+| :--------------------- | :------ | :--------------------------------------- |
+| `bodyOffloadThreshold` | `50 KB` | Threshold to move body to temp file      |
+| `maxEntries`           | `5000`  | Maximum requests kept in history         |
+| `maxBodyBytes`         | `2 MB`  | Hard cap for body size before truncation |
 
 ### UI Triggers
 ```dart
