@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:netspecter/src/ui/netspecter_theme.dart';
-import 'package:netspecter/src/ui/settings/settings_bottom_sheet.dart';
-import 'package:netspecter/src/ui/tabs/network_tab.dart';
-import 'package:netspecter/src/ui/widgets/toast_notification.dart';
+import 'package:interceptly/src/ui/interceptly_theme.dart';
+import 'package:interceptly/src/ui/settings/settings_bottom_sheet.dart';
+import 'package:interceptly/src/ui/tabs/network_tab.dart';
+import 'package:interceptly/src/ui/widgets/toast_notification.dart';
 
 import '../../storage/inspector_session.dart';
 
 /// Main inspector screen showing captured network calls and actions.
-class NetSpecterScreen extends StatefulWidget {
+class InterceptlyScreen extends StatefulWidget {
   /// Creates the inspector screen bound to [session].
-  const NetSpecterScreen({
+  const InterceptlyScreen({
     super.key,
     required this.session,
   });
@@ -18,10 +18,10 @@ class NetSpecterScreen extends StatefulWidget {
   final InspectorSession session;
 
   @override
-  State<NetSpecterScreen> createState() => _NetSpecterScreenState();
+  State<InterceptlyScreen> createState() => _InterceptlyScreenState();
 }
 
-class _NetSpecterScreenState extends State<NetSpecterScreen> {
+class _InterceptlyScreenState extends State<InterceptlyScreen> {
   void _showSettings() {
     SettingsBottomSheet.show(context, widget.session);
   }
@@ -34,10 +34,10 @@ class _NetSpecterScreenState extends State<NetSpecterScreen> {
   @override
   Widget build(BuildContext context) {
     return Theme(
-      data: NetSpecterTheme.darkTheme,
+      data: InterceptlyTheme.darkTheme,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('NetSpecter'),
+          title: const Text('Interceptly'),
           actions: [
             IconButton(
               icon: const Icon(Icons.delete_outline),

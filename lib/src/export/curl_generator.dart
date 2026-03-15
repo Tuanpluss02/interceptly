@@ -1,4 +1,4 @@
-import 'package:netspecter/netspecter.dart';
+import 'package:interceptly/interceptly.dart';
 
 /// Builds cURL commands from captured request records.
 class CurlGenerator {

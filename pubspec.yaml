@@ -1,9 +1,10 @@
-name: netspecter
+name: interceptly
 description: "Flutter network inspector for Dio, HTTP, and Chopper with overlay UI, replay tools, and HAR/cURL export."
 version: 0.0.1
-homepage: https://github.com/Tuanpluss02/NetSpecter
-repository: https://github.com/Tuanpluss02/NetSpecter
-issue_tracker: https://github.com/Tuanpluss02/NetSpecter/issues
+homepage: https://github.com/Tuanpluss02/interceptly
+repository: https://github.com/Tuanpluss02/interceptly
+issue_tracker: https://github.com/Tuanpluss02/interceptly/issues
+documentation: https://pub.dev/documentation/interceptly/latest/
 
 environment:
   sdk: '>=3.5.0 <4.0.0'

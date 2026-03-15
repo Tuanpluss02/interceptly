@@ -10,14 +10,14 @@ import '../../model/raw_capture.dart';
 import '../../storage/inspector_session.dart';
 
 /// A Chopper interceptor that captures all requests and responses.
-class NetSpecterChopperInterceptor implements Interceptor {
-  NetSpecterChopperInterceptor([InspectorSession? session])
+class InterceptlyChopperInterceptor implements Interceptor {
+  InterceptlyChopperInterceptor([InspectorSession? session])
       : session = session ?? InspectorSession.instance;
 
   final InspectorSession session;
 
-  static const String _startedAtKey = 'netspecter_started_at';
-  static const String _requestIdKey = 'netspecter_request_id';
+  static const String _startedAtKey = 'interceptly_started_at';
+  static const String _requestIdKey = 'interceptly_request_id';
 
   @override
   FutureOr<Response<BodyType>> intercept<BodyType>(

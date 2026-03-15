@@ -3,10 +3,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
-import '../../capture/http/netspecter_http_client.dart';
+import '../../capture/http/interceptly_http_client.dart';
 import '../../model/request_record.dart';
 import '../../storage/inspector_session.dart';
-import '../netspecter_theme.dart';
+import '../interceptly_theme.dart';
 import '../widgets/toast_notification.dart';
 
 class ReplayHandler {
@@ -21,7 +21,7 @@ class ReplayHandler {
   void showReplayMenu(RequestRecord record) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: NetSpecterTheme.surface,
+      backgroundColor: InterceptlyTheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       ),
@@ -41,7 +41,7 @@ class ReplayHandler {
             ),
             ListTile(
               leading:
-                  const Icon(Icons.refresh, color: NetSpecterTheme.indigo500),
+                  const Icon(Icons.refresh, color: InterceptlyTheme.indigo500),
               title: const Text('Retry Request'),
               subtitle: const Text('Send the same request again',
                   maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -53,7 +53,7 @@ class ReplayHandler {
             const Divider(color: Colors.white12, height: 1),
             ListTile(
               leading:
-                  const Icon(Icons.edit_note, color: NetSpecterTheme.indigo500),
+                  const Icon(Icons.edit_note, color: InterceptlyTheme.indigo500),
               title: const Text('Duplicate & Edit'),
               subtitle: const Text('Modify request then send as new',
                   maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -100,7 +100,7 @@ class ReplayHandler {
     final result = await showModalBottomSheet<_ReplayDraft>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: NetSpecterTheme.surface,
+      backgroundColor: InterceptlyTheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -165,7 +165,7 @@ class ReplayHandler {
       );
     }
 
-    final client = NetSpecterHttpClient.wrap(http.Client(), session);
+    final client = InterceptlyHttpClient.wrap(http.Client(), session);
 
     try {
       ToastNotification.show(context, 'Sending request...');
@@ -435,7 +435,7 @@ class _ReplayEditorSheetState extends State<_ReplayEditorSheet>
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: NetSpecterTheme.textPrimary,
+                color: InterceptlyTheme.textPrimary,
               ),
             ),
             const SizedBox(height: 10),
@@ -469,9 +469,10 @@ class _ReplayEditorSheetState extends State<_ReplayEditorSheet>
                     controller: _baseUrlController,
                     decoration: const InputDecoration(
                       labelText: 'URL',
-                      labelStyle: TextStyle(color: NetSpecterTheme.textMuted),
+                      labelStyle: TextStyle(color: InterceptlyTheme.textMuted),
                     ),
-                    style: const TextStyle(color: NetSpecterTheme.textPrimary),
+                    style:
+                        const TextStyle(color: InterceptlyTheme.textPrimary),
                   ),
                 ),
               ],
@@ -479,15 +480,15 @@ class _ReplayEditorSheetState extends State<_ReplayEditorSheet>
             const SizedBox(height: 10),
             Container(
               decoration: BoxDecoration(
-                color: NetSpecterTheme.surfaceContainer,
+                color: InterceptlyTheme.surfaceContainer,
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
               ),
               child: TabBar(
                 controller: _tabController,
-                labelColor: NetSpecterTheme.indigo400,
-                unselectedLabelColor: NetSpecterTheme.textMuted,
-                indicatorColor: NetSpecterTheme.indigo500,
+                labelColor: InterceptlyTheme.indigo400,
+                unselectedLabelColor: InterceptlyTheme.textMuted,
+                indicatorColor: InterceptlyTheme.indigo500,
                 tabs: const [
                   Tab(text: 'Params'),
                   Tab(text: 'Headers'),
@@ -515,7 +516,7 @@ class _ReplayEditorSheetState extends State<_ReplayEditorSheet>
                           const Text(
                             'raw (JSON object)',
                             style: TextStyle(
-                              color: NetSpecterTheme.textMuted,
+                              color: InterceptlyTheme.textMuted,
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                             ),
@@ -538,9 +539,9 @@ class _ReplayEditorSheetState extends State<_ReplayEditorSheet>
                             alignLabelWithHint: true,
                           ),
                           style: const TextStyle(
-                            color: NetSpecterTheme.textPrimary,
-                            fontFamily: NetSpecterTheme.fontFamily,
-                            package: NetSpecterTheme.fontPackage,
+                            color: InterceptlyTheme.textPrimary,
+                            fontFamily: InterceptlyTheme.fontFamily,
+                            package: InterceptlyTheme.fontPackage,
                           ),
                         ),
                       ),
@@ -551,7 +552,7 @@ class _ReplayEditorSheetState extends State<_ReplayEditorSheet>
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            color: NetSpecterTheme.yellow400,
+                            color: InterceptlyTheme.yellow400,
                             fontSize: 11,
                           ),
                         ),
@@ -567,7 +568,7 @@ class _ReplayEditorSheetState extends State<_ReplayEditorSheet>
                           const Text(
                             'raw (JSON)',
                             style: TextStyle(
-                              color: NetSpecterTheme.textMuted,
+                              color: InterceptlyTheme.textMuted,
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                             ),
@@ -590,9 +591,9 @@ class _ReplayEditorSheetState extends State<_ReplayEditorSheet>
                             alignLabelWithHint: true,
                           ),
                           style: const TextStyle(
-                            color: NetSpecterTheme.textPrimary,
-                            fontFamily: NetSpecterTheme.fontFamily,
-                            package: NetSpecterTheme.fontPackage,
+                            color: InterceptlyTheme.textPrimary,
+                            fontFamily: InterceptlyTheme.fontFamily,
+                            package: InterceptlyTheme.fontPackage,
                           ),
                         ),
                       ),
@@ -603,7 +604,7 @@ class _ReplayEditorSheetState extends State<_ReplayEditorSheet>
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            color: NetSpecterTheme.yellow400,
+                            color: InterceptlyTheme.yellow400,
                             fontSize: 11,
                           ),
                         ),
@@ -667,12 +668,12 @@ class _ReplayEditorSheetState extends State<_ReplayEditorSheet>
       maxLines: maxLines,
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: NetSpecterTheme.textMuted),
+        labelStyle: const TextStyle(color: InterceptlyTheme.textMuted),
       ),
       style: const TextStyle(
-        color: NetSpecterTheme.textPrimary,
-        fontFamily: NetSpecterTheme.fontFamily,
-        package: NetSpecterTheme.fontPackage,
+        color: InterceptlyTheme.textPrimary,
+        fontFamily: InterceptlyTheme.fontFamily,
+        package: InterceptlyTheme.fontPackage,
       ),
     );
   }
@@ -713,8 +714,8 @@ class _JsonSyntaxController extends TextEditingController {
   }) {
     final baseStyle = style ??
         const TextStyle(
-          color: NetSpecterTheme.textPrimary,
-          fontFamily: NetSpecterTheme.fontFamily,
+          color: InterceptlyTheme.textPrimary,
+          fontFamily: InterceptlyTheme.fontFamily,
           fontSize: 13,
         );
 
@@ -750,7 +751,7 @@ class _JsonSyntaxController extends TextEditingController {
   }
 
   Color _colorForToken(String token, int tokenEnd) {
-    if (token.isEmpty) return NetSpecterTheme.textPrimary;
+    if (token.isEmpty) return InterceptlyTheme.textPrimary;
 
     final first = token.codeUnitAt(0);
     if (first == 0x22) {
@@ -774,7 +775,7 @@ class _JsonSyntaxController extends TextEditingController {
       return _punctuationColor;
     }
 
-    return NetSpecterTheme.textPrimary;
+    return InterceptlyTheme.textPrimary;
   }
 
   bool _isWhitespace(int codeUnit) {

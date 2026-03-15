@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 
 import 'inspector_trigger.dart';
 
-/// Configuration for how [NetSpecterOverlay] behaves.
-class NetSpecterConfig {
-  const NetSpecterConfig({
+/// Configuration for how [InterceptlyOverlay] behaves.
+class InterceptlyConfig {
+  const InterceptlyConfig({
     this.triggers = const {InspectorTrigger.floatingButton},
     this.shakeThreshold = 15.0,
     this.shakeMinInterval = const Duration(milliseconds: 1000),

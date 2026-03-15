@@ -1,6 +1,6 @@
-# NetSpecter
+# Interceptly
 
-NetSpecter is a Flutter network inspector for `dio`, `http`, and `chopper`.
+Interceptly is a Flutter network inspector for `dio`, `http`, and `chopper`.
 
 - Session-only storage (memory + temp file)
 - Handles large payloads without blocking UI
@@ -21,7 +21,7 @@ Current package version in this repository: `0.0.1`
 
 ```yaml
 dependencies:
-  netspecter: ^0.0.1
+  interceptly: ^0.0.1
 ```
 
 ---
@@ -31,14 +31,14 @@ dependencies:
 ```dart
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:netspecter/netspecter.dart';
+import 'package:interceptly/interceptly.dart';
 
 void main() {
-  final dio = Dio()..interceptors.add(NetSpecter.dioInterceptor);
+  final dio = Dio()..interceptors.add(Interceptly.dioInterceptor);
 
   runApp(
     MaterialApp(
-      home: NetSpecterOverlay(
+      home: InterceptlyOverlay(
         child: MyApp(dio: dio),
       ),
     ),
@@ -53,10 +53,10 @@ void main() {
 ### Dio
 
 ```dart
-final dio = Dio()..interceptors.add(NetSpecter.dioInterceptor);
+final dio = Dio()..interceptors.add(Interceptly.dioInterceptor);
 
 // Or explicit constructor
-// dio.interceptors.add(NetSpecterDioInterceptor());
+// dio.interceptors.add(InterceptlyDioInterceptor());
 ```
 
 ### HTTP (`package:http`)
@@ -64,8 +64,8 @@ final dio = Dio()..interceptors.add(NetSpecter.dioInterceptor);
 ```dart
 import 'package:http/http.dart' as http;
 
-final client = NetSpecter.wrapHttpClient(http.Client());
-// or NetSpecterHttpClient(http.Client())
+final client = Interceptly.wrapHttpClient(http.Client());
+// or InterceptlyHttpClient(http.Client())
 
 final res = await client.get(Uri.parse('https://api.example.com/users'));
 ```
@@ -77,7 +77,7 @@ import 'package:chopper/chopper.dart';
 
 final chopper = ChopperClient(
   interceptors: [
-    NetSpecterChopperInterceptor(),
+    InterceptlyChopperInterceptor(),
   ],
   // ... your converter/services
 );
@@ -89,21 +89,21 @@ final chopper = ChopperClient(
 
 ```dart
 // Always works with context
-NetSpecter.showInspector(context);
+Interceptly.showInspector(context);
 
-// Works without context if navigatorKey was passed to NetSpecterOverlay
-NetSpecter.showInspector();
+// Works without context if navigatorKey was passed to InterceptlyOverlay
+Interceptly.showInspector();
 ```
 
 ---
 
 ## Overlay triggers
 
-Configure triggers via `NetSpecterConfig`:
+Configure triggers via `InterceptlyConfig`:
 
 ```dart
-NetSpecterOverlay(
-  config: NetSpecterConfig(
+InterceptlyOverlay(
+  config: InterceptlyConfig(
     triggers: {
       InspectorTrigger.floatingButton, // default
       InspectorTrigger.shake,
@@ -121,7 +121,7 @@ NetSpecterOverlay(
 You can also open via any custom stream:
 
 ```dart
-NetSpecterOverlay(
+InterceptlyOverlay(
   customTrigger: myTriggerStream,
   child: ...,
 )
@@ -154,7 +154,7 @@ NetSpecterOverlay(
 
 ## Network simulation (DevTools-like)
 
-NetSpecter supports runtime network simulation profiles:
+Interceptly supports runtime network simulation profiles:
 
 - `No throttling`
 - `Offline`
@@ -167,9 +167,9 @@ NetSpecter supports runtime network simulation profiles:
 Programmatic control:
 
 ```dart
-NetSpecter.instance.setNetworkSimulation(NetworkSimulationProfile.slow3G);
+Interceptly.instance.setNetworkSimulation(NetworkSimulationProfile.slow3G);
 
-NetSpecter.instance.setNetworkSimulation(
+Interceptly.instance.setNetworkSimulation(
   const NetworkSimulationProfile(
     name: 'Custom',
     offline: false,
@@ -179,18 +179,18 @@ NetSpecter.instance.setNetworkSimulation(
   ),
 );
 
-NetSpecter.instance.clearNetworkSimulation();
+Interceptly.instance.clearNetworkSimulation();
 ```
 
-> Note: Simulation only applies to requests going through NetSpecter wrappers/interceptors.
+> Note: Simulation only applies to requests going through Interceptly wrappers/interceptors.
 
 ---
 
 ## Capture control
 
 ```dart
-NetSpecter.instance.disable(); // stop recording
-NetSpecter.instance.enable();  // resume
+Interceptly.instance.disable(); // stop recording
+Interceptly.instance.enable();  // resume
 ```
 
 ---
@@ -199,17 +199,17 @@ NetSpecter.instance.enable();  // resume
 
 ```dart
 final session = InspectorSession(
-  settings: const NetSpecterSettings(
+  settings: const InterceptlySettings(
     bodyOffloadThreshold: 100 * 1024,
     maxEntries: 1000,
   ),
 );
 
-final dio = Dio()..interceptors.add(NetSpecterDioInterceptor(session));
+final dio = Dio()..interceptors.add(InterceptlyDioInterceptor(session));
 
 runApp(
   MaterialApp(
-    home: NetSpecterOverlay(
+    home: InterceptlyOverlay(
       session: session,
       child: MyApp(dio: dio),
     ),
@@ -232,7 +232,7 @@ Large-body serialization/writes are done via a background isolate.
 
 ---
 
-## NetSpecterSettings
+## InterceptlySettings
 
 | Parameter | Default | Description |
 |---|---|---|
@@ -247,7 +247,7 @@ Large-body serialization/writes are done via a background isolate.
 
 ## Router / navigatorKey setup
 
-If you use `MaterialApp.router` / GoRouter, pass your app navigator key to the overlay so `NetSpecter.showInspector()` can work without context.
+If you use `MaterialApp.router` / GoRouter, pass your app navigator key to the overlay so `Interceptly.showInspector()` can work without context.
 
 ```dart
 final navigatorKey = GlobalKey<NavigatorState>();
@@ -255,7 +255,7 @@ final navigatorKey = GlobalKey<NavigatorState>();
 MaterialApp.router(
   routerConfig: router,
   builder: (context, child) {
-    return NetSpecterOverlay(
+    return InterceptlyOverlay(
       navigatorKey: navigatorKey,
       child: child ?? const SizedBox(),
     );

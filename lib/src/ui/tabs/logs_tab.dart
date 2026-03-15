@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:netspecter/src/ui/netspecter_theme.dart';
+import 'package:interceptly/src/ui/interceptly_theme.dart';
 
 class LogsTab extends StatelessWidget {
   const LogsTab({super.key});
@@ -21,10 +21,10 @@ class LogsTab extends StatelessWidget {
                 child: Text(
                   log['time']!,
                   style: const TextStyle(
-                    fontFamily: NetSpecterTheme.fontFamily,
-                    package: NetSpecterTheme.fontPackage,
+                    fontFamily: InterceptlyTheme.fontFamily,
+                    package: InterceptlyTheme.fontPackage,
                     fontSize: 12,
-                    color: NetSpecterTheme.textMuted,
+                    color: InterceptlyTheme.textMuted,
                   ),
                 ),
               ),
@@ -33,8 +33,8 @@ class LogsTab extends StatelessWidget {
                 child: Text(
                   log['message']!,
                   style: TextStyle(
-                    fontFamily: NetSpecterTheme.fontFamily,
-                    package: NetSpecterTheme.fontPackage,
+                    fontFamily: InterceptlyTheme.fontFamily,
+                    package: InterceptlyTheme.fontPackage,
                     fontSize: 13,
                     color: _getLogColor(log['type']!),
                   ),
@@ -50,12 +50,12 @@ class LogsTab extends StatelessWidget {
   Color _getLogColor(String type) {
     switch (type) {
       case 'error':
-        return NetSpecterTheme.red400;
+        return InterceptlyTheme.red400;
       case 'warning':
-        return NetSpecterTheme.yellow400;
+        return InterceptlyTheme.yellow400;
       case 'info':
       default:
-        return NetSpecterTheme.textTertiary;
+        return InterceptlyTheme.textTertiary;
     }
   }
 }
@@ -63,7 +63,7 @@ class LogsTab extends StatelessWidget {
 const _mockLogs = [
   {
     'time': '14:05:00',
-    'message': 'Initializing NetSpecter core...',
+    'message': 'Initializing Interceptly core...',
     'type': 'info',
   },
   {

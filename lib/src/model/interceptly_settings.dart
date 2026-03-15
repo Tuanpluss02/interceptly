@@ -1,6 +1,6 @@
-/// Configuration for NetSpecter capture and storage behavior.
-class NetSpecterSettings {
-  const NetSpecterSettings({
+/// Configuration for Interceptly capture and storage behavior.
+class InterceptlySettings {
+  const InterceptlySettings({
     this.bodyOffloadThreshold = 50 * 1024,
     this.previewTruncationBytes = 16 * 1024,
     this.maxBodyBytes = 2 * 1024 * 1024,
@@ -30,3 +30,4 @@ class NetSpecterSettings {
   /// Whether to decode URL encodings in the UI.
   final bool urlDecodeEnabled;
 }
+

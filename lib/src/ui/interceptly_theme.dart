@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-class NetSpecterTheme {
+class InterceptlyTheme {
   static const String fontFamily = 'JetBrainsMono';
-  static const String fontPackage = 'netspecter';
+  static const String fontPackage = 'interceptly';
 
   static const Color surface = Color(0xFF121212);
   static const Color surfaceContainer = Color(0xFF1E1E1E);

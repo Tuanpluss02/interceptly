@@ -1,4 +1,4 @@
-import 'package:netspecter/netspecter.dart';
+import 'package:interceptly/interceptly.dart';
 
 /// Exports captured request records to HAR 1.2 compatible maps.
 class HarExporter {
@@ -9,7 +9,7 @@ class HarExporter {
     return {
       'log': {
         'version': '1.2',
-        'creator': {'name': 'NetSpecter', 'version': '0.0.1'},
+        'creator': {'name': 'Interceptly', 'version': '0.0.1'},
         'entries': records.map(_entryFromRecord).toList(),
       },
     };

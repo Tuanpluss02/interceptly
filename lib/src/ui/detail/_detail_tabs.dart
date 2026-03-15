@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:netspecter/src/ui/netspecter_theme.dart';
-import 'package:netspecter/src/ui/utils/error_summary.dart';
-import 'package:netspecter/src/ui/widgets/json_viewer.dart';
+import 'package:interceptly/src/ui/interceptly_theme.dart';
+import 'package:interceptly/src/ui/utils/error_summary.dart';
+import 'package:interceptly/src/ui/widgets/json_viewer.dart';
 
 import '../../model/request_record.dart';
 import '_detail_search.dart';
@@ -27,7 +27,7 @@ class DetailTabsBuilder {
   });
 
   Widget buildOverviewTab() {
-    final mStyle = NetSpecterTheme.getMethodStyle(record.method);
+    final mStyle = InterceptlyTheme.getMethodStyle(record.method);
     final isPending = record.statusCode == 0 && !record.hasError;
     final isErrorWithoutStatus = record.statusCode == 0 && record.hasError;
     final shortError = summarizeRequestError(
@@ -53,8 +53,8 @@ class DetailTabsBuilder {
           DetailSection.overviewMethod,
           valueStyle: TextStyle(
             color: mStyle.text,
-            fontFamily: NetSpecterTheme.fontFamily,
-            package: NetSpecterTheme.fontPackage,
+            fontFamily: InterceptlyTheme.fontFamily,
+            package: InterceptlyTheme.fontPackage,
             fontWeight: FontWeight.bold,
             fontSize: 12,
           ),
@@ -82,7 +82,7 @@ class DetailTabsBuilder {
             shortError,
             DetailSection.errorType,
             valueStyle: const TextStyle(
-              color: NetSpecterTheme.yellow400,
+              color: InterceptlyTheme.yellow400,
               fontSize: 12,
             ),
           ),
@@ -100,7 +100,7 @@ class DetailTabsBuilder {
             'Body truncated — response exceeded the size limit.',
             DetailSection.overviewNote,
             valueStyle: const TextStyle(
-              color: NetSpecterTheme.yellow400,
+              color: InterceptlyTheme.yellow400,
               fontSize: 12,
             ),
           ),
@@ -137,7 +137,7 @@ class DetailTabsBuilder {
           ),
           const SizedBox(height: 24),
         ],
-        _buildSectionHeader('Request Body', color: NetSpecterTheme.indigo400),
+        _buildSectionHeader('Request Body', color: InterceptlyTheme.indigo400),
         _buildBodyPreviewSection(
           contentType: record.requestContentType,
           headers: record.requestHeaders,
@@ -162,11 +162,11 @@ class DetailTabsBuilder {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(color: NetSpecterTheme.indigo500),
+            CircularProgressIndicator(color: InterceptlyTheme.indigo500),
             SizedBox(height: 12),
             Text(
               'Waiting for response...',
-              style: TextStyle(color: NetSpecterTheme.textMuted),
+              style: TextStyle(color: InterceptlyTheme.textMuted),
             ),
           ],
         ),
@@ -182,7 +182,7 @@ class DetailTabsBuilder {
               shortError,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                color: NetSpecterTheme.yellow400,
+                color: InterceptlyTheme.yellow400,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -191,7 +191,7 @@ class DetailTabsBuilder {
               record.errorMessage ??
                   'Request failed before receiving a response.',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: NetSpecterTheme.textMuted),
+              style: const TextStyle(color: InterceptlyTheme.textMuted),
             ),
           ],
         ),
@@ -207,7 +207,7 @@ class DetailTabsBuilder {
           DetailSection.responseHeaders,
         ),
         const SizedBox(height: 24),
-        _buildSectionHeader('Response Body', color: NetSpecterTheme.green400),
+        _buildSectionHeader('Response Body', color: InterceptlyTheme.green400),
         _buildBodyPreviewSection(
           contentType: record.responseContentType,
           headers: record.responseHeaders,
@@ -228,19 +228,19 @@ class DetailTabsBuilder {
     return ListView(
       padding: const EdgeInsets.all(16.0).copyWith(bottom: 100),
       children: [
-        _buildSectionHeader('Error Summary', color: NetSpecterTheme.yellow400),
+        _buildSectionHeader('Error Summary', color: InterceptlyTheme.yellow400),
         _buildJsonBox(
           shortError,
           DetailSection.errorType,
         ),
         const SizedBox(height: 24),
-        _buildSectionHeader('Error Type', color: NetSpecterTheme.yellow400),
+        _buildSectionHeader('Error Type', color: InterceptlyTheme.yellow400),
         _buildJsonBox(
           record.errorType ?? 'None',
           DetailSection.errorType,
         ),
         const SizedBox(height: 24),
-        _buildSectionHeader('Error Message', color: NetSpecterTheme.yellow400),
+        _buildSectionHeader('Error Message', color: InterceptlyTheme.yellow400),
         _buildJsonBox(
           record.errorMessage ?? 'None',
           DetailSection.errorMessage,
@@ -256,7 +256,7 @@ class DetailTabsBuilder {
     if (messages.isEmpty) {
       return const Center(
           child: Text('No WebSocket messages captured.',
-              style: TextStyle(color: NetSpecterTheme.textMuted)));
+              style: TextStyle(color: InterceptlyTheme.textMuted)));
     }
 
     return ListView.builder(
@@ -274,7 +274,7 @@ class DetailTabsBuilder {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: NetSpecterTheme.purple400,
+                    color: InterceptlyTheme.purple400,
                     letterSpacing: 1.0,
                   ),
                 ),
@@ -282,18 +282,19 @@ class DetailTabsBuilder {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 8.0, vertical: 2.0),
                   decoration: BoxDecoration(
-                    color: NetSpecterTheme.green500.withValues(alpha: 0.1),
+                    color: InterceptlyTheme.green500.withValues(alpha: 0.1),
                     border: Border.all(
-                        color: NetSpecterTheme.green500.withValues(alpha: 0.2)),
+                        color:
+                            InterceptlyTheme.green500.withValues(alpha: 0.2)),
                     borderRadius: BorderRadius.circular(4.0),
                   ),
                   child: const Text(
                     'Live',
                     style: TextStyle(
-                      fontFamily: NetSpecterTheme.fontFamily,
-                      package: NetSpecterTheme.fontPackage,
+                      fontFamily: InterceptlyTheme.fontFamily,
+                      package: InterceptlyTheme.fontPackage,
                       fontSize: 10,
-                      color: NetSpecterTheme.green400,
+                      color: InterceptlyTheme.green400,
                     ),
                   ),
                 ),
@@ -305,17 +306,17 @@ class DetailTabsBuilder {
         final msg = messages[index - 1];
         final isOut = msg['type'] == 'out';
         final iconColor =
-            isOut ? NetSpecterTheme.green400 : NetSpecterTheme.blue400;
+            isOut ? InterceptlyTheme.green400 : InterceptlyTheme.blue400;
         final icon = isOut ? Icons.call_made : Icons.call_received;
         final bgColor = isOut
-            ? NetSpecterTheme.green500.withValues(alpha: 0.1)
-            : NetSpecterTheme.blue500.withValues(alpha: 0.1);
+            ? InterceptlyTheme.green500.withValues(alpha: 0.1)
+            : InterceptlyTheme.blue500.withValues(alpha: 0.1);
         final label = isOut ? 'SENT' : 'RECV';
 
         return Container(
           margin: const EdgeInsets.only(bottom: 12.0),
           decoration: BoxDecoration(
-            color: NetSpecterTheme.surfaceContainer,
+            color: InterceptlyTheme.surfaceContainer,
             border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
             borderRadius: BorderRadius.circular(12.0),
           ),
@@ -348,10 +349,10 @@ class DetailTabsBuilder {
                     Text(
                       msg['time'] ?? '',
                       style: const TextStyle(
-                        fontFamily: NetSpecterTheme.fontFamily,
-                        package: NetSpecterTheme.fontPackage,
+                        fontFamily: InterceptlyTheme.fontFamily,
+                        package: InterceptlyTheme.fontPackage,
                         fontSize: 10,
-                        color: NetSpecterTheme.textMuted,
+                        color: InterceptlyTheme.textMuted,
                       ),
                     ),
                   ],
@@ -394,7 +395,7 @@ class DetailTabsBuilder {
             label,
             style: const TextStyle(
               fontSize: 12,
-              color: NetSpecterTheme.textMuted,
+              color: InterceptlyTheme.textMuted,
             ),
           ),
         ),
@@ -403,10 +404,10 @@ class DetailTabsBuilder {
             value,
             style: (valueStyle ??
                     const TextStyle(
-                      fontFamily: NetSpecterTheme.fontFamily,
-                      package: NetSpecterTheme.fontPackage,
+                      fontFamily: InterceptlyTheme.fontFamily,
+                      package: InterceptlyTheme.fontPackage,
                       fontSize: 12,
-                      color: NetSpecterTheme.textSecondary,
+                      color: InterceptlyTheme.textSecondary,
                     ))
                 .copyWith(
               backgroundColor: highlight ? const Color(0x40FFF59D) : null,
@@ -477,17 +478,17 @@ class DetailTabsBuilder {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: NetSpecterTheme.surfaceContainer,
+        color: InterceptlyTheme.surfaceContainer,
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
         text,
         style: const TextStyle(
-          fontFamily: NetSpecterTheme.fontFamily,
-          package: NetSpecterTheme.fontPackage,
+          fontFamily: InterceptlyTheme.fontFamily,
+          package: InterceptlyTheme.fontPackage,
           fontSize: 11,
-          color: NetSpecterTheme.textMuted,
+          color: InterceptlyTheme.textMuted,
         ),
       ),
     );
@@ -649,7 +650,7 @@ class DetailTabsBuilder {
           Container(
             constraints: const BoxConstraints(maxHeight: 240),
             decoration: BoxDecoration(
-              color: NetSpecterTheme.surfaceContainer,
+              color: InterceptlyTheme.surfaceContainer,
               border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
               borderRadius: BorderRadius.circular(12.0),
             ),
@@ -662,7 +663,7 @@ class DetailTabsBuilder {
                   padding: EdgeInsets.all(12.0),
                   child: Text(
                     'Unable to render thumbnail from current preview bytes.',
-                    style: TextStyle(color: NetSpecterTheme.textMuted),
+                    style: TextStyle(color: InterceptlyTheme.textMuted),
                   ),
                 );
               },
@@ -758,7 +759,7 @@ class DetailTabsBuilder {
         style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.bold,
-          color: color ?? NetSpecterTheme.textMuted,
+          color: color ?? InterceptlyTheme.textMuted,
           letterSpacing: 1.0,
         ),
       ),
@@ -776,7 +777,7 @@ class DetailTabsBuilder {
       width: double.infinity,
       padding: const EdgeInsets.all(12.0),
       decoration: BoxDecoration(
-        color: NetSpecterTheme.surfaceContainer,
+        color: InterceptlyTheme.surfaceContainer,
         border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
         borderRadius: BorderRadius.circular(12.0),
       ),

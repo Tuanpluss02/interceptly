@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:netspecter/src/ui/netspecter_theme.dart';
+import 'package:interceptly/src/ui/interceptly_theme.dart';
 
 import 'toast_notification.dart';
 
@@ -132,8 +132,8 @@ class _JsonViewerState extends State<JsonViewer> {
             scrollDirection: Axis.horizontal,
             child: DefaultTextStyle(
               style: const TextStyle(
-                fontFamily: NetSpecterTheme.fontFamily,
-                package: NetSpecterTheme.fontPackage,
+                fontFamily: InterceptlyTheme.fontFamily,
+                package: InterceptlyTheme.fontPackage,
                 fontFamilyFallback: ['monospace'],
                 fontSize: 12,
                 height: 1.5,

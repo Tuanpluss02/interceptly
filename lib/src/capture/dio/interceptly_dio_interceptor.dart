@@ -8,17 +8,17 @@ import '../../model/network_simulation.dart';
 import '../../model/raw_capture.dart';
 import '../../storage/inspector_session.dart';
 
-/// A Dio interceptor that captures requests and responses for NetSpecter.
-class NetSpecterDioInterceptor extends Interceptor {
+/// A Dio interceptor that captures requests and responses for Interceptly.
+class InterceptlyDioInterceptor extends Interceptor {
   /// Creates an interceptor backed by [session] or the shared singleton.
-  NetSpecterDioInterceptor([InspectorSession? session])
+  InterceptlyDioInterceptor([InspectorSession? session])
       : session = session ?? InspectorSession.instance;
 
   /// Session that stores all captured events.
   final InspectorSession session;
 
-  static const String _startedAtKey = 'netspecter_started_at';
-  static const String _requestIdKey = 'netspecter_request_id';
+  static const String _startedAtKey = 'interceptly_started_at';
+  static const String _requestIdKey = 'interceptly_request_id';
 
   /// Captures a pending request and applies pre-request simulation.
   @override

@@ -31,7 +31,7 @@ dependencies:
   flutter:
     sdk: flutter
 
-  netspecter:
+  interceptly:
     path: ../
   dio: ^5.9.2
 
@@ -95,16 +95,16 @@ flutter:
   fonts:
     - family: JetBrainsMono
       fonts:
-        - asset: packages/netspecter/assets/fonts/JetBrainsMono-Regular.ttf
-        - asset: packages/netspecter/assets/fonts/JetBrainsMono-Italic.ttf
+        - asset: packages/interceptly/assets/fonts/JetBrainsMono-Regular.ttf
+        - asset: packages/interceptly/assets/fonts/JetBrainsMono-Italic.ttf
           style: italic
-        - asset: packages/netspecter/assets/fonts/JetBrainsMono-Medium.ttf
+        - asset: packages/interceptly/assets/fonts/JetBrainsMono-Medium.ttf
           weight: 500
-        - asset: packages/netspecter/assets/fonts/JetBrainsMono-MediumItalic.ttf
+        - asset: packages/interceptly/assets/fonts/JetBrainsMono-MediumItalic.ttf
           weight: 500
           style: italic
-        - asset: packages/netspecter/assets/fonts/JetBrainsMono-Bold.ttf
+        - asset: packages/interceptly/assets/fonts/JetBrainsMono-Bold.ttf
           weight: 700
-        - asset: packages/netspecter/assets/fonts/JetBrainsMono-BoldItalic.ttf
+        - asset: packages/interceptly/assets/fonts/JetBrainsMono-BoldItalic.ttf
           weight: 700
           style: italic

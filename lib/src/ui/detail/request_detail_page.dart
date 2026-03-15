@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:netspecter/src/ui/netspecter_theme.dart';
+import 'package:interceptly/src/ui/interceptly_theme.dart';
 
 import '../../model/index_entry.dart';
 import '../../model/request_record.dart';
@@ -169,8 +169,8 @@ class _RequestDetailPageState extends State<RequestDetailPage>
     final isPending = entry.statusCode == 0 && !entry.hasError;
     final isErrorWithoutStatus = entry.statusCode == 0 && entry.hasError;
     final sStyle = isErrorWithoutStatus
-        ? const StatusStyle(bg: NetSpecterTheme.red500, text: Colors.white)
-        : NetSpecterTheme.getStatusStyle(entry.statusCode);
+        ? const StatusStyle(bg: InterceptlyTheme.red500, text: Colors.white)
+        : InterceptlyTheme.getStatusStyle(entry.statusCode);
 
     String displayUrl = entry.url;
     if (widget.session.urlDecodeEnabled) {
@@ -182,12 +182,12 @@ class _RequestDetailPageState extends State<RequestDetailPage>
     final path = Uri.tryParse(displayUrl)?.path ?? displayUrl;
 
     return Scaffold(
-      backgroundColor: NetSpecterTheme.surface,
+      backgroundColor: InterceptlyTheme.surface,
       appBar: AppBar(
-        backgroundColor: NetSpecterTheme.surface,
+        backgroundColor: InterceptlyTheme.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        iconTheme: const IconThemeData(color: NetSpecterTheme.textSecondary),
+        iconTheme: const IconThemeData(color: InterceptlyTheme.textSecondary),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
@@ -195,17 +195,17 @@ class _RequestDetailPageState extends State<RequestDetailPage>
         title: Text(
           path,
           style: const TextStyle(
-            fontFamily: NetSpecterTheme.fontFamily,
-            package: NetSpecterTheme.fontPackage,
+            fontFamily: InterceptlyTheme.fontFamily,
+            package: InterceptlyTheme.fontPackage,
             fontSize: 14,
-            color: NetSpecterTheme.textPrimary,
+            color: InterceptlyTheme.textPrimary,
           ),
         ),
         actions: [
           IconButton(
             tooltip: 'Replay request',
             icon:
-                const Icon(Icons.play_arrow, color: NetSpecterTheme.indigo400),
+                const Icon(Icons.play_arrow, color: InterceptlyTheme.indigo400),
             onPressed: _showReplayMenu,
           ),
           Container(
@@ -244,7 +244,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
           if (record == null) {
             return const Center(
               child:
-                  CircularProgressIndicator(color: NetSpecterTheme.indigo500),
+                  CircularProgressIndicator(color: InterceptlyTheme.indigo500),
             );
           }
 
@@ -290,7 +290,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                   vertical: 12.0,
                 ),
                 decoration: BoxDecoration(
-                  color: NetSpecterTheme.surface,
+                  color: InterceptlyTheme.surface,
                   border: Border(
                     bottom: BorderSide(
                       color: Colors.white.withValues(alpha: 0.05),
@@ -312,16 +312,16 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                         decoration: InputDecoration(
                           hintText: 'Search in details...',
                           hintStyle: const TextStyle(
-                            color: NetSpecterTheme.textMuted,
+                            color: InterceptlyTheme.textMuted,
                             fontSize: 14,
                           ),
                           prefixIcon: const Icon(
                             Icons.search,
-                            color: NetSpecterTheme.textMuted,
+                            color: InterceptlyTheme.textMuted,
                             size: 20,
                           ),
                           filled: true,
-                          fillColor: NetSpecterTheme.surfaceContainer,
+                          fillColor: InterceptlyTheme.surfaceContainer,
                           isDense: true,
                           contentPadding:
                               const EdgeInsets.symmetric(vertical: 12.0),
@@ -332,13 +332,13 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(30.0),
                             borderSide: const BorderSide(
-                              color: NetSpecterTheme.indigo500,
+                              color: InterceptlyTheme.indigo500,
                               width: 1.0,
                             ),
                           ),
                         ),
                         style: const TextStyle(
-                          color: NetSpecterTheme.textSecondary,
+                          color: InterceptlyTheme.textSecondary,
                           fontSize: 14,
                         ),
                       ),
@@ -350,14 +350,14 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                           : '${effectiveIndex + 1} / $totalMatches',
                       style: const TextStyle(
                         fontSize: 12,
-                        color: NetSpecterTheme.textMuted,
+                        color: InterceptlyTheme.textMuted,
                       ),
                     ),
                     IconButton(
                       icon: const Icon(
                         Icons.keyboard_arrow_up,
                         size: 20,
-                        color: NetSpecterTheme.textMuted,
+                        color: InterceptlyTheme.textMuted,
                       ),
                       tooltip: 'Previous match',
                       onPressed: totalMatches == 0
@@ -372,7 +372,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                       icon: const Icon(
                         Icons.keyboard_arrow_down,
                         size: 20,
-                        color: NetSpecterTheme.textMuted,
+                        color: InterceptlyTheme.textMuted,
                       ),
                       tooltip: 'Next match',
                       onPressed: totalMatches == 0
@@ -389,9 +389,9 @@ class _RequestDetailPageState extends State<RequestDetailPage>
               // TabBar
               TabBar(
                 controller: _tabController,
-                indicatorColor: NetSpecterTheme.indigo500,
-                labelColor: NetSpecterTheme.indigo400,
-                unselectedLabelColor: NetSpecterTheme.textQuaternary,
+                indicatorColor: InterceptlyTheme.indigo500,
+                labelColor: InterceptlyTheme.indigo400,
+                unselectedLabelColor: InterceptlyTheme.textQuaternary,
                 dividerColor: Colors.transparent,
                 tabs: isWs
                     ? const [
@@ -455,7 +455,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
         key: _fabKey,
         heroTag: null,
         onPressed: _showShareMenu,
-        backgroundColor: NetSpecterTheme.indigo500,
+        backgroundColor: InterceptlyTheme.indigo500,
         child: const Icon(Icons.share),
       ),
     );

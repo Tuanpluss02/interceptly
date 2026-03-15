@@ -12,21 +12,21 @@ import '../../storage/inspector_session.dart';
 ///
 /// Usage:
 /// ```dart
-/// final client = NetSpecterHttpClient(http.Client());
+/// final client = InterceptlyHttpClient(http.Client());
 /// // or
-/// final client = NetSpecterHttpClient.wrap(http.Client());
+/// final client = InterceptlyHttpClient.wrap(http.Client());
 /// ```
-class NetSpecterHttpClient extends http.BaseClient {
-  NetSpecterHttpClient(
+class InterceptlyHttpClient extends http.BaseClient {
+  InterceptlyHttpClient(
     this._inner, [
     InspectorSession? session,
   ]) : session = session ?? InspectorSession.instance;
 
-  factory NetSpecterHttpClient.wrap(
+  factory InterceptlyHttpClient.wrap(
     http.Client inner, [
     InspectorSession? session,
   ]) =>
-      NetSpecterHttpClient(inner, session);
+      InterceptlyHttpClient(inner, session);
 
   final http.Client _inner;
   final InspectorSession session;
@@ -108,7 +108,7 @@ class NetSpecterHttpClient extends http.BaseClient {
 
   /// Tees [source] into a new stream that:
   /// - forwards every chunk to the caller unchanged and immediately, and
-  /// - accumulates up to [NetSpecterSettings.maxBodyBytes] bytes into a
+  /// - accumulates up to [InterceptlySettings.maxBodyBytes] bytes into a
   ///   [BytesBuilder] for capture — then stops accumulating (never buffers
   ///   more than the cap regardless of how large the response is).
   ///

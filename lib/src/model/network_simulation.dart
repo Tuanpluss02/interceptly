@@ -1,4 +1,4 @@
-/// Defines runtime network conditions applied by NetSpecter wrappers.
+/// Defines runtime network conditions applied by Interceptly wrappers.
 class NetworkSimulationProfile {
   /// Creates a custom network simulation profile.
   const NetworkSimulationProfile({

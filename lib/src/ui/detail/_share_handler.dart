@@ -8,7 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../export/curl_generator.dart';
 import '../../export/har_exporter.dart';
 import '../../model/request_record.dart';
-import '../netspecter_theme.dart';
+import '../interceptly_theme.dart';
 
 class ShareHandler {
   final BuildContext context;
@@ -22,7 +22,7 @@ class ShareHandler {
   void showShareMenu(RequestRecord record) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: NetSpecterTheme.surface,
+      backgroundColor: InterceptlyTheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       ),
@@ -41,7 +41,8 @@ class ShareHandler {
               ),
             ),
             ListTile(
-              leading: const Icon(Icons.copy, color: NetSpecterTheme.indigo500),
+              leading:
+                  const Icon(Icons.copy, color: InterceptlyTheme.indigo500),
               title: const Text('Copy cURL'),
               subtitle: const Text('Copy request as cURL command',
                   maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -53,7 +54,7 @@ class ShareHandler {
             const Divider(color: Colors.white12, height: 1),
             ListTile(
               leading:
-                  const Icon(Icons.download, color: NetSpecterTheme.indigo500),
+                  const Icon(Icons.download, color: InterceptlyTheme.indigo500),
               title: const Text('Export HAR'),
               subtitle: const Text('Download HAR file',
                   maxLines: 1, overflow: TextOverflow.ellipsis),

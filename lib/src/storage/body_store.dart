@@ -10,7 +10,7 @@ import 'dart:typed_data';
 /// Reading is done exclusively from the main isolate via the static
 /// [readBytes] helper, which never modifies the file.
 class BodyStore {
-  static const kFileName = 'netspecter_session.tmp';
+  static const kFileName = 'interceptly_session.tmp';
 
   late File _file;
   RandomAccessFile? _raf;

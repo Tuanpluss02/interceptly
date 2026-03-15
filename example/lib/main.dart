@@ -1,16 +1,16 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:netspecter/netspecter.dart';
+import 'package:interceptly/interceptly.dart';
 
 void main() {
   final session = InspectorSession.instance;
-  final dio = Dio()..interceptors.add(NetSpecterDioInterceptor(session));
+  final dio = Dio()..interceptors.add(InterceptlyDioInterceptor(session));
 
-  runApp(NetSpecterExampleApp(dio: dio, session: session));
+  runApp(InterceptlyExampleApp(dio: dio, session: session));
 }
 
-class NetSpecterExampleApp extends StatelessWidget {
-  const NetSpecterExampleApp({
+class InterceptlyExampleApp extends StatelessWidget {
+  const InterceptlyExampleApp({
     super.key,
     required this.dio,
     required this.session,
@@ -22,12 +22,12 @@ class NetSpecterExampleApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'NetSpecter Example',
+      title: 'Interceptly Example',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
         fontFamily: 'JetBrainsMono',
       ),
-      home: NetSpecterOverlay(
+      home: InterceptlyOverlay(
         session: session,
         child: ExampleHomePage(dio: dio),
       ),
@@ -72,7 +72,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('NetSpecter Example')),
+      appBar: AppBar(title: const Text('Interceptly Example')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -100,7 +100,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                         () => widget.dio.post<dynamic>(
                           'https://jsonplaceholder.typicode.com/posts',
                           data: <String, Object?>{
-                            'title': 'NetSpecter',
+                            'title': 'Interceptly',
                             'body': 'Smoke test payload',
                             'userId': 1,
                           },
@@ -114,8 +114,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                   ? null
                   : () => _runRequest(
                         'Error',
-                        () =>
-                            widget.dio.get<dynamic>('https://httpstat.us/503'),
+                        () => widget.dio.get<dynamic>('https://httpstat.us/503'),
                       ),
               child: const Text('Send Error Request'),
             ),

@@ -5,7 +5,7 @@ import 'dart:typed_data';
 
 import '../model/body_location.dart';
 import '../model/index_entry.dart';
-import '../model/net_specter_settings.dart';
+import '../model/interceptly_settings.dart';
 import '../model/raw_capture.dart';
 import 'body_store.dart';
 
@@ -21,7 +21,7 @@ class _InitMessage {
   });
 
   final SendPort replyPort;
-  final NetSpecterSettings settings;
+  final InterceptlySettings settings;
 
   /// Pre-resolved temp directory path from the main isolate.
   ///
@@ -58,7 +58,7 @@ class _DisposeMessage {
 class WriterIsolate {
   WriterIsolate(this._settings);
 
-  final NetSpecterSettings _settings;
+  final InterceptlySettings _settings;
 
   Isolate? _isolate;
   SendPort? _sendPort;
@@ -170,7 +170,7 @@ Future<void> _isolateEntry(_InitMessage init) async {
 Future<IndexEntry> _processCapture(
   RawCapture capture,
   BodyStore bodyStore,
-  NetSpecterSettings settings,
+  InterceptlySettings settings,
 ) async {
   final threshold = settings.bodyOffloadThreshold;
   final maxBody = settings.maxBodyBytes;

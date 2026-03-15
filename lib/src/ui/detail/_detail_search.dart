@@ -1,4 +1,4 @@
-import 'package:netspecter/src/ui/widgets/json_viewer.dart';
+import 'package:interceptly/src/ui/widgets/json_viewer.dart';
 
 import '../../model/request_record.dart';
 

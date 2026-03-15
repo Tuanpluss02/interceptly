@@ -8,7 +8,7 @@ import '../core/queue/bounded_event_queue.dart';
 import '../model/body_location.dart';
 import '../model/http_call_filter.dart';
 import '../model/index_entry.dart';
-import '../model/net_specter_settings.dart';
+import '../model/interceptly_settings.dart';
 import '../model/network_simulation.dart';
 import '../model/raw_capture.dart';
 import '../model/request_record.dart';
@@ -16,15 +16,15 @@ import 'body_store.dart';
 import 'memory_index.dart';
 import 'writer_isolate.dart';
 
-/// Central lifecycle manager for the NetSpecter session.
+/// Central lifecycle manager for the Interceptly session.
 ///
 /// Owns the [MemoryIndex] (in-RAM list view data) and the [WriterIsolate]
 /// (serialised disk writer for large bodies).
 ///
 /// All public methods are safe to call from the main isolate.
 class InspectorSession extends ChangeNotifier {
-  InspectorSession({NetSpecterSettings? settings})
-      : settings = settings ?? const NetSpecterSettings() {
+  InspectorSession({InterceptlySettings? settings})
+      : settings = settings ?? const InterceptlySettings() {
     _memoryIndex = MemoryIndex(maxEntries: this.settings.maxEntries);
     _writerIsolate = WriterIsolate(this.settings);
     _preInitQueue = BoundedEventQueue(maxSize: this.settings.maxQueuedEvents);
@@ -36,7 +36,7 @@ class InspectorSession extends ChangeNotifier {
     return _instance ??= InspectorSession();
   }
 
-  final NetSpecterSettings settings;
+  final InterceptlySettings settings;
   late final MemoryIndex _memoryIndex;
   late final WriterIsolate _writerIsolate;
   late final BoundedEventQueue<RawCapture> _preInitQueue;

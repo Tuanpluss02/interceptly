@@ -4,30 +4,30 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../../storage/inspector_session.dart';
-import '../screens/netspecter_screen.dart';
+import '../screens/interceptly_screen.dart';
 import '../trigger/inspector_trigger.dart';
-import '../trigger/netspecter_config.dart';
+import '../trigger/interceptly_config.dart';
 import '../trigger/shake_detector.dart';
 import 'draggable_fab.dart';
 
-class NetSpecterOverlay extends StatefulWidget {
-  NetSpecterOverlay({
+class InterceptlyOverlay extends StatefulWidget {
+  InterceptlyOverlay({
     super.key,
     InspectorSession? session,
-    NetSpecterConfig? config,
+    InterceptlyConfig? config,
     this.navigatorKey,
     this.customTrigger,
     required this.child,
   })  : session = session ?? InspectorSession.instance,
-        config = config ?? const NetSpecterConfig();
+        config = config ?? const InterceptlyConfig();
 
   final InspectorSession session;
-  final NetSpecterConfig config;
+  final InterceptlyConfig config;
 
   /// The app's existing [GlobalKey<NavigatorState>].
   ///
   /// Pass the **same key** you registered on `MaterialApp` or `GoRouter`.
-  /// The overlay stores it internally so that [NetSpecter.showInspector()]
+  /// The overlay stores it internally so that [Interceptly.showInspector()]
   /// can push the inspector screen without a [BuildContext].
   ///
   /// ```dart
@@ -36,7 +36,7 @@ class NetSpecterOverlay extends StatefulWidget {
   ///
   /// GoRouter(navigatorKey: navigatorKey, ...)
   ///
-  /// NetSpecterOverlay(
+  /// InterceptlyOverlay(
   ///   navigatorKey: navigatorKey, // ← pass it here
   ///   child: ...,
   /// )
@@ -56,10 +56,10 @@ class NetSpecterOverlay extends StatefulWidget {
   final Widget child;
 
   @override
-  State<NetSpecterOverlay> createState() => _NetSpecterOverlayState();
+  State<InterceptlyOverlay> createState() => _InterceptlyOverlayState();
 }
 
-class _NetSpecterOverlayState extends State<NetSpecterOverlay> {
+class _InterceptlyOverlayState extends State<InterceptlyOverlay> {
   StreamSubscription<void>? _customTriggerSub;
 
   @override
@@ -73,7 +73,7 @@ class _NetSpecterOverlayState extends State<NetSpecterOverlay> {
   }
 
   @override
-  void didUpdateWidget(NetSpecterOverlay oldWidget) {
+  void didUpdateWidget(covariant InterceptlyOverlay oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.navigatorKey != widget.navigatorKey &&
         widget.navigatorKey != null) {
@@ -181,25 +181,25 @@ class _NetSpecterOverlayState extends State<NetSpecterOverlay> {
   }
 }
 
-/// The developer's navigator key, stored when [NetSpecterOverlay] is built.
+/// The developer's navigator key, stored when [InterceptlyOverlay] is built.
 ///
-/// Used by [NetSpecter.showInspector()] to navigate without a [BuildContext].
-/// Null until the developer passes a key via [NetSpecterOverlay.navigatorKey].
+/// Used by [Interceptly.showInspector()] to navigate without a [BuildContext].
+/// Null until the developer passes a key via [InterceptlyOverlay.navigatorKey].
 GlobalKey<NavigatorState>? _registeredNavigatorKey;
 
-/// Read-only access for [NetSpecter.showInspector].
+/// Read-only access for [Interceptly.showInspector].
 GlobalKey<NavigatorState>? get registeredNavigatorKey =>
     _registeredNavigatorKey;
 
 /// True while the inspector screen is on the navigation stack.
 ///
-/// Shared across all entry points (overlay triggers, [NetSpecter.showInspector])
+/// Shared across all entry points (overlay triggers, [Interceptly.showInspector])
 /// so that no matter which trigger fires, only one inspector is ever pushed.
 bool _inspectorIsOpen = false;
 
 /// Pushes the inspector screen onto the navigator, unless it is already open.
 ///
-/// All entry points ([_NetSpecterOverlayState], [NetSpecter.showInspector])
+/// All entry points ([_InterceptlyOverlayState], [Interceptly.showInspector])
 /// must route through this function so the guard is always enforced.
 void openInspectorIfNotOpen({
   required InspectorSession session,
@@ -219,7 +219,7 @@ void openInspectorIfNotOpen({
   navigator
       .push<void>(
         MaterialPageRoute<void>(
-          builder: (_) => NetSpecterScreen(session: session),
+          builder: (_) => InterceptlyScreen(session: session),
         ),
       )
       .whenComplete(() => _inspectorIsOpen = false);

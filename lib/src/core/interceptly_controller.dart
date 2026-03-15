@@ -1,37 +1,37 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
-import '../capture/dio/netspecter_dio_interceptor.dart';
-import '../capture/http/netspecter_http_client.dart';
+import '../capture/dio/interceptly_dio_interceptor.dart';
+import '../capture/http/interceptly_http_client.dart';
 import '../model/http_call_filter.dart';
 import '../model/index_entry.dart';
-import '../model/net_specter_settings.dart';
+import '../model/interceptly_settings.dart';
 import '../model/network_simulation.dart';
 import '../model/raw_capture.dart';
 import '../model/request_record.dart';
 import '../storage/inspector_session.dart';
-import '../ui/overlay/netspecter_overlay.dart'
+import '../ui/overlay/interceptly_overlay.dart'
     show openInspectorIfNotOpen, registeredNavigatorKey;
 
 export '../storage/inspector_session.dart' show InspectorSession;
 
 /// Thin public facade over [InspectorSession].
 ///
-/// Exposes a stable API surface for users who prefer `NetSpecter.xxx` style
+/// Exposes a stable API surface for users who prefer `Interceptly.xxx` style
 /// calls. All state lives in [InspectorSession]; this class has no extra state.
-class NetSpecter extends ChangeNotifier {
-  NetSpecter({
-    NetSpecterSettings? settings,
+class Interceptly extends ChangeNotifier {
+  Interceptly({
+    InterceptlySettings? settings,
     InspectorSession? session,
   }) : _session = session ?? InspectorSession(settings: settings) {
     _session.addListener(notifyListeners);
   }
 
-  static NetSpecter? _sharedInstance;
+  static Interceptly? _sharedInstance;
 
   /// The shared singleton instance backed by [InspectorSession.instance].
-  static NetSpecter get instance {
-    return _sharedInstance ??= NetSpecter(
+  static Interceptly get instance {
+    return _sharedInstance ??= Interceptly(
       session: InspectorSession.instance,
     );
   }
@@ -46,7 +46,7 @@ class NetSpecter extends ChangeNotifier {
   InspectorSession get session => _session;
 
   /// Effective capture and storage settings.
-  NetSpecterSettings get settings => _session.settings;
+  InterceptlySettings get settings => _session.settings;
 
   /// Current list of indexed network calls.
   List<IndexEntry> get calls => _session.entries;
@@ -105,22 +105,22 @@ class NetSpecter extends ChangeNotifier {
 
   /// Opens the inspector screen.
   ///
-  /// Uses the navigator key registered via [NetSpecterOverlay.navigatorKey]
+  /// Uses the navigator key registered via [InterceptlyOverlay.navigatorKey]
   /// if available, otherwise falls back to [context].
   ///
   /// ```dart
   /// // From a button (context always available):
-  /// NetSpecter.showInspector(context);
+  /// Interceptly.showInspector(context);
   ///
   /// // From a notification handler (navigatorKey must have been passed to
-  /// // NetSpecterOverlay first):
-  /// NetSpecter.showInspector();
+  /// // InterceptlyOverlay first):
+  /// Interceptly.showInspector();
   /// ```
   static void showInspector([BuildContext? context]) {
     assert(
       registeredNavigatorKey != null || context != null,
-      'NetSpecter.showInspector() requires either a BuildContext or a '
-      'navigatorKey passed to NetSpecterOverlay.',
+      'Interceptly.showInspector() requires either a BuildContext or a '
+      'navigatorKey passed to InterceptlyOverlay.',
     );
     openInspectorIfNotOpen(
       session: InspectorSession.instance,
@@ -136,18 +136,18 @@ class NetSpecter extends ChangeNotifier {
   /// A ready-to-use Dio interceptor backed by [InspectorSession.instance].
   ///
   /// ```dart
-  /// dio.interceptors.add(NetSpecter.dioInterceptor);
+  /// dio.interceptors.add(Interceptly.dioInterceptor);
   /// ```
-  static NetSpecterDioInterceptor get dioInterceptor =>
-      NetSpecterDioInterceptor(InspectorSession.instance);
+  static InterceptlyDioInterceptor get dioInterceptor =>
+      InterceptlyDioInterceptor(InspectorSession.instance);
 
   /// Wraps an [http.Client] so all its requests are captured.
   ///
   /// ```dart
-  /// final client = NetSpecter.wrapHttpClient(http.Client());
+  /// final client = Interceptly.wrapHttpClient(http.Client());
   /// ```
-  static NetSpecterHttpClient wrapHttpClient(http.Client inner) =>
-      NetSpecterHttpClient.wrap(inner, InspectorSession.instance);
+  static InterceptlyHttpClient wrapHttpClient(http.Client inner) =>
+      InterceptlyHttpClient.wrap(inner, InspectorSession.instance);
 
   // ---------------------------------------------------------------------------
 

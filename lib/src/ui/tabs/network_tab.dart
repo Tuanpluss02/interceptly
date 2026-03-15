@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:netspecter/src/ui/detail/request_detail_page.dart';
-import 'package:netspecter/src/ui/netspecter_theme.dart';
-import 'package:netspecter/src/ui/utils/error_summary.dart';
+import 'package:interceptly/src/ui/detail/request_detail_page.dart';
+import 'package:interceptly/src/ui/interceptly_theme.dart';
+import 'package:interceptly/src/ui/utils/error_summary.dart';
 
 import '../../storage/inspector_session.dart';
 
@@ -30,16 +30,16 @@ class NetworkTab extends StatelessWidget {
               decoration: InputDecoration(
                 hintText: 'Search URL, headers, body…',
                 hintStyle: const TextStyle(
-                  color: NetSpecterTheme.textMuted,
+                  color: InterceptlyTheme.textMuted,
                   fontSize: 14,
                 ),
                 prefixIcon: const Icon(
                   Icons.search,
-                  color: NetSpecterTheme.textMuted,
+                  color: InterceptlyTheme.textMuted,
                   size: 20,
                 ),
                 filled: true,
-                fillColor: NetSpecterTheme.surfaceContainer,
+                fillColor: InterceptlyTheme.surfaceContainer,
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(vertical: 12.0),
                 border: OutlineInputBorder(
@@ -49,13 +49,13 @@ class NetworkTab extends StatelessWidget {
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(30.0),
                   borderSide: const BorderSide(
-                    color: NetSpecterTheme.indigo500,
+                    color: InterceptlyTheme.indigo500,
                     width: 1.0,
                   ),
                 ),
               ),
               style: const TextStyle(
-                color: NetSpecterTheme.textSecondary,
+                color: InterceptlyTheme.textSecondary,
                 fontSize: 14,
               ),
             ),
@@ -74,7 +74,7 @@ class NetworkTab extends StatelessWidget {
                   return const Center(
                     child: Text(
                       'No network requests yet.',
-                      style: TextStyle(color: NetSpecterTheme.textMuted),
+                      style: TextStyle(color: InterceptlyTheme.textMuted),
                     ),
                   );
                 }
@@ -161,11 +161,11 @@ class _RequestLogItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mStyle = NetSpecterTheme.getMethodStyle(method);
+    final mStyle = InterceptlyTheme.getMethodStyle(method);
     final isErrorWithoutStatus = status == 0 && hasError;
     final sStyle = isErrorWithoutStatus
-        ? const StatusStyle(bg: NetSpecterTheme.red500, text: Colors.white)
-        : NetSpecterTheme.getStatusStyle(status);
+        ? const StatusStyle(bg: InterceptlyTheme.red500, text: Colors.white)
+        : InterceptlyTheme.getStatusStyle(status);
 
     return InkWell(
       onTap: onTap,
@@ -203,11 +203,11 @@ class _RequestLogItem extends StatelessWidget {
                   Text(
                     url,
                     style: const TextStyle(
-                      fontFamily: NetSpecterTheme.fontFamily,
-                      package: NetSpecterTheme.fontPackage,
+                      fontFamily: InterceptlyTheme.fontFamily,
+                      package: InterceptlyTheme.fontPackage,
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
-                      color: NetSpecterTheme.textSecondary,
+                      color: InterceptlyTheme.textSecondary,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -217,7 +217,7 @@ class _RequestLogItem extends StatelessWidget {
                     '$time • $duration',
                     style: const TextStyle(
                       fontSize: 11,
-                      color: NetSpecterTheme.textMuted,
+                      color: InterceptlyTheme.textMuted,
                     ),
                   ),
                 ],

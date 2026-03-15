@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:netspecter/netspecter.dart';
-import 'package:netspecter/src/storage/memory_index.dart';
+import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/storage/memory_index.dart';
 
 // ignore: unused_import
 import 'package:flutter/widgets.dart';
@@ -66,13 +66,13 @@ void main() {
     expect(identical(a, b), isTrue);
   });
 
-  test('NetSpecterDioInterceptor uses shared session by default', () {
-    final interceptor = NetSpecterDioInterceptor();
+  test('InterceptlyDioInterceptor uses shared session by default', () {
+    final interceptor = InterceptlyDioInterceptor();
     expect(interceptor.session, same(InspectorSession.instance));
   });
 
-  test('NetSpecterOverlay uses shared session by default', () {
-    // NetSpecterOverlay requires a Flutter environment so we verify the
+  test('InterceptlyOverlay uses shared session by default', () {
+    // InterceptlyOverlay requires a Flutter environment so we verify the
     // session instance equality through the session singleton directly.
     final a = InspectorSession.instance;
     final b = InspectorSession.instance;

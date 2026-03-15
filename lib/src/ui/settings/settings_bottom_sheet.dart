@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:netspecter/src/ui/netspecter_theme.dart';
+import 'package:interceptly/src/ui/interceptly_theme.dart';
 
 import '../../model/network_simulation.dart';
 import '../../storage/inspector_session.dart';
@@ -56,7 +56,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
       decoration: const BoxDecoration(
-        color: NetSpecterTheme.surface,
+        color: InterceptlyTheme.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24.0)),
       ),
       child: Column(
@@ -65,7 +65,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
           Container(
             padding: const EdgeInsets.only(top: 12.0, bottom: 12.0),
             decoration: BoxDecoration(
-              color: NetSpecterTheme.surface,
+              color: InterceptlyTheme.surface,
               borderRadius:
                   const BorderRadius.vertical(top: Radius.circular(24.0)),
               border: Border(
@@ -107,13 +107,13 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
               children: [
                 _buildSectionTitle('1. UI & Behavior'),
                 _buildSectionCard([
-                  _SettingsTile(
+                    _SettingsTile(
                     icon: Icons.link,
                     title: 'URL Decoding',
                     subtitle: 'Decode URL endpoints in list & detail',
-                    trailing: _CustomSwitch(
+                      trailing: _CustomSwitch(
                       value: _urlDecodeEnabled,
-                      activeColor: NetSpecterTheme.indigo500,
+                      activeColor: InterceptlyTheme.indigo500,
                       onChanged: (val) {
                         setState(() => _urlDecodeEnabled = val);
                         widget.session.setUrlDecodeEnabled(val);
@@ -131,7 +131,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                     subtitle: _selectedPresetName,
                     trailing: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
-                        dropdownColor: NetSpecterTheme.surfaceContainer,
+                        dropdownColor: InterceptlyTheme.surfaceContainer,
                         value: _selectedPresetName,
                         items: [
                           ..._presetProfiles,
@@ -148,7 +148,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                                   child: Text(
                                     p.name,
                                     style: const TextStyle(
-                                      color: NetSpecterTheme.textPrimary,
+                                      color: InterceptlyTheme.textPrimary,
                                       fontSize: 12,
                                     ),
                                   ),
@@ -241,7 +241,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: NetSpecterTheme.surfaceContainer,
+        color: InterceptlyTheme.surfaceContainer,
         borderRadius: BorderRadius.circular(12.0),
         border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
@@ -256,26 +256,26 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                 style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: NetSpecterTheme.textPrimary,
+                  color: InterceptlyTheme.textPrimary,
                 ),
               ),
               Text(
                 '${value.round()} $unit',
                 style: const TextStyle(
-                  fontFamily: NetSpecterTheme.fontFamily,
-                  package: NetSpecterTheme.fontPackage,
+                  fontFamily: InterceptlyTheme.fontFamily,
+                  package: InterceptlyTheme.fontPackage,
                   fontSize: 12,
-                  color: NetSpecterTheme.textMuted,
+                  color: InterceptlyTheme.textMuted,
                 ),
               ),
             ],
           ),
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
-              activeTrackColor: NetSpecterTheme.indigo500,
+              activeTrackColor: InterceptlyTheme.indigo500,
               inactiveTrackColor: Colors.white.withValues(alpha: 0.1),
-              thumbColor: NetSpecterTheme.indigo400,
-              overlayColor: NetSpecterTheme.indigo500.withValues(alpha: 0.2),
+              thumbColor: InterceptlyTheme.indigo400,
+              overlayColor: InterceptlyTheme.indigo500.withValues(alpha: 0.2),
             ),
             child: Slider(
               value: value.clamp(0, max),
@@ -298,7 +298,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
         style: const TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.bold,
-          color: NetSpecterTheme.indigo400,
+          color: InterceptlyTheme.indigo400,
           letterSpacing: 1.0,
         ),
       ),
@@ -320,7 +320,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
 
     return Container(
       decoration: BoxDecoration(
-        color: NetSpecterTheme.surfaceContainer,
+        color: InterceptlyTheme.surfaceContainer,
         borderRadius: BorderRadius.circular(12.0),
         border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
@@ -363,7 +363,7 @@ class _SettingsTile extends StatelessWidget {
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
-                      color: NetSpecterTheme.textPrimary,
+                      color: InterceptlyTheme.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -371,7 +371,7 @@ class _SettingsTile extends StatelessWidget {
                     subtitle,
                     style: const TextStyle(
                       fontSize: 11,
-                      color: NetSpecterTheme.textMuted,
+                      color: InterceptlyTheme.textMuted,
                     ),
                   ),
                 ],
