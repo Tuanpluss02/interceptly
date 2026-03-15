@@ -262,7 +262,7 @@ class _CustomRequestPageState extends State<CustomRequestPage>
                                 ),
                                 decoration: BoxDecoration(
                                   color: InterceptlyTheme.indigo500
-                                      .withOpacity(0.2),
+                                      .withValues(alpha: 0.2),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
