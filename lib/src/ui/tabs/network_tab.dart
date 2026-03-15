@@ -2,14 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:interceptly/src/ui/detail/request_detail_page.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
 import 'package:interceptly/src/ui/utils/error_summary.dart';
+import 'package:interceptly/src/ui/widgets/domain_group_header.dart';
 import 'package:interceptly/src/ui/widgets/interceptly_text_field.dart';
 
+import '../../model/body_location.dart';
+import '../../model/index_entry.dart';
 import '../../storage/inspector_session.dart';
 
 class NetworkTab extends StatelessWidget {
-  const NetworkTab({super.key, required this.session});
+  const NetworkTab({
+    super.key,
+    required this.session,
+    this.groupingEnabled = false,
+  });
 
   final InspectorSession session;
+  final bool groupingEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -42,73 +50,193 @@ class NetworkTab extends StatelessWidget {
             child: AnimatedBuilder(
               animation: session,
               builder: (context, _) {
-                final entries = session.entries;
+                if (groupingEnabled) {
+                  return _buildGroupedList(context);
+                } else {
+                  return _buildFlatList(context);
+                }
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-                if (entries.isEmpty) {
-                  return Center(
-                    child: Text(
-                      'No network requests yet.',
-                      style: InterceptlyTheme.typography.bodyMediumRegular
-                          .copyWith(color: InterceptlyTheme.textMuted),
-                    ),
-                  );
+  Widget _buildGroupedList(BuildContext context) {
+    final groups = session.getGroupedRecords();
+
+    if (groups.isEmpty) {
+      return Center(
+        child: Text(
+          'No network requests yet.',
+          style: InterceptlyTheme.typography.bodyMediumRegular
+              .copyWith(color: InterceptlyTheme.textMuted),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: groups.length,
+      itemBuilder: (context, groupIndex) {
+        final group = groups[groupIndex];
+
+        return Column(
+          children: [
+            GestureDetector(
+              onTap: () {
+                session.toggleDomainExpanded(group.domain);
+              },
+              child: DomainGroupHeader(
+                group: group,
+                onToggleExpand: () {
+                  session.toggleDomainExpanded(group.domain);
+                },
+              ),
+            ),
+            if (group.isExpanded)
+              ...group.requests.asMap().entries.map((entry) {
+                final record = entry.value;
+                final isLast = entry.key == group.requests.length - 1;
+                final isPending = record.statusCode == 0 && !record.hasError;
+                final isErrorWithoutStatus =
+                    record.statusCode == 0 && record.hasError;
+                final shortError = summarizeRequestError(
+                  errorType: record.errorType,
+                  errorMessage: record.errorMessage,
+                );
+
+                final time =
+                    '${record.timestamp.hour.toString().padLeft(2, '0')}:${record.timestamp.minute.toString().padLeft(2, '0')}:${record.timestamp.second.toString().padLeft(2, '0')}';
+                String displayUrl = record.url;
+                if (session.urlDecodeEnabled) {
+                  try {
+                    displayUrl = Uri.decodeFull(record.url);
+                  } catch (_) {}
                 }
 
-                return ListView.separated(
-                  itemCount: entries.length,
-                  separatorBuilder: (context, index) => Divider(
-                    height: 1,
-                    color: InterceptlyTheme.dividerSubtle,
-                  ),
-                  itemBuilder: (context, index) {
-                    final req = entries[index];
-                    final isPending = req.statusCode == 0 && !req.hasError;
-                    final isErrorWithoutStatus =
-                        req.statusCode == 0 && req.hasError;
-                    final shortError = summarizeRequestError(
-                      errorType: req.errorType,
-                      errorMessage: req.errorMessage,
-                    );
-
-                    // Format time
-                    final time =
-                        '${req.timestamp.hour.toString().padLeft(2, '0')}:${req.timestamp.minute.toString().padLeft(2, '0')}:${req.timestamp.second.toString().padLeft(2, '0')}';
-                    String displayUrl = req.url;
-                    if (session.urlDecodeEnabled) {
-                      try {
-                        displayUrl = Uri.decodeFull(req.url);
-                      } catch (_) {}
-                    }
-
-                    return _RequestLogItem(
-                      method: req.method,
+                return Column(
+                  children: [
+                    _RequestLogItem(
+                      method: record.method,
                       url: displayUrl,
                       time: time,
                       duration: isPending
                           ? 'loading…'
                           : isErrorWithoutStatus
                               ? shortError
-                              : '${req.durationMs}ms',
-                      status: req.statusCode,
-                      hasError: req.hasError,
+                              : '${record.durationMs}ms',
+                      status: record.statusCode,
+                      hasError: record.hasError,
                       isPending: isPending,
                       onTap: () {
-                        // Open Detail Page
                         Navigator.of(context).push(MaterialPageRoute(
                           builder: (context) => RequestDetailPage(
-                            entry: req,
+                            entry: _convertRecordToEntry(record),
                             session: session,
                           ),
                         ));
                       },
-                    );
-                  },
+                    ),
+                    if (!isLast)
+                      Divider(
+                        height: 1,
+                        color: InterceptlyTheme.dividerSubtle,
+                      ),
+                  ],
                 );
-              },
+              }),
+            Divider(
+              height: 1,
+              color: InterceptlyTheme.dividerSubtle,
             ),
-          ),
-        ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildFlatList(BuildContext context) {
+    final entries = session.entries;
+
+    if (entries.isEmpty) {
+      return Center(
+        child: Text(
+          'No network requests yet.',
+          style: InterceptlyTheme.typography.bodyMediumRegular
+              .copyWith(color: InterceptlyTheme.textMuted),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      itemCount: entries.length,
+      separatorBuilder: (context, index) => Divider(
+        height: 1,
+        color: InterceptlyTheme.dividerSubtle,
       ),
+      itemBuilder: (context, index) {
+        final req = entries[index];
+        final isPending = req.statusCode == 0 && !req.hasError;
+        final isErrorWithoutStatus = req.statusCode == 0 && req.hasError;
+        final shortError = summarizeRequestError(
+          errorType: req.errorType,
+          errorMessage: req.errorMessage,
+        );
+
+        final time =
+            '${req.timestamp.hour.toString().padLeft(2, '0')}:${req.timestamp.minute.toString().padLeft(2, '0')}:${req.timestamp.second.toString().padLeft(2, '0')}';
+        String displayUrl = req.url;
+        if (session.urlDecodeEnabled) {
+          try {
+            displayUrl = Uri.decodeFull(req.url);
+          } catch (_) {}
+        }
+
+        return _RequestLogItem(
+          method: req.method,
+          url: displayUrl,
+          time: time,
+          duration: isPending
+              ? 'loading…'
+              : isErrorWithoutStatus
+                  ? shortError
+                  : '${req.durationMs}ms',
+          status: req.statusCode,
+          hasError: req.hasError,
+          isPending: isPending,
+          onTap: () {
+            Navigator.of(context).push(MaterialPageRoute(
+              builder: (context) => RequestDetailPage(
+                entry: req,
+                session: session,
+              ),
+            ));
+          },
+        );
+      },
+    );
+  }
+
+  IndexEntry _convertRecordToEntry(dynamic record) {
+    return IndexEntry(
+      id: record.id,
+      method: record.method,
+      url: record.url,
+      statusCode: record.statusCode,
+      durationMs: record.durationMs,
+      requestSizeBytes: record.requestSizeBytes,
+      responseSizeBytes: record.responseSizeBytes,
+      timestamp: record.timestamp,
+      hasError: record.hasError,
+      bodyLocation: BodyLocation.memory,
+      requestHeaders: record.requestHeaders,
+      responseHeaders: record.responseHeaders,
+      requestContentType: record.requestContentType,
+      responseContentType: record.responseContentType,
+      errorType: record.errorType,
+      errorMessage: record.errorMessage,
+      isBodyTruncated: record.isBodyTruncated,
     );
   }
 }
