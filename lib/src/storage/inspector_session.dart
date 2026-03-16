@@ -205,7 +205,8 @@ class InspectorSession extends ChangeNotifier {
   }
 
   List<IndexEntry> getFilteredRecords() {
-    return _memoryIndex.entries.where((entry) {
+    // Start with base entries (which already applies master search and primitive filter)
+    return entries.where((entry) {
       // Convert IndexEntry to a simple record for filtering
       final record = RequestRecord(
         id: entry.id,

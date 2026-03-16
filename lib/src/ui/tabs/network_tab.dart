@@ -9,34 +9,55 @@ import '../../model/body_location.dart';
 import '../../model/index_entry.dart';
 import '../../storage/inspector_session.dart';
 
-class NetworkTab extends StatelessWidget {
+class NetworkTab extends StatefulWidget {
   const NetworkTab({
     super.key,
     required this.session,
     this.groupingEnabled = false,
+    this.onShowFilterPanel,
   });
 
   final InspectorSession session;
   final bool groupingEnabled;
+  final VoidCallback? onShowFilterPanel;
 
+  @override
+  State<NetworkTab> createState() => _NetworkTabState();
+}
+
+class _NetworkTabState extends State<NetworkTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Column(
         children: [
-          // Search & Filters
+          // Search & Filter Bar
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: InterceptlySearchField(
-              hintText: 'Search URL, headers, body…',
-              onChanged: (value) {
-                final q = value.trim();
-                if (q.isEmpty) {
-                  session.cancelMasterSearch();
-                } else {
-                  session.startMasterSearch(q);
-                }
-              },
+            child: Row(
+              children: [
+                Expanded(
+                  child: InterceptlySearchField(
+                    hintText: 'Search URL, headers, body…',
+                    onChanged: (value) {
+                      final q = value.trim();
+                      if (q.isEmpty) {
+                        widget.session.cancelMasterSearch();
+                      } else {
+                        widget.session.startMasterSearch(q);
+                      }
+                    },
+                  ),
+                ),
+                SizedBox(width: 12),
+                IconButton(
+                  icon: Icon(Icons.filter_list, size: 24),
+                  onPressed: widget.onShowFilterPanel,
+                  padding: EdgeInsets.all(8),
+                  constraints: BoxConstraints(),
+                  tooltip: 'Filter',
+                ),
+              ],
             ),
           ),
 
@@ -48,9 +69,9 @@ class NetworkTab extends StatelessWidget {
           // Request List
           Expanded(
             child: AnimatedBuilder(
-              animation: session,
+              animation: widget.session,
               builder: (context, _) {
-                if (groupingEnabled) {
+                if (widget.groupingEnabled) {
                   return _buildGroupedList(context);
                 } else {
                   return _buildFlatList(context);
@@ -64,7 +85,7 @@ class NetworkTab extends StatelessWidget {
   }
 
   Widget _buildGroupedList(BuildContext context) {
-    final groups = session.getGroupedRecords();
+    final groups = widget.session.getGroupedRecords();
 
     if (groups.isEmpty) {
       return Center(
@@ -85,12 +106,12 @@ class NetworkTab extends StatelessWidget {
           children: [
             GestureDetector(
               onTap: () {
-                session.toggleDomainExpanded(group.domain);
+                widget.session.toggleDomainExpanded(group.domain);
               },
               child: DomainGroupHeader(
                 group: group,
                 onToggleExpand: () {
-                  session.toggleDomainExpanded(group.domain);
+                  widget.session.toggleDomainExpanded(group.domain);
                 },
               ),
             ),
@@ -109,7 +130,7 @@ class NetworkTab extends StatelessWidget {
                 final time =
                     '${record.timestamp.hour.toString().padLeft(2, '0')}:${record.timestamp.minute.toString().padLeft(2, '0')}:${record.timestamp.second.toString().padLeft(2, '0')}';
                 String displayUrl = record.url;
-                if (session.urlDecodeEnabled) {
+                if (widget.session.urlDecodeEnabled) {
                   try {
                     displayUrl = Uri.decodeFull(record.url);
                   } catch (_) {}
@@ -133,7 +154,7 @@ class NetworkTab extends StatelessWidget {
                         Navigator.of(context).push(MaterialPageRoute(
                           builder: (context) => RequestDetailPage(
                             entry: _convertRecordToEntry(record),
-                            session: session,
+                            session: widget.session,
                           ),
                         ));
                       },
@@ -157,7 +178,7 @@ class NetworkTab extends StatelessWidget {
   }
 
   Widget _buildFlatList(BuildContext context) {
-    final entries = session.entries;
+    final entries = widget.session.getFilteredRecords();
 
     if (entries.isEmpty) {
       return Center(
@@ -187,7 +208,7 @@ class NetworkTab extends StatelessWidget {
         final time =
             '${req.timestamp.hour.toString().padLeft(2, '0')}:${req.timestamp.minute.toString().padLeft(2, '0')}:${req.timestamp.second.toString().padLeft(2, '0')}';
         String displayUrl = req.url;
-        if (session.urlDecodeEnabled) {
+        if (widget.session.urlDecodeEnabled) {
           try {
             displayUrl = Uri.decodeFull(req.url);
           } catch (_) {}
@@ -209,7 +230,7 @@ class NetworkTab extends StatelessWidget {
             Navigator.of(context).push(MaterialPageRoute(
               builder: (context) => RequestDetailPage(
                 entry: req,
-                session: session,
+                session: widget.session,
               ),
             ));
           },

@@ -7,24 +7,42 @@ class ToastNotification extends StatefulWidget {
 
   const ToastNotification({super.key, required this.message});
 
-  static void show(BuildContext context, String message) {
-    final overlayState = Overlay.of(context);
-    final overlayEntry = OverlayEntry(
-      builder: (context) => Positioned(
-        bottom: 80.0,
-        left: 0,
-        right: 0,
-        child: ToastNotification(message: message),
-      ),
-    );
+  /// Set the navigator key globally so toast can be shown without context
+  static GlobalKey<NavigatorState>? _navigatorKey;
 
-    overlayState.insert(overlayEntry);
+  static void setNavigatorKey(GlobalKey<NavigatorState> key) {
+    _navigatorKey = key;
+  }
 
-    Future.delayed(const Duration(seconds: 2), () {
-      if (overlayEntry.mounted) {
-        overlayEntry.remove();
-      }
-    });
+  static void show(String message, {BuildContext? contextHint}) {
+    BuildContext? context = contextHint ?? _navigatorKey?.currentContext;
+    if (context == null) {
+      debugPrint('ToastNotification: no context available');
+      return;
+    }
+
+    try {
+      // Try to get root overlay first (more reliable)
+      final overlayState = Overlay.of(context, rootOverlay: true);
+      final overlayEntry = OverlayEntry(
+        builder: (context) => Positioned(
+          bottom: 80.0,
+          left: 0,
+          right: 0,
+          child: ToastNotification(message: message),
+        ),
+      );
+
+      overlayState.insert(overlayEntry);
+
+      Future.delayed(const Duration(seconds: 2), () {
+        if (overlayEntry.mounted) {
+          overlayEntry.remove();
+        }
+      });
+    } catch (e) {
+      debugPrint('ToastNotification error: $e');
+    }
   }
 
   @override

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -9,6 +10,7 @@ import '../../export/curl_generator.dart';
 import '../../export/har_exporter.dart';
 import '../../model/request_record.dart';
 import '../interceptly_theme.dart';
+import '../widgets/toast_notification.dart';
 
 class ShareHandler {
   final BuildContext context;
@@ -92,17 +94,10 @@ class ShareHandler {
   void shareCurlCommand(RequestRecord record) {
     try {
       final curl = CurlGenerator.fromRecord(record);
-      _getSharePositionOrigin().then((origin) {
-        SharePlus.instance.share(
-          ShareParams(
-            text: curl,
-            subject: 'cURL Command',
-            sharePositionOrigin: origin,
-          ),
-        );
-      });
+      Clipboard.setData(ClipboardData(text: curl));
+      ToastNotification.show('cURL command copied', contextHint: context);
     } catch (e) {
-      _showError('Error: $e');
+      ToastNotification.show('Error: $e', contextHint: context);
     }
   }
 
@@ -131,7 +126,7 @@ class ShareHandler {
         ),
       );
     } catch (e) {
-      _showError('Error exporting HAR: $e');
+      ToastNotification.show('Error exporting HAR: $e');
     }
   }
 
@@ -166,16 +161,5 @@ class ShareHandler {
   /// path traversal or other filesystem issues.
   static String _sanitizeFilename(String input) {
     return input.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
-  }
-
-  void _showError(String message) {
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 }

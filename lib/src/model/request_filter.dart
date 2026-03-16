@@ -14,7 +14,7 @@ class RequestFilter {
   final Set<String> domains; // Selected domains to show
 
   RequestFilter({
-    this.methods = const {},
+    this.methods = const {'GET', 'POST', 'PUT', 'DELETE', 'PATCH'},
     this.include2xx = true,
     this.include3xx = true,
     this.include4xx = true,

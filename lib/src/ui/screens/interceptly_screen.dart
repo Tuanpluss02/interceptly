@@ -3,7 +3,6 @@ import 'package:interceptly/src/ui/filter/filter_panel.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
 import 'package:interceptly/src/ui/settings/settings_bottom_sheet.dart';
 import 'package:interceptly/src/ui/tabs/network_tab.dart';
-import 'package:interceptly/src/ui/widgets/filter_badge.dart';
 import 'package:interceptly/src/ui/widgets/interceptly_confirm_dialog.dart';
 import 'package:interceptly/src/ui/widgets/toast_notification.dart';
 
@@ -32,8 +31,8 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
   @override
   void initState() {
     super.initState();
-    _filter = RequestFilter();
-    _groupingEnabled = false;
+    _filter = widget.session.requestFilter;
+    _groupingEnabled = widget.session.groupingEnabled;
   }
 
   void _showSettings() {
@@ -48,14 +47,9 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
       builder: (context) => FilterPanel(
         currentFilter: _filter,
         availableDomains: widget.session.availableDomains,
-        groupingEnabled: _groupingEnabled,
         onFilterChanged: (newFilter) {
           setState(() => _filter = newFilter);
           widget.session.setRequestFilter(newFilter);
-        },
-        onGroupingToggled: (enabled) {
-          setState(() => _groupingEnabled = enabled);
-          widget.session.toggleGrouping(enabled);
         },
       ),
     );
@@ -73,7 +67,7 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
     if (!shouldClear) return;
     widget.session.clear();
     if (!mounted) return;
-    ToastNotification.show(context, 'Cleared all logs!');
+    ToastNotification.show('Cleared all logs!', contextHint: context);
   }
 
   @override
@@ -95,10 +89,6 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
             appBar: AppBar(
               title: const Text('Interceptly'),
               actions: [
-                FilterBadge(
-                  activeFiltersCount: _filter.activeFilterCount,
-                  onTap: _showFilterPanel,
-                ),
                 IconButton(
                   icon: Icon(
                     _groupingEnabled ? Icons.group_work : Icons.public,
@@ -131,6 +121,7 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
             body: NetworkTab(
               session: widget.session,
               groupingEnabled: _groupingEnabled,
+              onShowFilterPanel: _showFilterPanel,
             ),
           ),
         );

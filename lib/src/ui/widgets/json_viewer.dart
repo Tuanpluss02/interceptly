@@ -109,7 +109,7 @@ class _JsonViewerState extends State<JsonViewer> {
     final formatted = JsonViewer.formatData(widget.data);
     Clipboard.setData(ClipboardData(text: formatted)).then((_) {
       if (mounted) {
-        ToastNotification.show(context, 'Copied to clipboard');
+        ToastNotification.show('Copied to clipboard', contextHint: context);
       }
     });
   }
