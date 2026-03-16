@@ -5,14 +5,23 @@ import 'package:interceptly/interceptly.dart';
 
 class _KeyValuePair {
   _KeyValuePair({
-    required this.key,
-    required this.value,
+    required String key,
+    required String value,
     required this.enabled,
-  });
+  })  : keyController = TextEditingController(text: key),
+        valueController = TextEditingController(text: value);
 
-  String key;
-  String value;
+  final TextEditingController keyController;
+  final TextEditingController valueController;
   bool enabled;
+
+  String get key => keyController.text;
+  String get value => valueController.text;
+
+  void dispose() {
+    keyController.dispose();
+    valueController.dispose();
+  }
 }
 
 class CustomRequestPage extends StatefulWidget {
@@ -79,6 +88,13 @@ class _CustomRequestPageState extends State<CustomRequestPage>
     _baseUrlController.removeListener(_refresh);
     _bodyController.removeListener(_refresh);
 
+    for (final p in _params) {
+      p.dispose();
+    }
+    for (final h in _headers) {
+      h.dispose();
+    }
+
     _tabController.dispose();
     _methodController.dispose();
     _baseUrlController.dispose();
@@ -143,22 +159,8 @@ class _CustomRequestPageState extends State<CustomRequestPage>
   @override
   Widget build(BuildContext context) {
     final enabledParams = _params.where((p) => p.enabled).toList();
-    final queryMap = <String, String>{};
-    for (final param in enabledParams) {
-      if (param.key.isNotEmpty) {
-        queryMap[param.key] = param.value;
-      }
-    }
-
     final enabledHeaders = _headers.where((h) => h.enabled).toList();
-    final headersMap = <String, String>{};
-    for (final header in enabledHeaders) {
-      if (header.key.isNotEmpty) {
-        headersMap[header.key] = header.value;
-      }
-    }
 
-    final fullUrl = _composeUrl(_baseUrlController.text.trim(), queryMap);
     final jsonError = _validateJsonBody(_bodyController.text);
 
     return Scaffold(
@@ -334,37 +336,63 @@ class _CustomRequestPageState extends State<CustomRequestPage>
                   child: OutlinedButton(
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size.fromHeight(40),
+                      padding: const EdgeInsets.symmetric(vertical: 0),
                       side: BorderSide(color: InterceptlyTheme.dividerSubtle),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                     onPressed: () => Navigator.pop(context),
                     child: Text(
                       'Cancel',
-                      style: InterceptlyTheme.typography.bodyMediumMedium
+                      style: InterceptlyTheme.typography.labelMediumMedium
                           .copyWith(color: InterceptlyTheme.textSecondary),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: ElevatedButton.icon(
+                  child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
+                      backgroundColor: InterceptlyTheme.indigo500,
                       minimumSize: const Size.fromHeight(40),
+                      padding: const EdgeInsets.symmetric(vertical: 0),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                     onPressed: () {
+                      final currentQueryMap = <String, String>{};
+                      for (final param in _params.where((p) => p.enabled)) {
+                        if (param.key.isNotEmpty) {
+                          currentQueryMap[param.key] = param.value;
+                        }
+                      }
+                      final currentHeadersMap = <String, String>{};
+                      for (final header in _headers.where((h) => h.enabled)) {
+                        if (header.key.isNotEmpty) {
+                          currentHeadersMap[header.key] = header.value;
+                        }
+                      }
+                      final currentFullUrl = _composeUrl(
+                          _baseUrlController.text.trim(), currentQueryMap);
+
                       Navigator.pop(
                         context,
                         CustomRequestDraft(
                           method: _methodController.text.trim().toUpperCase(),
-                          url: fullUrl,
-                          headers: headersMap,
+                          url: currentFullUrl,
+                          headers: currentHeadersMap,
                           body: _bodyController.text,
                         ),
                       );
                     },
-                    icon: const Icon(Icons.send, size: 16),
-                    label: Text(
+                    child: Text(
                       'Send Request',
-                      style: InterceptlyTheme.typography.bodyMediumMedium,
+                      style: InterceptlyTheme.typography.labelMediumMedium
+                          .copyWith(
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
@@ -679,16 +707,6 @@ class _CustomRequestPageState extends State<CustomRequestPage>
     _KeyValuePair pair,
     VoidCallback onToggle,
   ) {
-    final keyController = TextEditingController(text: pair.key);
-    final valueController = TextEditingController(text: pair.value);
-
-    keyController.addListener(() {
-      pair.key = keyController.text;
-    });
-    valueController.addListener(() {
-      pair.value = valueController.text;
-    });
-
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Row(
@@ -723,7 +741,7 @@ class _CustomRequestPageState extends State<CustomRequestPage>
                 borderRadius: BorderRadius.circular(6),
               ),
               child: TextField(
-                controller: keyController,
+                controller: pair.keyController,
                 enabled: pair.enabled,
                 decoration: InputDecoration(
                   isDense: true,
@@ -762,7 +780,7 @@ class _CustomRequestPageState extends State<CustomRequestPage>
                 borderRadius: BorderRadius.circular(6),
               ),
               child: TextField(
-                controller: valueController,
+                controller: pair.valueController,
                 enabled: pair.enabled,
                 decoration: InputDecoration(
                   isDense: true,
