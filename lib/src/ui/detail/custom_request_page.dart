@@ -1,9 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:interceptly/src/ui/interceptly_theme.dart';
-
-import '../../storage/inspector_session.dart';
+import 'package:interceptly/interceptly.dart';
 
 class _KeyValuePair {
   _KeyValuePair({
@@ -169,10 +167,13 @@ class _CustomRequestPageState extends State<CustomRequestPage>
         backgroundColor: InterceptlyTheme.surface,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: Icon(Icons.arrow_back, color: InterceptlyTheme.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Custom Request'),
+        title: Text('Custom Request',
+            style: InterceptlyTheme.typography.titleMediumBold.copyWith(
+              color: InterceptlyTheme.textPrimary,
+            )),
       ),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -201,7 +202,7 @@ class _CustomRequestPageState extends State<CustomRequestPage>
                                       .typography.bodyMediumRegular
                                       .copyWith(
                                     color: InterceptlyTheme.textPrimary,
-                                    fontSize: 13,
+                                    // fontSize: 13,
                                   ),
                                 ),
                               ))
@@ -212,6 +213,7 @@ class _CustomRequestPageState extends State<CustomRequestPage>
                       },
                       decoration: InputDecoration(
                         isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 8),
                         labelText: 'Method',
                         labelStyle: InterceptlyTheme
                             .typography.bodyMediumRegular

@@ -114,14 +114,14 @@ class _FilterPanelState extends State<FilterPanel> {
               padding: const EdgeInsets.all(16.0),
               children: [
                 // Methods Filter
-                _buildSectionTitle('HTTP Methods'),
-                _buildSectionCard([_buildMethodsSection()]),
-                SizedBox(height: 16),
+                _buildSectionTitle('Methods'),
+                _buildMethodsSection(),
+                SizedBox(height: 24),
 
                 // Status Codes Filter
                 _buildSectionTitle('Status Codes'),
-                _buildSectionCard([_buildStatusCodesSection()]),
-                SizedBox(height: 16),
+                _buildStatusCodesSection(),
+                SizedBox(height: 24),
 
                 // Domains Filter
                 if (widget.availableDomains.isNotEmpty) ...[
@@ -165,8 +165,10 @@ class _FilterPanelState extends State<FilterPanel> {
       padding: const EdgeInsets.only(bottom: 12.0),
       child: Text(
         title.toUpperCase(),
-        style: InterceptlyTheme.typography.labelSmallMedium.copyWith(
-          color: InterceptlyTheme.textSecondary,
+        style: TextStyle(
+          color: InterceptlyTheme.colors.textTertiary,
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
           letterSpacing: 0.5,
         ),
       ),
@@ -190,45 +192,47 @@ class _FilterPanelState extends State<FilterPanel> {
   Widget _buildMethodsSection() {
     const methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'];
 
-    return Padding(
-      padding: const EdgeInsets.all(12.0),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: methods.map((method) {
-          final isSelected = selectedMethods.contains(method);
-          return FilterChip(
-            label: Text(method),
-            selected: isSelected,
-            onSelected: (selected) {
-              setState(() {
-                if (selected) {
-                  selectedMethods.add(method);
-                } else {
-                  selectedMethods.remove(method);
-                }
-              });
-            },
-            showCheckmark: false,
-            selectedColor: InterceptlyTheme.indigo500.withValues(alpha: 0.15),
-            labelStyle: TextStyle(
-              color: isSelected
-                  ? InterceptlyTheme.indigo500
-                  : InterceptlyTheme.textSecondary,
-              fontWeight: FontWeight.w500,
-            ),
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: methods.map((method) {
+        final isSelected = selectedMethods.contains(method);
+        return GestureDetector(
+          onTap: () {
+            setState(() {
+              if (isSelected) {
+                selectedMethods.remove(method);
+              } else {
+                selectedMethods.add(method);
+              }
+            });
+          },
+          child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            shape: RoundedRectangleBorder(
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? InterceptlyTheme.indigo500.withValues(alpha: 0.1)
+                  : InterceptlyTheme.controlMuted,
               borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isSelected
+                    ? InterceptlyTheme.indigo500.withValues(alpha: 0.5)
+                    : InterceptlyTheme.dividerSubtle,
+              ),
             ),
-            side: BorderSide(
-              color:
-                  isSelected ? InterceptlyTheme.indigo500 : Colors.transparent,
+            child: Text(
+              method,
+              style: TextStyle(
+                color: isSelected
+                    ? InterceptlyTheme.indigo500
+                    : InterceptlyTheme.colors.textSecondary,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
             ),
-            backgroundColor: InterceptlyTheme.surface,
-          );
-        }).toList(),
-      ),
+          ),
+        );
+      }).toList(),
     );
   }
 
@@ -241,30 +245,60 @@ class _FilterPanelState extends State<FilterPanel> {
     ];
 
     final statusColors = {
-      '2xx': Color(0xFF2DD4BF),
-      '3xx': Color(0xFFFCD34D),
-      '4xx': Color(0xFFF97316),
-      '5xx': Color(0xFFEF4444),
+      '2xx': InterceptlyTheme.green500, // green-500
+      '3xx': InterceptlyTheme.yellow500, // yellow-500
+      '4xx': const Color(0xFFF97316), // orange-500 (keep for specific warning)
+      '5xx': InterceptlyTheme.red500, // red-500
     };
 
-    return Padding(
-      padding: const EdgeInsets.all(12.0),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: statusGroups.map((group) {
-          final label = group.$1;
-          final key = group.$2;
-          final isSelected = key == 'include2xx'
-              ? include2xx
-              : key == 'include3xx'
-                  ? include3xx
-                  : key == 'include4xx'
-                      ? include4xx
-                      : include5xx;
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: statusGroups.map((group) {
+        final label = group.$1;
+        final key = group.$2;
+        final isSelected = key == 'include2xx'
+            ? include2xx
+            : key == 'include3xx'
+                ? include3xx
+                : key == 'include4xx'
+                    ? include4xx
+                    : include5xx;
+        final baseColor = statusColors[label]!;
 
-          return FilterChip(
-            label: Row(
+        return GestureDetector(
+          onTap: () {
+            setState(() {
+              switch (key) {
+                case 'include2xx':
+                  include2xx = !isSelected;
+                  break;
+                case 'include3xx':
+                  include3xx = !isSelected;
+                  break;
+                case 'include4xx':
+                  include4xx = !isSelected;
+                  break;
+                case 'include5xx':
+                  include5xx = !isSelected;
+                  break;
+              }
+            });
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? baseColor.withValues(alpha: 0.1)
+                  : InterceptlyTheme.controlMuted,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isSelected
+                    ? baseColor.withValues(alpha: 0.5)
+                    : InterceptlyTheme.dividerSubtle,
+              ),
+            ),
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
@@ -272,51 +306,24 @@ class _FilterPanelState extends State<FilterPanel> {
                   height: 8,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: statusColors[label],
+                    color: baseColor,
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(label),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color:
+                        isSelected ? baseColor : InterceptlyTheme.textSecondary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ],
             ),
-            selected: isSelected,
-            onSelected: (selected) {
-              setState(() {
-                switch (key) {
-                  case 'include2xx':
-                    include2xx = selected;
-                    break;
-                  case 'include3xx':
-                    include3xx = selected;
-                    break;
-                  case 'include4xx':
-                    include4xx = selected;
-                    break;
-                  case 'include5xx':
-                    include5xx = selected;
-                    break;
-                }
-              });
-            },
-            showCheckmark: false,
-            selectedColor: statusColors[label]!.withValues(alpha: 0.15),
-            labelStyle: TextStyle(
-              color: isSelected
-                  ? statusColors[label]
-                  : InterceptlyTheme.textSecondary,
-              fontWeight: FontWeight.w500,
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            side: BorderSide(
-              color: isSelected ? statusColors[label]! : Colors.transparent,
-            ),
-            backgroundColor: InterceptlyTheme.surface,
-          );
-        }).toList(),
-      ),
+          ),
+        );
+      }).toList(),
     );
   }
 
