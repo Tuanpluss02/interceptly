@@ -7,11 +7,13 @@ import 'package:path_provider/path_provider.dart';
 
 import '../core/queue/bounded_event_queue.dart';
 import '../model/body_location.dart';
+import '../model/domain_group.dart';
 import '../model/http_call_filter.dart';
 import '../model/index_entry.dart';
 import '../model/interceptly_settings.dart';
 import '../model/network_simulation.dart';
 import '../model/raw_capture.dart';
+import '../model/request_filter.dart';
 import '../model/request_record.dart';
 import 'body_store.dart';
 import 'memory_index.dart';
@@ -69,6 +71,11 @@ class InspectorSession extends ChangeNotifier {
   bool _isScanningFiles = false;
   int _searchGeneration = 0;
 
+  // Advanced filtering & grouping state
+  RequestFilter _requestFilter = RequestFilter();
+  bool _groupingEnabled = false;
+  final Map<String, bool> _expandedDomains = {};
+
   HttpCallFilter get filter => _filter;
   List<IndexEntry> get entries {
     if (_masterQuery != null) {
@@ -88,6 +95,15 @@ class InspectorSession extends ChangeNotifier {
   bool get isMasterSearchActive => _masterQuery != null;
   bool get isScanningBodies => _isScanningBodies;
   bool get isScanningFiles => _isScanningFiles;
+
+  // Advanced filtering & grouping getters
+  RequestFilter get requestFilter => _requestFilter;
+  bool get groupingEnabled => _groupingEnabled;
+  Set<String> get availableDomains {
+    return _memoryIndex.entries
+        .map((entry) => RequestFilter.extractDomain(entry.url))
+        .toSet();
+  }
 
   // ---------------------------------------------------------------------------
   // Lifecycle
@@ -165,6 +181,88 @@ class InspectorSession extends ChangeNotifier {
     if (_networkSimulation.isNoThrottling) return;
     _networkSimulation = NetworkSimulationProfile.none;
     notifyListeners();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Advanced Filtering & Grouping
+  // ---------------------------------------------------------------------------
+
+  void setRequestFilter(RequestFilter filter) {
+    if (_requestFilter == filter) return;
+    _requestFilter = filter;
+    notifyListeners();
+  }
+
+  void toggleGrouping(bool enabled) {
+    if (_groupingEnabled == enabled) return;
+    _groupingEnabled = enabled;
+    notifyListeners();
+  }
+
+  void toggleDomainExpanded(String domain) {
+    _expandedDomains[domain] = !(_expandedDomains[domain] ?? true);
+    notifyListeners();
+  }
+
+  List<IndexEntry> getFilteredRecords() {
+    // Start with base entries (which already applies master search and primitive filter)
+    return entries.where((entry) {
+      // Convert IndexEntry to a simple record for filtering
+      final record = RequestRecord(
+        id: entry.id,
+        method: entry.method,
+        url: entry.url,
+        statusCode: entry.statusCode,
+        durationMs: entry.durationMs,
+        requestSizeBytes: entry.requestSizeBytes,
+        responseSizeBytes: entry.responseSizeBytes,
+        timestamp: entry.timestamp,
+        requestHeaders: entry.requestHeaders,
+        responseHeaders: entry.responseHeaders,
+        requestContentType: entry.requestContentType,
+        responseContentType: entry.responseContentType,
+        errorType: entry.errorType,
+        errorMessage: entry.errorMessage,
+        isBodyTruncated: entry.isBodyTruncated,
+      );
+      return _requestFilter.matches(record);
+    }).toList();
+  }
+
+  List<DomainGroup> getGroupedRecords() {
+    final filtered = getFilteredRecords();
+    final grouped = <String, List<IndexEntry>>{};
+
+    for (var entry in filtered) {
+      final domain = RequestFilter.extractDomain(entry.url);
+      grouped.putIfAbsent(domain, () => []).add(entry);
+    }
+
+    return grouped.entries
+        .map((e) => DomainGroup(
+              domain: e.key,
+              requests: e.value
+                  .map((entry) => RequestRecord(
+                        id: entry.id,
+                        method: entry.method,
+                        url: entry.url,
+                        statusCode: entry.statusCode,
+                        durationMs: entry.durationMs,
+                        requestSizeBytes: entry.requestSizeBytes,
+                        responseSizeBytes: entry.responseSizeBytes,
+                        timestamp: entry.timestamp,
+                        requestHeaders: entry.requestHeaders,
+                        responseHeaders: entry.responseHeaders,
+                        requestContentType: entry.requestContentType,
+                        responseContentType: entry.responseContentType,
+                        errorType: entry.errorType,
+                        errorMessage: entry.errorMessage,
+                        isBodyTruncated: entry.isBodyTruncated,
+                      ))
+                  .toList(),
+              isExpanded: _expandedDomains[e.key] ?? true,
+            ))
+        .toList();
   }
 
   Future<void> applyNetworkSimulationBeforeRequest({

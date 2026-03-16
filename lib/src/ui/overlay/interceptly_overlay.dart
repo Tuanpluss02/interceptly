@@ -9,6 +9,7 @@ import '../screens/interceptly_screen.dart';
 import '../trigger/inspector_trigger.dart';
 import '../trigger/interceptly_config.dart';
 import '../trigger/shake_detector.dart';
+import '../widgets/toast_notification.dart';
 import 'draggable_fab.dart';
 
 class InterceptlyOverlay extends StatefulWidget {
@@ -65,6 +66,7 @@ class _InterceptlyOverlayState extends State<InterceptlyOverlay> {
     super.initState();
     widget.session.initialize();
     _registeredNavigatorKey = widget.navigatorKey;
+    ToastNotification.setNavigatorKey(widget.navigatorKey);
     _subscribeCustomTrigger();
   }
 
@@ -73,6 +75,7 @@ class _InterceptlyOverlayState extends State<InterceptlyOverlay> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.navigatorKey != widget.navigatorKey) {
       _registeredNavigatorKey = widget.navigatorKey;
+      ToastNotification.setNavigatorKey(widget.navigatorKey);
     }
     if (oldWidget.customTrigger != widget.customTrigger) {
       _customTriggerSub?.cancel();

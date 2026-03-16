@@ -78,8 +78,8 @@ class ReplayHandler {
   Future<void> retry(RequestRecord record) async {
     if (_isUnsupportedMethod(record.method)) {
       ToastNotification.show(
-        context,
         'Retry is not supported for ${record.method}',
+        contextHint: context,
       );
       return;
     }
@@ -96,8 +96,8 @@ class ReplayHandler {
   Future<void> duplicateAndEdit(RequestRecord record) async {
     if (_isUnsupportedMethod(record.method)) {
       ToastNotification.show(
-        context,
         'Edit/Replay is not supported for ${record.method}',
+        contextHint: context,
       );
       return;
     }
@@ -137,19 +137,21 @@ class ReplayHandler {
   }) async {
     final uri = Uri.tryParse(url);
     if (uri == null) {
-      ToastNotification.show(context, 'Invalid URL');
+      ToastNotification.show('Invalid URL', contextHint: context);
       return;
     }
 
     if (_isUnsupportedMethod(method)) {
-      ToastNotification.show(context, 'Unsupported method: $method');
+      ToastNotification.show('Unsupported method: $method',
+          contextHint: context);
       return;
     }
 
     final cleanedHeaders = _sanitizeReplayHeaders(headers);
 
     if (isBodyTruncated && body != null && body.isNotEmpty) {
-      ToastNotification.show(context, 'Warning: body may be truncated');
+      ToastNotification.show('Warning: body may be truncated',
+          contextHint: context);
     }
 
     final request = http.Request(method, uri);
@@ -170,14 +172,15 @@ class ReplayHandler {
     final client = InterceptlyHttpClient.wrap(http.Client(), session);
 
     try {
-      ToastNotification.show(context, 'Sending request...');
+      ToastNotification.show('Sending request...', contextHint: context);
       final streamed = await client.send(request);
       await streamed.stream.drain<void>();
       if (!context.mounted) return;
-      ToastNotification.show(context, 'Replay sent (${streamed.statusCode})');
+      ToastNotification.show('Replay sent (${streamed.statusCode})',
+          contextHint: context);
     } catch (e) {
       if (!context.mounted) return;
-      ToastNotification.show(context, 'Replay failed: $e');
+      ToastNotification.show('Replay failed: $e', contextHint: context);
     } finally {
       client.close();
     }

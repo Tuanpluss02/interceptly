@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:interceptly/src/ui/filter/filter_panel.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
 import 'package:interceptly/src/ui/settings/settings_bottom_sheet.dart';
 import 'package:interceptly/src/ui/tabs/network_tab.dart';
 import 'package:interceptly/src/ui/widgets/interceptly_confirm_dialog.dart';
 import 'package:interceptly/src/ui/widgets/toast_notification.dart';
 
+import '../../model/request_filter.dart';
 import '../../storage/inspector_session.dart';
 
 /// Main inspector screen showing captured network calls and actions.
@@ -23,8 +25,34 @@ class InterceptlyScreen extends StatefulWidget {
 }
 
 class _InterceptlyScreenState extends State<InterceptlyScreen> {
+  late RequestFilter _filter;
+  late bool _groupingEnabled;
+
+  @override
+  void initState() {
+    super.initState();
+    _filter = widget.session.requestFilter;
+    _groupingEnabled = widget.session.groupingEnabled;
+  }
+
   void _showSettings() {
     SettingsBottomSheet.show(context, widget.session);
+  }
+
+  void _showFilterPanel() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: InterceptlyTheme.surface,
+      builder: (context) => FilterPanel(
+        currentFilter: _filter,
+        availableDomains: widget.session.availableDomains,
+        onFilterChanged: (newFilter) {
+          setState(() => _filter = newFilter);
+          widget.session.setRequestFilter(newFilter);
+        },
+      ),
+    );
   }
 
   Future<void> _clearLogs() async {
@@ -39,7 +67,7 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
     if (!shouldClear) return;
     widget.session.clear();
     if (!mounted) return;
-    ToastNotification.show(context, 'Cleared all logs!');
+    ToastNotification.show('Cleared all logs!', contextHint: context);
   }
 
   @override
@@ -62,6 +90,16 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
               title: const Text('Interceptly'),
               actions: [
                 IconButton(
+                  icon: Icon(
+                    _groupingEnabled ? Icons.group_work : Icons.public,
+                  ),
+                  onPressed: () {
+                    setState(() => _groupingEnabled = !_groupingEnabled);
+                    widget.session.toggleGrouping(_groupingEnabled);
+                  },
+                  tooltip: 'Group by domain',
+                ),
+                IconButton(
                   icon: const Icon(Icons.delete_outline),
                   onPressed: _clearLogs,
                   tooltip: 'Clear logs',
@@ -80,7 +118,11 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
                 ),
               ),
             ),
-            body: NetworkTab(session: widget.session),
+            body: NetworkTab(
+              session: widget.session,
+              groupingEnabled: _groupingEnabled,
+              onShowFilterPanel: _showFilterPanel,
+            ),
           ),
         );
       },
