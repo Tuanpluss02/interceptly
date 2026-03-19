@@ -205,28 +205,8 @@ class InspectorSession extends ChangeNotifier {
   }
 
   List<IndexEntry> getFilteredRecords() {
-    // Start with base entries (which already applies master search and primitive filter)
-    return entries.where((entry) {
-      // Convert IndexEntry to a simple record for filtering
-      final record = RequestRecord(
-        id: entry.id,
-        method: entry.method,
-        url: entry.url,
-        statusCode: entry.statusCode,
-        durationMs: entry.durationMs,
-        requestSizeBytes: entry.requestSizeBytes,
-        responseSizeBytes: entry.responseSizeBytes,
-        timestamp: entry.timestamp,
-        requestHeaders: entry.requestHeaders,
-        responseHeaders: entry.responseHeaders,
-        requestContentType: entry.requestContentType,
-        responseContentType: entry.responseContentType,
-        errorType: entry.errorType,
-        errorMessage: entry.errorMessage,
-        isBodyTruncated: entry.isBodyTruncated,
-      );
-      return _requestFilter.matches(record);
-    }).toList();
+    // Start with base entries (which already applies master search and primitive filter).
+    return entries.where(_requestFilter.matchesIndexEntry).toList();
   }
 
   List<DomainGroup> getGroupedRecords() {
@@ -241,25 +221,7 @@ class InspectorSession extends ChangeNotifier {
     return grouped.entries
         .map((e) => DomainGroup(
               domain: e.key,
-              requests: e.value
-                  .map((entry) => RequestRecord(
-                        id: entry.id,
-                        method: entry.method,
-                        url: entry.url,
-                        statusCode: entry.statusCode,
-                        durationMs: entry.durationMs,
-                        requestSizeBytes: entry.requestSizeBytes,
-                        responseSizeBytes: entry.responseSizeBytes,
-                        timestamp: entry.timestamp,
-                        requestHeaders: entry.requestHeaders,
-                        responseHeaders: entry.responseHeaders,
-                        requestContentType: entry.requestContentType,
-                        responseContentType: entry.responseContentType,
-                        errorType: entry.errorType,
-                        errorMessage: entry.errorMessage,
-                        isBodyTruncated: entry.isBodyTruncated,
-                      ))
-                  .toList(),
+              requests: e.value,
               isExpanded: _expandedDomains[e.key] ?? true,
             ))
         .toList();

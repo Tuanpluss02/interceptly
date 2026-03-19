@@ -1,8 +1,8 @@
-import 'request_record.dart';
+import 'index_entry.dart';
 
 class DomainGroup {
   final String domain;
-  final List<RequestRecord> requests;
+  final List<IndexEntry> requests;
   final bool isExpanded;
 
   DomainGroup({

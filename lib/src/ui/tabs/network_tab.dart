@@ -5,7 +5,6 @@ import 'package:interceptly/src/ui/utils/error_summary.dart';
 import 'package:interceptly/src/ui/widgets/domain_group_header.dart';
 import 'package:interceptly/src/ui/widgets/interceptly_text_field.dart';
 
-import '../../model/body_location.dart';
 import '../../model/index_entry.dart';
 import '../../storage/inspector_session.dart';
 
@@ -153,7 +152,7 @@ class _NetworkTabState extends State<NetworkTab> {
                       onTap: () {
                         Navigator.of(context).push(MaterialPageRoute(
                           builder: (context) => RequestDetailPage(
-                            entry: _convertRecordToEntry(record),
+                            entry: record,
                             session: widget.session,
                           ),
                         ));
@@ -239,27 +238,6 @@ class _NetworkTabState extends State<NetworkTab> {
     );
   }
 
-  IndexEntry _convertRecordToEntry(dynamic record) {
-    return IndexEntry(
-      id: record.id,
-      method: record.method,
-      url: record.url,
-      statusCode: record.statusCode,
-      durationMs: record.durationMs,
-      requestSizeBytes: record.requestSizeBytes,
-      responseSizeBytes: record.responseSizeBytes,
-      timestamp: record.timestamp,
-      hasError: record.hasError,
-      bodyLocation: BodyLocation.memory,
-      requestHeaders: record.requestHeaders,
-      responseHeaders: record.responseHeaders,
-      requestContentType: record.requestContentType,
-      responseContentType: record.responseContentType,
-      errorType: record.errorType,
-      errorMessage: record.errorMessage,
-      isBodyTruncated: record.isBodyTruncated,
-    );
-  }
 }
 
 class _RequestLogItem extends StatelessWidget {

@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/model/request_filter.dart';
+import 'package:interceptly/src/model/request_record.dart';
 import 'package:interceptly/src/storage/memory_index.dart';
 
 // ignore: unused_import
@@ -77,6 +79,43 @@ void main() {
     final a = InspectorSession.instance;
     final b = InspectorSession.instance;
     expect(identical(a, b), isTrue);
+  });
+
+  test('RequestFilter matchesIndexEntry is consistent with matches', () {
+    final filter = RequestFilter(
+      methods: const {'POST'},
+      include2xx: false,
+      include3xx: false,
+      include4xx: true,
+      include5xx: false,
+      domains: const {'api.example.com'},
+    );
+    final entry = _buildEntry(
+      '4',
+      method: 'post',
+      url: 'https://api.example.com/v1/users',
+      statusCode: 404,
+    );
+    final record = RequestRecord(
+      id: entry.id,
+      method: entry.method,
+      url: entry.url,
+      statusCode: entry.statusCode,
+      durationMs: entry.durationMs,
+      requestSizeBytes: entry.requestSizeBytes,
+      responseSizeBytes: entry.responseSizeBytes,
+      timestamp: entry.timestamp,
+      requestHeaders: entry.requestHeaders,
+      responseHeaders: entry.responseHeaders,
+      requestContentType: entry.requestContentType,
+      responseContentType: entry.responseContentType,
+      isBodyTruncated: entry.isBodyTruncated,
+      errorType: entry.errorType,
+      errorMessage: entry.errorMessage,
+    );
+
+    expect(filter.matchesIndexEntry(entry), isTrue);
+    expect(filter.matchesIndexEntry(entry), filter.matches(record));
   });
 }
 

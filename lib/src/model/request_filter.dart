@@ -1,4 +1,5 @@
 import 'request_record.dart';
+import 'index_entry.dart';
 
 class RequestFilter {
   // HTTP Methods filter
@@ -24,15 +25,38 @@ class RequestFilter {
 
   /// Check if a request matches all active filters
   bool matches(RequestRecord record) {
+    return _matchesValues(
+      method: record.method,
+      statusCode: record.statusCode,
+      url: record.url,
+    );
+  }
+
+  /// Check if an index entry matches all active filters.
+  ///
+  /// Use this for list filtering to avoid constructing temporary [RequestRecord]
+  /// objects in hot UI paths.
+  bool matchesIndexEntry(IndexEntry entry) {
+    return _matchesValues(
+      method: entry.method,
+      statusCode: entry.statusCode,
+      url: entry.url,
+    );
+  }
+
+  bool _matchesValues({
+    required String method,
+    required int statusCode,
+    required String url,
+  }) {
     // If methods filter is active, check it
     if (methods.isNotEmpty) {
-      if (!methods.contains(record.method.toUpperCase())) {
+      if (!methods.contains(method.toUpperCase())) {
         return false;
       }
     }
 
     // Check status code filter
-    final statusCode = record.statusCode;
     if (statusCode > 0) {
       final isIncluded =
           (statusCode >= 200 && statusCode < 300 && include2xx) ||
@@ -47,7 +71,7 @@ class RequestFilter {
 
     // Check domain filter
     if (domains.isNotEmpty) {
-      final domain = _extractDomain(record.url);
+      final domain = _extractDomain(url);
       if (!domains.contains(domain)) {
         return false;
       }
