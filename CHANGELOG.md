@@ -1,4 +1,7 @@
+## 1.1.1
 
+### Fixed
+- Search text being cleared when navigating away and returning to the network tab while search results persisted.
 
 ## 1.1.0
 
