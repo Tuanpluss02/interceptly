@@ -4,6 +4,7 @@ export 'src/capture/http/interceptly_http_client.dart';
 export 'src/core/interceptly_controller.dart' show Interceptly;
 export 'src/export/curl_generator.dart';
 export 'src/export/har_exporter.dart';
+export 'src/export/postman_exporter.dart';
 export 'src/model/body_location.dart';
 export 'src/model/domain_group.dart';
 export 'src/model/http_call_filter.dart';
