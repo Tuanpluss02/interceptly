@@ -32,7 +32,7 @@ class RequestFilter {
     Set<String> domains = const {},
     this.host,
     this.query,
-  })  : methods = Set.unmodifiable(methods),
+  })  : methods = Set.unmodifiable(methods.map((m) => m.toUpperCase()).toSet()),
         domains = Set.unmodifiable(domains);
 
   /// True when all fields are at their default — no filtering applied.
@@ -85,7 +85,8 @@ class RequestFilter {
   /// Extracts the hostname from [url], or `'unknown'` on parse failure.
   static String extractDomain(String url) {
     try {
-      return Uri.parse(url).host;
+      final host = Uri.parse(url).host;
+      return host.isNotEmpty ? host : 'unknown';
     } catch (_) {
       return 'unknown';
     }
@@ -147,12 +148,12 @@ class RequestFilter {
 
   @override
   int get hashCode => Object.hash(
-        Object.hashAll(methods),
+        Object.hashAll(methods.toList()..sort()),
         include2xx,
         include3xx,
         include4xx,
         include5xx,
-        Object.hashAll(domains),
+        Object.hashAll(domains.toList()..sort()),
         host,
         query,
       );
