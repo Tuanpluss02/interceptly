@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
 
 import '../../model/network_simulation.dart';
-import '../../storage/inspector_session.dart';
+import '../../session/inspector_session.dart';
 
 /// Bottom-sheet UI for inspector runtime settings.
 class SettingsBottomSheet extends StatefulWidget {

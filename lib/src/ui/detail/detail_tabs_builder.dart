@@ -3,11 +3,11 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
-import 'package:interceptly/src/ui/utils/error_summary.dart';
+import 'package:interceptly/src/ui/widgets/error_summary.dart';
 import 'package:interceptly/src/ui/widgets/json_viewer.dart';
 
 import '../../model/request_record.dart';
-import '_detail_search.dart';
+import 'detail_search.dart';
 
 class DetailTabsBuilder {
   final RequestRecord record;

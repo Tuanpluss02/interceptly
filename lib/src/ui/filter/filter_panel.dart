@@ -27,9 +27,14 @@ class _FilterPanelState extends State<FilterPanel> {
   late bool include5xx;
   late Set<String> selectedDomains;
 
+  static const _allMethods = {'GET', 'POST', 'PUT', 'DELETE', 'PATCH'};
+
   @override
   void initState() {
-    selectedMethods = Set.from(widget.currentFilter.methods);
+    // Empty methods set means "show all" — display all chips as selected.
+    selectedMethods = widget.currentFilter.methods.isEmpty
+        ? Set.from(_allMethods)
+        : Set.from(widget.currentFilter.methods);
     include2xx = widget.currentFilter.include2xx;
     include3xx = widget.currentFilter.include3xx;
     include4xx = widget.currentFilter.include4xx;
@@ -376,7 +381,7 @@ class _FilterPanelState extends State<FilterPanel> {
 
   void _resetFilters() {
     setState(() {
-      selectedMethods = {'GET', 'POST', 'PUT', 'DELETE', 'PATCH'};
+      selectedMethods = Set.from(_allMethods);
       include2xx = true;
       include3xx = true;
       include4xx = true;
@@ -386,14 +391,18 @@ class _FilterPanelState extends State<FilterPanel> {
   }
 
   void _applyFilters() {
-    // If all domains are selected, represent it as an empty set so future domains match too
+    // All selected == no filter (empty set = show all).
+    final appliedMethods =
+        selectedMethods.containsAll(_allMethods) && selectedMethods.length == _allMethods.length
+            ? <String>{}
+            : selectedMethods;
     final appliedDomains =
         selectedDomains.length == widget.availableDomains.length
             ? <String>{}
             : selectedDomains;
 
     final newFilter = RequestFilter(
-      methods: selectedMethods,
+      methods: appliedMethods,
       include2xx: include2xx,
       include3xx: include3xx,
       include4xx: include4xx,

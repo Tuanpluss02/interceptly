@@ -1,4 +1,4 @@
-import 'package:interceptly/interceptly.dart';
+import '../model/request_record.dart';
 
 /// Exports captured request records to Postman Collection v2.1 format.
 ///

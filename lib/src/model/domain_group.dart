@@ -1,8 +1,8 @@
-import 'request_record.dart';
+import 'index_entry.dart';
 
 class DomainGroup {
   final String domain;
-  final List<RequestRecord> requests;
+  final List<IndexEntry> requests;
   final bool isExpanded;
 
   DomainGroup({
@@ -13,7 +13,8 @@ class DomainGroup {
 
   int get requestCount => requests.length;
 
-  int get successCount => requests.where((r) => r.statusCode < 400).length;
+  int get successCount =>
+      requests.where((r) => r.statusCode >= 200 && r.statusCode < 400).length;
 
   int get errorCount => requests.where((r) => r.statusCode >= 400).length;
 

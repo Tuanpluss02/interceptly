@@ -4,10 +4,10 @@ import 'dart:typed_data';
 
 import 'package:chopper/chopper.dart';
 
-import '../../core/request_id.dart';
+import '../../session/request_id.dart';
 import '../../model/network_simulation.dart';
 import '../../model/raw_capture.dart';
-import '../../storage/inspector_session.dart';
+import '../../session/inspector_session.dart';
 
 /// A Chopper interceptor that captures all requests and responses.
 class InterceptlyChopperInterceptor implements Interceptor {

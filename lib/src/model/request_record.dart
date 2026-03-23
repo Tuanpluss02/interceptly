@@ -45,7 +45,7 @@ class RequestRecord {
   final Uint8List? requestBodyBytesPreview;
   final Uint8List? responseBodyBytesPreview;
 
-  /// True if the body exceeded [NetSpecterSettings.maxBodyBytes] and was cut.
+  /// True if the body exceeded [InterceptlySettings.maxBodyBytes] and was cut.
   final bool isBodyTruncated;
 
   final String? errorType;

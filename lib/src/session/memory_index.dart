@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:collection';
 
-import '../model/http_call_filter.dart';
 import '../model/index_entry.dart';
+import '../model/request_filter.dart';
 
 /// In-memory list of [IndexEntry]s with a broadcast stream for UI updates.
 ///
@@ -39,10 +39,10 @@ class MemoryIndex {
     _controller.add(UnmodifiableListView(_entries));
   }
 
-  /// Returns entries matching [filter], or all if [filter.isEmpty].
-  List<IndexEntry> filtered(HttpCallFilter filter) {
+  /// Returns entries matching [filter], or all entries if [filter.isEmpty].
+  List<IndexEntry> filtered(RequestFilter filter) {
     if (filter.isEmpty) return entries;
-    return _entries.where((e) => _matches(e, filter)).toList();
+    return _entries.where(filter.matches).toList();
   }
 
   void clear() {
@@ -54,29 +54,4 @@ class MemoryIndex {
     await _controller.close();
   }
 
-  static bool _matches(IndexEntry e, HttpCallFilter f) {
-    final method = f.method?.trim();
-    if (method != null && method.isNotEmpty) {
-      if (e.method.toUpperCase() != method.toUpperCase()) return false;
-    }
-
-    if (f.statusCode != null && e.statusCode != f.statusCode) return false;
-
-    final host = f.host?.trim();
-    if (host != null && host.isNotEmpty) {
-      final uri = Uri.tryParse(e.url);
-      if (uri == null || !uri.host.toLowerCase().contains(host.toLowerCase())) {
-        return false;
-      }
-    }
-
-    final q = f.query?.trim().toLowerCase();
-    if (q != null && q.isNotEmpty) {
-      if (e.url.toLowerCase().contains(q)) return true;
-      if (e.errorMessage?.toLowerCase().contains(q) ?? false) return true;
-      return false;
-    }
-
-    return true;
-  }
 }

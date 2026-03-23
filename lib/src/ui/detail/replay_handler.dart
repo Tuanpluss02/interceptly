@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../../capture/http/interceptly_http_client.dart';
 import '../../model/request_record.dart';
-import '../../storage/inspector_session.dart';
+import '../../session/inspector_session.dart';
 import '../interceptly_theme.dart';
 import '../widgets/toast_notification.dart';
 import 'custom_request_page.dart';

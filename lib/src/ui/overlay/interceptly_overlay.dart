@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
-import '../../storage/inspector_session.dart';
+import '../../session/inspector_session.dart';
 import '../interceptly_theme.dart';
 import '../screens/interceptly_screen.dart';
 import '../trigger/inspector_trigger.dart';

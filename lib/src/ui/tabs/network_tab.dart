@@ -1,17 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:interceptly/src/ui/detail/_share_handler.dart';
+import 'package:interceptly/src/ui/detail/share_handler.dart';
 import 'package:interceptly/src/ui/detail/request_detail_page.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
-import 'package:interceptly/src/ui/utils/error_summary.dart';
+import 'package:interceptly/src/ui/widgets/error_summary.dart';
 import 'package:interceptly/src/ui/widgets/domain_group_header.dart';
 import 'package:interceptly/src/ui/widgets/interceptly_text_field.dart';
 import 'package:interceptly/src/ui/widgets/toast_notification.dart';
 
-import '../../model/body_location.dart';
 import '../../model/domain_group.dart';
-import '../../model/index_entry.dart';
 import '../../model/request_record.dart';
-import '../../storage/inspector_session.dart';
+import '../../session/inspector_session.dart';
 
 class NetworkTab extends StatefulWidget {
   const NetworkTab({
@@ -383,7 +381,7 @@ class _NetworkTabState extends State<NetworkTab> {
                       onTapNavigate: () =>
                           Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => RequestDetailPage(
-                          entry: _convertRecordToEntry(record),
+                          entry: record,
                           session: widget.session,
                         ),
                       )),
@@ -532,27 +530,6 @@ class _NetworkTabState extends State<NetworkTab> {
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
-  IndexEntry _convertRecordToEntry(RequestRecord record) {
-    return IndexEntry(
-      id: record.id,
-      method: record.method,
-      url: record.url,
-      statusCode: record.statusCode,
-      durationMs: record.durationMs,
-      requestSizeBytes: record.requestSizeBytes,
-      responseSizeBytes: record.responseSizeBytes,
-      timestamp: record.timestamp,
-      hasError: record.hasError,
-      bodyLocation: BodyLocation.memory,
-      requestHeaders: record.requestHeaders,
-      responseHeaders: record.responseHeaders,
-      requestContentType: record.requestContentType,
-      responseContentType: record.responseContentType,
-      errorType: record.errorType,
-      errorMessage: record.errorMessage,
-      isBodyTruncated: record.isBodyTruncated,
-    );
-  }
 }
 
 // ── Request row widget ────────────────────────────────────────────────────────

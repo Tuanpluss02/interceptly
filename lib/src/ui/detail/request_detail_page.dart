@@ -6,11 +6,11 @@ import 'package:interceptly/src/ui/widgets/interceptly_text_field.dart';
 
 import '../../model/index_entry.dart';
 import '../../model/request_record.dart';
-import '../../storage/inspector_session.dart';
-import '_detail_search.dart';
-import '_detail_tabs.dart';
-import '_replay_handler.dart';
-import '_share_handler.dart';
+import '../../session/inspector_session.dart';
+import 'detail_search.dart';
+import 'detail_tabs_builder.dart';
+import 'replay_handler.dart';
+import 'share_handler.dart';
 
 /// Detail screen for an individual captured request/response record.
 class RequestDetailPage extends StatefulWidget {

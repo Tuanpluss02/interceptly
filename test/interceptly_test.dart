@@ -1,7 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:interceptly/interceptly.dart';
-import 'package:interceptly/src/storage/memory_index.dart';
+import 'package:interceptly/src/model/body_location.dart';
+import 'package:interceptly/src/session/memory_index.dart';
 
 // ignore: unused_import
 import 'package:flutter/widgets.dart';
@@ -30,17 +31,19 @@ void main() {
     index.add(_buildEntry('2', method: 'POST'));
     index.add(_buildEntry('3', method: 'GET'));
 
-    final filtered = index.filtered(const HttpCallFilter(method: 'POST'));
+    final filtered = index.filtered(RequestFilter(methods: {'POST'}));
     expect(filtered.length, 1);
     expect(filtered.first.id, '2');
   });
 
-  test('MemoryIndex filter by status code', () {
+  test('MemoryIndex filter by status code range', () {
     final index = MemoryIndex(maxEntries: 100);
     index.add(_buildEntry('1', statusCode: 200));
     index.add(_buildEntry('2', statusCode: 404));
 
-    final filtered = index.filtered(const HttpCallFilter(statusCode: 404));
+    final filtered = index.filtered(
+      RequestFilter(include2xx: false, include3xx: false, include5xx: false),
+    );
     expect(filtered.length, 1);
     expect(filtered.first.id, '2');
   });

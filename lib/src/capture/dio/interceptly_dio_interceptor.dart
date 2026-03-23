@@ -3,10 +3,10 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
-import '../../core/request_id.dart';
+import '../../session/request_id.dart';
 import '../../model/network_simulation.dart';
 import '../../model/raw_capture.dart';
-import '../../storage/inspector_session.dart';
+import '../../session/inspector_session.dart';
 
 /// A Dio interceptor that captures requests and responses for Interceptly.
 class InterceptlyDioInterceptor extends Interceptor {

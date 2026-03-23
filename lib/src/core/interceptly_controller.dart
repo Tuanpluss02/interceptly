@@ -3,17 +3,16 @@ import 'package:http/http.dart' as http;
 
 import '../capture/dio/interceptly_dio_interceptor.dart';
 import '../capture/http/interceptly_http_client.dart';
-import '../model/http_call_filter.dart';
 import '../model/index_entry.dart';
 import '../model/interceptly_settings.dart';
+import '../model/request_filter.dart';
 import '../model/network_simulation.dart';
 import '../model/raw_capture.dart';
 import '../model/request_record.dart';
-import '../storage/inspector_session.dart';
+import '../session/inspector_session.dart';
 import '../ui/overlay/interceptly_overlay.dart'
     show openInspectorIfNotOpen, registeredNavigatorKey;
 
-export '../storage/inspector_session.dart' show InspectorSession;
 
 /// Thin public facade over [InspectorSession].
 ///
@@ -52,7 +51,7 @@ class Interceptly extends ChangeNotifier {
   List<IndexEntry> get calls => _session.entries;
 
   /// Active filter used by the inspector list.
-  HttpCallFilter get filter => _session.filter;
+  RequestFilter get filter => _session.filter;
 
   /// Number of events dropped due to bounded queue pressure.
   int get droppedEvents => _session.droppedCount;
@@ -87,7 +86,7 @@ class Interceptly extends ChangeNotifier {
       _session.loadDetail(entry);
 
   /// Applies list filtering in the inspector UI.
-  void applyFilter(HttpCallFilter filter) => _session.applyFilter(filter);
+  void applyFilter(RequestFilter filter) => _session.applyFilter(filter);
 
   /// Sets runtime network simulation to [profile].
   void setNetworkSimulation(NetworkSimulationProfile profile) =>

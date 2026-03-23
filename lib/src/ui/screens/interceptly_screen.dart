@@ -7,7 +7,7 @@ import 'package:interceptly/src/ui/widgets/interceptly_confirm_dialog.dart';
 import 'package:interceptly/src/ui/widgets/toast_notification.dart';
 
 import '../../model/request_filter.dart';
-import '../../storage/inspector_session.dart';
+import '../../session/inspector_session.dart';
 
 /// Main inspector screen showing captured network calls and actions.
 class InterceptlyScreen extends StatefulWidget {
@@ -31,7 +31,7 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
   @override
   void initState() {
     super.initState();
-    _filter = widget.session.requestFilter;
+    _filter = widget.session.filter;
     _groupingEnabled = widget.session.groupingEnabled;
   }
 
@@ -49,7 +49,7 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
         availableDomains: widget.session.availableDomains,
         onFilterChanged: (newFilter) {
           setState(() => _filter = newFilter);
-          widget.session.setRequestFilter(newFilter);
+          widget.session.applyFilter(newFilter);
         },
       ),
     );

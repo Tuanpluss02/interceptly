@@ -1,4 +1,4 @@
-import 'package:interceptly/interceptly.dart';
+import '../model/request_record.dart';
 
 /// Builds cURL commands from captured request records.
 class CurlGenerator {

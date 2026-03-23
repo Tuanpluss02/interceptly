@@ -4,9 +4,9 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
-import '../../core/request_id.dart';
+import '../../session/request_id.dart';
 import '../../model/raw_capture.dart';
-import '../../storage/inspector_session.dart';
+import '../../session/inspector_session.dart';
 
 /// A drop-in [http.BaseClient] wrapper that captures all requests.
 ///
