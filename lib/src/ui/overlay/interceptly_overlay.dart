@@ -157,6 +157,7 @@ class _InterceptlyOverlayState extends State<InterceptlyOverlay> {
               child: DraggableFab(
                 initPosition: Offset(screenSize.width, screenSize.height / 2),
                 securityBottom: padding.bottom,
+                securityTop: padding.top,
                 child: SizedBox(
                   width: 44,
                   height: 44,

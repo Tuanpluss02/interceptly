@@ -1,20 +1,24 @@
-// ignore_for_file: constant_identifier_names
-
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 
-/// Draggable FAB widget which is always aligned to
-/// the edge of the screen - be it left,top, right,bottom
+/// A draggable FAB that always snaps to the left or right edge of the screen.
+///
+/// The button can be dragged anywhere but on release it snaps to whichever
+/// vertical edge is closest. Top and bottom edges are excluded — the button
+/// stays within the vertical bounds defined by [securityTop] and
+/// [securityBottom].
 class DraggableFab extends StatefulWidget {
-  const DraggableFab(
-      {required this.child,
-      super.key,
-      this.initPosition,
-      this.securityBottom = 0});
+  const DraggableFab({
+    required this.child,
+    super.key,
+    this.initPosition,
+    this.securityBottom = 0,
+    this.securityTop = 0,
+  });
+
   final Widget child;
   final Offset? initPosition;
   final double securityBottom;
+  final double securityTop;
 
   @override
   State<DraggableFab> createState() => _DraggableFabState();
@@ -22,27 +26,24 @@ class DraggableFab extends StatefulWidget {
 
 class _DraggableFabState extends State<DraggableFab>
     with SingleTickerProviderStateMixin {
-  late Size _widgetSize;
-  double? _left, _top;
-  double _screenWidth = 0.0, _screenHeight = 0.0;
-  double? _screenWidthMid, _screenHeightMid;
+  Size _widgetSize = const Size(44, 44);
   final GlobalKey _childKey = GlobalKey();
 
   late final AnimationController _snapController;
   Animation<Offset>? _snapAnimation;
-  late final ValueNotifier<Offset> _positionVN = ValueNotifier(Offset.zero);
+  late final ValueNotifier<Offset> _positionVN =
+      ValueNotifier(Offset.zero);
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance
-        .addPostFrameCallback((_) => _getWidgetSize(context));
+        .addPostFrameCallback((_) => _initPosition(context));
     _snapController = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 220));
     _snapController.addListener(() {
       if (_snapAnimation != null) {
-        final v = _snapAnimation!.value;
-        _positionVN.value = v;
+        _positionVN.value = _snapAnimation!.value;
       }
     });
   }
@@ -53,31 +54,16 @@ class _DraggableFabState extends State<DraggableFab>
     super.dispose();
   }
 
-  void _getWidgetSize(BuildContext context) {
-    final BuildContext? childCtx = _childKey.currentContext;
-    final RenderBox? rb = childCtx?.findRenderObject() as RenderBox?;
-    if (rb != null) {
-      _widgetSize = rb.size;
-    } else {
-      // Fallback if not laid out yet
-      _widgetSize = const Size(44, 44);
-    }
+  void _initPosition(BuildContext context) {
+    final rb =
+        _childKey.currentContext?.findRenderObject() as RenderBox?;
+    if (rb != null) _widgetSize = rb.size;
 
-    if (widget.initPosition != null) {
-      final snapped = _computeSnapped(widget.initPosition!);
-      _left = snapped.dx;
-      _top = snapped.dy;
-      _positionVN.value = snapped;
-    } else {
-      // default to right-center if no init provided
-      final Size screenSize = MediaQuery.of(context).size;
-      final Offset defaultCenter =
-          Offset(screenSize.width, screenSize.height / 2);
-      final snapped = _computeSnapped(defaultCenter);
-      _left = snapped.dx;
-      _top = snapped.dy;
-      _positionVN.value = snapped;
-    }
+    final size = MediaQuery.of(context).size;
+    final target = widget.initPosition ??
+        Offset(size.width, size.height / 2); // default: right-center
+    final snapped = _snapToEdge(target, size);
+    _positionVN.value = snapped;
   }
 
   @override
@@ -87,8 +73,6 @@ class _DraggableFabState extends State<DraggableFab>
         ValueListenableBuilder<Offset>(
           valueListenable: _positionVN,
           builder: (context, pos, _) {
-            _left = pos.dx;
-            _top = pos.dy;
             return Positioned(
               left: pos.dx,
               top: pos.dy,
@@ -96,22 +80,25 @@ class _DraggableFabState extends State<DraggableFab>
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onPanUpdate: (details) {
-                    final current = _positionVN.value;
-                    final next = Offset(
-                      current.dx + details.delta.dx,
-                      current.dy + details.delta.dy,
+                    _positionVN.value = Offset(
+                      _positionVN.value.dx + details.delta.dx,
+                      _positionVN.value.dy + details.delta.dy,
                     );
-                    _positionVN.value = next;
                   },
                   onPanEnd: (_) {
-                    final double centerX = pos.dx + _widgetSize.width / 2;
-                    final double centerY = pos.dy + _widgetSize.height / 2;
-                    final target = _computeSnapped(Offset(centerX, centerY));
+                    final size = MediaQuery.of(context).size;
+                    final center = Offset(
+                      pos.dx + _widgetSize.width / 2,
+                      pos.dy + _widgetSize.height / 2,
+                    );
+                    final target = _snapToEdge(center, size);
                     _snapAnimation = Tween<Offset>(
                       begin: pos,
                       end: target,
                     ).animate(CurvedAnimation(
-                        parent: _snapController, curve: Curves.easeOutCubic));
+                      parent: _snapController,
+                      curve: Curves.easeOutCubic,
+                    ));
                     _snapController
                       ..reset()
                       ..forward();
@@ -126,137 +113,20 @@ class _DraggableFabState extends State<DraggableFab>
     );
   }
 
-  // no-op: legacy signature kept for potential compatibility
+  /// Snaps to the nearest left or right edge, clamping vertically within
+  /// [securityTop] … [screenHeight - widgetHeight - securityBottom].
+  Offset _snapToEdge(Offset center, Size screen) {
+    final minTop = widget.securityTop;
+    final maxTop =
+        screen.height - _widgetSize.height - widget.securityBottom;
 
-  // removed legacy setter; updates now flow through _positionVN directly
+    final double left = center.dx < screen.width / 2
+        ? 0
+        : screen.width - _widgetSize.width;
 
-  /// Compute the snapped left/top (not mutating state)
-  Offset _computeSnapped(Offset targetOffset) {
-    if (_screenWidthMid == null || _screenHeightMid == null) {
-      final Size screenSize = MediaQuery.of(context).size;
-      _screenWidth = screenSize.width;
-      _screenHeight = screenSize.height;
-      _screenWidthMid = _screenWidth / 2;
-      _screenHeightMid = _screenHeight / 2;
-    }
+    final double top = center.dy
+        .clamp(minTop, maxTop.clamp(minTop, double.infinity));
 
-    double left = _left ?? 0;
-    double top = _top ?? 0;
-    switch (_getAnchor(targetOffset)) {
-      case Anchor.LEFT_FIRST:
-        left = 0;
-        top = max(
-          0,
-          min(
-            _screenHeight - _widgetSize.height - widget.securityBottom,
-            targetOffset.dy - _widgetSize.height / 2,
-          ),
-        );
-        break;
-      case Anchor.TOP_FIRST:
-        left = max(
-          0,
-          min(_screenWidth - _widgetSize.width,
-              targetOffset.dx - _widgetSize.width / 2),
-        );
-        top = 0;
-        break;
-      case Anchor.RIGHT_SECOND:
-        left = _screenWidth - _widgetSize.width;
-        top = max(
-          0,
-          min(
-            _screenHeight - _widgetSize.height - widget.securityBottom,
-            targetOffset.dy - _widgetSize.height / 2,
-          ),
-        );
-        break;
-      case Anchor.TOP_SECOND:
-        left = max(
-          0,
-          min(_screenWidth - _widgetSize.width,
-              targetOffset.dx - _widgetSize.width / 2),
-        );
-        top = 0;
-        break;
-      case Anchor.LEFT_THIRD:
-        left = 0;
-        top = max(
-          0,
-          min(
-            _screenHeight - _widgetSize.height - widget.securityBottom,
-            targetOffset.dy - _widgetSize.height / 2,
-          ),
-        );
-        break;
-      case Anchor.BOTTOM_THIRD:
-        left = max(
-          0,
-          min(_screenWidth - _widgetSize.width,
-              targetOffset.dx - _widgetSize.width / 2),
-        );
-        top = _screenHeight - _widgetSize.height - widget.securityBottom;
-        break;
-      case Anchor.RIGHT_FOURTH:
-        left = _screenWidth - _widgetSize.width;
-        top = max(
-          0,
-          min(
-            _screenHeight - _widgetSize.height - widget.securityBottom,
-            targetOffset.dy - _widgetSize.height / 2,
-          ),
-        );
-        break;
-      case Anchor.BOTTOM_FOURTH:
-        left = max(
-          0,
-          min(_screenWidth - _widgetSize.width,
-              targetOffset.dx - _widgetSize.width / 2),
-        );
-        top = _screenHeight - _widgetSize.height - widget.securityBottom;
-        break;
-    }
     return Offset(left, top);
   }
-
-  /// Computes the appropriate anchor screen edge for the widget
-  Anchor _getAnchor(Offset position) {
-    if (position.dx < _screenWidthMid! && position.dy < _screenHeightMid!) {
-      return position.dx < position.dy ? Anchor.LEFT_FIRST : Anchor.TOP_FIRST;
-    } else if (position.dx >= _screenWidthMid! &&
-        position.dy < _screenHeightMid!) {
-      return _screenWidth - position.dx < position.dy
-          ? Anchor.RIGHT_SECOND
-          : Anchor.TOP_SECOND;
-    } else if (position.dx < _screenWidthMid! &&
-        position.dy >= _screenHeightMid!) {
-      return position.dx < _screenHeight - position.dy
-          ? Anchor.LEFT_THIRD
-          : Anchor.BOTTOM_THIRD;
-    } else {
-      return _screenWidth - position.dx < _screenHeight - position.dy
-          ? Anchor.RIGHT_FOURTH
-          : Anchor.BOTTOM_FOURTH;
-    }
-  }
-}
-
-/// #######################################
-/// #       |          #        |         #
-/// #    TOP_FIRST     #  TOP_SECOND      #
-/// # - LEFT_FIRST     #  RIGHT_SECOND -  #
-/// #######################################
-/// # - LEFT_THIRD     #   RIGHT_FOURTH - #
-/// #  BOTTOM_THIRD    #   BOTTOM_FOURTH  #
-/// #     |            #       |          #
-/// #######################################
-enum Anchor {
-  LEFT_FIRST,
-  TOP_FIRST,
-  RIGHT_SECOND,
-  TOP_SECOND,
-  LEFT_THIRD,
-  BOTTOM_THIRD,
-  RIGHT_FOURTH,
-  BOTTOM_FOURTH,
 }
