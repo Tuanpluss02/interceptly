@@ -7,7 +7,9 @@ class NetworkSimulationProfile {
     required this.latencyMs,
     required this.downloadKbps,
     required this.uploadKbps,
-  });
+  })  : assert(latencyMs >= 0, 'latencyMs must be non-negative'),
+        assert(downloadKbps >= 0, 'downloadKbps must be non-negative'),
+        assert(uploadKbps >= 0, 'uploadKbps must be non-negative');
 
   /// Human-readable profile name shown in the UI.
   final String name;

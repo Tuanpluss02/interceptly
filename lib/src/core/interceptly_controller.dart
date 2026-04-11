@@ -3,18 +3,16 @@ import 'dart:math';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:sensors_plus/sensors_plus.dart';
-
-import '../capture/dio/interceptly_dio_interceptor.dart';
-import '../capture/http/interceptly_http_client.dart';
-import '../model/index_entry.dart';
 import '../model/interceptly_settings.dart';
 import '../model/network_simulation.dart';
 import '../model/raw_capture.dart';
 import '../model/request_filter.dart';
 import '../model/request_record.dart';
+import '../model/request_summary.dart';
+import '../session/inspector_preferences.dart';
 import '../session/inspector_session.dart';
+import '../session/inspector_session_view.dart';
 import '../ui/interceptly_theme.dart';
 import '../ui/overlay/draggable_fab.dart';
 import '../ui/screens/interceptly_screen.dart';
@@ -96,9 +94,10 @@ class Interceptly extends ChangeNotifier {
   // Passthrough getters
   // ---------------------------------------------------------------------------
 
-  InspectorSession get session => _session;
+  InspectorSessionView get session => _session;
   InterceptlySettings get settings => _session.settings;
-  List<IndexEntry> get calls => _session.entries;
+  InspectorPreferences get preferences => _session.preferences;
+  List<RequestSummary> get calls => _session.entries;
   RequestFilter get filter => _session.filter;
   int get droppedEvents => _session.droppedCount;
   bool get isEnabled => _session.isEnabled;
@@ -112,24 +111,12 @@ class Interceptly extends ChangeNotifier {
   void disable() => _session.disable();
   Future<void> initialize() => _session.initialize();
   void recordCapture(RawCapture capture) => _session.record(capture);
-  Future<RequestRecord> loadDetail(IndexEntry entry) => _session.loadDetail(entry);
+  Future<RequestRecord> loadDetail(RequestSummary summary) => _session.loadDetail(summary);
   void applyFilter(RequestFilter filter) => _session.applyFilter(filter);
   void setNetworkSimulation(NetworkSimulationProfile profile) =>
       _session.setNetworkSimulation(profile);
   void clearNetworkSimulation() => _session.clearNetworkSimulation();
   Future<void> clear() => _session.clear();
-
-  // ---------------------------------------------------------------------------
-  // Interceptor / client factories
-  // ---------------------------------------------------------------------------
-
-  static InterceptlyDioInterceptor get dioInterceptor =>
-      InterceptlyDioInterceptor(InspectorSession.instance);
-
-  static InterceptlyHttpClient wrapHttpClient(http.Client inner) =>
-      InterceptlyHttpClient.wrap(inner, InspectorSession.instance);
-
-  // ---------------------------------------------------------------------------
 
   @override
   void dispose() {

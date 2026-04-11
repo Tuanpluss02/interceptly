@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import '../model/request_record.dart';
+import '../session/body_decode_service.dart';
 
 /// Exports captured request records to Postman Collection v2.1 format.
 ///
@@ -7,8 +10,15 @@ import '../model/request_record.dart';
 class PostmanExporter {
   const PostmanExporter._();
 
+  /// Converts [records] into a Postman Collection v2.1 JSON string.
+  static String toJson(
+    List<RequestRecord> records, {
+    String collectionName = 'Interceptly Export',
+  }) =>
+      jsonEncode(toMap(records, collectionName: collectionName));
+
   /// Converts [records] into a Postman Collection v2.1 root object.
-  static Map<String, Object?> fromRecords(
+  static Map<String, Object?> toMap(
     List<RequestRecord> records, {
     String collectionName = 'Interceptly Export',
   }) {
@@ -45,7 +55,7 @@ class PostmanExporter {
 
   static Map<String, Object?>? _buildBody(RequestRecord r) {
     final body = r.requestBodyPreview;
-    if (body == null || body.isEmpty || body.startsWith('[')) return null;
+    if (body == null || body.isEmpty || BodyDecodeService.isPlaceholder(body)) return null;
 
     final contentType = r.requestContentType ?? '';
 

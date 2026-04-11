@@ -1,4 +1,4 @@
-import 'index_entry.dart';
+import 'request_summary.dart';
 
 /// Unified filter applied to the inspector request list.
 ///
@@ -48,7 +48,7 @@ class RequestFilter {
   }
 
   /// Returns true if [entry] satisfies every active filter criterion.
-  bool matches(IndexEntry entry) {
+  bool matches(RequestSummary entry) {
     if (methods.isNotEmpty) {
       if (!methods.contains(entry.method.toUpperCase())) return false;
     }

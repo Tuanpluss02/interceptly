@@ -79,7 +79,7 @@ void _openInspector() {
 }
 
 void _pushInspector({
-  required InspectorSession session,
+  required InspectorSessionView session,
   NavigatorState? nav,
   BuildContext? context,
 }) {

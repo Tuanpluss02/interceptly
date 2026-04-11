@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -127,8 +126,7 @@ class ShareHandler {
 
   Future<void> _exportPostmanRecords(List<RequestRecord> records) async {
     try {
-      final collectionData = PostmanExporter.fromRecords(records);
-      final collectionJson = jsonEncode(collectionData);
+      final collectionJson = PostmanExporter.toJson(records);
 
       final directory = await getTemporaryDirectory();
       final fileName =
@@ -153,8 +151,7 @@ class ShareHandler {
 
   void exportHarFile(RequestRecord record) async {
     try {
-      final harData = HarExporter.fromRecords([record]);
-      final harJson = jsonEncode(harData);
+      final harJson = HarExporter.toJson([record]);
 
       // Save to temp directory (system will auto-clean)
       final directory = await getTemporaryDirectory();

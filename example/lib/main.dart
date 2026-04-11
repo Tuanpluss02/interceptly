@@ -15,7 +15,5 @@ void main() {
     ),
   );
 
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    Interceptly.attach(navigatorKey: appNavigatorKey);
-  });
+  Interceptly.attach(navigatorKey: appNavigatorKey);
 }

@@ -30,7 +30,6 @@ class CustomRequestPage extends StatefulWidget {
   final String initialQueryText;
   final String initialHeadersText;
   final String initialBodyText;
-  final InspectorSession? session;
 
   const CustomRequestPage({
     super.key,
@@ -39,7 +38,6 @@ class CustomRequestPage extends StatefulWidget {
     required this.initialQueryText,
     required this.initialHeadersText,
     required this.initialBodyText,
-    this.session,
   });
 
   @override

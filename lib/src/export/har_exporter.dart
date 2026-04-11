@@ -1,11 +1,18 @@
+import 'dart:convert';
+
 import '../model/request_record.dart';
+import '../session/body_decode_service.dart';
 
 /// Exports captured request records to HAR 1.2 compatible maps.
 class HarExporter {
   const HarExporter._();
 
+  /// Converts [records] into a HAR-formatted JSON string.
+  static String toJson(List<RequestRecord> records) =>
+      jsonEncode(toMap(records));
+
   /// Converts [records] into a HAR root object.
-  static Map<String, Object?> fromRecords(List<RequestRecord> records) {
+  static Map<String, Object?> toMap(List<RequestRecord> records) {
     return {
       'log': {
         'version': '1.2',
@@ -57,7 +64,7 @@ class HarExporter {
 
   static Map<String, Object?>? _buildPostData(RequestRecord r) {
     final body = r.requestBodyPreview;
-    if (body == null || body.isEmpty || body.startsWith('[')) return null;
+    if (body == null || body.isEmpty || BodyDecodeService.isPlaceholder(body)) return null;
     return {
       'mimeType': r.requestContentType ?? 'application/octet-stream',
       'text': body,
@@ -66,7 +73,7 @@ class HarExporter {
 
   /// Returns empty text for binary placeholders in HAR content.
   static String _safeBody(String? body) {
-    if (body == null || body.startsWith('[')) return '';
+    if (body == null || BodyDecodeService.isPlaceholder(body)) return '';
     return body;
   }
 }

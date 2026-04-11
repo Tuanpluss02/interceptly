@@ -42,20 +42,20 @@ dependencies:
 
 ```dart
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:interceptly/interceptly.dart';
 
 final _navKey = GlobalKey<NavigatorState>();
-final _dio = Dio()..interceptors.add(Interceptly.dioInterceptor);
+final _dio = Dio()..interceptors.add(InterceptlyDioInterceptor());
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(MaterialApp(navigatorKey: _navKey, home: MyApp(dio: _dio)));
 
-  // Attach after the first frame so the navigator overlay is ready.
-  WidgetsBinding.instance.addPostFrameCallback((_) {
+  if (kDebugMode || kProfileMode) {
     Interceptly.attach(navigatorKey: _navKey);
-  });
+  }
 }
 ```
 
@@ -67,8 +67,8 @@ void main() {
 ```dart
 import 'package:http/http.dart' as http;
 
-final client = Interceptly.wrapHttpClient(http.Client());
-final res = await client.get(Uri.parse('[https://api.example.com/data](https://api.example.com/data)'));
+final client = InterceptlyHttpClient.wrap(http.Client());
+final res = await client.get(Uri.parse('https://api.example.com/data'));
 ```
 
 ### Chopper
@@ -137,9 +137,9 @@ final _navKey = GlobalKey<NavigatorState>();
 GoRouter(navigatorKey: _navKey, routes: [...]);
 
 // After runApp:
-WidgetsBinding.instance.addPostFrameCallback((_) {
+if (kDebugMode || kProfileMode) {
   Interceptly.attach(navigatorKey: _navKey);
-});
+}
 ```
 
 ---

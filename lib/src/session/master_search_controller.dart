@@ -117,9 +117,11 @@ class MasterSearchController extends ChangeNotifier {
           matchesInlineBody(e)) {
         matchedIds.add(e.id);
         _results!.add(e);
-        notifyListeners();
       }
-      if (i % 20 == 0) await Future<void>.delayed(Duration.zero);
+      if (i % 20 == 0) {
+        notifyListeners();
+        await Future<void>.delayed(Duration.zero);
+      }
     }
     if (gen != _generation) return;
     _isScanningBodies = false;
@@ -158,8 +160,8 @@ class MasterSearchController extends ChangeNotifier {
             final combined =
                 '${decoded.$1 ?? ''}\n${decoded.$2 ?? ''}'.toLowerCase();
             if (combined.contains(q)) return (true, e);
-          } catch (_) {
-            // Ignore individual file read errors.
+          } catch (e) {
+            if (kDebugMode) debugPrint('[Interceptly] master search file read error: $e');
           }
           return (false, null);
         });

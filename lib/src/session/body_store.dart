@@ -35,6 +35,7 @@ class BodyStore {
     final offset = _currentOffset;
     final length = bytes.length;
     await _raf!.writeFrom(bytes);
+    await _raf!.flush();
     _currentOffset += length;
     return (offset, length);
   }

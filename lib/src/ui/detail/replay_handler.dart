@@ -112,7 +112,6 @@ class ReplayHandler {
           initialQueryText: _queryParamsToText(queryParams),
           initialHeadersText: _headersToText(record.requestHeaders),
           initialBodyText: record.requestBodyPreview ?? '',
-          session: session,
         ),
       ),
     );

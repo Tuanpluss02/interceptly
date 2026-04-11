@@ -6,7 +6,9 @@ import 'package:interceptly/src/ui/widgets/interceptly_text_field.dart';
 
 import '../../model/index_entry.dart';
 import '../../model/request_record.dart';
+import '../../model/request_summary.dart';
 import '../../session/inspector_session.dart';
+import '../../session/inspector_session_view.dart';
 import 'detail_search.dart';
 import 'detail_tabs_builder.dart';
 import 'replay_handler.dart';
@@ -14,11 +16,11 @@ import 'share_handler.dart';
 
 /// Detail screen for an individual captured request/response record.
 class RequestDetailPage extends StatefulWidget {
-  /// Indexed entry selected from the list tab.
-  final IndexEntry entry;
+  /// Summary entry selected from the list tab.
+  final RequestSummary entry;
 
   /// Session used to load full detail and replay actions.
-  final InspectorSession session;
+  final InspectorSessionView session;
 
   /// Creates a detail page for [entry] using [session].
   const RequestDetailPage({
@@ -34,7 +36,7 @@ class RequestDetailPage extends StatefulWidget {
 class _RequestDetailPageState extends State<RequestDetailPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  late IndexEntry _currentEntry;
+  late RequestSummary _currentEntry;
   final TextEditingController _searchController = TextEditingController();
   late Future<RequestRecord> _recordFuture;
   final GlobalKey _fabKey = GlobalKey();
@@ -81,7 +83,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
   }
 
   void _onSessionChanged() {
-    IndexEntry? latest;
+    RequestSummary? latest;
     for (final entry in widget.session.entries) {
       if (entry.id == _currentEntry.id) {
         latest = entry;
@@ -99,19 +101,21 @@ class _RequestDetailPageState extends State<RequestDetailPage>
     }
   }
 
-  bool _entryChanged(IndexEntry prev, IndexEntry next) {
+  bool _entryChanged(RequestSummary prev, RequestSummary next) {
+    final prevI = prev as IndexEntry;
+    final nextI = next as IndexEntry;
     return prev.statusCode != next.statusCode ||
         prev.durationMs != next.durationMs ||
         prev.responseSizeBytes != next.responseSizeBytes ||
         prev.hasError != next.hasError ||
         prev.errorType != next.errorType ||
         prev.errorMessage != next.errorMessage ||
-        prev.bodyLocation != next.bodyLocation ||
-        prev.fileOffset != next.fileOffset ||
-        prev.fileLength != next.fileLength;
+        prevI.bodyLocation != nextI.bodyLocation ||
+        prevI.fileOffset != nextI.fileOffset ||
+        prevI.fileLength != nextI.fileLength;
   }
 
-  Future<void> _refreshDetail(IndexEntry entry) async {
+  Future<void> _refreshDetail(RequestSummary entry) async {
     final generation = ++_detailLoadGeneration;
     final future = widget.session.loadDetail(entry);
     _recordFuture = future;
@@ -170,7 +174,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
       builder: (context, _) {
         InterceptlyTheme.bind(
           context: context,
-          themeMode: widget.session.themeMode,
+          themeMode: widget.session.preferences.themeMode,
         );
 
         final entry = _currentEntry;
@@ -185,7 +189,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
             : InterceptlyTheme.getStatusStyle(entry.statusCode);
 
         String displayUrl = entry.url;
-        if (widget.session.urlDecodeEnabled) {
+        if (widget.session.preferences.urlDecodeEnabled) {
           try {
             displayUrl = Uri.decodeFull(entry.url);
           } catch (_) {}
@@ -376,7 +380,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                           matches: matches,
                           activeGlobalIndex: activeGlobalIndex,
                           query: _query,
-                          urlDecodeEnabled: widget.session.urlDecodeEnabled,
+                          urlDecodeEnabled: widget.session.preferences.urlDecodeEnabled,
                           tryParseJson: _tryParseJson,
                         );
                         return IndexedStack(
@@ -465,7 +469,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
   }
 
   Widget _buildStatusChip({
-    required IndexEntry entry,
+    required RequestSummary entry,
     required bool isPending,
     required bool isErrorWithoutStatus,
     required StatusStyle statusStyle,
@@ -531,9 +535,12 @@ class _RequestDetailPageState extends State<RequestDetailPage>
     final record = _cachedRecord;
     if (record == null) return;
 
+    // ReplayHandler wraps a new http.Client with the session for replaying;
+    // it needs the concrete type. All sessions passed through the attach flow
+    // are InspectorSession instances.
     final replayHandler = ReplayHandler(
       context: context,
-      session: widget.session,
+      session: widget.session as InspectorSession,
     );
     replayHandler.showReplayMenu(record);
   }

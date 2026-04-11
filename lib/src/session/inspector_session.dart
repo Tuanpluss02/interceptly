@@ -13,10 +13,13 @@ import '../model/network_simulation.dart';
 import '../model/raw_capture.dart';
 import '../model/request_filter.dart';
 import '../model/request_record.dart';
+import '../model/request_summary.dart';
 import '../simulation/network_simulation_service.dart';
 import 'body_decode_service.dart';
 import 'body_store.dart';
 import 'grouping_controller.dart';
+import 'inspector_preferences.dart';
+import 'inspector_session_view.dart';
 import 'memory_index.dart';
 import 'master_search_controller.dart';
 import 'writer_isolate.dart';
@@ -27,7 +30,7 @@ import 'writer_isolate.dart';
 /// (serialised disk writer for large bodies).
 ///
 /// All public methods are safe to call from the main isolate.
-class InspectorSession extends ChangeNotifier {
+class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   InspectorSession({InterceptlySettings? settings})
       : settings = settings ?? const InterceptlySettings() {
     _memoryIndex = MemoryIndex(maxEntries: this.settings.maxEntries);
@@ -35,6 +38,7 @@ class InspectorSession extends ChangeNotifier {
     _preInitQueue = BoundedEventQueue(maxSize: this.settings.maxQueuedEvents);
     _search.addListener(_onSearchChanged);
     _grouping.addListener(notifyListeners);
+    _preferences.addListener(notifyListeners);
   }
 
   static InspectorSession? _instance;
@@ -53,8 +57,7 @@ class InspectorSession extends ChangeNotifier {
   bool _initialized = false;
   bool _enabled = true;
   bool _clearing = false;
-  bool _urlDecodeEnabled = false;
-  ThemeMode _themeMode = ThemeMode.system;
+  final InspectorPreferences _preferences = InspectorPreferences();
   NetworkSimulationProfile _networkSimulation = NetworkSimulationProfile.none;
   final Map<String, Timer> _pendingTimers = {};
   static const Duration _pendingTimeout = Duration(seconds: 45);
@@ -71,16 +74,18 @@ class InspectorSession extends ChangeNotifier {
   final GroupingController _grouping = GroupingController();
 
   RequestFilter get filter => _filter;
-  List<IndexEntry> get entries {
-    if (_search.isActive) return _search.results ?? const [];
-    return _memoryIndex.filtered(_filter);
+  List<RequestSummary> get entries {
+    if (_search.isActive) {
+      return (_search.results ?? const <IndexEntry>[])
+          .cast<RequestSummary>();
+    }
+    return _memoryIndex.filtered(_filter).cast<RequestSummary>();
   }
 
   int get totalEntries => _memoryIndex.length;
   int get droppedCount => _droppedCount;
   bool get isEnabled => _enabled;
-  bool get urlDecodeEnabled => _urlDecodeEnabled;
-  ThemeMode get themeMode => _themeMode;
+  InspectorPreferences get preferences => _preferences;
   NetworkSimulationProfile get networkSimulation => _networkSimulation;
 
   String? get masterQuery => _search.query;
@@ -122,7 +127,7 @@ class InspectorSession extends ChangeNotifier {
     // Flush captures buffered before the isolate was ready.
     // Runs synchronously (no awaits) so no new record() call can interleave.
     _droppedCount += _preInitQueue.droppedCount;
-    _urlDecodeEnabled = settings.urlDecodeEnabled;
+    _preferences.setUrlDecodeEnabled(settings.urlDecodeEnabled);
     RawCapture? pending;
     while ((pending = _preInitQueue.removeFirstOrNull()) != null) {
       _sendCapture(pending!);
@@ -151,22 +156,8 @@ class InspectorSession extends ChangeNotifier {
     _enabled = false;
   }
 
-  /// Toggles URL decoding for the UI views.
-  void setUrlDecodeEnabled(bool value) {
-    if (_urlDecodeEnabled != value) {
-      _urlDecodeEnabled = value;
-      notifyListeners();
-    }
-  }
-
   void setNetworkSimulation(NetworkSimulationProfile profile) {
     _networkSimulation = profile;
-    notifyListeners();
-  }
-
-  void setThemeMode(ThemeMode mode) {
-    if (_themeMode == mode) return;
-    _themeMode = mode;
     notifyListeners();
   }
 
@@ -185,12 +176,8 @@ class InspectorSession extends ChangeNotifier {
   void toggleDomainExpanded(String domain) =>
       _grouping.toggleDomainExpanded(domain);
 
-  /// Returns the filtered list of entries. Delegates to [entries] which
-  /// already applies the unified [_filter] and master-search results.
-  List<IndexEntry> getFilteredRecords() => entries;
-
   List<DomainGroup> getGroupedRecords() {
-    final grouped = <String, List<IndexEntry>>{};
+    final grouped = <String, List<RequestSummary>>{};
     for (final entry in entries) {
       final domain = RequestFilter.extractDomain(entry.url);
       grouped.putIfAbsent(domain, () => []).add(entry);
@@ -374,12 +361,15 @@ class InspectorSession extends ChangeNotifier {
   // Detail loading
   // ---------------------------------------------------------------------------
 
-  /// Load the full [RequestRecord] for [entry].
+  /// Load the full [RequestRecord] for [summary].
   ///
   /// - [BodyLocation.memory]: decodes inline bytes, zero I/O.
   /// - [BodyLocation.file]: reads only the specific region via
   ///   [BodyStore.readBytes] — never recreates or deletes the file.
-  Future<RequestRecord> loadDetail(IndexEntry entry) async {
+  Future<RequestRecord> loadDetail(RequestSummary summary) async {
+    // IndexEntry extends RequestSummary — all session entries are IndexEntry.
+    final entry = summary as IndexEntry;
+
     String? reqPreview;
     String? resPreview;
     Uint8List? reqBytes;
@@ -411,8 +401,8 @@ class InspectorSession extends ChangeNotifier {
               BodyDecodeService.decode(resBytes, entry.responseContentType);
           isTruncated = isTruncated || decoded.$3;
         } catch (_) {
-          reqPreview = '[body unavailable]';
-          resPreview = '[body unavailable]';
+          reqPreview = BodyDecodeService.unavailablePlaceholder;
+          resPreview = BodyDecodeService.unavailablePlaceholder;
         }
       }
     }
@@ -432,8 +422,6 @@ class InspectorSession extends ChangeNotifier {
       responseContentType: entry.responseContentType,
       requestBodyPreview: reqPreview,
       responseBodyPreview: resPreview,
-      requestBodyBytesPreview: reqBytes,
-      responseBodyBytesPreview: resBytes,
       isBodyTruncated: isTruncated,
       errorType: entry.errorType,
       errorMessage: entry.errorMessage,
@@ -475,9 +463,11 @@ class InspectorSession extends ChangeNotifier {
     _search.dispose();
     _grouping.removeListener(notifyListeners);
     _grouping.dispose();
+    _preferences.removeListener(notifyListeners);
+    _preferences.dispose();
     await _resultSub?.cancel();
     await _writerIsolate.dispose();
-    await _memoryIndex.dispose();
+    _memoryIndex.clear();
     _preInitQueue.clear();
     for (final timer in _pendingTimers.values) {
       timer.cancel();

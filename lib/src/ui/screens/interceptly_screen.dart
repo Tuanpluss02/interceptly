@@ -7,7 +7,7 @@ import 'package:interceptly/src/ui/widgets/interceptly_confirm_dialog.dart';
 import 'package:interceptly/src/ui/widgets/toast_notification.dart';
 
 import '../../model/request_filter.dart';
-import '../../session/inspector_session.dart';
+import '../../session/inspector_session_view.dart';
 
 /// Main inspector screen showing captured network calls and actions.
 class InterceptlyScreen extends StatefulWidget {
@@ -18,7 +18,7 @@ class InterceptlyScreen extends StatefulWidget {
   });
 
   /// Session used to read and mutate captured data.
-  final InspectorSession session;
+  final InspectorSessionView session;
 
   @override
   State<InterceptlyScreen> createState() => _InterceptlyScreenState();
@@ -26,13 +26,11 @@ class InterceptlyScreen extends StatefulWidget {
 
 class _InterceptlyScreenState extends State<InterceptlyScreen> {
   late RequestFilter _filter;
-  late bool _groupingEnabled;
 
   @override
   void initState() {
     super.initState();
     _filter = widget.session.filter;
-    _groupingEnabled = widget.session.groupingEnabled;
   }
 
   void _showSettings() {
@@ -77,13 +75,13 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
       builder: (context, _) {
         InterceptlyTheme.bind(
           context: context,
-          themeMode: widget.session.themeMode,
+          themeMode: widget.session.preferences.themeMode,
         );
 
         return Theme(
           data: InterceptlyTheme.themeData(
             context: context,
-            themeMode: widget.session.themeMode,
+            themeMode: widget.session.preferences.themeMode,
           ),
           child: Scaffold(
             appBar: AppBar(
@@ -91,12 +89,12 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
               actions: [
                 IconButton(
                   icon: Icon(
-                    _groupingEnabled ? Icons.group_work : Icons.public,
+                    widget.session.groupingEnabled
+                        ? Icons.group_work
+                        : Icons.public,
                   ),
-                  onPressed: () {
-                    setState(() => _groupingEnabled = !_groupingEnabled);
-                    widget.session.toggleGrouping(_groupingEnabled);
-                  },
+                  onPressed: () => widget.session
+                      .toggleGrouping(!widget.session.groupingEnabled),
                   tooltip: 'Group by domain',
                 ),
                 IconButton(
@@ -120,7 +118,7 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
             ),
             body: NetworkTab(
               session: widget.session,
-              groupingEnabled: _groupingEnabled,
+              groupingEnabled: widget.session.groupingEnabled,
               onShowFilterPanel: _showFilterPanel,
             ),
           ),

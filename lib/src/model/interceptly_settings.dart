@@ -29,4 +29,23 @@ class InterceptlySettings {
 
   /// Whether to decode URL encodings in the UI.
   final bool urlDecodeEnabled;
+
+  InterceptlySettings copyWith({
+    int? bodyOffloadThreshold,
+    int? previewTruncationBytes,
+    int? maxBodyBytes,
+    int? maxQueuedEvents,
+    int? maxEntries,
+    bool? urlDecodeEnabled,
+  }) {
+    return InterceptlySettings(
+      bodyOffloadThreshold: bodyOffloadThreshold ?? this.bodyOffloadThreshold,
+      previewTruncationBytes:
+          previewTruncationBytes ?? this.previewTruncationBytes,
+      maxBodyBytes: maxBodyBytes ?? this.maxBodyBytes,
+      maxQueuedEvents: maxQueuedEvents ?? this.maxQueuedEvents,
+      maxEntries: maxEntries ?? this.maxEntries,
+      urlDecodeEnabled: urlDecodeEnabled ?? this.urlDecodeEnabled,
+    );
+  }
 }

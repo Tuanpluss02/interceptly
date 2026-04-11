@@ -1,10 +1,9 @@
-import 'dart:async';
 import 'dart:collection';
 
 import '../model/index_entry.dart';
 import '../model/request_filter.dart';
 
-/// In-memory list of [IndexEntry]s with a broadcast stream for UI updates.
+/// In-memory list of [IndexEntry]s.
 ///
 /// All mutations happen on the main isolate (after the WriterIsolate sends
 /// back a completed [IndexEntry]). No locking needed.
@@ -13,11 +12,6 @@ class MemoryIndex {
 
   final int maxEntries;
   final List<IndexEntry> _entries = [];
-  final StreamController<List<IndexEntry>> _controller =
-      StreamController<List<IndexEntry>>.broadcast();
-
-  /// Live stream of all entries — emit on every mutation.
-  Stream<List<IndexEntry>> get stream => _controller.stream;
 
   /// Unmodifiable snapshot of the current entries (newest first).
   List<IndexEntry> get entries => UnmodifiableListView(_entries);
@@ -28,7 +22,6 @@ class MemoryIndex {
     final existingIndex = _entries.indexWhere((e) => e.id == entry.id);
     if (existingIndex != -1) {
       _entries[existingIndex] = entry;
-      _controller.add(UnmodifiableListView(_entries));
       return;
     }
 
@@ -36,7 +29,6 @@ class MemoryIndex {
       _entries.removeLast();
     }
     _entries.insert(0, entry);
-    _controller.add(UnmodifiableListView(_entries));
   }
 
   /// Returns entries matching [filter], or all entries if [filter.isEmpty].
@@ -47,10 +39,5 @@ class MemoryIndex {
 
   void clear() {
     _entries.clear();
-    _controller.add(UnmodifiableListView(_entries));
-  }
-
-  Future<void> dispose() async {
-    await _controller.close();
   }
 }

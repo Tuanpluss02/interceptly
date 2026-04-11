@@ -13,16 +13,32 @@ class BodyDecodeService {
   /// to avoid blocking the main thread for tens of milliseconds.
   static const int computeThreshold = 100 * 1024; // 100 KB
 
+  // Null byte prefix — guaranteed to never appear in real text or JSON bodies.
+  static const String _placeholderPrefix = '\x00';
+
+  /// Placeholder used when a file-backed body cannot be read.
+  static const String unavailablePlaceholder =
+      '$_placeholderPrefix[body unavailable]';
+
+  /// Returns true if [body] is a placeholder string, not real body content.
+  ///
+  /// Use this instead of `body.startsWith('[')` to avoid false-positives on
+  /// legitimate JSON array bodies like `[{"id":1}]`.
+  static bool isPlaceholder(String body) =>
+      body.startsWith(_placeholderPrefix);
+
   /// Decodes [bytes] to a UTF-8 string, or returns a binary placeholder.
   ///
   /// Returns `null` when [bytes] is null or empty.
   static String? decode(Uint8List? bytes, String? contentType) {
     if (bytes == null || bytes.isEmpty) return null;
-    if (isBinary(contentType)) return '[binary: ${bytes.length} bytes]';
+    if (isBinary(contentType)) {
+      return '$_placeholderPrefix[binary: ${bytes.length} bytes]';
+    }
     try {
       return utf8.decode(bytes);
     } catch (_) {
-      return '[binary: ${bytes.length} bytes]';
+      return '$_placeholderPrefix[binary: ${bytes.length} bytes]';
     }
   }
 
@@ -93,7 +109,7 @@ class BodyDecodeService {
     try {
       return utf8.decode(bytes);
     } catch (_) {
-      return '[binary: ${bytes.length} bytes]';
+      return '$_placeholderPrefix[binary: ${bytes.length} bytes]';
     }
   }
 }

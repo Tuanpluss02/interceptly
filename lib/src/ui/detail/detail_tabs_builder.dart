@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
@@ -139,7 +138,6 @@ class DetailTabsBuilder {
           contentType: record.requestContentType,
           headers: record.requestHeaders,
           bodyPreview: record.requestBodyPreview,
-          bodyBytes: record.requestBodyBytesPreview,
           section: DetailSection.requestBody,
         ),
       ],
@@ -210,7 +208,6 @@ class DetailTabsBuilder {
           contentType: record.responseContentType,
           headers: record.responseHeaders,
           bodyPreview: record.responseBodyPreview,
-          bodyBytes: record.responseBodyBytesPreview,
           section: DetailSection.responseBody,
         ),
       ],
@@ -432,10 +429,9 @@ class DetailTabsBuilder {
     required String? contentType,
     required Map<String, String> headers,
     required String? bodyPreview,
-    required Uint8List? bodyBytes,
     required DetailSection section,
   }) {
-    final encodingLabel = _buildEncodingLabel(headers, bodyBytes);
+    final encodingLabel = _buildEncodingLabel(headers);
     final isBinary = _isBinaryPayload(contentType, bodyPreview);
 
     return Column(
@@ -451,7 +447,6 @@ class DetailTabsBuilder {
             ? _buildBinaryPreview(
                 contentType: contentType,
                 bodyPreview: bodyPreview,
-                bodyBytes: bodyBytes,
                 section: section,
               )
             : _buildJsonBox(
@@ -622,69 +617,15 @@ class DetailTabsBuilder {
   Widget _buildBinaryPreview({
     required String? contentType,
     required String? bodyPreview,
-    required Uint8List? bodyBytes,
     required DetailSection section,
   }) {
     final kind = _binaryKind(contentType);
     final meta = <String, dynamic>{
       'kind': kind,
       'contentType': contentType ?? 'unknown',
-      'sizeBytes': bodyBytes?.length ?? _extractBinarySize(bodyPreview),
+      'sizeBytes': _extractBinarySize(bodyPreview),
     };
-
-    if (kind == 'pdf' && bodyBytes != null && bodyBytes.isNotEmpty) {
-      final head = utf8.decode(
-        bodyBytes.sublist(0, bodyBytes.length < 12 ? bodyBytes.length : 12),
-        allowMalformed: true,
-      );
-      meta['pdfHeader'] = head;
-    }
-
-    if ((kind == 'protobuf' || kind == 'msgpack' || kind == 'binary') &&
-        bodyBytes != null &&
-        bodyBytes.isNotEmpty) {
-      meta['hexPreview'] = _hexPreview(bodyBytes, 48);
-      meta['note'] = kind == 'protobuf'
-          ? 'Protobuf preview is raw bytes (schema required for decode).'
-          : kind == 'msgpack'
-              ? 'MessagePack preview is raw bytes (schema-aware decode not available).'
-              : 'Binary preview shown as metadata + hex sample.';
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _buildJsonBox(meta, section),
-        if (kind == 'image' && bodyBytes != null && bodyBytes.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          Container(
-            constraints: const BoxConstraints(maxHeight: 240),
-            decoration: BoxDecoration(
-              color: InterceptlyTheme.surfaceContainer,
-              border: Border.all(
-                color: InterceptlyTheme.dividerSubtle,
-              ),
-              borderRadius: BorderRadius.circular(12.0),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Image.memory(
-              bodyBytes,
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) {
-                return Padding(
-                  padding: EdgeInsets.all(12.0),
-                  child: Text(
-                    'Unable to render thumbnail from current preview bytes.',
-                    style: InterceptlyTheme.typography.bodyMediumRegular
-                        .copyWith(color: InterceptlyTheme.textMuted),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ],
-    );
+    return _buildJsonBox(meta, section);
   }
 
   String _binaryKind(String? contentType) {
@@ -703,24 +644,11 @@ class DetailTabsBuilder {
     return int.tryParse(m.group(1)!);
   }
 
-  String _hexPreview(Uint8List bytes, int maxBytes) {
-    final take = bytes.length < maxBytes ? bytes.length : maxBytes;
-    final sb = StringBuffer();
-    for (var i = 0; i < take; i++) {
-      sb.write(bytes[i].toRadixString(16).padLeft(2, '0'));
-      if (i != take - 1) sb.write(' ');
-    }
-    if (bytes.length > maxBytes) {
-      sb.write(' …');
-    }
-    return sb.toString();
-  }
 
-  String? _buildEncodingLabel(Map<String, String> headers, Uint8List? bytes) {
+  String? _buildEncodingLabel(Map<String, String> headers) {
     final encoding = _headerValue(headers, 'content-encoding');
     if (encoding == null || encoding.trim().isEmpty) return null;
-    final state = _inferEncodingState(encoding, bytes);
-    return 'content-encoding: $encoding ($state)';
+    return 'content-encoding: $encoding';
   }
 
   String? _headerValue(Map<String, String> headers, String key) {
@@ -728,40 +656,6 @@ class DetailTabsBuilder {
       if (entry.key.toLowerCase() == key.toLowerCase()) return entry.value;
     }
     return null;
-  }
-
-  String _inferEncodingState(String encoding, Uint8List? bytes) {
-    if (bytes == null || bytes.isEmpty) return 'unknown';
-    final lower = encoding.toLowerCase();
-
-    if (lower.contains('gzip')) {
-      final hasMagic =
-          bytes.length >= 2 && bytes[0] == 0x1f && bytes[1] == 0x8b;
-      return hasMagic ? 'not decoded' : 'decoded';
-    }
-
-    if (lower.contains('br')) {
-      return _looksMostlyText(bytes) ? 'decoded' : 'not decoded';
-    }
-
-    if (lower.contains('deflate')) {
-      return _looksMostlyText(bytes) ? 'decoded' : 'unknown';
-    }
-
-    return _looksMostlyText(bytes) ? 'decoded' : 'unknown';
-  }
-
-  bool _looksMostlyText(Uint8List bytes) {
-    if (bytes.isEmpty) return false;
-    final sampleLen = bytes.length < 256 ? bytes.length : 256;
-    var printable = 0;
-    for (var i = 0; i < sampleLen; i++) {
-      final b = bytes[i];
-      final isPrintableAscii = b >= 0x20 && b <= 0x7E;
-      final isWhitespace = b == 0x09 || b == 0x0A || b == 0x0D;
-      if (isPrintableAscii || isWhitespace) printable++;
-    }
-    return printable / sampleLen >= 0.85;
   }
 
   Widget _buildSectionHeader(String title, {Color? color}) {

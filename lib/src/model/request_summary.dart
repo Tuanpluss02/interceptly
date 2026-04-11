@@ -1,8 +1,10 @@
-/// Full detail model — loaded on demand when user opens a request.
+/// Public-facing summary of a captured request, safe to expose on the
+/// app-developer API.
 ///
-/// Built by [InspectorSession.loadDetail] from an [IndexEntry].
-class RequestRecord {
-  const RequestRecord({
+/// Does not contain storage internals (body location, file offsets, inline
+/// byte buffers). Use [InspectorSession.loadDetail] to retrieve full body data.
+class RequestSummary {
+  const RequestSummary({
     required this.id,
     required this.method,
     required this.url,
@@ -11,13 +13,12 @@ class RequestRecord {
     required this.requestSizeBytes,
     required this.responseSizeBytes,
     required this.timestamp,
-    required this.requestHeaders,
-    required this.responseHeaders,
+    required this.hasError,
+    required this.isBodyTruncated,
+    this.requestHeaders = const {},
+    this.responseHeaders = const {},
     this.requestContentType,
     this.responseContentType,
-    this.requestBodyPreview,
-    this.responseBodyPreview,
-    this.isBodyTruncated = false,
     this.errorType,
     this.errorMessage,
   });
@@ -25,25 +26,24 @@ class RequestRecord {
   final String id;
   final String method;
   final String url;
+
+  /// 0 = pending/error (no response yet).
   final int statusCode;
   final int durationMs;
   final int requestSizeBytes;
   final int responseSizeBytes;
   final DateTime timestamp;
+  final bool hasError;
+
+  /// True if any body was truncated due to exceeding the size limit.
+  final bool isBodyTruncated;
+
   final Map<String, String> requestHeaders;
   final Map<String, String> responseHeaders;
   final String? requestContentType;
   final String? responseContentType;
 
-  /// UTF-8 decoded body text, or a `[binary: N bytes]` placeholder for non-text content.
-  final String? requestBodyPreview;
-  final String? responseBodyPreview;
-
-  /// True if the body exceeded [InterceptlySettings.maxBodyBytes] and was cut.
-  final bool isBodyTruncated;
-
+  /// Non-null when [hasError] is true.
   final String? errorType;
   final String? errorMessage;
-
-  bool get hasError => errorType != null;
 }

@@ -95,11 +95,7 @@ class InterceptlyChopperInterceptor implements Interceptor {
         DateTime.now().difference(recordedStartedAt).inMilliseconds;
 
     final responseRequestBody = _extractBody(
-        response.base.request?.method == 'POST' ||
-                response.base.request?.method == 'PUT' ||
-                response.base.request?.method == 'PATCH'
-            ? (response.base.request as dynamic).body
-            : null);
+        (response.base.request as dynamic).body);
 
     final resBody = _extractBody(response.body);
 
@@ -116,9 +112,10 @@ class InterceptlyChopperInterceptor implements Interceptor {
       statusCode: response.statusCode,
       durationMs: durationMs,
       timestamp: recordedStartedAt,
-      requestBodyBytes: RawCapture.wrapBytes(responseRequestBody != null
-          ? Uint8List.fromList(responseRequestBody)
-          : null),
+      requestBodyBytes: RawCapture.wrapBytes(
+          responseRequestBody != null
+              ? Uint8List.fromList(responseRequestBody)
+              : reqBody != null ? Uint8List.fromList(reqBody) : null),
       responseBodyBytes: RawCapture.wrapBytes(
           resBody != null ? Uint8List.fromList(resBody) : null),
       requestContentType: response.base.request?.headers['content-type'],

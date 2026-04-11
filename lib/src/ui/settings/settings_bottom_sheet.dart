@@ -2,18 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
 
 import '../../model/network_simulation.dart';
-import '../../session/inspector_session.dart';
+import '../../session/inspector_session_view.dart';
 
 /// Bottom-sheet UI for inspector runtime settings.
 class SettingsBottomSheet extends StatefulWidget {
   /// Session to read/update URL decode and simulation options.
-  final InspectorSession session;
+  final InspectorSessionView session;
 
   /// Creates a settings sheet bound to [session].
   const SettingsBottomSheet({super.key, required this.session});
 
   /// Opens the settings bottom sheet for [session].
-  static Future<void> show(BuildContext context, InspectorSession session) {
+  static Future<void> show(BuildContext context, InspectorSessionView session) {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -50,9 +50,9 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
     super.initState();
     // Assuming you want to read actual settings for other fields eventually,
     // right now just initialize URL decoding correctly.
-    _urlDecodeEnabled = widget.session.urlDecodeEnabled;
+    _urlDecodeEnabled = widget.session.preferences.urlDecodeEnabled;
     _networkSimulation = widget.session.networkSimulation;
-    _themeMode = widget.session.themeMode;
+    _themeMode = widget.session.preferences.themeMode;
   }
 
   @override
@@ -145,7 +145,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                         onChanged: (mode) {
                           if (mode == null) return;
                           setState(() => _themeMode = mode);
-                          widget.session.setThemeMode(mode);
+                          widget.session.preferences.setThemeMode(mode);
                         },
                       ),
                     ),
@@ -158,7 +158,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                       activeColor: _colors.actionPrimary,
                       onChanged: (val) {
                         setState(() => _urlDecodeEnabled = val);
-                        widget.session.setUrlDecodeEnabled(val);
+                        widget.session.preferences.setUrlDecodeEnabled(val);
                       },
                     ),
                   ),

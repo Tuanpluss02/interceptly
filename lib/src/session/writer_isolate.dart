@@ -47,6 +47,10 @@ class _DisposeMessage {
   const _DisposeMessage();
 }
 
+class _DisposeAck {
+  const _DisposeAck();
+}
+
 // ---------------------------------------------------------------------------
 // WriterIsolate
 // ---------------------------------------------------------------------------
@@ -64,6 +68,7 @@ class WriterIsolate {
   SendPort? _sendPort;
   ReceivePort? _receivePort;
   Completer<void>? _clearCompleter;
+  Completer<void>? _disposeCompleter;
 
   final StreamController<IndexEntry> _resultController =
       StreamController<IndexEntry>.broadcast();
@@ -89,6 +94,9 @@ class WriterIsolate {
       } else if (message is _ClearAck) {
         _clearCompleter?.complete();
         _clearCompleter = null;
+      } else if (message is _DisposeAck) {
+        _disposeCompleter?.complete();
+        _disposeCompleter = null;
       }
     });
 
@@ -125,8 +133,12 @@ class WriterIsolate {
       _clearCompleter!.complete();
     }
     _clearCompleter = null;
-    _sendPort?.send(const _DisposeMessage());
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+    if (_sendPort != null) {
+      final completer = Completer<void>();
+      _disposeCompleter = completer;
+      _sendPort!.send(const _DisposeMessage());
+      await completer.future;
+    }
     _isolate?.kill(priority: Isolate.immediate);
     _isolate = null;
     _receivePort?.close();
@@ -162,6 +174,7 @@ Future<void> _isolateEntry(_InitMessage init) async {
       init.replyPort.send(const _ClearAck());
     } else if (message is _DisposeMessage) {
       await bodyStore.dispose();
+      init.replyPort.send(const _DisposeAck());
       break;
     }
   }
