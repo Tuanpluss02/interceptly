@@ -206,8 +206,8 @@ class RequestLogItem extends StatelessWidget {
                   children: [
                     Text(
                       path,
-                      style: InterceptlyTheme.typography.bodyMediumMedium
-                          .copyWith(
+                      style:
+                          InterceptlyTheme.typography.bodyMediumMedium.copyWith(
                         fontSize: 14,
                         height: 1.25,
                         color: colors.textPrimary,
