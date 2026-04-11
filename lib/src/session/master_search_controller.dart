@@ -159,12 +159,13 @@ class MasterSearchController extends ChangeNotifier {
             final decoded = raw.length > BodyDecodeService.computeThreshold
                 ? await compute(BodyDecodeService.unpackToText, raw)
                 : BodyDecodeService.unpackToText(raw);
-            final combined = '${decoded.$1 ?? ''}\n${decoded.$2 ?? ''}'
-                .toLowerCase();
+            final combined =
+                '${decoded.$1 ?? ''}\n${decoded.$2 ?? ''}'.toLowerCase();
             if (combined.contains(q)) return (true, e);
           } catch (e) {
-            if (kDebugMode)
+            if (kDebugMode) {
               debugPrint('[Interceptly] master search file read error: $e');
+            }
           }
           return (false, null);
         });

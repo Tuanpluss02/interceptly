@@ -51,7 +51,8 @@ class NetworkSimulationService {
   static Duration throughputDelayForChunk(
     NetworkSimulationProfile profile,
     int chunkBytes,
-  ) => _throughputDelay(bytes: chunkBytes, kbps: profile.downloadKbps);
+  ) =>
+      _throughputDelay(bytes: chunkBytes, kbps: profile.downloadKbps);
 
   static Duration _throughputDelay({required int bytes, required int kbps}) {
     if (bytes <= 0 || kbps <= 0) return Duration.zero;

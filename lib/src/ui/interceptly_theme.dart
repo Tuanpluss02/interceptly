@@ -8,8 +8,8 @@ class InterceptlyTheme {
 
   static final ValueNotifier<Brightness> brightnessNotifier =
       ValueNotifier<Brightness>(
-        WidgetsBinding.instance.platformDispatcher.platformBrightness,
-      );
+    WidgetsBinding.instance.platformDispatcher.platformBrightness,
+  );
 
   static Brightness get brightness => brightnessNotifier.value;
 

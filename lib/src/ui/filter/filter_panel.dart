@@ -257,10 +257,10 @@ class _FilterPanelState extends State<FilterPanel> {
         final isSelected = key == 'include2xx'
             ? include2xx
             : key == 'include3xx'
-            ? include3xx
-            : key == 'include4xx'
-            ? include4xx
-            : include5xx;
+                ? include3xx
+                : key == 'include4xx'
+                    ? include4xx
+                    : include5xx;
         final baseColor = statusColors[label]!;
 
         return GestureDetector(
@@ -310,9 +310,8 @@ class _FilterPanelState extends State<FilterPanel> {
                 Text(
                   label,
                   style: TextStyle(
-                    color: isSelected
-                        ? baseColor
-                        : InterceptlyTheme.textSecondary,
+                    color:
+                        isSelected ? baseColor : InterceptlyTheme.textSecondary,
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
                   ),
@@ -385,15 +384,14 @@ class _FilterPanelState extends State<FilterPanel> {
 
   void _applyFilters() {
     // All selected == no filter (empty set = show all).
-    final appliedMethods =
-        selectedMethods.containsAll(_allMethods) &&
+    final appliedMethods = selectedMethods.containsAll(_allMethods) &&
             selectedMethods.length == _allMethods.length
         ? <String>{}
         : selectedMethods;
     final appliedDomains =
         selectedDomains.length == widget.availableDomains.length
-        ? <String>{}
-        : selectedDomains;
+            ? <String>{}
+            : selectedDomains;
 
     final newFilter = RequestFilter(
       methods: appliedMethods,

@@ -12,7 +12,7 @@ import '../../session/inspector_session.dart';
 class InterceptlyDioInterceptor extends Interceptor {
   /// Creates an interceptor backed by [session] or the shared singleton.
   InterceptlyDioInterceptor([InspectorSession? session])
-    : session = session ?? InspectorSession.instance;
+      : session = session ?? InspectorSession.instance;
 
   /// Session that stores all captured events.
   final InspectorSession session;
@@ -117,7 +117,7 @@ class InterceptlyDioInterceptor extends Interceptor {
       requestHeaders: options.headers.map((k, v) => MapEntry(k, v.toString())),
       responseHeaders:
           response?.headers.map.map((k, v) => MapEntry(k, v.join(', '))) ??
-          const {},
+              const {},
       statusCode: response?.statusCode ?? 0,
       durationMs: durationMs,
       timestamp: startedAt,

@@ -203,8 +203,7 @@ Future<IndexEntry> _processCapture(
   if (!useFile) {
     inlineReq = _maybeTruncate(reqRaw, maxBody, previewLen);
     inlineRes = _maybeTruncate(resRaw, maxBody, previewLen);
-    isTruncated =
-        (reqRaw != null && reqRaw.length > maxBody) ||
+    isTruncated = (reqRaw != null && reqRaw.length > maxBody) ||
         (resRaw != null && resRaw.length > maxBody);
   } else {
     final packed = _packBodies(reqRaw, resRaw, maxBody, previewLen);

@@ -120,11 +120,11 @@ class RequestLogItem extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     '$time • $duration',
-                    style: InterceptlyTheme.typography.bodyMediumRegular
-                        .copyWith(
-                          fontSize: 11,
-                          color: InterceptlyTheme.textMuted,
-                        ),
+                    style:
+                        InterceptlyTheme.typography.bodyMediumRegular.copyWith(
+                      fontSize: 11,
+                      color: InterceptlyTheme.textMuted,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),

@@ -32,8 +32,8 @@ class RequestFilter {
     Set<String> domains = const {},
     this.host,
     this.query,
-  }) : methods = Set.unmodifiable(methods.map((m) => m.toUpperCase()).toSet()),
-       domains = Set.unmodifiable(domains);
+  })  : methods = Set.unmodifiable(methods.map((m) => m.toUpperCase()).toSet()),
+        domains = Set.unmodifiable(domains);
 
   /// True when all fields are at their default — no filtering applied.
   bool get isEmpty {
@@ -55,8 +55,7 @@ class RequestFilter {
 
     final statusCode = entry.statusCode;
     if (statusCode > 0) {
-      final included =
-          (statusCode >= 200 && statusCode < 300 && include2xx) ||
+      final included = (statusCode >= 200 && statusCode < 300 && include2xx) ||
           (statusCode >= 300 && statusCode < 400 && include3xx) ||
           (statusCode >= 400 && statusCode < 500 && include4xx) ||
           (statusCode >= 500 && statusCode < 600 && include5xx);
@@ -149,15 +148,15 @@ class RequestFilter {
 
   @override
   int get hashCode => Object.hash(
-    Object.hashAll(methods.toList()..sort()),
-    include2xx,
-    include3xx,
-    include4xx,
-    include5xx,
-    Object.hashAll(domains.toList()..sort()),
-    host,
-    query,
-  );
+        Object.hashAll(methods.toList()..sort()),
+        include2xx,
+        include3xx,
+        include4xx,
+        include5xx,
+        Object.hashAll(domains.toList()..sort()),
+        host,
+        query,
+      );
 
   static bool _setsEqual(Set<String> a, Set<String> b) =>
       a.length == b.length && a.containsAll(b);

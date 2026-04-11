@@ -31,7 +31,7 @@ import 'writer_isolate.dart';
 /// All public methods are safe to call from the main isolate.
 class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   InspectorSession({InterceptlySettings? settings})
-    : settings = settings ?? const InterceptlySettings() {
+      : settings = settings ?? const InterceptlySettings() {
     _memoryIndex = MemoryIndex(maxEntries: this.settings.maxEntries);
     _writerIsolate = WriterIsolate(this.settings);
     _preInitQueue = BoundedEventQueue(maxSize: this.settings.maxQueuedEvents);
@@ -46,6 +46,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     return _instance ??= InspectorSession();
   }
 
+  @override
   final InterceptlySettings settings;
   late final MemoryIndex _memoryIndex;
   late final WriterIsolate _writerIsolate;
@@ -72,7 +73,10 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   final MasterSearchController _search = MasterSearchController();
   final GroupingController _grouping = GroupingController();
 
+  @override
   RequestFilter get filter => _filter;
+
+  @override
   List<RequestSummary> get entries {
     if (_search.isActive) {
       return (_search.results ?? const <IndexEntry>[]).cast<RequestSummary>();
@@ -81,18 +85,36 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   }
 
   int get totalEntries => _memoryIndex.length;
+
+  @override
   int get droppedCount => _droppedCount;
+
+  @override
   bool get isEnabled => _enabled;
+
+  @override
   InspectorPreferences get preferences => _preferences;
+
+  @override
   NetworkSimulationProfile get networkSimulation => _networkSimulation;
 
+  @override
   String? get masterQuery => _search.query;
+
+  @override
   bool get isMasterSearchActive => _search.isActive;
+
+  @override
   bool get isScanningBodies => _search.isScanningBodies;
+
+  @override
   bool get isScanningFiles => _search.isScanningFiles;
 
   // Grouping getters
+  @override
   bool get groupingEnabled => _grouping.enabled;
+
+  @override
   Set<String> get availableDomains {
     return _memoryIndex.entries
         .map((entry) => RequestFilter.extractDomain(entry.url))
@@ -144,21 +166,25 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   // ---------------------------------------------------------------------------
 
   /// Enables capture. Capture is enabled by default.
+  @override
   void enable() {
     _enabled = true;
   }
 
   /// Disables capture. The interceptor still runs but all [record] calls are
   /// silently dropped. Useful for hiding sensitive screens (e.g. payment flows).
+  @override
   void disable() {
     _enabled = false;
   }
 
+  @override
   void setNetworkSimulation(NetworkSimulationProfile profile) {
     _networkSimulation = profile;
     notifyListeners();
   }
 
+  @override
   void clearNetworkSimulation() {
     if (_networkSimulation.isNoThrottling) return;
     _networkSimulation = NetworkSimulationProfile.none;
@@ -169,11 +195,14 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   // Grouping
   // ---------------------------------------------------------------------------
 
+  @override
   void toggleGrouping(bool enabled) => _grouping.setEnabled(enabled);
 
+  @override
   void toggleDomainExpanded(String domain) =>
       _grouping.toggleDomainExpanded(domain);
 
+  @override
   List<DomainGroup> getGroupedRecords() {
     final grouped = <String, List<RequestSummary>>{};
     for (final entry in entries) {
@@ -193,17 +222,19 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
 
   Future<void> applyNetworkSimulationBeforeRequest({
     required int uploadBytes,
-  }) => NetworkSimulationService.applyBeforeRequest(
-    _networkSimulation,
-    uploadBytes: uploadBytes,
-  );
+  }) =>
+      NetworkSimulationService.applyBeforeRequest(
+        _networkSimulation,
+        uploadBytes: uploadBytes,
+      );
 
   Future<void> applyNetworkSimulationAfterResponse({
     required int downloadBytes,
-  }) => NetworkSimulationService.applyAfterResponse(
-    _networkSimulation,
-    downloadBytes: downloadBytes,
-  );
+  }) =>
+      NetworkSimulationService.applyAfterResponse(
+        _networkSimulation,
+        downloadBytes: downloadBytes,
+      );
 
   Duration throughputDelayForChunk(int chunkBytes) =>
       NetworkSimulationService.throughputDelayForChunk(
@@ -255,8 +286,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       settings.maxBodyBytes,
       settings.previewTruncationBytes,
     );
-    final isTruncated =
-        requestBodyBytes != null &&
+    final isTruncated = requestBodyBytes != null &&
         requestBodyBytes.length > settings.maxBodyBytes;
 
     _memoryIndex.add(
@@ -342,26 +372,30 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   // Filter
   // ---------------------------------------------------------------------------
 
+  @override
   void applyFilter(RequestFilter filter) {
     if (_filter == filter) return;
     _filter = filter;
     notifyListeners();
   }
 
+  @override
   void clearFilter() {
     _filter = RequestFilter();
     notifyListeners();
   }
 
   /// Cancels any in-progress master search and restores normal filtered mode.
+  @override
   void cancelMasterSearch() => _search.cancel();
 
   /// Starts a progressive master search over all captures.
+  @override
   Future<void> startMasterSearch(String query) => _search.start(
-    query: query,
-    allEntries: _memoryIndex.entries,
-    filePath: _tempFilePath,
-  );
+        query: query,
+        allEntries: _memoryIndex.entries,
+        filePath: _tempFilePath,
+      );
 
   // ---------------------------------------------------------------------------
   // Detail loading
@@ -372,6 +406,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   /// - [BodyLocation.memory]: decodes inline bytes, zero I/O.
   /// - [BodyLocation.file]: reads only the specific region via
   ///   [BodyStore.readBytes] — never recreates or deletes the file.
+  @override
   Future<RequestRecord> loadDetail(RequestSummary summary) async {
     // IndexEntry extends RequestSummary — all session entries are IndexEntry.
     final entry = summary as IndexEntry;
@@ -444,6 +479,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   // Clear / Dispose
   // ---------------------------------------------------------------------------
 
+  @override
   Future<void> clear() async {
     if (_clearing) return;
     _clearing = true;

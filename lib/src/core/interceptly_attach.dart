@@ -85,8 +85,7 @@ void _pushInspector({
 }) {
   if (_state.inspectorIsOpen) return;
 
-  final navigator =
-      nav ??
+  final navigator = nav ??
       (context != null
           ? Navigator.maybeOf(context, rootNavigator: true)
           : null);
@@ -132,8 +131,7 @@ void _insertFab(OverlayState overlay) {
   final config = _state.config ?? const InterceptlyConfig();
   _state.fabEntry = OverlayEntry(
     builder: (context) {
-      final fabChild =
-          config.fabChild ??
+      final fabChild = config.fabChild ??
           const Icon(
             Icons.bug_report,
             size: 20,
@@ -179,11 +177,11 @@ void _insertLongPressOverlay(OverlayState overlay) {
         gestures: {
           LongPressGestureRecognizer:
               GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
-                () => LongPressGestureRecognizer(
-                  duration: config.longPressDuration,
-                ),
-                (instance) => instance.onLongPress = _openInspector,
-              ),
+            () => LongPressGestureRecognizer(
+              duration: config.longPressDuration,
+            ),
+            (instance) => instance.onLongPress = _openInspector,
+          ),
         },
         child: const SizedBox.expand(),
       ),
@@ -199,19 +197,19 @@ void _insertLongPressOverlay(OverlayState overlay) {
 void _startShakeListener() {
   final config = _state.config ?? const InterceptlyConfig();
   try {
-    _state.shakeSub =
-        userAccelerometerEventStream(
-          samplingPeriod: SensorInterval.uiInterval,
-        ).listen((event) {
-          final magnitude = sqrt(
-            event.x * event.x + event.y * event.y + event.z * event.z,
-          );
-          if (magnitude < config.shakeThreshold) return;
-          final now = DateTime.now();
-          if (now.difference(_state.lastShake) < config.shakeMinInterval)
-            return;
-          _state.lastShake = now;
-          _openInspector();
-        }, onError: (_) {});
+    _state.shakeSub = userAccelerometerEventStream(
+      samplingPeriod: SensorInterval.uiInterval,
+    ).listen((event) {
+      final magnitude = sqrt(
+        event.x * event.x + event.y * event.y + event.z * event.z,
+      );
+      if (magnitude < config.shakeThreshold) return;
+      final now = DateTime.now();
+      if (now.difference(_state.lastShake) < config.shakeMinInterval) {
+        return;
+      }
+      _state.lastShake = now;
+      _openInspector();
+    }, onError: (_) {});
   } catch (_) {}
 }

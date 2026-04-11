@@ -95,9 +95,8 @@ class _NetworkTabState extends State<NetworkTab> {
 
     try {
       final allEntries = widget.session.entries;
-      final selectedEntries = allEntries
-          .where((e) => _selectedIds.contains(e.id))
-          .toList();
+      final selectedEntries =
+          allEntries.where((e) => _selectedIds.contains(e.id)).toList();
 
       final records = <RequestRecord>[];
       for (final entry in selectedEntries) {
@@ -241,11 +240,9 @@ class _NetworkTabState extends State<NetworkTab> {
       itemBuilder: (context, groupIndex) {
         final group = groups[groupIndex];
         final groupIds = group.requests.map((r) => r.id).toList();
-        final allGroupSelected =
-            groupIds.isNotEmpty &&
+        final allGroupSelected = groupIds.isNotEmpty &&
             groupIds.every((id) => _selectedIds.contains(id));
-        final someGroupSelected =
-            !allGroupSelected &&
+        final someGroupSelected = !allGroupSelected &&
             groupIds.any((id) => _selectedIds.contains(id));
 
         return Column(
@@ -269,7 +266,6 @@ class _NetworkTabState extends State<NetworkTab> {
                       widget.session.toggleDomainExpanded(group.domain),
                 ),
               ),
-
             if (group.isExpanded)
               ...group.requests.asMap().entries.map((entry) {
                 final record = entry.value;
@@ -293,7 +289,6 @@ class _NetworkTabState extends State<NetworkTab> {
                   ],
                 );
               }),
-
             Divider(height: 1, color: InterceptlyTheme.dividerSubtle),
           ],
         );
@@ -331,8 +326,8 @@ class _NetworkTabState extends State<NetworkTab> {
       duration: isPending
           ? 'loading…'
           : isErrorWithoutStatus
-          ? shortError
-          : '${entry.durationMs}ms',
+              ? shortError
+              : '${entry.durationMs}ms',
       status: entry.statusCode,
       hasError: entry.hasError,
       isPending: isPending,

@@ -25,7 +25,7 @@ part 'interceptly_attach.dart';
 /// Thin public facade over [InspectorSession].
 class Interceptly extends ChangeNotifier {
   Interceptly({InterceptlySettings? settings, InspectorSession? session})
-    : _session = session ?? InspectorSession(settings: settings) {
+      : _session = session ?? InspectorSession(settings: settings) {
     _session.addListener(notifyListeners);
   }
 
@@ -57,12 +57,13 @@ class Interceptly extends ChangeNotifier {
     InspectorSession? session,
     InterceptlyConfig? config,
     Stream<void>? customTrigger,
-  }) => _attach(
-    navigatorKey: navigatorKey,
-    session: session,
-    config: config,
-    customTrigger: customTrigger,
-  );
+  }) =>
+      _attach(
+        navigatorKey: navigatorKey,
+        session: session,
+        config: config,
+        customTrigger: customTrigger,
+      );
 
   /// Removes all overlay entries and cancels all trigger subscriptions.
   static void detach() => _detach();

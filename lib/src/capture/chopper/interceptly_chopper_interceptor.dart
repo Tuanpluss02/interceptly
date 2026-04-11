@@ -12,7 +12,7 @@ import '../../session/inspector_session.dart';
 /// A Chopper interceptor that captures all requests and responses.
 class InterceptlyChopperInterceptor implements Interceptor {
   InterceptlyChopperInterceptor([InspectorSession? session])
-    : session = session ?? InspectorSession.instance;
+      : session = session ?? InspectorSession.instance;
 
   final InspectorSession session;
 
@@ -91,9 +91,8 @@ class InterceptlyChopperInterceptor implements Interceptor {
           .toString();
     }
 
-    final durationMs = DateTime.now()
-        .difference(recordedStartedAt)
-        .inMilliseconds;
+    final durationMs =
+        DateTime.now().difference(recordedStartedAt).inMilliseconds;
 
     final responseRequestBody = _extractBody(
       (response.base.request as dynamic).body,
@@ -118,8 +117,8 @@ class InterceptlyChopperInterceptor implements Interceptor {
         responseRequestBody != null
             ? Uint8List.fromList(responseRequestBody)
             : reqBody != null
-            ? Uint8List.fromList(reqBody)
-            : null,
+                ? Uint8List.fromList(reqBody)
+                : null,
       ),
       responseBodyBytes: RawCapture.wrapBytes(
         resBody != null ? Uint8List.fromList(resBody) : null,

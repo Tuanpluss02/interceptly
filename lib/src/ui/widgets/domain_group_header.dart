@@ -18,8 +18,8 @@ class DomainGroupHeader extends StatelessWidget {
     final healthColor = group.hasErrors
         ? Color(0xFFEF4444) // Red for errors
         : group.hasWarnings
-        ? Color(0xFFFCD34D) // Yellow for warnings
-        : Color(0xFF2DD4BF); // Teal for success
+            ? Color(0xFFFCD34D) // Yellow for warnings
+            : Color(0xFF2DD4BF); // Teal for success
 
     return Container(
       color: InterceptlyTheme.controlMuted,

@@ -199,8 +199,8 @@ class _SelectableGroupHeader extends StatelessWidget {
               color: allSelected
                   ? colors.actionPrimary
                   : someSelected
-                  ? colors.actionPrimary.withValues(alpha: 0.3)
-                  : InterceptlyGlobalColor.transparent,
+                      ? colors.actionPrimary.withValues(alpha: 0.3)
+                      : InterceptlyGlobalColor.transparent,
               borderRadius: BorderRadius.circular(InterceptlyTheme.radius.sm),
               border: Border.all(
                 color: allSelected || someSelected
@@ -212,8 +212,8 @@ class _SelectableGroupHeader extends StatelessWidget {
             child: allSelected
                 ? Icon(Icons.check, size: 14, color: colors.textOnAction)
                 : someSelected
-                ? Icon(Icons.remove, size: 14, color: colors.textOnAction)
-                : null,
+                    ? Icon(Icons.remove, size: 14, color: colors.textOnAction)
+                    : null,
           ),
         ),
         onTap: onToggleExpand,

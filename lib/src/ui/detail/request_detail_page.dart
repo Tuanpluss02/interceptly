@@ -259,12 +259,10 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                 effectiveIndex = 0;
               }
 
-              final activeGlobalIndex = totalMatches == 0
-                  ? null
-                  : effectiveIndex;
-              final activeMatch = totalMatches == 0
-                  ? null
-                  : matches[effectiveIndex];
+              final activeGlobalIndex =
+                  totalMatches == 0 ? null : effectiveIndex;
+              final activeMatch =
+                  totalMatches == 0 ? null : matches[effectiveIndex];
 
               if (activeMatch != null &&
                   _tabController.index != activeMatch.tabIndex &&
@@ -322,9 +320,9 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                               : '${effectiveIndex + 1} / $totalMatches',
                           style: InterceptlyTheme.typography.bodyMediumRegular
                               .copyWith(
-                                fontSize: 12,
-                                color: InterceptlyTheme.textMuted,
-                              ),
+                            fontSize: 12,
+                            color: InterceptlyTheme.textMuted,
+                          ),
                         ),
                         IconButton(
                           icon: const Icon(
@@ -482,8 +480,8 @@ class _RequestDetailPageState extends State<RequestDetailPage>
     final label = isPending
         ? 'PENDING'
         : isErrorWithoutStatus
-        ? 'ERR'
-        : '${entry.statusCode}';
+            ? 'ERR'
+            : '${entry.statusCode}';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),

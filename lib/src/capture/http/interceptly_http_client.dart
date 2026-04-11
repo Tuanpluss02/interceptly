@@ -18,12 +18,13 @@ import '../../session/inspector_session.dart';
 /// ```
 class InterceptlyHttpClient extends http.BaseClient {
   InterceptlyHttpClient(this._inner, [InspectorSession? session])
-    : session = session ?? InspectorSession.instance;
+      : session = session ?? InspectorSession.instance;
 
   factory InterceptlyHttpClient.wrap(
     http.Client inner, [
     InspectorSession? session,
-  ]) => InterceptlyHttpClient(inner, session);
+  ]) =>
+      InterceptlyHttpClient(inner, session);
 
   final http.Client _inner;
   final InspectorSession session;

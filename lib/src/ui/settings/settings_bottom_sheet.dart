@@ -180,31 +180,29 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                         iconEnabledColor: _colors.textSecondary,
                         iconDisabledColor: _colors.textTertiary,
                         value: _selectedPresetName,
-                        items:
-                            [
-                                  ..._presetProfiles,
-                                  const NetworkSimulationProfile(
-                                    name: _customPresetName,
-                                    offline: false,
-                                    latencyMs: 0,
-                                    downloadKbps: 0,
-                                    uploadKbps: 0,
+                        items: [
+                          ..._presetProfiles,
+                          const NetworkSimulationProfile(
+                            name: _customPresetName,
+                            offline: false,
+                            latencyMs: 0,
+                            downloadKbps: 0,
+                            uploadKbps: 0,
+                          ),
+                        ]
+                            .map(
+                              (p) => DropdownMenuItem<String>(
+                                value: p.name,
+                                child: Text(
+                                  p.name,
+                                  style: _typography.bodyMediumRegular.copyWith(
+                                    color: _colors.textPrimary,
+                                    fontSize: 12,
                                   ),
-                                ]
-                                .map(
-                                  (p) => DropdownMenuItem<String>(
-                                    value: p.name,
-                                    child: Text(
-                                      p.name,
-                                      style: _typography.bodyMediumRegular
-                                          .copyWith(
-                                            color: _colors.textPrimary,
-                                            fontSize: 12,
-                                          ),
-                                    ),
-                                  ),
-                                )
-                                .toList(),
+                                ),
+                              ),
+                            )
+                            .toList(),
                         onChanged: (value) {
                           if (value == null) return;
                           if (value == _customPresetName) {

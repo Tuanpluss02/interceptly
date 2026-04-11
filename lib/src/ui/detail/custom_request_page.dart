@@ -8,8 +8,8 @@ class _KeyValuePair {
     required String key,
     required String value,
     required this.enabled,
-  }) : keyController = TextEditingController(text: key),
-       valueController = TextEditingController(text: value);
+  })  : keyController = TextEditingController(text: key),
+        valueController = TextEditingController(text: value);
 
   final TextEditingController keyController;
   final TextEditingController valueController;
@@ -204,12 +204,11 @@ class _CustomRequestPageState extends State<CustomRequestPage>
                               child: Text(
                                 m,
                                 style: InterceptlyTheme
-                                    .typography
-                                    .bodyMediumRegular
+                                    .typography.bodyMediumRegular
                                     .copyWith(
-                                      color: InterceptlyTheme.textPrimary,
-                                      // fontSize: 13,
-                                    ),
+                                  color: InterceptlyTheme.textPrimary,
+                                  // fontSize: 13,
+                                ),
                               ),
                             ),
                           )
@@ -223,8 +222,7 @@ class _CustomRequestPageState extends State<CustomRequestPage>
                         contentPadding: const EdgeInsets.symmetric(vertical: 8),
                         labelText: 'Method',
                         labelStyle: InterceptlyTheme
-                            .typography
-                            .bodyMediumRegular
+                            .typography.bodyMediumRegular
                             .copyWith(color: InterceptlyTheme.textMuted),
                       ),
                     ),
@@ -236,8 +234,7 @@ class _CustomRequestPageState extends State<CustomRequestPage>
                       decoration: InputDecoration(
                         labelText: 'URL',
                         labelStyle: InterceptlyTheme
-                            .typography
-                            .bodyMediumRegular
+                            .typography.bodyMediumRegular
                             .copyWith(color: InterceptlyTheme.textMuted),
                       ),
                       style: InterceptlyTheme.typography.bodyMediumRegular
@@ -280,12 +277,11 @@ class _CustomRequestPageState extends State<CustomRequestPage>
                                 child: Text(
                                   enabledParams.length.toString(),
                                   style: InterceptlyTheme
-                                      .typography
-                                      .bodyMediumRegular
+                                      .typography.bodyMediumRegular
                                       .copyWith(
-                                        fontSize: 11,
-                                        color: InterceptlyTheme.indigo400,
-                                      ),
+                                    fontSize: 11,
+                                    color: InterceptlyTheme.indigo400,
+                                  ),
                                 ),
                               ),
                             ],
@@ -311,12 +307,11 @@ class _CustomRequestPageState extends State<CustomRequestPage>
                                 child: Text(
                                   enabledHeaders.length.toString(),
                                   style: InterceptlyTheme
-                                      .typography
-                                      .bodyMediumRegular
+                                      .typography.bodyMediumRegular
                                       .copyWith(
-                                        fontSize: 11,
-                                        color: InterceptlyTheme.indigo400,
-                                      ),
+                                    fontSize: 11,
+                                    color: InterceptlyTheme.indigo400,
+                                  ),
                                 ),
                               ),
                             ],
@@ -492,12 +487,11 @@ class _CustomRequestPageState extends State<CustomRequestPage>
                             Text(
                               'New Key',
                               style: InterceptlyTheme
-                                  .typography
-                                  .bodyMediumRegular
+                                  .typography.bodyMediumRegular
                                   .copyWith(
-                                    fontSize: 13,
-                                    color: InterceptlyTheme.textMuted,
-                                  ),
+                                fontSize: 13,
+                                color: InterceptlyTheme.textMuted,
+                              ),
                             ),
                           ],
                         ),
@@ -590,12 +584,11 @@ class _CustomRequestPageState extends State<CustomRequestPage>
                             Text(
                               'New Header',
                               style: InterceptlyTheme
-                                  .typography
-                                  .bodyMediumRegular
+                                  .typography.bodyMediumRegular
                                   .copyWith(
-                                    fontSize: 13,
-                                    color: InterceptlyTheme.textMuted,
-                                  ),
+                                fontSize: 13,
+                                color: InterceptlyTheme.textMuted,
+                              ),
                             ),
                           ],
                         ),
@@ -659,12 +652,12 @@ class _CustomRequestPageState extends State<CustomRequestPage>
                         vertical: 0,
                       ),
                     ),
-                    style: InterceptlyTheme.typography.bodyMediumRegular
-                        .copyWith(
-                          color: InterceptlyTheme.textPrimary,
-                          fontSize: 13,
-                          fontFamily: 'monospace',
-                        ),
+                    style:
+                        InterceptlyTheme.typography.bodyMediumRegular.copyWith(
+                      color: InterceptlyTheme.textPrimary,
+                      fontSize: 13,
+                      fontFamily: 'monospace',
+                    ),
                   ),
                 ),
               ],
@@ -700,12 +693,12 @@ class _CustomRequestPageState extends State<CustomRequestPage>
                   lineCount,
                   (idx) => Text(
                     '${idx + 1}',
-                    style: InterceptlyTheme.typography.bodyMediumRegular
-                        .copyWith(
-                          color: InterceptlyTheme.textMuted,
-                          fontSize: 13,
-                          fontFamily: 'monospace',
-                        ),
+                    style:
+                        InterceptlyTheme.typography.bodyMediumRegular.copyWith(
+                      color: InterceptlyTheme.textMuted,
+                      fontSize: 13,
+                      fontFamily: 'monospace',
+                    ),
                   ),
                 ),
               ),
@@ -756,11 +749,11 @@ class _CustomRequestPageState extends State<CustomRequestPage>
                 decoration: InputDecoration(
                   isDense: true,
                   hintText: 'Key',
-                  hintStyle: InterceptlyTheme.typography.bodyMediumRegular
-                      .copyWith(
-                        color: InterceptlyTheme.textMuted,
-                        fontSize: 13,
-                      ),
+                  hintStyle:
+                      InterceptlyTheme.typography.bodyMediumRegular.copyWith(
+                    color: InterceptlyTheme.textMuted,
+                    fontSize: 13,
+                  ),
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
                   disabledBorder: InputBorder.none,
@@ -795,11 +788,11 @@ class _CustomRequestPageState extends State<CustomRequestPage>
                 decoration: InputDecoration(
                   isDense: true,
                   hintText: 'Value',
-                  hintStyle: InterceptlyTheme.typography.bodyMediumRegular
-                      .copyWith(
-                        color: InterceptlyTheme.textMuted,
-                        fontSize: 13,
-                      ),
+                  hintStyle:
+                      InterceptlyTheme.typography.bodyMediumRegular.copyWith(
+                    color: InterceptlyTheme.textMuted,
+                    fontSize: 13,
+                  ),
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
                   disabledBorder: InputBorder.none,
@@ -919,8 +912,7 @@ class _JsonSyntaxController extends TextEditingController {
     TextStyle? style,
     required bool withComposing,
   }) {
-    final baseStyle =
-        style ??
+    final baseStyle = style ??
         InterceptlyTheme.typography.bodyMediumRegular.copyWith(
           color: InterceptlyTheme.textPrimary,
           fontSize: 13,

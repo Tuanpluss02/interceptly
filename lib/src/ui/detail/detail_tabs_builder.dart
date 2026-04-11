@@ -61,8 +61,8 @@ class DetailTabsBuilder {
           isPending
               ? 'Loading'
               : isErrorWithoutStatus
-              ? 'Error'
-              : '${record.statusCode}',
+                  ? 'Error'
+                  : '${record.statusCode}',
           DetailSection.overviewStatus,
         ),
         const SizedBox(height: 16),
@@ -300,9 +300,8 @@ class DetailTabsBuilder {
 
         final msg = messages[index - 1];
         final isOut = msg['type'] == 'out';
-        final iconColor = isOut
-            ? InterceptlyTheme.green400
-            : InterceptlyTheme.blue400;
+        final iconColor =
+            isOut ? InterceptlyTheme.green400 : InterceptlyTheme.blue400;
         final icon = isOut ? Icons.call_made : Icons.call_received;
         final bgColor = isOut
             ? InterceptlyTheme.green500.withValues(alpha: 0.1)
@@ -344,9 +343,9 @@ class DetailTabsBuilder {
                       msg['time'] ?? '',
                       style: InterceptlyTheme.typography.bodyMediumRegular
                           .copyWith(
-                            fontSize: 10,
-                            color: InterceptlyTheme.textMuted,
-                          ),
+                        fontSize: 10,
+                        color: InterceptlyTheme.textMuted,
+                      ),
                     ),
                   ],
                 ),
@@ -371,8 +370,7 @@ class DetailTabsBuilder {
     DetailSection section, {
     TextStyle? valueStyle,
   }) {
-    final baseStyle =
-        valueStyle ??
+    final baseStyle = valueStyle ??
         InterceptlyTheme.typography.bodyMediumRegular.copyWith(
           fontSize: 12,
           color: InterceptlyTheme.textSecondary,
@@ -554,9 +552,8 @@ class DetailTabsBuilder {
         final payload = trimmed.substring(8);
         final idx = payload.indexOf('=');
         if (idx > 0) {
-          fields[payload.substring(0, idx).trim()] = payload
-              .substring(idx + 1)
-              .trim();
+          fields[payload.substring(0, idx).trim()] =
+              payload.substring(idx + 1).trim();
         } else {
           rawLines.add(trimmed);
         }
