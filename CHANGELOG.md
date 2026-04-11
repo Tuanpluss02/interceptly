@@ -1,3 +1,19 @@
+## 1.1.3
+
+### Added
+- `InterceptlyAttach.attach()` — one-call setup that registers a `NavigatorObserver` and optionally enables shake-to-open, replacing manual overlay wiring.
+- Response size is now displayed in the request list rows and in the detail Overview tab.
+
+### Changed
+- Enhanced search text highlighting across JSON viewer and all detail tabs.
+- Redesigned request list item with improved layout, clearer spacing, and better dark/light contrast.
+- `InspectorSessionView` is now a proper abstract interface — downstream dependencies can depend on the interface rather than the concrete `InspectorSession`.
+- `InspectorPreferences` is now a `ChangeNotifier`; the session forwards its change notifications so the UI rebuilds reactively on any preference update.
+- Removed raw byte fields (`requestBodyBytesPreview`, `responseBodyBytesPreview`) from the public `RequestRecord` model — body content is exposed as decoded UTF-8 text only.
+- Private UI widgets extracted from `network_tab.dart` into a separate part file for better readability.
+- Body writes to disk now call `flush()` after each append for improved durability.
+- Silent error catch blocks in master search replaced with debug-only logging (`kDebugMode`).
+
 ## 1.1.2
 
 ### Added

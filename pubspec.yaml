@@ -1,6 +1,6 @@
 name: interceptly
 description: "Flutter network inspector for Dio, HTTP, and Chopper with overlay UI, replay tools, and HAR/cURL export."
-version: 1.1.2
+version: 1.1.3
 homepage: https://github.com/Tuanpluss02/interceptly
 repository: https://github.com/Tuanpluss02/interceptly
 issue_tracker: https://github.com/Tuanpluss02/interceptly/issues
