@@ -1,17 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:chopper/chopper.dart' as chopper;
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:interceptly/interceptly.dart';
 import 'package:interceptly/src/model/raw_capture.dart';
 import 'package:interceptly/src/session/body_decode_service.dart';
-import 'package:interceptly/src/session/memory_index.dart';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -374,37 +373,42 @@ void main() {
 
       expect(s1.sessionId, isNot(equals(s2.sessionId)));
     });
+  });
 
-    test('InterceptlyConfig supports showFloatingButton flag', () {
-      const defaultConfig = InterceptlyConfig();
-      expect(defaultConfig.showFloatingButton, isTrue);
+  group('Interceptly.init single-entrypoint setup', () {
+    test('Interceptly.init configures settings and target session', () async {
+      final customSession = InspectorSession();
+      addTearDown(customSession.dispose);
+      final navKey = GlobalKey<NavigatorState>();
 
-      const hiddenFabConfig = InterceptlyConfig(showFloatingButton: false);
-      expect(hiddenFabConfig.showFloatingButton, isFalse);
+      await Interceptly.init(
+        navigatorKey: navKey,
+        session: customSession,
+        maxBodyBytes: 1024,
+        redactedHeaders: {'custom-token'},
+        showFloatingButton: false,
+      );
+
+      expect(customSession.settings.maxBodyBytes, 1024);
+      expect(customSession.settings.redactedHeaders, contains('custom-token'));
+    });
+
+    test('Interceptly.init merges flattened overrides with explicit settings',
+        () async {
+      final customSession = InspectorSession();
+      addTearDown(customSession.dispose);
+      final navKey = GlobalKey<NavigatorState>();
+
+      await Interceptly.init(
+        navigatorKey: navKey,
+        session: customSession,
+        settings: const InterceptlySettings(maxEntries: 100),
+        maxBodyBytes: 2048,
+        showFloatingButton: false,
+      );
+
+      expect(customSession.settings.maxEntries, 100);
+      expect(customSession.settings.maxBodyBytes, 2048);
     });
   });
 }
-
-IndexEntry _entry(String id) => IndexEntry(
-      id: id,
-      method: 'GET',
-      url: 'https://example.com/$id',
-      statusCode: 200,
-      durationMs: 1,
-      requestSizeBytes: 0,
-      responseSizeBytes: 0,
-      timestamp: DateTime(2026),
-      hasError: false,
-      bodyLocation: BodyLocation.memory,
-      inlineRequestBody: null,
-      inlineResponseBody: null,
-      requestHeaders: const {},
-      responseHeaders: const {},
-      requestContentType: null,
-      responseContentType: null,
-      errorType: null,
-      errorMessage: null,
-      isBodyTruncated: false,
-      fileOffset: null,
-      fileLength: null,
-    );

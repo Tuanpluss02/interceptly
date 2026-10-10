@@ -12,5 +12,5 @@ void main() {
     InterceptlyExampleApp(clients: clients, navigatorKey: appNavigatorKey),
   );
 
-  Interceptly.attach(navigatorKey: appNavigatorKey);
+  Interceptly.init(navigatorKey: appNavigatorKey);
 }

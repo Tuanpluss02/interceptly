@@ -66,8 +66,8 @@ void main() {
     expect(interceptor.session, same(InspectorSession.instance));
   });
 
-  test('Interceptly.attach uses shared session by default', () {
-    // attach() requires a Flutter environment so we verify the session
+  test('Interceptly.init uses shared session by default', () {
+    // init() requires a Flutter environment so we verify the session
     // instance equality through the session singleton directly.
     final a = InspectorSession.instance;
     final b = InspectorSession.instance;

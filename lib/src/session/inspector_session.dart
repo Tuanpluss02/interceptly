@@ -32,11 +32,11 @@ import '../capture/capture_guard.dart';
 /// All public methods are safe to call from the main isolate.
 class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   InspectorSession({InterceptlySettings? settings})
-      : settings = settings ?? _defaultSettings,
+      : _settings = settings ?? _defaultSettings,
         sessionId = _generateSessionId() {
-    _memoryIndex = MemoryIndex(maxEntries: this.settings.maxEntries);
-    _writerIsolate = WriterIsolate(this.settings);
-    _preInitQueue = BoundedEventQueue(maxSize: this.settings.maxQueuedEvents);
+    _memoryIndex = MemoryIndex(maxEntries: _settings.maxEntries);
+    _writerIsolate = WriterIsolate(_settings);
+    _preInitQueue = BoundedEventQueue(maxSize: _settings.maxQueuedEvents);
     _search.addListener(_onSearchChanged);
     _grouping.addListener(_onGroupingChanged);
     _preferences.addListener(notifyListeners);
@@ -53,10 +53,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   /// Global configure helper for the shared singleton before or after first access.
   static void configure(InterceptlySettings settings) {
     _defaultSettings = settings;
-    if (_instance != null) {
-      // If instance is already created, note that its settings can also be updated
-      // or re-instantiated upon next cycle.
-    }
+    _instance?._applySettings(settings);
   }
 
   static InspectorSession? _instance;
@@ -68,8 +65,19 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   /// Unique ID for this session instance to isolate temporary files.
   final String sessionId;
 
+  InterceptlySettings _settings;
+
   @override
-  final InterceptlySettings settings;
+  InterceptlySettings get settings => _settings;
+
+  void _applySettings(InterceptlySettings newSettings) {
+    _settings = newSettings;
+    notifyListeners();
+  }
+
+  /// Configures settings for this specific session instance.
+  void configureSession(InterceptlySettings newSettings) =>
+      _applySettings(newSettings);
   late final MemoryIndex _memoryIndex;
   late final WriterIsolate _writerIsolate;
   late final BoundedEventQueue<RawCapture> _preInitQueue;

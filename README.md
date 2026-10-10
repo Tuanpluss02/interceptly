@@ -53,7 +53,7 @@ void main() {
   runApp(MaterialApp(navigatorKey: _navKey, home: MyApp(dio: _dio)));
 
   if (kDebugMode || kProfileMode) {
-    Interceptly.attach(navigatorKey: _navKey);
+    Interceptly.init(navigatorKey: _navKey);
   }
 }
 ```
@@ -102,24 +102,31 @@ Interceptly.instance.setNetworkSimulation(
 
 ## Configuration
 
-### InterceptlySettings
+All configurations (security, storage, and UI triggers) can be configured directly in `Interceptly.init`:
+
+```dart
+Interceptly.init(
+  navigatorKey: _navKey,
+  // Security & Filtering
+  redactedHeaders: {'authorization', 'x-api-key', 'cookie'},
+  shouldCapture: (url) => !url.contains('/analytics'),
+  // Storage & Retention
+  maxBodyBytes: 1024 * 1024, // 1 MB
+  maxEntries: 1000,
+  // UI Customization
+  showFloatingButton: true, // false to hide FAB
+  // customTrigger: shakeEventStream, // optional custom stream trigger
+);
+```
+
+### InterceptlySettings Reference
 
 | Parameter              | Default | Description                              |
 | :--------------------- | :------ | :--------------------------------------- |
 | `bodyOffloadThreshold` | `50 KB` | Threshold to move body to temp file      |
 | `maxEntries`           | `5000`  | Maximum requests kept in history         |
 | `maxBodyBytes`         | `2 MB`  | Hard cap for body size before truncation |
-
-### UI Customization
-
-```dart
-// By default, Interceptly attaches a draggable floating bug button (FAB).
-Interceptly.attach(
-  navigatorKey: _navKey,
-  showFloatingButton: true, // or false to hide the FAB
-  // customTrigger: shakeEventStream, // optional custom stream trigger
-);
-```
+| `redactedHeaders`      | `Set`   | Headers redacted with `[REDACTED]`       |
 
 ---
 
@@ -134,7 +141,7 @@ GoRouter(navigatorKey: _navKey, routes: [...]);
 
 // After runApp:
 if (kDebugMode || kProfileMode) {
-  Interceptly.attach(navigatorKey: _navKey);
+  Interceptly.init(navigatorKey: _navKey);
 }
 ```
 

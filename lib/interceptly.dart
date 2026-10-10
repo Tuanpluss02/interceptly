@@ -17,4 +17,3 @@ export 'src/session/inspector_session.dart' show InspectorSession;
 export 'src/session/inspector_session_view.dart' show InspectorSessionView;
 export 'src/session/inspector_preferences.dart' show InspectorPreferences;
 export 'src/ui/interceptly_theme.dart';
-export 'src/ui/trigger/interceptly_config.dart';
