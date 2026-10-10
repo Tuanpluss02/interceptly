@@ -1,3 +1,19 @@
+## 1.2.1
+
+### Added
+- Single-entrypoint initialization via `Interceptly.init(navigatorKey: ...)` with flattened, frictionless configuration options (`maxBodyBytes`, `maxEntries`, `redactedHeaders`, `shouldCapture`, `showFloatingButton`, `customTrigger`).
+- Header redaction: automatically redacts sensitive headers (e.g. `authorization`, `cookie`, `x-api-key`) case-insensitively before storing or displaying.
+- URL filtering: added `shouldCapture(url)` predicate to exclude unwanted requests (e.g. analytics, heartbeats).
+- Per-session temporary storage isolation: each `InspectorSession` instance now uses its own isolated temporary file and sessionId to eliminate multi-instance race conditions.
+- Fallback resilience: background storage and isolates gracefully degrade to in-memory entries if file creation or offloading fails.
+- Safe UTF-8 decoding: partial multi-byte UTF-8 streams are safely trimmed to the nearest rune boundary instead of being misidentified as binary.
+
+### Changed
+- Removed redundant `InterceptlyConfig` and `InspectorTrigger` classes.
+- Removed deprecated `Interceptly.attach()` in favor of the canonical `Interceptly.init()`.
+- Unified Core controller and UI overlay wiring into a cohesive `Interceptly` facade.
+- Hardened Dio, Chopper, and Http client capture layers so interceptor exceptions never break host application requests.
+
 ## 1.1.4
 
 ### Fixed
