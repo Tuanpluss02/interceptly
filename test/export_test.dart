@@ -1,8 +1,12 @@
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/src/export/curl_generator.dart';
 import 'package:interceptly/src/export/har_exporter.dart';
 import 'package:interceptly/src/export/postman_exporter.dart';
 import 'package:interceptly/src/model/request_record.dart';
+import 'package:interceptly/src/session/body_store.dart';
 
 void main() {
   // ── CurlGenerator ────────────────────────────────────────────────────────
@@ -242,6 +246,38 @@ void main() {
       final item = (col['item'] as List).first as Map;
       final headers = (item['request'] as Map)['header'] as List;
       expect(headers.first, {'key': 'Authorization', 'value': 'Bearer token'});
+    });
+  });
+
+  group('BodyStore throughput and lifecycle', () {
+    test('appends and reads back bytes without per-write flush', () async {
+      final dir = await Directory.systemTemp.createTemp('body_store_test_');
+      try {
+        final store = BodyStore();
+        await store.initForWrite(dir.path);
+
+        final data1 = Uint8List.fromList([1, 2, 3, 4]);
+        final data2 = Uint8List.fromList([5, 6, 7, 8, 9]);
+
+        final loc1 = await store.append(data1);
+        final loc2 = await store.append(data2);
+
+        expect(loc1, (0, 4));
+        expect(loc2, (4, 5));
+
+        final filePath = '${dir.path}/${BodyStore.kFileName}';
+        final read1 = await BodyStore.readBytes(filePath, loc1.$1, loc1.$2);
+        final read2 = await BodyStore.readBytes(filePath, loc2.$1, loc2.$2);
+
+        expect(read1, equals(data1));
+        expect(read2, equals(data2));
+
+        await store.dispose();
+      } finally {
+        if (await dir.exists()) {
+          await dir.delete(recursive: true);
+        }
+      }
     });
   });
 }

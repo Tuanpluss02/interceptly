@@ -117,6 +117,9 @@ class Interceptly extends ChangeNotifier {
   @override
   void dispose() {
     _session.removeListener(notifyListeners);
+    if (identical(_sharedInstance, this)) {
+      _sharedInstance = null;
+    }
     super.dispose();
   }
 }

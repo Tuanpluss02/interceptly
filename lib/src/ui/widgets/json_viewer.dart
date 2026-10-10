@@ -424,45 +424,48 @@ class _JsonViewerState extends State<JsonViewer> {
         children: [
           DefaultTextStyle(
             style: contentStyle,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ── Gutter (line numbers + fold icons) ──
-                Container(
-                  padding: const EdgeInsets.only(right: 4.0),
-                  decoration: BoxDecoration(
-                    border: Border(
-                      right: BorderSide(
-                        color: InterceptlyTheme.dividerSubtle,
-                        width: 1.0,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.vertical,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── Gutter (line numbers + fold icons) ──
+                  Container(
+                    padding: const EdgeInsets.only(right: 4.0),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        right: BorderSide(
+                          color: InterceptlyTheme.dividerSubtle,
+                          width: 1.0,
+                        ),
                       ),
                     ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        for (int i = 0; i < lines.length; i++)
+                          _buildGutterCell(
+                            line: lines[i],
+                            lineNumberWidth: lineNumberWidth,
+                            lineHeight: lineHeight,
+                            style: contentStyle,
+                          ),
+                      ],
+                    ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      for (int i = 0; i < lines.length; i++)
-                        _buildGutterCell(
-                          line: lines[i],
-                          lineNumberWidth: lineNumberWidth,
-                          lineHeight: lineHeight,
-                          style: contentStyle,
-                        ),
-                    ],
-                  ),
-                ),
 
-                // ── Content (horizontally scrollable) ──
-                // Using SelectableRegion for multi-line text selection
-                Expanded(
-                  child: _SelectableJsonContent(
-                    lines: lines,
-                    lineHeight: lineHeight,
-                    contentStyle: contentStyle,
-                    focusNode: _selectableFocusNode,
+                  // ── Content (horizontally scrollable) ──
+                  // Using SelectableRegion for multi-line text selection
+                  Expanded(
+                    child: _SelectableJsonContent(
+                      lines: lines,
+                      lineHeight: lineHeight,
+                      contentStyle: contentStyle,
+                      focusNode: _selectableFocusNode,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
 
@@ -1014,22 +1017,19 @@ class _SelectableJsonContentState extends State<_SelectableJsonContent> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      scrollDirection: Axis.vertical,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: SelectableRegion(
-          focusNode: widget.focusNode,
-          selectionControls: materialTextSelectionControls,
-          child: Padding(
-            padding: const EdgeInsets.only(left: 4.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (int i = 0; i < widget.lines.length; i++)
-                  _buildLine(i, widget.lines[i]),
-              ],
-            ),
+      scrollDirection: Axis.horizontal,
+      child: SelectableRegion(
+        focusNode: widget.focusNode,
+        selectionControls: materialTextSelectionControls,
+        child: Padding(
+          padding: const EdgeInsets.only(left: 4.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (int i = 0; i < widget.lines.length; i++)
+                _buildLine(i, widget.lines[i]),
+            ],
           ),
         ),
       ),

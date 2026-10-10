@@ -158,7 +158,13 @@ class InterceptlyHttpClient extends http.BaseClient {
     final controller = StreamController<List<int>>(
       onPause: () => sub.pause(),
       onResume: () => sub.resume(),
-      onCancel: () => sub.cancel(),
+      onCancel: () {
+        record(
+          errorType: 'CancellationException',
+          errorMessage: 'Stream subscription was canceled by client.',
+        );
+        return sub.cancel();
+      },
     );
 
     sub = source.listen(
@@ -167,6 +173,7 @@ class InterceptlyHttpClient extends http.BaseClient {
         if (delay > Duration.zero) {
           sub.pause();
           Future<void>.delayed(delay, () {
+            if (recorded || controller.isClosed) return;
             controller.add(chunk);
             if (!captureStopped) {
               final remaining = maxCapture - captureBuffer.length;
@@ -184,6 +191,7 @@ class InterceptlyHttpClient extends http.BaseClient {
           return;
         }
 
+        if (recorded || controller.isClosed) return;
         controller.add(chunk);
         if (!captureStopped) {
           final remaining = maxCapture - captureBuffer.length;

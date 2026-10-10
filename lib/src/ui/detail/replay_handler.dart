@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../../capture/http/interceptly_http_client.dart';
 import '../../model/request_record.dart';
+import '../../session/body_decode_service.dart';
 import '../../session/inspector_session.dart';
 import '../interceptly_theme.dart';
 import '../widgets/toast_notification.dart';
@@ -105,6 +106,10 @@ class ReplayHandler {
 
     final (baseUrl, queryParams) = _splitUrlForEditing(record.url);
 
+    final rawBody = record.requestBodyPreview;
+    final initialBodyText =
+        (rawBody != null && !_isPlaceholder(rawBody)) ? rawBody : '';
+
     final result = await Navigator.of(context).push<CustomRequestDraft>(
       MaterialPageRoute(
         builder: (context) => CustomRequestPage(
@@ -112,7 +117,7 @@ class ReplayHandler {
           initialBaseUrl: baseUrl,
           initialQueryText: _queryParamsToText(queryParams),
           initialHeadersText: _headersToText(record.requestHeaders),
-          initialBodyText: record.requestBodyPreview ?? '',
+          initialBodyText: initialBodyText,
         ),
       ),
     );
@@ -150,8 +155,9 @@ class ReplayHandler {
     }
 
     final cleanedHeaders = _sanitizeReplayHeaders(headers);
+    final isPlaceholder = _isPlaceholder(body);
 
-    if (isBodyTruncated && body != null && body.isNotEmpty) {
+    if (isBodyTruncated && body != null && body.isNotEmpty && !isPlaceholder) {
       ToastNotification.show(
         'Warning: body may be truncated',
         contextHint: context,
@@ -165,7 +171,7 @@ class ReplayHandler {
     final allowBody =
         upperMethod != 'GET' && upperMethod != 'HEAD' && upperMethod != 'TRACE';
 
-    if (allowBody && body != null && body.isNotEmpty) {
+    if (allowBody && body != null && body.isNotEmpty && !isPlaceholder) {
       request.bodyBytes = utf8.encode(body);
       request.headers.putIfAbsent(
         'content-type',
@@ -195,6 +201,13 @@ class ReplayHandler {
   bool _isUnsupportedMethod(String method) {
     final m = method.toUpperCase();
     return m == 'WS';
+  }
+
+  bool _isPlaceholder(String? body) {
+    if (body == null) return false;
+    return BodyDecodeService.isPlaceholder(body) ||
+        body.startsWith('\x00') ||
+        body.startsWith('[binary:');
   }
 
   Map<String, String> _sanitizeReplayHeaders(Map<String, String> headers) {

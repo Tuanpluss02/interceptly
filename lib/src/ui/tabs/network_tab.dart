@@ -98,10 +98,9 @@ class _NetworkTabState extends State<NetworkTab> {
       final selectedEntries =
           allEntries.where((e) => _selectedIds.contains(e.id)).toList();
 
-      final records = <RequestRecord>[];
-      for (final entry in selectedEntries) {
-        records.add(await widget.session.loadDetail(entry));
-      }
+      final List<RequestRecord> records = await Future.wait(
+        selectedEntries.map((entry) => widget.session.loadDetail(entry)),
+      );
 
       if (!mounted) return;
 

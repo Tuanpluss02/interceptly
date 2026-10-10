@@ -607,7 +607,9 @@ class DetailTabsBuilder {
       return true;
     }
 
-    return bodyPreview != null && bodyPreview.startsWith('[binary:');
+    if (bodyPreview == null) return false;
+    return bodyPreview.startsWith('[binary:') ||
+        bodyPreview.startsWith('\x00[binary:');
   }
 
   Widget _buildBinaryPreview({

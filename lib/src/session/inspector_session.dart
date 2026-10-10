@@ -36,7 +36,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     _writerIsolate = WriterIsolate(this.settings);
     _preInitQueue = BoundedEventQueue(maxSize: this.settings.maxQueuedEvents);
     _search.addListener(_onSearchChanged);
-    _grouping.addListener(notifyListeners);
+    _grouping.addListener(_onGroupingChanged);
     _preferences.addListener(notifyListeners);
   }
 
@@ -138,6 +138,11 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
 
   void _onSearchChanged() => notifyListeners();
 
+  void _onGroupingChanged() {
+    _invalidateGroupedCache();
+    notifyListeners();
+  }
+
   Future<void> _performInit() async {
     if (_initialized) return;
 
@@ -204,11 +209,16 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   // ---------------------------------------------------------------------------
 
   @override
-  void toggleGrouping(bool enabled) => _grouping.setEnabled(enabled);
+  void toggleGrouping(bool enabled) {
+    _grouping.setEnabled(enabled);
+    _invalidateGroupedCache();
+  }
 
   @override
-  void toggleDomainExpanded(String domain) =>
-      _grouping.toggleDomainExpanded(domain);
+  void toggleDomainExpanded(String domain) {
+    _grouping.toggleDomainExpanded(domain);
+    _invalidateGroupedCache();
+  }
 
   List<DomainGroup>? _cachedGroupedRecords;
   int _cachedGroupedRecordsHash = 0;
@@ -550,7 +560,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     _search.cancel();
     _search.removeListener(_onSearchChanged);
     _search.dispose();
-    _grouping.removeListener(notifyListeners);
+    _grouping.removeListener(_onGroupingChanged);
     _grouping.dispose();
     _preferences.removeListener(notifyListeners);
     _preferences.dispose();
@@ -565,6 +575,9 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     _initialized = false;
     _inFlight = 0;
     _initFuture = null;
+    if (identical(_instance, this)) {
+      _instance = null;
+    }
     super.dispose();
   }
 }

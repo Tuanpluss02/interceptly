@@ -20,8 +20,22 @@ class MemoryIndex {
   int get length => _entries.length;
 
   void add(IndexEntry entry) {
-    final existingIndex = _idIndex[entry.id];
-    if (existingIndex != null && existingIndex < _entries.length && _entries[existingIndex].id == entry.id) {
+    var existingIndex = _idIndex[entry.id];
+    if (existingIndex == null ||
+        existingIndex >= _entries.length ||
+        _entries[existingIndex].id != entry.id) {
+      final idx = _entries.indexWhere((e) => e.id == entry.id);
+      if (idx != -1) {
+        existingIndex = idx;
+        _idIndex[entry.id] = idx;
+      } else {
+        _idIndex.remove(entry.id);
+      }
+    }
+
+    if (existingIndex != null &&
+        existingIndex < _entries.length &&
+        _entries[existingIndex].id == entry.id) {
       _entries[existingIndex] = entry;
       return;
     }
@@ -31,6 +45,7 @@ class MemoryIndex {
       _idIndex.remove(removed.id);
     }
     _entries.insert(0, entry);
+    _idIndex.updateAll((key, val) => val + 1);
     _idIndex[entry.id] = 0;
   }
 
