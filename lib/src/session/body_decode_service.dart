@@ -95,19 +95,13 @@ class BodyDecodeService {
   /// Returns `(requestText, responseText, isTruncated)`.
   /// Used for in-memory body search where text is sufficient.
   static (String?, String?, bool) unpackToText(Uint8List raw) {
-    try {
-      final json = jsonDecode(utf8.decode(raw)) as Map<String, dynamic>;
-      final reqB64 = json['req'] as String?;
-      final resB64 = json['res'] as String?;
-      final truncated = json['truncated'] as bool? ?? false;
-      return (
-        reqB64 != null ? tryUtf8(base64.decode(reqB64)) : null,
-        resB64 != null ? tryUtf8(base64.decode(resB64)) : null,
-        truncated,
-      );
-    } catch (_) {
-      return (null, null, false);
-    }
+    final parts = _unpack(raw);
+    if (parts == null) return (null, null, false);
+    return (
+      parts.$1 != null ? tryUtf8(parts.$1!) : null,
+      parts.$2 != null ? tryUtf8(parts.$2!) : null,
+      parts.$3,
+    );
   }
 
   /// Unpacks a packed body record from [raw] into raw byte arrays.
@@ -115,18 +109,32 @@ class BodyDecodeService {
   /// Returns `(requestBytes, responseBytes, isTruncated)`.
   /// Used when loading the detail view.
   static (Uint8List?, Uint8List?, bool) unpackToBytes(Uint8List raw) {
+    final parts = _unpack(raw);
+    if (parts == null) return (null, null, false);
+    return parts;
+  }
+
+  static (Uint8List?, Uint8List?, bool)? _unpack(Uint8List raw) {
     try {
-      final json = jsonDecode(utf8.decode(raw)) as Map<String, dynamic>;
-      final reqB64 = json['req'] as String?;
-      final resB64 = json['res'] as String?;
-      final truncated = json['truncated'] as bool? ?? false;
-      return (
-        reqB64 != null ? base64.decode(reqB64) : null,
-        resB64 != null ? base64.decode(resB64) : null,
-        truncated,
-      );
+      final data = ByteData.sublistView(raw);
+      var offset = 0;
+      Uint8List? readPart() {
+        if (offset + 4 > raw.length) throw const FormatException();
+        final len = data.getUint32(offset, Endian.big);
+        offset += 4;
+        if (len == 0xFFFFFFFF) return null;
+        if (offset + len > raw.length) throw const FormatException();
+        final part = raw.sublist(offset, offset + len);
+        offset += len;
+        return part;
+      }
+
+      final req = readPart();
+      final res = readPart();
+      if (offset + 1 > raw.length) throw const FormatException();
+      return (req, res, raw[offset] == 1);
     } catch (_) {
-      return (null, null, false);
+      return null;
     }
   }
 

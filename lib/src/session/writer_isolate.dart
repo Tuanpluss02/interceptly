@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:isolate';
 import 'dart:typed_data';
 
@@ -261,7 +260,7 @@ _PackedBodies _packBodies(
 ) {
   bool truncated = false;
 
-  Uint8List truncate(Uint8List bytes) {
+  Uint8List? truncate(Uint8List bytes) {
     if (bytes.length <= maxBody) return bytes;
     truncated = true;
     return bytes.sublist(
@@ -273,15 +272,27 @@ _PackedBodies _packBodies(
   final reqData = req != null && req.isNotEmpty ? truncate(req) : null;
   final resData = res != null && res.isNotEmpty ? truncate(res) : null;
 
-  final map = <String, Object?>{
-    'req': reqData != null ? base64.encode(reqData) : null,
-    'res': resData != null ? base64.encode(resData) : null,
-    'truncated': truncated,
-  };
+  final total =
+      4 + (reqData?.length ?? 0) + 4 + (resData?.length ?? 0) + 1;
+  final out = Uint8List(total);
+  final data = ByteData.sublistView(out);
+  var offset = 0;
 
-  final encoded = utf8.encode(jsonEncode(map));
-  return _PackedBodies(
-    bytes: Uint8List.fromList(encoded),
-    truncated: truncated,
-  );
+  void writePart(Uint8List? part) {
+    if (part == null) {
+      data.setUint32(offset, 0xFFFFFFFF, Endian.big);
+      offset += 4;
+      return;
+    }
+    data.setUint32(offset, part.length, Endian.big);
+    offset += 4;
+    out.setRange(offset, offset + part.length, part);
+    offset += part.length;
+  }
+
+  writePart(reqData);
+  writePart(resData);
+  out[offset] = truncated ? 1 : 0;
+
+  return _PackedBodies(bytes: out, truncated: truncated);
 }

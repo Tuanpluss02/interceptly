@@ -164,7 +164,8 @@ class JsonViewer extends StatefulWidget {
 // ─────────────────────────────────────────────────────────────
 
 class _JsonViewerState extends State<JsonViewer> {
-  // ── Syntax colours ──
+  static const double _foldIconWidth = 16.0;
+
   static const _keyColor = InterceptlyGlobalColor.blue400;
   static const _stringColor = InterceptlyGlobalColor.red400;
   static const _numberColor = InterceptlyGlobalColor.green400;
@@ -175,21 +176,35 @@ class _JsonViewerState extends State<JsonViewer> {
   static const _activeHighlightColor = InterceptlyGlobalColor.orange;
   static const _lineNumberColor = InterceptlyGlobalColor.textMuted;
 
-  static const double _foldIconWidth = 16.0;
+  static const int _largeDocLineThreshold = 1500;
 
-  /// Manual expand / collapse state keyed by JSON path.
   final Map<String, bool> _expandState = {};
 
-  /// Paths auto-expanded to reveal the current active search match.
   final Set<String> _searchAutoExpanded = {};
 
-  /// Paths the **user** explicitly collapsed. Prevents re-auto-expanding
-  /// a node when the active match is still in its subtree.
   final Set<String> _userCollapsedPaths = {};
 
-  /// Key attached to the first line containing the active search match,
-  /// used by [Scrollable.ensureVisible] to scroll to it.
   GlobalKey? _activeScrollKey;
+
+  List<_FlatLine>? _memoLines;
+
+  double _memoLineNumberWidth = 0;
+
+  Map<String, int>? _memoMatchCounts;
+
+  Object? _memoData;
+
+  String? _memoQuery;
+
+  int _memoMatchOffset = 0;
+
+  int? _memoActiveGlobalIndex;
+
+  Brightness? _memoBrightness;
+
+  bool _memoForceCollapse = false;
+
+  final FocusNode _selectableFocusNode = FocusNode();
 
   // ── Lifecycle ──
 
@@ -201,13 +216,26 @@ class _JsonViewerState extends State<JsonViewer> {
       _searchAutoExpanded.clear();
       _userCollapsedPaths.clear();
     }
+    if (!identical(widget.data, oldWidget.data) ||
+        widget.searchQuery != oldWidget.searchQuery ||
+        widget.matchOffset != oldWidget.matchOffset ||
+        widget.activeGlobalIndex != oldWidget.activeGlobalIndex) {
+      _memoLines = null;
+    }
   }
 
-  // ── Expand / collapse helpers ──
+  @override
+  void dispose() {
+    _selectableFocusNode.dispose();
+    super.dispose();
+  }
 
   bool _isNodeExpanded(String path, int childCount) {
     if (_searchAutoExpanded.contains(path)) return true;
-    return _expandState[path] ?? (childCount <= 20);
+    final explicit = _expandState[path];
+    if (explicit != null) return explicit;
+    if (_memoForceCollapse) return path == r'$';
+    return childCount <= 20;
   }
 
   void _toggleNode(String path, int childCount) {
@@ -220,7 +248,78 @@ class _JsonViewerState extends State<JsonViewer> {
       } else {
         _userCollapsedPaths.remove(path);
       }
+      _memoLines = null;
     });
+  }
+
+  void _ensureLines() {
+    final query = widget.searchQuery?.toLowerCase().trim();
+    final effectiveQuery = (query != null && query.isNotEmpty) ? query : null;
+    final brightness = InterceptlyTheme.brightness;
+    if (_memoLines != null &&
+        identical(_memoData, widget.data) &&
+        _memoQuery == effectiveQuery &&
+        _memoMatchOffset == widget.matchOffset &&
+        _memoActiveGlobalIndex == widget.activeGlobalIndex &&
+        _memoBrightness == brightness) {
+      return;
+    }
+    _activeScrollKey = null;
+    _memoForceCollapse =
+        _countExpandedLines(widget.data) > _largeDocLineThreshold;
+    _memoMatchCounts = effectiveQuery == null
+        ? null
+        : _matchCountsByPath(widget.data, effectiveQuery);
+    final lines = <_FlatLine>[];
+    _flatten(
+      value: widget.data,
+      key: null,
+      isLast: true,
+      indent: 0,
+      path: r'$',
+      query: effectiveQuery,
+      matchOffset: widget.matchOffset,
+      realLine: 1,
+      output: lines,
+    );
+    _memoLines = lines;
+    _memoData = widget.data;
+    _memoQuery = effectiveQuery;
+    _memoMatchOffset = widget.matchOffset;
+    _memoActiveGlobalIndex = widget.activeGlobalIndex;
+    _memoBrightness = brightness;
+    if (lines.isEmpty) {
+      _memoLineNumberWidth = 0;
+    } else {
+      final digits = lines.last.realLineNumber.toString().length;
+      _memoLineNumberWidth = digits * 8.0 + 8.0;
+    }
+  }
+
+  static Map<String, int> _matchCountsByPath(dynamic data, String query) {
+    final counts = <String, int>{};
+    int walk(dynamic value, String path) {
+      int total = 0;
+      if (value is List) {
+        for (var i = 0; i < value.length; i++) {
+          total += walk(value[i], '$path[$i]');
+        }
+      } else if (value is Map) {
+        value.forEach((k, v) {
+          total += JsonViewer._countIn(k.toString(), query);
+          total += walk(v, '$path.$k');
+        });
+      } else if (value != null) {
+        total += JsonViewer._countIn(value.toString(), query);
+      } else {
+        total += JsonViewer._countIn('null', query);
+      }
+      counts[path] = total;
+      return total;
+    }
+
+    walk(data, r'$');
+    return counts;
   }
 
   void _copyToClipboard() {
@@ -290,33 +389,11 @@ class _JsonViewerState extends State<JsonViewer> {
       );
     }
 
-    // Reset scroll key for this build pass.
-    _activeScrollKey = null;
-
-    final query = widget.searchQuery?.toLowerCase().trim();
-    final hasQuery = query != null && query.isNotEmpty;
-
-    // Flatten JSON tree into a sequential line list.
-    final lines = <_FlatLine>[];
-    _flatten(
-      value: widget.data,
-      key: null,
-      isLast: true,
-      indent: 0,
-      path: r'$',
-      query: hasQuery ? query : null,
-      matchOffset: widget.matchOffset,
-      realLine: 1,
-      output: lines,
-    );
-
+    _ensureLines();
+    final lines = _memoLines!;
     if (lines.isEmpty) return const SizedBox.shrink();
 
-    // Gutter sizing based on the highest real line number (last line).
-    final maxRealLine = lines.last.realLineNumber;
-    final digitCount = maxRealLine.toString().length;
-    // digitCount * 8.0 for digits + 8.0 for spacing between number and fold icon
-    final lineNumberWidth = digitCount * 8.0 + 8.0;
+    final lineNumberWidth = _memoLineNumberWidth;
 
     final contentStyle = _baseTextStyle.copyWith(
       fontFamilyFallback: const ['monospace'],
@@ -382,6 +459,7 @@ class _JsonViewerState extends State<JsonViewer> {
                     lines: lines,
                     lineHeight: lineHeight,
                     contentStyle: contentStyle,
+                    focusNode: _selectableFocusNode,
                   ),
                 ),
               ],
@@ -724,7 +802,7 @@ class _JsonViewerState extends State<JsonViewer> {
     if (query != null &&
         widget.activeGlobalIndex != null &&
         !_userCollapsedPaths.contains(path)) {
-      final totalValueMatches = JsonViewer.countMatches(rawValue, query);
+      final totalValueMatches = _memoMatchCounts?[path] ?? 0;
       if (totalValueMatches > 0 &&
           widget.activeGlobalIndex! >= currentOffset &&
           widget.activeGlobalIndex! < currentOffset + totalValueMatches) {
@@ -816,12 +894,7 @@ class _JsonViewerState extends State<JsonViewer> {
       // Advance the match offset past all collapsed children so
       // sibling nodes receive the correct offset.
       if (query != null) {
-        for (final child in children) {
-          if (child.key != null) {
-            currentOffset += JsonViewer._countIn('"${child.key}"', query);
-          }
-          currentOffset += JsonViewer.countMatches(child.value, query);
-        }
+        currentOffset += _memoMatchCounts?[path] ?? 0;
       }
 
       return (
@@ -924,11 +997,13 @@ class _SelectableJsonContent extends StatefulWidget {
   final List<_FlatLine> lines;
   final double lineHeight;
   final TextStyle contentStyle;
+  final FocusNode focusNode;
 
   const _SelectableJsonContent({
     required this.lines,
     required this.lineHeight,
     required this.contentStyle,
+    required this.focusNode,
   });
 
   @override
@@ -936,47 +1011,28 @@ class _SelectableJsonContent extends StatefulWidget {
 }
 
 class _SelectableJsonContentState extends State<_SelectableJsonContent> {
-  // Global key to get the GlobalKey for SelectableRegion
-  final GlobalKey _selectableRegionKey = GlobalKey();
-
   @override
   Widget build(BuildContext context) {
-    // Build the full text for SelectableRegion
-    final allText = StringBuffer();
-    final lineStartIndices = <int>[];
-    for (final line in widget.lines) {
-      lineStartIndices.add(allText.length);
-      for (final span in line.spans) {
-        allText.write(span.text ?? '');
-      }
-      allText.writeln();
-    }
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          scrollDirection: Axis.vertical,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: SelectableRegion(
-              key: _selectableRegionKey,
-              focusNode: FocusNode(),
-              selectionControls: materialTextSelectionControls,
-              child: Padding(
-                padding: const EdgeInsets.only(left: 4.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (int i = 0; i < widget.lines.length; i++)
-                      _buildLine(i, widget.lines[i]),
-                  ],
-                ),
-              ),
+    return SingleChildScrollView(
+      scrollDirection: Axis.vertical,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SelectableRegion(
+          focusNode: widget.focusNode,
+          selectionControls: materialTextSelectionControls,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 4.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (int i = 0; i < widget.lines.length; i++)
+                  _buildLine(i, widget.lines[i]),
+              ],
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 

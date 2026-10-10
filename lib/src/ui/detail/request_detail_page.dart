@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
 import 'package:interceptly/src/ui/widgets/interceptly_text_field.dart';
@@ -47,7 +48,11 @@ class _RequestDetailPageState extends State<RequestDetailPage>
   // Cached data
   RequestRecord? _cachedRecord;
   List<DetailMatch> _cachedMatches = const [];
-  String _cachedQuery = '';
+
+  String? _parsedReqForId;
+  dynamic _parsedReq;
+  String? _parsedResForId;
+  dynamic _parsedRes;
 
   // Track which tabs have been visited (for lazy building)
   final Set<int> _visitedTabs = {0};
@@ -64,6 +69,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
         setState(() {
           _cachedRecord = record;
         });
+        _parseBodiesAsync(record);
         _recomputeMatchesAsync();
         // Pre-build remaining tabs on the next frame after initial render
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -124,6 +130,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
     setState(() {
       _cachedRecord = record;
     });
+    _parseBodiesAsync(record);
     _recomputeMatchesAsync();
   }
 
@@ -150,7 +157,6 @@ class _RequestDetailPageState extends State<RequestDetailPage>
     final record = _cachedRecord;
     if (record == null) {
       _cachedMatches = const [];
-      _cachedQuery = _query;
       return;
     }
     final isWs = widget.entry.method == 'WS';
@@ -164,20 +170,31 @@ class _RequestDetailPageState extends State<RequestDetailPage>
     if (!mounted || gen != _matchesGeneration) return;
     setState(() {
       _cachedMatches = next;
-      _cachedQuery = _query;
       _currentMatchIndex = 0;
     });
   }
 
-  void _recomputeMatches() {
-    final record = _cachedRecord;
-    if (record == null) {
-      _cachedMatches = const [];
-      return;
+  Future<void> _parseBodiesAsync(RequestRecord record) async {
+    Future<dynamic> parseOne(String? preview) async {
+      if (preview == null || preview.isEmpty) return preview;
+      if (preview.length > 100 * 1024) {
+        return compute(jsonDecodeSafe, preview);
+      }
+      return jsonDecodeSafe(preview);
     }
-    final isWs = widget.entry.method == 'WS';
-    _cachedMatches = computeMatches(record, _query, isWs, _tryParseJson);
-    _cachedQuery = _query;
+
+    final reqFuture = parseOne(record.requestBodyPreview);
+    final resFuture = parseOne(record.responseBodyPreview);
+    final reqParsed = await reqFuture;
+    final resParsed = await resFuture;
+
+    if (!mounted || _cachedRecord?.id != record.id) return;
+    setState(() {
+      _parsedReqForId = record.id;
+      _parsedReq = reqParsed;
+      _parsedResForId = record.id;
+      _parsedRes = resParsed;
+    });
   }
 
   @override
@@ -191,6 +208,17 @@ class _RequestDetailPageState extends State<RequestDetailPage>
 
   dynamic _tryParseJson(String? content) {
     if (content == null || content.isEmpty) return content;
+    final record = _cachedRecord;
+    if (record != null) {
+      if (identical(content, record.requestBodyPreview) &&
+          _parsedReqForId == record.id) {
+        return _parsedReq;
+      }
+      if (identical(content, record.responseBodyPreview) &&
+          _parsedResForId == record.id) {
+        return _parsedRes;
+      }
+    }
     try {
       return jsonDecode(content);
     } catch (_) {
@@ -277,10 +305,6 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                     color: InterceptlyTheme.indigo500,
                   ),
                 );
-              }
-
-              if (_cachedQuery != _query) {
-                _recomputeMatches();
               }
 
               final matches = _cachedMatches;

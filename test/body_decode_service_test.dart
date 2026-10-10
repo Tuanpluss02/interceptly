@@ -188,12 +188,7 @@ void main() {
 
 /// Builds a packed body record in the format that BodyDecodeService expects.
 Uint8List _packBodies(String req, String res, {bool truncated = false}) {
-  final json = jsonEncode({
-    'req': base64.encode(utf8.encode(req)),
-    'res': base64.encode(utf8.encode(res)),
-    'truncated': truncated,
-  });
-  return Uint8List.fromList(utf8.encode(json));
+  return _packRaw(utf8.encode(req), utf8.encode(res), truncated: truncated);
 }
 
 Uint8List _packBodiesPartial({
@@ -201,8 +196,36 @@ Uint8List _packBodiesPartial({
   String? res,
   bool truncated = false,
 }) {
-  final map = <String, dynamic>{'truncated': truncated};
-  if (req != null) map['req'] = base64.encode(utf8.encode(req));
-  if (res != null) map['res'] = base64.encode(utf8.encode(res));
-  return Uint8List.fromList(utf8.encode(jsonEncode(map)));
+  return _packRaw(
+    req == null ? null : utf8.encode(req),
+    res == null ? null : utf8.encode(res),
+    truncated: truncated,
+  );
+}
+
+Uint8List _packRaw(List<int>? req, List<int>? res, {bool truncated = false}) {
+  final reqBytes = req == null ? null : Uint8List.fromList(req);
+  final resBytes = res == null ? null : Uint8List.fromList(res);
+  final total =
+      4 + (reqBytes?.length ?? 0) + 4 + (resBytes?.length ?? 0) + 1;
+  final out = Uint8List(total);
+  final data = ByteData.sublistView(out);
+  var offset = 0;
+
+  void writePart(Uint8List? part) {
+    if (part == null) {
+      data.setUint32(offset, 0xFFFFFFFF, Endian.big);
+      offset += 4;
+      return;
+    }
+    data.setUint32(offset, part.length, Endian.big);
+    offset += 4;
+    out.setRange(offset, offset + part.length, part);
+    offset += part.length;
+  }
+
+  writePart(reqBytes);
+  writePart(resBytes);
+  out[offset] = truncated ? 1 : 0;
+  return out;
 }
