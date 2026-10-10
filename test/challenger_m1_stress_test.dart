@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/model/body_location.dart';
+import 'package:interceptly/src/model/index_entry.dart';
 import 'package:interceptly/src/model/raw_capture.dart';
 import 'package:interceptly/src/session/memory_index.dart';
 

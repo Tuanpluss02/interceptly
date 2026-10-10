@@ -7,7 +7,6 @@ import '../model/raw_capture.dart';
 import '../model/request_filter.dart';
 import '../model/request_record.dart';
 import '../model/request_summary.dart';
-import '../session/inspector_preferences.dart';
 import '../session/inspector_session.dart';
 import '../session/inspector_session_view.dart';
 import '../ui/interceptly_theme.dart';
@@ -33,11 +32,6 @@ class Interceptly extends ChangeNotifier {
   // ---------------------------------------------------------------------------
   // init / detach
   // ---------------------------------------------------------------------------
-
-  /// Configures global settings for Interceptly.
-  static void configure(InterceptlySettings settings) {
-    InspectorSession.configure(settings);
-  }
 
   /// Single entrypoint to initialize Interceptly: attaches the UI to [navigatorKey]
   /// and applies all desired configuration options in one clean call.
@@ -87,6 +81,11 @@ class Interceptly extends ChangeNotifier {
     );
   }
 
+  /// Optional [NavigatorObserver] to ensure the floating button stays on top
+  /// across route transitions.
+  static final NavigatorObserver navigatorObserver =
+      _InterceptlyNavigatorObserver();
+
   /// Removes all overlay entries and cancels all trigger subscriptions.
   static void detach() => _detach();
 
@@ -116,7 +115,6 @@ class Interceptly extends ChangeNotifier {
 
   InspectorSessionView get session => _session;
   InterceptlySettings get settings => _session.settings;
-  InspectorPreferences get preferences => _session.preferences;
   List<RequestSummary> get calls => _session.entries;
   RequestFilter get filter => _session.filter;
   int get droppedEvents => _session.droppedCount;
@@ -155,6 +153,52 @@ class Interceptly extends ChangeNotifier {
 
 final _state = _AttachState();
 
+class _InterceptlyLifecycleObserver with WidgetsBindingObserver {
+  @override
+  void didChangeMetrics() {
+    _tryInsertOverlays();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _tryInsertOverlays();
+    }
+  }
+}
+
+class _InterceptlyNavigatorObserver extends NavigatorObserver {
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _scheduleCheck();
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _scheduleCheck();
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    _scheduleCheck();
+  }
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _scheduleCheck();
+  }
+
+  void _scheduleCheck() {
+    if (_state.showFloatingButton && !_state.inspectorIsOpen) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _tryInsertOverlays();
+      });
+    }
+  }
+}
+
+final _lifecycleObserver = _InterceptlyLifecycleObserver();
+
 class _AttachState {
   GlobalKey<NavigatorState>? navigatorKey;
   InspectorSession? session;
@@ -163,8 +207,14 @@ class _AttachState {
   OverlayEntry? fabEntry;
   StreamSubscription<void>? customTriggerSub;
   bool inspectorIsOpen = false;
+  bool observerAttached = false;
+  bool initialRouteBroughtToTop = false;
 
   void reset() {
+    if (observerAttached) {
+      WidgetsBinding.instance.removeObserver(_lifecycleObserver);
+      observerAttached = false;
+    }
     fabEntry?.remove();
     fabEntry = null;
     customTriggerSub?.cancel();
@@ -173,6 +223,8 @@ class _AttachState {
     session = null;
     showFloatingButton = true;
     fabChild = null;
+    inspectorIsOpen = false;
+    initialRouteBroughtToTop = false;
   }
 }
 
@@ -189,6 +241,11 @@ Future<void> _init({
   _state.session = session ?? InspectorSession.instance;
   _state.showFloatingButton = showFloatingButton;
   _state.fabChild = fabChild;
+
+  if (!_state.observerAttached) {
+    WidgetsBinding.instance.addObserver(_lifecycleObserver);
+    _state.observerAttached = true;
+  }
 
   ToastNotification.setNavigatorKey(navigatorKey);
   await _state.session!.initialize();
@@ -229,27 +286,59 @@ void _pushInspector({
           builder: (_) => InterceptlyScreen(session: session),
         ),
       )
-      .whenComplete(() => _state.inspectorIsOpen = false);
+      .whenComplete(() {
+        _state.inspectorIsOpen = false;
+        _tryInsertOverlays();
+      });
 }
 
 void _tryInsertOverlays([int attempt = 0]) {
+  if (!_state.showFloatingButton) return;
+
   final overlay = _state.navigatorKey?.currentState?.overlay;
-  if (overlay == null) {
-    if (attempt < 50) {
+  if (overlay == null || !overlay.mounted) {
+    if (attempt < 120) {
+      final delayMs = attempt < 20 ? 100 : 500;
       Future.delayed(
-        const Duration(milliseconds: 100),
+        Duration(milliseconds: delayMs),
         () => _tryInsertOverlays(attempt + 1),
       );
     }
     return;
   }
 
-  if (_state.showFloatingButton && _state.fabEntry == null) {
+  if (_state.fabEntry != null && !_state.fabEntry!.mounted) {
+    _state.fabEntry = null;
+    _state.initialRouteBroughtToTop = false;
+  }
+
+  if (_state.fabEntry == null) {
     _insertFab(overlay);
+    if (!_state.initialRouteBroughtToTop) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_state.initialRouteBroughtToTop) {
+          _state.initialRouteBroughtToTop = true;
+          _bringFabToTop();
+        }
+      });
+    }
   }
 }
 
+void _bringFabToTop() {
+  if (_state.inspectorIsOpen || !_state.showFloatingButton) return;
+  final entry = _state.fabEntry;
+  final overlay = _state.navigatorKey?.currentState?.overlay;
+  if (entry == null || !entry.mounted || overlay == null || !overlay.mounted) {
+    return;
+  }
+
+  entry.remove();
+  overlay.insert(entry);
+}
+
 void _insertFab(OverlayState overlay) {
+  if (!overlay.mounted) return;
   _state.fabEntry = OverlayEntry(
     builder: (context) {
       final fabChild = _state.fabChild ??

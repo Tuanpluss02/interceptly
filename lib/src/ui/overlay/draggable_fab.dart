@@ -31,12 +31,17 @@ class _DraggableFabState extends State<DraggableFab>
 
   late final AnimationController _snapController;
   Animation<Offset>? _snapAnimation;
-  late final ValueNotifier<Offset> _positionVN = ValueNotifier(Offset.zero);
+  late final ValueNotifier<Offset> _positionVN;
+
+  bool _isInitialized = false;
+  bool _isRightEdge = true;
+  double _relativeY = 0.5;
+  Size? _lastParentSize;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _initPosition(context));
+    _positionVN = ValueNotifier(widget.initPosition ?? Offset.zero);
     _snapController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 220),
@@ -49,84 +54,168 @@ class _DraggableFabState extends State<DraggableFab>
   }
 
   @override
+  void didUpdateWidget(DraggableFab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.securityTop != widget.securityTop ||
+        oldWidget.securityBottom != widget.securityBottom) {
+      if (_lastParentSize != null && _isInitialized) {
+        _adjustPositionToSize(_lastParentSize!);
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _snapController.dispose();
     _positionVN.dispose();
     super.dispose();
   }
 
-  void _initPosition(BuildContext context) {
+  void _updateWidgetSize() {
     final rb = _childKey.currentContext?.findRenderObject() as RenderBox?;
-    if (rb != null) _widgetSize = rb.size;
+    if (rb != null && rb.hasSize && rb.size.width > 0 && rb.size.height > 0) {
+      _widgetSize = rb.size;
+    }
+  }
 
-    final size = MediaQuery.of(context).size;
-    final target = widget.initPosition ??
-        Offset(size.width, size.height / 2); // default: right-center
-    final snapped = _snapToEdge(target, size);
-    _positionVN.value = snapped;
+  void _adjustPositionToSize(Size newSize) {
+    if (newSize.width <= 0 || newSize.height <= 0) return;
+    _updateWidgetSize();
+
+    final minTop = widget.securityTop;
+    final maxTop = (newSize.height - _widgetSize.height - widget.securityBottom)
+        .clamp(minTop, double.infinity);
+
+    final double left = _isRightEdge
+        ? (newSize.width - _widgetSize.width).clamp(0.0, double.infinity)
+        : 0.0;
+
+    final double top = (newSize.height * _relativeY - _widgetSize.height / 2)
+        .clamp(minTop, maxTop);
+
+    _positionVN.value = Offset(left, top);
+  }
+
+  void _snapToEdgeWithAnimation(Size size) {
+    _updateWidgetSize();
+    final pos = _positionVN.value;
+    final center = Offset(
+      pos.dx + _widgetSize.width / 2,
+      pos.dy + _widgetSize.height / 2,
+    );
+    final target = _snapToEdge(center, size);
+
+    _isRightEdge = target.dx >= (size.width / 2);
+    if (size.height > 0) {
+      _relativeY = ((target.dy + _widgetSize.height / 2) / size.height)
+          .clamp(0.0, 1.0);
+    }
+
+    _snapAnimation = Tween<Offset>(begin: pos, end: target).animate(
+      CurvedAnimation(
+        parent: _snapController,
+        curve: Curves.easeOutCubic,
+      ),
+    );
+    _snapController
+      ..reset()
+      ..forward();
+  }
+
+  Offset _snapToEdge(Offset center, Size screen) {
+    final minTop = widget.securityTop;
+    final maxTop = (screen.height - _widgetSize.height - widget.securityBottom)
+        .clamp(minTop, double.infinity);
+
+    final double left = center.dx < screen.width / 2
+        ? 0.0
+        : (screen.width - _widgetSize.width).clamp(0.0, double.infinity);
+
+    final double top = center.dy.clamp(minTop, maxTop);
+
+    return Offset(left, top);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        ValueListenableBuilder<Offset>(
-          valueListenable: _positionVN,
-          builder: (context, pos, _) {
-            return Positioned(
-              left: pos.dx,
-              top: pos.dy,
-              child: RepaintBoundary(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onPanUpdate: (details) {
-                    _positionVN.value = Offset(
-                      _positionVN.value.dx + details.delta.dx,
-                      _positionVN.value.dy + details.delta.dy,
-                    );
-                  },
-                  onPanEnd: (_) {
-                    final size = MediaQuery.of(context).size;
-                    final center = Offset(
-                      pos.dx + _widgetSize.width / 2,
-                      pos.dy + _widgetSize.height / 2,
-                    );
-                    final target = _snapToEdge(center, size);
-                    _snapAnimation =
-                        Tween<Offset>(begin: pos, end: target).animate(
-                      CurvedAnimation(
-                        parent: _snapController,
-                        curve: Curves.easeOutCubic,
-                      ),
-                    );
-                    _snapController
-                      ..reset()
-                      ..forward();
-                  },
-                  child: KeyedSubtree(key: _childKey, child: widget.child),
-                ),
-              ),
-            );
-          },
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final parentSize = Size(constraints.maxWidth, constraints.maxHeight);
+
+        if (parentSize.width <= 0 || parentSize.height <= 0) {
+          return const SizedBox.shrink();
+        }
+
+        if (!_isInitialized) {
+          _isInitialized = true;
+          _lastParentSize = parentSize;
+          final target = widget.initPosition ??
+              Offset(parentSize.width, parentSize.height / 2);
+          _isRightEdge = target.dx >= (parentSize.width / 2);
+          _relativeY = parentSize.height > 0
+              ? (target.dy / parentSize.height).clamp(0.0, 1.0)
+              : 0.5;
+          _positionVN.value = _snapToEdge(target, parentSize);
+
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _updateWidgetSize();
+            _adjustPositionToSize(parentSize);
+          });
+        } else if (_lastParentSize != null &&
+            (_lastParentSize!.width != parentSize.width ||
+                _lastParentSize!.height != parentSize.height)) {
+          _lastParentSize = parentSize;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _adjustPositionToSize(parentSize);
+          });
+        }
+
+        return Stack(
+          children: [
+            ValueListenableBuilder<Offset>(
+              valueListenable: _positionVN,
+              builder: (context, pos, _) {
+                final minTop = widget.securityTop;
+                final maxTop = (parentSize.height -
+                        _widgetSize.height -
+                        widget.securityBottom)
+                    .clamp(minTop, double.infinity);
+                final clampedX = pos.dx.clamp(
+                  0.0,
+                  (parentSize.width - _widgetSize.width)
+                      .clamp(0.0, double.infinity),
+                );
+                final clampedY = pos.dy.clamp(minTop, maxTop);
+
+                return Positioned(
+                  left: clampedX,
+                  top: clampedY,
+                  child: RepaintBoundary(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onPanUpdate: (details) {
+                        _positionVN.value = Offset(
+                          _positionVN.value.dx + details.delta.dx,
+                          _positionVN.value.dy + details.delta.dy,
+                        );
+                      },
+                      onPanEnd: (_) {
+                        _snapToEdgeWithAnimation(parentSize);
+                      },
+                      onPanCancel: () {
+                        _snapToEdgeWithAnimation(parentSize);
+                      },
+                      child: KeyedSubtree(key: _childKey, child: widget.child),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        );
+      },
     );
-  }
-
-  /// Snaps to the nearest left or right edge, clamping vertically within
-  /// [securityTop] … [screenHeight - widgetHeight - securityBottom].
-  Offset _snapToEdge(Offset center, Size screen) {
-    final minTop = widget.securityTop;
-    final maxTop = screen.height - _widgetSize.height - widget.securityBottom;
-
-    final double left =
-        center.dx < screen.width / 2 ? 0 : screen.width - _widgetSize.width;
-
-    final double top = center.dy.clamp(
-      minTop,
-      maxTop.clamp(minTop, double.infinity),
-    );
-
-    return Offset(left, top);
   }
 }

@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:interceptly/interceptly.dart';
+import '../interceptly_theme.dart';
 
 class _KeyValuePair {
   _KeyValuePair({

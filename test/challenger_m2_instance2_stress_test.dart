@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/model/index_entry.dart';
 
 class _CapturingChain<BodyType> implements Chain<BodyType> {
   _CapturingChain(this.request, this.handler);
