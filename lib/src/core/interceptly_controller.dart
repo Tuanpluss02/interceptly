@@ -13,7 +13,6 @@ import '../session/inspector_session_view.dart';
 import '../ui/interceptly_theme.dart';
 import '../ui/overlay/draggable_fab.dart';
 import '../ui/screens/interceptly_screen.dart';
-import '../ui/trigger/inspector_trigger.dart';
 import '../ui/trigger/interceptly_config.dart';
 import '../ui/widgets/toast_notification.dart';
 
@@ -38,6 +37,11 @@ class Interceptly extends ChangeNotifier {
   // attach / detach
   // ---------------------------------------------------------------------------
 
+  /// Configures global settings for Interceptly.
+  static void configure(InterceptlySettings settings) {
+    InspectorSession.configure(settings);
+  }
+
   /// Attaches Interceptly to the running app without wrapping the widget tree.
   ///
   /// Call once after the navigator is ready — e.g. in a `addPostFrameCallback`
@@ -52,15 +56,29 @@ class Interceptly extends ChangeNotifier {
   static Future<void> attach({
     required GlobalKey<NavigatorState> navigatorKey,
     InspectorSession? session,
+    InterceptlySettings? settings,
     InterceptlyConfig? config,
+    bool? showFloatingButton,
+    Widget? fabChild,
     Stream<void>? customTrigger,
-  }) =>
-      _attach(
-        navigatorKey: navigatorKey,
-        session: session,
-        config: config,
-        customTrigger: customTrigger,
-      );
+  }) {
+    if (settings != null) {
+      InspectorSession.configure(settings);
+    }
+    final effectiveConfig = (showFloatingButton != null || fabChild != null)
+        ? InterceptlyConfig(
+            showFloatingButton:
+                showFloatingButton ?? config?.showFloatingButton ?? true,
+            fabChild: fabChild ?? config?.fabChild,
+          )
+        : config;
+    return _attach(
+      navigatorKey: navigatorKey,
+      session: session,
+      config: effectiveConfig,
+      customTrigger: customTrigger,
+    );
+  }
 
   /// Removes all overlay entries and cancels all trigger subscriptions.
   static void detach() => _detach();

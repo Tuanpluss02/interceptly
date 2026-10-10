@@ -139,7 +139,8 @@ void main() {
     },
   );
 
-  test('InspectorSession invalidates grouped cache on toggleGrouping', () async {
+  test('InspectorSession invalidates grouped cache on toggleGrouping',
+      () async {
     final session = InspectorSession();
     session.recordPending(
       id: 'req1',
@@ -192,7 +193,8 @@ void main() {
     },
   );
 
-  test('InspectorSession resets _instance singleton to null upon dispose()', () async {
+  test('InspectorSession resets _instance singleton to null upon dispose()',
+      () async {
     final instance1 = InspectorSession.instance;
     await instance1.dispose();
     final instance2 = InspectorSession.instance;
@@ -200,7 +202,8 @@ void main() {
     await instance2.dispose();
   });
 
-  test('Interceptly resets _sharedInstance singleton to null upon dispose()', () {
+  test('Interceptly resets _sharedInstance singleton to null upon dispose()',
+      () {
     final instance1 = Interceptly.instance;
     instance1.dispose();
     final instance2 = Interceptly.instance;

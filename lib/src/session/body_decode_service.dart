@@ -61,22 +61,62 @@ class BodyDecodeService {
   }
 
   static String? _decodeInline(Uint8List bytes) {
+    if (_looksBinary(bytes)) {
+      return '$_placeholderPrefix[binary: ${bytes.length} bytes]';
+    }
     try {
       return utf8.decode(bytes);
     } catch (_) {
+      // Check if it's text that was cut mid-character:
+      // Try decoding up to last few bytes trimmed (up to 3 bytes for multi-byte UTF-8).
+      final trimmed = _trimTruncatedUtf8(bytes);
+      if (trimmed != null) {
+        return utf8.decode(trimmed);
+      }
       return '$_placeholderPrefix[binary: ${bytes.length} bytes]';
     }
+  }
+
+  static Uint8List? _trimTruncatedUtf8(Uint8List bytes) {
+    for (var trim = 1; trim <= 3 && trim < bytes.length; trim++) {
+      try {
+        final sub = Uint8List.sublistView(bytes, 0, bytes.length - trim);
+        utf8.decode(sub);
+        return sub;
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  /// Checks if arbitrary bytes look like non-text binary data by checking null bytes
+  /// or high ratio of non-printable control characters.
+  static bool _looksBinary(Uint8List bytes) {
+    final checkLen = bytes.length < 512 ? bytes.length : 512;
+    int unprintable = 0;
+    for (var i = 0; i < checkLen; i++) {
+      final b = bytes[i];
+      if (b == 0) return true; // Null byte in text is almost always binary
+      // Control chars other than tab (9), LF (10), CR (13)
+      if (b < 9 || (b > 10 && b < 13) || (b > 13 && b < 32)) {
+        unprintable++;
+      }
+    }
+    return unprintable > (checkLen * 0.1);
   }
 
   /// Returns true if [contentType] indicates non-text (image, audio, etc.).
   static bool isBinary(String? contentType) {
     if (contentType == null) return false;
-    return contentType.startsWith('image/') ||
-        contentType.startsWith('audio/') ||
-        contentType.startsWith('video/') ||
-        contentType.contains('application/pdf') ||
-        contentType.contains('application/octet-stream') ||
-        contentType.contains('application/zip');
+    final lower = contentType.toLowerCase();
+    return lower.startsWith('image/') ||
+        lower.startsWith('audio/') ||
+        lower.startsWith('video/') ||
+        lower.startsWith('font/') ||
+        lower.contains('application/pdf') ||
+        lower.contains('application/octet-stream') ||
+        lower.contains('application/zip') ||
+        lower.contains('application/gzip') ||
+        lower.contains('application/x-protobuf');
   }
 
   /// Returns a preview of [bytes] truncated to [previewLen] bytes,
@@ -140,9 +180,16 @@ class BodyDecodeService {
 
   /// Decodes [bytes] as UTF-8, or returns a binary placeholder on failure.
   static String tryUtf8(Uint8List bytes) {
+    if (_looksBinary(bytes)) {
+      return '$_placeholderPrefix[binary: ${bytes.length} bytes]';
+    }
     try {
       return utf8.decode(bytes);
     } catch (_) {
+      final trimmed = _trimTruncatedUtf8(bytes);
+      if (trimmed != null) {
+        return utf8.decode(trimmed);
+      }
       return '$_placeholderPrefix[binary: ${bytes.length} bytes]';
     }
   }

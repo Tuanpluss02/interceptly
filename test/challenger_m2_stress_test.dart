@@ -119,7 +119,8 @@ void main() {
         final chain = _CapturingChain<String>(
           request,
           (req) => Response(
-            http.Response('{"ok":true}', 200, request: http.Request('GET', req.url)),
+            http.Response('{"ok":true}', 200,
+                request: http.Request('GET', req.url)),
             '{"ok":true}',
           ),
         );
@@ -134,11 +135,13 @@ void main() {
           isTrue,
         );
         expect(
-          chain.proceededRequest!.parameters.containsKey('interceptly_started_at'),
+          chain.proceededRequest!.parameters
+              .containsKey('interceptly_started_at'),
           isFalse,
         );
         expect(
-          chain.proceededRequest!.parameters.containsKey('interceptly_request_id'),
+          chain.proceededRequest!.parameters
+              .containsKey('interceptly_request_id'),
           isFalse,
         );
         expect(response.statusCode, 200);
@@ -175,7 +178,8 @@ void main() {
       final chain = _CapturingChain<String>(
         request,
         (req) => Response(
-          http.Response('{"ok":true}', 200, request: http.Request('POST', req.url)),
+          http.Response('{"ok":true}', 200,
+              request: http.Request('POST', req.url)),
           '{"ok":true}',
         ),
       );
@@ -184,11 +188,13 @@ void main() {
 
       expect(chain.proceededRequest!.parameters, equals(diverseParams));
       expect(
-        chain.proceededRequest!.parameters.containsKey('interceptly_started_at'),
+        chain.proceededRequest!.parameters
+            .containsKey('interceptly_started_at'),
         isFalse,
       );
       expect(
-        chain.proceededRequest!.parameters.containsKey('interceptly_request_id'),
+        chain.proceededRequest!.parameters
+            .containsKey('interceptly_request_id'),
         isFalse,
       );
     });
@@ -213,7 +219,8 @@ void main() {
         final chain = _CapturingChain<String>(
           request,
           (req) => Response(
-            http.Response('{"ok":true}', 200, request: http.Request('GET', req.url)),
+            http.Response('{"ok":true}', 200,
+                request: http.Request('GET', req.url)),
             '{"ok":true}',
           ),
         );
@@ -233,7 +240,8 @@ void main() {
       },
     );
 
-    test('50 concurrent Chopper requests preserve unique IDs and parameters', () async {
+    test('50 concurrent Chopper requests preserve unique IDs and parameters',
+        () async {
       final interceptor = InterceptlyChopperInterceptor(session);
       final futures = <Future<void>>[];
       final proceededParams = <int, Map<String, dynamic>>{};
@@ -255,7 +263,8 @@ void main() {
               Duration(milliseconds: 5 + (index % 10)),
             );
             return Response(
-              http.Response('{"i":$index}', 200, request: http.Request(r.method, r.url)),
+              http.Response('{"i":$index}', 200,
+                  request: http.Request(r.method, r.url)),
               '{"i":$index}',
             );
           },
@@ -292,7 +301,8 @@ void main() {
       expect(idSet.length, 50);
     });
 
-    test('Transport exceptions rethrow and record RawCapture promptly', () async {
+    test('Transport exceptions rethrow and record RawCapture promptly',
+        () async {
       final interceptor = InterceptlyChopperInterceptor(session);
       final request = Request(
         'GET',
@@ -327,15 +337,19 @@ void main() {
     });
   });
 
-  group('Challenger M2 - Area 2: HTTP Client Stream Cancellation Promptness & Concurrency', () {
-    test('Immediate cancellation before any chunks are emitted (< 500ms)', () async {
+  group(
+      'Challenger M2 - Area 2: HTTP Client Stream Cancellation Promptness & Concurrency',
+      () {
+    test('Immediate cancellation before any chunks are emitted (< 500ms)',
+        () async {
       final streamCtrl = StreamController<List<int>>();
       final mockClient = _MultiStreamMockClient((_) => streamCtrl);
       final client = InterceptlyHttpClient(mockClient, session);
 
       final stopwatch = Stopwatch()..start();
       final response = await client.send(
-        http.Request('GET', Uri.parse('https://api.example.com/immediate-cancel')),
+        http.Request(
+            'GET', Uri.parse('https://api.example.com/immediate-cancel')),
       );
 
       // Initial pending entry exists
@@ -373,7 +387,8 @@ void main() {
       final client = InterceptlyHttpClient(mockClient, session);
 
       final response = await client.send(
-        http.Request('GET', Uri.parse('https://api.example.com/partial-stream')),
+        http.Request(
+            'GET', Uri.parse('https://api.example.com/partial-stream')),
       );
 
       final receivedChunks = <List<int>>[];
@@ -412,7 +427,8 @@ void main() {
       expect(receivedChunks.length, 2);
     });
 
-    test('Stream cancellation under active network simulation throttling', () async {
+    test('Stream cancellation under active network simulation throttling',
+        () async {
       // Configure network simulation with slow profile (delay per chunk)
       session.setNetworkSimulation(NetworkSimulationProfile.slow3G);
 
@@ -421,7 +437,8 @@ void main() {
       final client = InterceptlyHttpClient(mockClient, session);
 
       final response = await client.send(
-        http.Request('GET', Uri.parse('https://api.example.com/throttled-cancel')),
+        http.Request(
+            'GET', Uri.parse('https://api.example.com/throttled-cancel')),
       );
 
       final sub = response.stream.listen((_) {});
@@ -449,7 +466,9 @@ void main() {
       session.clearNetworkSimulation();
     });
 
-    test('Pause, resume, and multiple cancel calls do not double record or throw', () async {
+    test(
+        'Pause, resume, and multiple cancel calls do not double record or throw',
+        () async {
       final streamCtrl = StreamController<List<int>>();
       final mockClient = _MultiStreamMockClient((_) => streamCtrl);
       final client = InterceptlyHttpClient(mockClient, session);
@@ -481,7 +500,9 @@ void main() {
       expect(entry.errorType, 'CancellationException');
     });
 
-    test('High concurrency stress: 30 requests with interleaved cancellations and normal completions', () async {
+    test(
+        'High concurrency stress: 30 requests with interleaved cancellations and normal completions',
+        () async {
       final controllers = <int, StreamController<List<int>>>{};
       final mockClient = _MultiStreamMockClient((req) {
         final path = req.url.pathSegments.last;
@@ -507,14 +528,16 @@ void main() {
 
         futures.add(() async {
           final res = await client.send(
-            http.Request('GET', Uri.parse('https://api.example.com/item/$index')),
+            http.Request(
+                'GET', Uri.parse('https://api.example.com/item/$index')),
           );
 
           final ctrl = controllers[index]!;
           if (shouldCancel) {
             final sub = res.stream.listen((_) {});
             ctrl.add([1, 2, 3]);
-            await Future<void>.delayed(Duration(milliseconds: 5 + (index % 10)));
+            await Future<void>.delayed(
+                Duration(milliseconds: 5 + (index % 10)));
             await sub.cancel();
             await ctrl.close();
           } else {
@@ -531,23 +554,28 @@ void main() {
 
       // Wait for all 30 entries to be processed into terminal states
       final end = DateTime.now().add(const Duration(seconds: 4));
-      while (session.entries.where((e) => e.statusCode != 0 || e.hasError).length < 30) {
+      while (
+          session.entries.where((e) => e.statusCode != 0 || e.hasError).length <
+              30) {
         if (DateTime.now().isAfter(end)) break;
         await Future<void>.delayed(const Duration(milliseconds: 50));
       }
 
       expect(session.entries.length, 30);
 
-      final cancelledEntries =
-          session.entries.where((e) => e.hasError && e.errorType == 'CancellationException').toList();
-      final completedEntries =
-          session.entries.where((e) => !e.hasError && e.statusCode == 200).toList();
+      final cancelledEntries = session.entries
+          .where((e) => e.hasError && e.errorType == 'CancellationException')
+          .toList();
+      final completedEntries = session.entries
+          .where((e) => !e.hasError && e.statusCode == 200)
+          .toList();
 
       expect(cancelledEntries.length, 15);
       expect(completedEntries.length, 15);
     });
 
-    test('Cancellation immediately cancels pending timer in InspectorSession', () async {
+    test('Cancellation immediately cancels pending timer in InspectorSession',
+        () async {
       final streamCtrl = StreamController<List<int>>();
       final mockClient = _MultiStreamMockClient((_) => streamCtrl);
       final client = InterceptlyHttpClient(mockClient, session);

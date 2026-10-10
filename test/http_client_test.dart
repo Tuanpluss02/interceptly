@@ -101,7 +101,8 @@ void main() {
       },
     );
 
-    test('records successful response when stream completes normally', () async {
+    test('records successful response when stream completes normally',
+        () async {
       final streamCtrl = StreamController<List<int>>();
       final innerClient = _StreamingMockClient(streamCtrl);
       final client = InterceptlyHttpClient(innerClient, session);
@@ -140,7 +141,8 @@ void main() {
       final client = InterceptlyHttpClient(innerClient, session);
 
       final response = await client.send(
-        http.Request('GET', Uri.parse('https://api.example.com/failing-stream')),
+        http.Request(
+            'GET', Uri.parse('https://api.example.com/failing-stream')),
       );
 
       final completer = Completer<void>();

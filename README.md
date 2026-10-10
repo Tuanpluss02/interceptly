@@ -110,15 +110,14 @@ Interceptly.instance.setNetworkSimulation(
 | `maxEntries`           | `5000`  | Maximum requests kept in history         |
 | `maxBodyBytes`         | `2 MB`  | Hard cap for body size before truncation |
 
-### UI Triggers
+### UI Customization
+
 ```dart
+// By default, Interceptly attaches a draggable floating bug button (FAB).
 Interceptly.attach(
   navigatorKey: _navKey,
-  config: InterceptlyConfig(
-    triggers: {
-      InspectorTrigger.floatingButton,
-    },
-  ),
+  showFloatingButton: true, // or false to hide the FAB
+  // customTrigger: shakeEventStream, // optional custom stream trigger
 );
 ```
 

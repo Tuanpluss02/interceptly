@@ -47,8 +47,7 @@ void main() {
         expect(contentLine1Finder, findsWidgets);
 
         final initialLine1Y = tester.getTopLeft(line1Finder).dy;
-        final initialContentY =
-            tester.getTopLeft(contentLine1Finder.first).dy;
+        final initialContentY = tester.getTopLeft(contentLine1Finder.first).dy;
         expect(initialLine1Y, equals(initialContentY));
 
         // 2. Perform vertical scroll by dragging SingleChildScrollView
@@ -60,8 +59,7 @@ void main() {
 
         // 3. Verify that line 1 has scrolled up and gutter moved in sync
         final scrolledLine1Y = tester.getTopLeft(line1Finder).dy;
-        final scrolledContentY =
-            tester.getTopLeft(contentLine1Finder.first).dy;
+        final scrolledContentY = tester.getTopLeft(contentLine1Finder.first).dy;
 
         expect(scrolledLine1Y, lessThan(initialLine1Y));
         expect(scrolledLine1Y, equals(scrolledContentY));
@@ -76,8 +74,6 @@ void main() {
         final itemY = tester.getTopLeft(itemFinder).dy;
 
         expect(line12Y, equals(itemY));
-
-
       },
     );
 

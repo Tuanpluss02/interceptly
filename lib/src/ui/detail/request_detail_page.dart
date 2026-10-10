@@ -359,8 +359,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                             hintText: 'Search in details...',
                             textInputAction: TextInputAction.search,
                             onChanged: (value) {
-                              if (value.trim().isEmpty &&
-                                  _query.isNotEmpty) {
+                              if (value.trim().isEmpty && _query.isNotEmpty) {
                                 setState(() {
                                   _query = '';
                                   _currentMatchIndex = 0;
@@ -381,8 +380,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                           totalMatches == 0
                               ? '0 / 0'
                               : '${effectiveIndex + 1} / $totalMatches',
-                          style: InterceptlyTheme
-                              .typography.bodyMediumRegular
+                          style: InterceptlyTheme.typography.bodyMediumRegular
                               .copyWith(
                             fontSize: 12,
                             color: InterceptlyTheme.textMuted,
@@ -428,10 +426,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                     unselectedLabelColor: InterceptlyTheme.textQuaternary,
                     dividerColor: InterceptlyGlobalColor.transparent,
                     tabs: isWs
-                        ? const [
-                            Tab(text: 'Overview'),
-                            Tab(text: 'Messages')
-                          ]
+                        ? const [Tab(text: 'Overview'), Tab(text: 'Messages')]
                         : const [
                             Tab(text: 'Overview'),
                             Tab(text: 'Request'),

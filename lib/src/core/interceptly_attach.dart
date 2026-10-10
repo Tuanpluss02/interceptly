@@ -103,9 +103,8 @@ void _tryInsertOverlays([int attempt = 0]) {
     return;
   }
 
-  final triggers = _state.config?.triggers ?? {};
-  if (triggers.contains(InspectorTrigger.floatingButton) &&
-      _state.fabEntry == null) {
+  final showFab = _state.config?.showFloatingButton ?? true;
+  if (showFab && _state.fabEntry == null) {
     _insertFab(overlay);
   }
 }

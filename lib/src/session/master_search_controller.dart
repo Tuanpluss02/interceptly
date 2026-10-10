@@ -61,6 +61,7 @@ class MasterSearchController extends ChangeNotifier {
 
     final gen = ++_generation;
     final q = trimmed.toLowerCase();
+    final entriesSnapshot = List<IndexEntry>.from(allEntries);
 
     _query = trimmed;
     _results = [];
@@ -99,8 +100,8 @@ class MasterSearchController extends ChangeNotifier {
     }
 
     // Phase 1: structured fields (sync, with periodic yielding).
-    for (var i = 0; i < allEntries.length; i++) {
-      final e = allEntries[i];
+    for (var i = 0; i < entriesSnapshot.length; i++) {
+      final e = entriesSnapshot[i];
       if (matchesStructured(e)) {
         matchedIds.add(e.id);
         _results!.add(e);
@@ -115,9 +116,9 @@ class MasterSearchController extends ChangeNotifier {
     // Phase 2: in-memory bodies in small async batches.
     _isScanningBodies = true;
     notifyListeners();
-    for (var i = 0; i < allEntries.length; i++) {
+    for (var i = 0; i < entriesSnapshot.length; i++) {
       if (gen != _generation) return;
-      final e = allEntries[i];
+      final e = entriesSnapshot[i];
       if (e.bodyLocation == BodyLocation.memory &&
           !matchedIds.contains(e.id) &&
           matchesInlineBody(e)) {
@@ -139,7 +140,7 @@ class MasterSearchController extends ChangeNotifier {
       notifyListeners();
 
       final fileEntries = <(IndexEntry, int, int)>[];
-      for (final e in allEntries) {
+      for (final e in entriesSnapshot) {
         if (e.bodyLocation == BodyLocation.file &&
             !matchedIds.contains(e.id) &&
             e.fileOffset != null &&

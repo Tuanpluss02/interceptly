@@ -7,6 +7,14 @@ class InterceptlySettings {
     this.maxQueuedEvents = 500,
     this.maxEntries = 5000,
     this.urlDecodeEnabled = true,
+    this.pendingTimeout = const Duration(seconds: 45),
+    this.redactedHeaders = const {
+      'authorization',
+      'cookie',
+      'set-cookie',
+      'x-api-key',
+    },
+    this.shouldCapture,
   });
 
   /// Body size (bytes) above which data is offloaded to the temp file.
@@ -30,6 +38,15 @@ class InterceptlySettings {
   /// Whether to decode URL encodings in the UI.
   final bool urlDecodeEnabled;
 
+  /// Duration after which an uncompleted pending request is marked as timed out.
+  final Duration pendingTimeout;
+
+  /// Header names (case-insensitive) whose values should be redacted with `[REDACTED]`.
+  final Set<String> redactedHeaders;
+
+  /// Optional predicate to exclude URLs or requests from being captured.
+  final bool Function(String url)? shouldCapture;
+
   InterceptlySettings copyWith({
     int? bodyOffloadThreshold,
     int? previewTruncationBytes,
@@ -37,6 +54,9 @@ class InterceptlySettings {
     int? maxQueuedEvents,
     int? maxEntries,
     bool? urlDecodeEnabled,
+    Duration? pendingTimeout,
+    Set<String>? redactedHeaders,
+    bool Function(String url)? shouldCapture,
   }) {
     return InterceptlySettings(
       bodyOffloadThreshold: bodyOffloadThreshold ?? this.bodyOffloadThreshold,
@@ -46,6 +66,9 @@ class InterceptlySettings {
       maxQueuedEvents: maxQueuedEvents ?? this.maxQueuedEvents,
       maxEntries: maxEntries ?? this.maxEntries,
       urlDecodeEnabled: urlDecodeEnabled ?? this.urlDecodeEnabled,
+      pendingTimeout: pendingTimeout ?? this.pendingTimeout,
+      redactedHeaders: redactedHeaders ?? this.redactedHeaders,
+      shouldCapture: shouldCapture ?? this.shouldCapture,
     );
   }
 }

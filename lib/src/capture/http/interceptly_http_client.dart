@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import '../../session/request_id.dart';
 import '../../model/raw_capture.dart';
 import '../../session/inspector_session.dart';
+import '../capture_guard.dart';
 
 /// A drop-in [http.BaseClient] wrapper that captures all requests.
 ///
@@ -40,15 +41,17 @@ class InterceptlyHttpClient extends http.BaseClient {
       request.headers.entries.map((e) => MapEntry(e.key, e.value)),
     );
 
-    session.recordPending(
-      id: id,
-      method: request.method,
-      url: request.url.toString(),
-      timestamp: startedAt,
-      requestHeaders: reqHeaders,
-      requestBodyBytes: bodyBytes,
-      requestContentType: request.headers['content-type'],
-    );
+    guardCapture(() {
+      session.recordPending(
+        id: id,
+        method: request.method,
+        url: request.url.toString(),
+        timestamp: startedAt,
+        requestHeaders: reqHeaders,
+        requestBodyBytes: bodyBytes,
+        requestContentType: request.headers['content-type'],
+      );
+    });
 
     http.StreamedResponse response;
 
@@ -58,23 +61,25 @@ class InterceptlyHttpClient extends http.BaseClient {
       );
       response = await _inner.send(request);
     } catch (e) {
-      final durationMs = DateTime.now().difference(startedAt).inMilliseconds;
-      session.record(
-        RawCapture(
-          id: id,
-          method: request.method,
-          url: request.url.toString(),
-          requestHeaders: reqHeaders,
-          responseHeaders: const {},
-          statusCode: 0,
-          durationMs: durationMs,
-          timestamp: startedAt,
-          requestBodyBytes: RawCapture.wrapBytes(bodyBytes),
-          requestContentType: request.headers['content-type'],
-          errorType: e.runtimeType.toString(),
-          errorMessage: e.toString(),
-        ),
-      );
+      guardCapture(() {
+        final durationMs = DateTime.now().difference(startedAt).inMilliseconds;
+        session.record(
+          RawCapture(
+            id: id,
+            method: request.method,
+            url: request.url.toString(),
+            requestHeaders: reqHeaders,
+            responseHeaders: const {},
+            statusCode: 0,
+            durationMs: durationMs,
+            timestamp: startedAt,
+            requestBodyBytes: RawCapture.wrapBytes(bodyBytes),
+            requestContentType: request.headers['content-type'],
+            errorType: e.runtimeType.toString(),
+            errorMessage: e.toString(),
+          ),
+        );
+      });
       rethrow;
     }
 
@@ -155,64 +160,64 @@ class InterceptlyHttpClient extends http.BaseClient {
     }
 
     late StreamSubscription<List<int>> sub;
-    final controller = StreamController<List<int>>(
+    late final StreamController<List<int>> controller;
+    controller = StreamController<List<int>>(
+      onListen: () {
+        void handleChunk(List<int> chunk) {
+          if (recorded || controller.isClosed) return;
+          controller.add(chunk);
+          if (!captureStopped) {
+            final remaining = maxCapture - captureBuffer.length;
+            if (chunk.length <= remaining) {
+              captureBuffer.add(chunk);
+            } else {
+              if (remaining > 0) captureBuffer.add(chunk.sublist(0, remaining));
+              captureStopped = true;
+            }
+          }
+        }
+
+        sub = source.listen(
+          (chunk) {
+            final delay = session.throughputDelayForChunk(chunk.length);
+            if (delay > Duration.zero) {
+              sub.pause();
+              Future<void>.delayed(delay, () {
+                handleChunk(chunk);
+                if (!controller.isClosed) sub.resume();
+              });
+              return;
+            }
+            handleChunk(chunk);
+          },
+          onDone: () {
+            guardCapture(() => record());
+            controller.close();
+          },
+          onError: (Object e, StackTrace st) {
+            guardCapture(
+              () => record(
+                errorType: e.runtimeType.toString(),
+                errorMessage: e.toString(),
+              ),
+            );
+            controller.addError(e, st);
+            controller.close();
+          },
+          cancelOnError: false,
+        );
+      },
       onPause: () => sub.pause(),
       onResume: () => sub.resume(),
       onCancel: () {
-        record(
-          errorType: 'CancellationException',
-          errorMessage: 'Stream subscription was canceled by client.',
+        guardCapture(
+          () => record(
+            errorType: 'CancellationException',
+            errorMessage: 'Stream subscription was canceled by client.',
+          ),
         );
         return sub.cancel();
       },
-    );
-
-    sub = source.listen(
-      (chunk) {
-        final delay = session.throughputDelayForChunk(chunk.length);
-        if (delay > Duration.zero) {
-          sub.pause();
-          Future<void>.delayed(delay, () {
-            if (recorded || controller.isClosed) return;
-            controller.add(chunk);
-            if (!captureStopped) {
-              final remaining = maxCapture - captureBuffer.length;
-              if (chunk.length <= remaining) {
-                captureBuffer.add(chunk);
-              } else {
-                if (remaining > 0) {
-                  captureBuffer.add(chunk.sublist(0, remaining));
-                }
-                captureStopped = true;
-              }
-            }
-            sub.resume();
-          });
-          return;
-        }
-
-        if (recorded || controller.isClosed) return;
-        controller.add(chunk);
-        if (!captureStopped) {
-          final remaining = maxCapture - captureBuffer.length;
-          if (chunk.length <= remaining) {
-            captureBuffer.add(chunk);
-          } else {
-            if (remaining > 0) captureBuffer.add(chunk.sublist(0, remaining));
-            captureStopped = true;
-          }
-        }
-      },
-      onDone: () {
-        record();
-        controller.close();
-      },
-      onError: (Object e, StackTrace st) {
-        record(errorType: e.runtimeType.toString(), errorMessage: e.toString());
-        controller.addError(e, st);
-        controller.close();
-      },
-      cancelOnError: false,
     );
 
     return controller.stream;

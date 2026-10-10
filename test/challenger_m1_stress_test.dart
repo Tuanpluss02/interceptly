@@ -95,7 +95,9 @@ void main() {
       }
     });
 
-    test('Simultaneous pending requests exceeding maxEntries followed by out-of-order completions', () {
+    test(
+        'Simultaneous pending requests exceeding maxEntries followed by out-of-order completions',
+        () {
       const maxEntries = 5;
       final index = MemoryIndex(maxEntries: maxEntries);
 
@@ -170,7 +172,9 @@ void main() {
       ]);
     });
 
-    test('Massive high-throughput churn test (2000 items with interleaved pending/completions)', () {
+    test(
+        'Massive high-throughput churn test (2000 items with interleaved pending/completions)',
+        () {
       const maxEntries = 100;
       final index = MemoryIndex(maxEntries: maxEntries);
 
@@ -185,7 +189,8 @@ void main() {
         // Invariant: no duplicate IDs in entries
         final ids = index.entries.map((e) => e.id).toList();
         final uniqueIds = ids.toSet();
-        expect(ids.length, uniqueIds.length, reason: 'Duplicate IDs detected at round $round');
+        expect(ids.length, uniqueIds.length,
+            reason: 'Duplicate IDs detected at round $round');
       }
     });
 
@@ -206,18 +211,27 @@ void main() {
       expect(index.length, 2);
       expect(index.entries.first.id, '🔑/special?query=1&b=2#frag');
 
-      final unicodeUpdated = _makeEntry('🔑/special?query=1&b=2#frag', statusCode: 304);
+      final unicodeUpdated =
+          _makeEntry('🔑/special?query=1&b=2#frag', statusCode: 304);
       index.add(unicodeUpdated);
       expect(index.length, 2);
       expect(index.entries.first.statusCode, 304);
     });
   });
 
-  group('Challenger M1 - Area 2: InspectorSession Domain Expansion & Listeners', () {
-    test('Multi-domain expansion toggles: isolation and state accuracy', () async {
+  group('Challenger M1 - Area 2: InspectorSession Domain Expansion & Listeners',
+      () {
+    test('Multi-domain expansion toggles: isolation and state accuracy',
+        () async {
       final session = InspectorSession();
 
-      final domains = ['alpha.com', 'beta.org', 'gamma.net', 'delta.io', 'epsilon.dev'];
+      final domains = [
+        'alpha.com',
+        'beta.org',
+        'gamma.net',
+        'delta.io',
+        'epsilon.dev'
+      ];
       for (var i = 0; i < domains.length; i++) {
         session.recordPending(
           id: 'req_$i',
@@ -230,7 +244,8 @@ void main() {
       var groups = session.getGroupedRecords();
       expect(groups.length, 5);
       for (final g in groups) {
-        expect(g.isExpanded, isTrue, reason: 'Domain ${g.domain} should initially be expanded');
+        expect(g.isExpanded, isTrue,
+            reason: 'Domain ${g.domain} should initially be expanded');
       }
 
       // Collapse beta.org only
@@ -269,7 +284,9 @@ void main() {
       await session.dispose();
     });
 
-    test('Listener notification count and immediate state inspection during callback', () async {
+    test(
+        'Listener notification count and immediate state inspection during callback',
+        () async {
       final session = InspectorSession();
       session.recordPending(
         id: 'req1',
@@ -291,18 +308,22 @@ void main() {
       // Toggle service.com to collapsed
       session.toggleDomainExpanded('service.com');
 
-      expect(notificationCount, 1, reason: 'Should notify listeners exactly once per toggle');
-      expect(isExpandedSeenInListener, isFalse, reason: 'Listener should immediately see collapsed state');
+      expect(notificationCount, 1,
+          reason: 'Should notify listeners exactly once per toggle');
+      expect(isExpandedSeenInListener, isFalse,
+          reason: 'Listener should immediately see collapsed state');
 
       // Toggle service.com back to expanded
       session.toggleDomainExpanded('service.com');
       expect(notificationCount, 2);
-      expect(isExpandedSeenInListener, isTrue, reason: 'Listener should immediately see expanded state');
+      expect(isExpandedSeenInListener, isTrue,
+          reason: 'Listener should immediately see expanded state');
 
       await session.dispose();
     });
 
-    test('Pre-toggling domain expansion before requests for that domain exist', () async {
+    test('Pre-toggling domain expansion before requests for that domain exist',
+        () async {
       final session = InspectorSession();
 
       session.toggleDomainExpanded('future-api.com');
@@ -317,7 +338,8 @@ void main() {
       final groups = session.getGroupedRecords();
       expect(groups.length, 1);
       expect(groups.first.domain, 'future-api.com');
-      expect(groups.first.isExpanded, isFalse, reason: 'Pre-collapsed state should be respected');
+      expect(groups.first.isExpanded, isFalse,
+          reason: 'Pre-collapsed state should be respected');
 
       await session.dispose();
     });
@@ -360,7 +382,8 @@ void main() {
   });
 
   group('Challenger M1 - Area 3: dispose() and Recreation Lifecycles', () {
-    test('Multiple dispose() calls on InspectorSession: verify behavior', () async {
+    test('Multiple dispose() calls on InspectorSession: verify behavior',
+        () async {
       final session = InspectorSession();
       await session.initialize();
       await session.dispose();
@@ -375,10 +398,13 @@ void main() {
       }
       expect(threw, isTrue);
       expect(capturedError is! TimeoutException, isTrue,
-          reason: 'Expected dispose to reject immediately, not hang. Actual: $capturedError');
+          reason:
+              'Expected dispose to reject immediately, not hang. Actual: $capturedError');
     });
 
-    test('Fresh InspectorSession.instance recreation and full operation after dispose()', () async {
+    test(
+        'Fresh InspectorSession.instance recreation and full operation after dispose()',
+        () async {
       final session1 = InspectorSession.instance;
       session1.recordPending(
         id: 's1_req',
@@ -458,7 +484,9 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 50));
     });
 
-    test('Session clear() resets entries, invalidates grouped records, and cancels pending timers', () async {
+    test(
+        'Session clear() resets entries, invalidates grouped records, and cancels pending timers',
+        () async {
       final session = InspectorSession();
       for (var i = 0; i < 3; i++) {
         session.recordPending(
@@ -489,7 +517,9 @@ void main() {
       await session.dispose();
     });
 
-    test('Adding new requests to collapsed domain maintains collapsed state but updates request count', () async {
+    test(
+        'Adding new requests to collapsed domain maintains collapsed state but updates request count',
+        () async {
       final session = InspectorSession();
       session.recordPending(
         id: 'req1',
@@ -511,13 +541,16 @@ void main() {
       );
 
       groups = session.getGroupedRecords();
-      expect(groups.first.isExpanded, isFalse, reason: 'Domain should still be collapsed');
-      expect(groups.first.requests.length, 2, reason: 'Requests in domain group should be updated');
+      expect(groups.first.isExpanded, isFalse,
+          reason: 'Domain should still be collapsed');
+      expect(groups.first.requests.length, 2,
+          reason: 'Requests in domain group should be updated');
 
       await session.dispose();
     });
 
-    test('Rapid domain toggling stress test (100 toggles across 5 domains)', () async {
+    test('Rapid domain toggling stress test (100 toggles across 5 domains)',
+        () async {
       final session = InspectorSession();
       final domains = ['d1.com', 'd2.com', 'd3.com', 'd4.com', 'd5.com'];
       for (var i = 0; i < domains.length; i++) {

@@ -281,7 +281,8 @@ class _NetworkTabState extends State<NetworkTab> {
                   itemBuilder: (context, index) {
                     final record = group.requests[index];
                     return Padding(
-                      padding: EdgeInsets.only(bottom: index < group.requests.length - 1 ? 8.0 : 0),
+                      padding: EdgeInsets.only(
+                          bottom: index < group.requests.length - 1 ? 8.0 : 0),
                       child: _buildRequestItem(
                         context: context,
                         entry: record,

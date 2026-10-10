@@ -22,8 +22,13 @@ class CurlGenerator {
       buffer.write(" --data-raw '${_escapeShell(body)}'");
     }
 
-    final acceptEncoding = record.requestHeaders['accept-encoding'];
-    if (acceptEncoding != null && acceptEncoding.contains('gzip')) {
+    final acceptEncoding = record.requestHeaders.entries
+        .firstWhere(
+          (e) => e.key.toLowerCase() == 'accept-encoding',
+          orElse: () => const MapEntry('', ''),
+        )
+        .value;
+    if (acceptEncoding.isNotEmpty && acceptEncoding.contains('gzip')) {
       buffer.write(' --compressed');
     }
 

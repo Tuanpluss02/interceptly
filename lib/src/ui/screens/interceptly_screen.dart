@@ -66,7 +66,8 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
     return AnimatedBuilder(
       animation: widget.session,
       builder: (context, _) {
-        InterceptlyTheme.bind(context: context, themeMode: widget.session.preferences.themeMode);
+        InterceptlyTheme.bind(
+            context: context, themeMode: widget.session.preferences.themeMode);
 
         return Theme(
           data: InterceptlyTheme.themeData(
@@ -78,8 +79,11 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
               title: const Text('Interceptly'),
               actions: [
                 IconButton(
-                  icon: Icon(widget.session.groupingEnabled ? Icons.group_work : Icons.public),
-                  onPressed: () => widget.session.toggleGrouping(!widget.session.groupingEnabled),
+                  icon: Icon(widget.session.groupingEnabled
+                      ? Icons.group_work
+                      : Icons.public),
+                  onPressed: () => widget.session
+                      .toggleGrouping(!widget.session.groupingEnabled),
                   tooltip: 'Group by domain',
                 ),
                 IconButton(
@@ -95,7 +99,8 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
               ],
               bottom: PreferredSize(
                 preferredSize: const Size.fromHeight(1.0),
-                child: Container(color: InterceptlyTheme.dividerSubtle, height: 1.0),
+                child: Container(
+                    color: InterceptlyTheme.dividerSubtle, height: 1.0),
               ),
             ),
             body: NetworkTab(

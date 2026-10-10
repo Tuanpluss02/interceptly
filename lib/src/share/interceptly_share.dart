@@ -24,8 +24,8 @@ class InterceptlyShare {
     String? mimeType,
     Rect? origin,
   }) async {
-    final isMobile =
-        debugMobileOverride ?? (!kIsWeb && (Platform.isAndroid || Platform.isIOS));
+    final isMobile = debugMobileOverride ??
+        (!kIsWeb && (Platform.isAndroid || Platform.isIOS));
     if (!isMobile) return false;
     try {
       final result = await _channel.invokeMethod<bool>('shareFile', {

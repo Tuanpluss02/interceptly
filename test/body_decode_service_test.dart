@@ -206,8 +206,7 @@ Uint8List _packBodiesPartial({
 Uint8List _packRaw(List<int>? req, List<int>? res, {bool truncated = false}) {
   final reqBytes = req == null ? null : Uint8List.fromList(req);
   final resBytes = res == null ? null : Uint8List.fromList(res);
-  final total =
-      4 + (reqBytes?.length ?? 0) + 4 + (resBytes?.length ?? 0) + 1;
+  final total = 4 + (reqBytes?.length ?? 0) + 4 + (resBytes?.length ?? 0) + 1;
   final out = Uint8List(total);
   final data = ByteData.sublistView(out);
   var offset = 0;

@@ -61,7 +61,8 @@ void main() {
       final content = find.textContaining('{}');
       expect(line1, findsOneWidget);
       expect(content, findsOneWidget);
-      expect(tester.getTopLeft(line1).dy, equals(tester.getTopLeft(content).dy));
+      expect(
+          tester.getTopLeft(line1).dy, equals(tester.getTopLeft(content).dy));
     });
 
     testWidgets('Empty list [] renders without overflow and gutter aligns',
@@ -83,10 +84,12 @@ void main() {
       final content = find.textContaining('[]');
       expect(line1, findsOneWidget);
       expect(content, findsOneWidget);
-      expect(tester.getTopLeft(line1).dy, equals(tester.getTopLeft(content).dy));
+      expect(
+          tester.getTopLeft(line1).dy, equals(tester.getTopLeft(content).dy));
     });
 
-    testWidgets('Primitive values (string, int, bool) render and align; null shows No Data',
+    testWidgets(
+        'Primitive values (string, int, bool) render and align; null shows No Data',
         (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
@@ -167,13 +170,13 @@ void main() {
       }
     });
 
-    testWidgets('Extreme wide content lines maintain horizontal & vertical scroll',
+    testWidgets(
+        'Extreme wide content lines maintain horizontal & vertical scroll',
         (tester) async {
       final wideKey = 'K' * 500;
       final wideValue = 'V' * 2000;
       final data = {
-        for (int i = 1; i <= 20; i++)
-          '${wideKey}_$i': '${wideValue}_$i',
+        for (int i = 1; i <= 20; i++) '${wideKey}_$i': '${wideValue}_$i',
       };
 
       await tester.pumpWidget(
@@ -481,7 +484,8 @@ void main() {
   });
 
   group('Adversarial Stress Test: ReplayHandler Edge Cases', () {
-    testWidgets('Null body on retry transmits without bodyBytes or content-type',
+    testWidgets(
+        'Null body on retry transmits without bodyBytes or content-type',
         (tester) async {
       http.Request? capturedRequest;
       final mockClient = MockClient((req) async {
@@ -581,7 +585,8 @@ void main() {
         return http.Response('ok', 200);
       });
 
-      const arrayJson = '[{"id": 1, "name": "first"}, {"id": 2, "name": "second"}]';
+      const arrayJson =
+          '[{"id": 1, "name": "first"}, {"id": 2, "name": "second"}]';
       final record = RequestRecord(
         id: 'r_array_json',
         method: 'POST',
@@ -621,7 +626,8 @@ void main() {
           equals('application/json; charset=utf-8'));
     });
 
-    testWidgets('Non-JSON plain text body with custom content-type is preserved',
+    testWidgets(
+        'Non-JSON plain text body with custom content-type is preserved',
         (tester) async {
       http.Request? capturedRequest;
       final mockClient = MockClient((req) async {

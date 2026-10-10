@@ -22,6 +22,7 @@ import 'inspector_session_view.dart';
 import 'master_search_controller.dart';
 import 'memory_index.dart';
 import 'writer_isolate.dart';
+import '../capture/capture_guard.dart';
 
 /// Central lifecycle manager for the Interceptly session.
 ///
@@ -31,7 +32,8 @@ import 'writer_isolate.dart';
 /// All public methods are safe to call from the main isolate.
 class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   InspectorSession({InterceptlySettings? settings})
-      : settings = settings ?? const InterceptlySettings() {
+      : settings = settings ?? _defaultSettings,
+        sessionId = _generateSessionId() {
     _memoryIndex = MemoryIndex(maxEntries: this.settings.maxEntries);
     _writerIsolate = WriterIsolate(this.settings);
     _preInitQueue = BoundedEventQueue(maxSize: this.settings.maxQueuedEvents);
@@ -40,11 +42,31 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     _preferences.addListener(notifyListeners);
   }
 
+  static InterceptlySettings _defaultSettings = const InterceptlySettings();
+  static int _sessionCounter = 0;
+  static String _generateSessionId() {
+    final seq = ++_sessionCounter;
+    final time = DateTime.now().microsecondsSinceEpoch;
+    return '${time}_$seq';
+  }
+
+  /// Global configure helper for the shared singleton before or after first access.
+  static void configure(InterceptlySettings settings) {
+    _defaultSettings = settings;
+    if (_instance != null) {
+      // If instance is already created, note that its settings can also be updated
+      // or re-instantiated upon next cycle.
+    }
+  }
+
   static InspectorSession? _instance;
 
   static InspectorSession get instance {
-    return _instance ??= InspectorSession();
+    return _instance ??= InspectorSession(settings: _defaultSettings);
   }
+
+  /// Unique ID for this session instance to isolate temporary files.
+  final String sessionId;
 
   @override
   final InterceptlySettings settings;
@@ -56,11 +78,10 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   Future<void>? _initFuture;
   bool _initialized = false;
   bool _enabled = true;
-  bool _clearing = false;
+  Future<void>? _clearFuture;
   final InspectorPreferences _preferences = InspectorPreferences();
   NetworkSimulationProfile _networkSimulation = NetworkSimulationProfile.none;
   final Map<String, Timer> _pendingTimers = {};
-  static const Duration _pendingTimeout = Duration(seconds: 45);
 
   /// Captures sent to the isolate but not yet returned as [IndexEntry].
   int _inFlight = 0;
@@ -146,23 +167,29 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   Future<void> _performInit() async {
     if (_initialized) return;
 
-    // Resolve the temp directory HERE on the main isolate — never inside
-    // the background isolate where platform channels are unavailable.
-    final dir = await getTemporaryDirectory();
-    _tempFilePath = '${dir.path}/${BodyStore.kFileName}';
+    try {
+      // Resolve the temp directory HERE on the main isolate — never inside
+      // the background isolate where platform channels are unavailable.
+      final dir = await getTemporaryDirectory();
+      final fileName = 'interceptly_${sessionId}_session.tmp';
+      _tempFilePath = '${dir.path}/$fileName';
 
-    await _writerIsolate.start(tempDirPath: dir.path);
-    _resultSub = _writerIsolate.results.listen(_onEntryReady);
-    _initialized = true;
+      await _writerIsolate.start(tempDirPath: dir.path, fileName: fileName);
+      _resultSub = _writerIsolate.results.listen(_onEntryReady);
+      _initialized = true;
 
-    // Flush captures buffered before the isolate was ready.
-    // Runs synchronously (no awaits) so no new record() call can interleave.
-    _droppedCount += _preInitQueue.droppedCount;
-    _preferences.setUrlDecodeEnabled(settings.urlDecodeEnabled);
-    while (true) {
-      final pending = _preInitQueue.removeFirstOrNull();
-      if (pending == null) break;
-      _sendCapture(pending);
+      // Flush captures buffered before the isolate was ready.
+      // Runs synchronously (no awaits) so no new record() call can interleave.
+      _droppedCount += _preInitQueue.droppedCount;
+      _preferences.setUrlDecodeEnabled(settings.urlDecodeEnabled);
+      while (true) {
+        final pending = _preInitQueue.removeFirstOrNull();
+        if (pending == null) break;
+        _sendCapture(pending);
+      }
+    } catch (_) {
+      _initFuture = null;
+      rethrow;
     }
   }
 
@@ -181,14 +208,18 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   /// Enables capture. Capture is enabled by default.
   @override
   void enable() {
+    if (_enabled) return;
     _enabled = true;
+    notifyListeners();
   }
 
   /// Disables capture. The interceptor still runs but all [record] calls are
   /// silently dropped. Useful for hiding sensitive screens (e.g. payment flows).
   @override
   void disable() {
+    if (!_enabled) return;
     _enabled = false;
+    notifyListeners();
   }
 
   @override
@@ -221,33 +252,25 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   }
 
   List<DomainGroup>? _cachedGroupedRecords;
-  int _cachedGroupedRecordsHash = 0;
+  int _cacheVersion = 0;
+  int _lastComputedCacheVersion = -1;
 
   void _invalidateGroupedCache() {
     _cachedGroupedRecords = null;
-    _cachedGroupedRecordsHash = 0;
+    _cacheVersion++;
     _invalidateAvailableDomainsCache();
-  }
-
-  int _computeGroupedRecordsHash() {
-    int hash = 0;
-    for (final entry in entries) {
-      hash = hash ^ entry.id.hashCode;
-      hash = hash ^ entry.url.hashCode;
-    }
-    hash = hash ^ _grouping.hashCode;
-    return hash;
   }
 
   @override
   List<DomainGroup> getGroupedRecords() {
-    final currentHash = _computeGroupedRecordsHash();
-    if (_cachedGroupedRecords != null && _cachedGroupedRecordsHash == currentHash) {
+    if (_cachedGroupedRecords != null &&
+        _lastComputedCacheVersion == _cacheVersion) {
       return _cachedGroupedRecords!;
     }
 
+    final currentEntries = entries;
     final grouped = <String, List<RequestSummary>>{};
-    for (final entry in entries) {
+    for (final entry in currentEntries) {
       final domain = RequestFilter.extractDomain(entry.url);
       grouped.putIfAbsent(domain, () => []).add(entry);
     }
@@ -260,7 +283,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
           ),
         )
         .toList();
-    _cachedGroupedRecordsHash = currentHash;
+    _lastComputedCacheVersion = _cacheVersion;
     return _cachedGroupedRecords!;
   }
 
@@ -291,13 +314,42 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   /// No-op when [isEnabled] is false or the queue is full.
   void record(RawCapture capture) {
     if (!_enabled) return;
-    if (!_initialized) {
-      // Buffer until the isolate is ready; bounded by maxQueuedEvents.
-      _preInitQueue.add(capture);
-      initialize();
+    if (settings.shouldCapture != null &&
+        !settings.shouldCapture!(capture.url)) {
       return;
     }
-    _sendCapture(capture);
+
+    final sanitizedCapture = RawCapture(
+      id: capture.id,
+      method: capture.method,
+      url: capture.url,
+      requestHeaders:
+          redactHeaders(capture.requestHeaders, settings.redactedHeaders),
+      responseHeaders:
+          redactHeaders(capture.responseHeaders, settings.redactedHeaders),
+      statusCode: capture.statusCode,
+      durationMs: capture.durationMs,
+      timestamp: capture.timestamp,
+      requestBodyBytes: capture.requestBodyBytes,
+      responseBodyBytes: capture.responseBodyBytes,
+      requestContentType: capture.requestContentType,
+      responseContentType: capture.responseContentType,
+      errorType: capture.errorType,
+      errorMessage: capture.errorMessage,
+    );
+
+    if (!_initialized) {
+      // Buffer until the isolate is ready; bounded by maxQueuedEvents.
+      _preInitQueue.add(sanitizedCapture);
+      initialize().catchError((Object error, StackTrace stackTrace) {
+        if (kDebugMode) {
+          debugPrint(
+              '[Interceptly] background init failed: $error\n$stackTrace');
+        }
+      });
+      return;
+    }
+    _sendCapture(sanitizedCapture);
   }
 
   void _sendCapture(RawCapture capture) {
@@ -324,7 +376,12 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     String? requestContentType,
   }) {
     if (!_enabled) return;
+    if (settings.shouldCapture != null && !settings.shouldCapture!(url)) {
+      return;
+    }
 
+    final sanitizedHeaders =
+        redactHeaders(requestHeaders, settings.redactedHeaders);
     final inlineRequestBody = BodyDecodeService.truncate(
       requestBodyBytes,
       settings.maxBodyBytes,
@@ -347,7 +404,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
         bodyLocation: BodyLocation.memory,
         inlineRequestBody: inlineRequestBody,
         inlineResponseBody: null,
-        requestHeaders: requestHeaders,
+        requestHeaders: sanitizedHeaders,
         responseHeaders: const {},
         requestContentType: requestContentType,
         responseContentType: null,
@@ -365,17 +422,10 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
 
   void _schedulePendingTimeout(String id) {
     _cancelPendingTimeout(id);
-    _pendingTimers[id] = Timer(_pendingTimeout, () {
+    _pendingTimers[id] = Timer(settings.pendingTimeout, () {
       _pendingTimers.remove(id);
 
-      IndexEntry? current;
-      for (final entry in _memoryIndex.entries) {
-        if (entry.id == id) {
-          current = entry;
-          break;
-        }
-      }
-
+      final current = _memoryIndex.byId(id);
       if (current == null) return;
       if (current.statusCode != 0 || current.hasError) return;
 
@@ -422,12 +472,14 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   void applyFilter(RequestFilter filter) {
     if (_filter == filter) return;
     _filter = filter;
+    _invalidateGroupedCache();
     notifyListeners();
   }
 
   @override
   void clearFilter() {
     _filter = RequestFilter();
+    _invalidateGroupedCache();
     notifyListeners();
   }
 
@@ -454,8 +506,14 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   ///   [BodyStore.readBytes] — never recreates or deletes the file.
   @override
   Future<RequestRecord> loadDetail(RequestSummary summary) async {
-    // IndexEntry extends RequestSummary — all session entries are IndexEntry.
-    final entry = summary as IndexEntry;
+    if (summary is! IndexEntry) {
+      throw ArgumentError.value(
+        summary,
+        'summary',
+        'Expected an IndexEntry instance created by Interceptly',
+      );
+    }
+    final entry = summary;
 
     String? reqPreview;
     String? resPreview;
@@ -530,8 +588,11 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
 
   @override
   Future<void> clear() async {
-    if (_clearing) return;
-    _clearing = true;
+    if (_clearFuture != null) return _clearFuture!;
+    return _clearFuture = _performClear();
+  }
+
+  Future<void> _performClear() async {
     try {
       if (_initialized) {
         // Wait for the isolate to finish all pending writes AND reset the file
@@ -551,7 +612,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       _pendingTimers.clear();
       notifyListeners();
     } finally {
-      _clearing = false;
+      _clearFuture = null;
     }
   }
 

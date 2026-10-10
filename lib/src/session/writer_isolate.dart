@@ -17,6 +17,7 @@ class _InitMessage {
     required this.replyPort,
     required this.settings,
     required this.tempDirPath,
+    this.fileName = BodyStore.kFileName,
   });
 
   final SendPort replyPort;
@@ -27,6 +28,7 @@ class _InitMessage {
   /// Must NOT call getTemporaryDirectory() inside the isolate — platform
   /// channels are not available in background isolates without additional setup.
   final String tempDirPath;
+  final String fileName;
 }
 
 class _WriteMessage {
@@ -66,6 +68,8 @@ class WriterIsolate {
   Isolate? _isolate;
   SendPort? _sendPort;
   ReceivePort? _receivePort;
+  ReceivePort? _errorPort;
+  ReceivePort? _exitPort;
   Completer<void>? _clearCompleter;
   Completer<void>? _disposeCompleter;
 
@@ -78,13 +82,16 @@ class WriterIsolate {
   /// Spawns the background isolate.
   ///
   /// [tempDirPath] must be resolved on the main isolate before calling this.
-  Future<void> start({required String tempDirPath}) async {
+  Future<void> start({
+    required String tempDirPath,
+    String fileName = BodyStore.kFileName,
+  }) async {
     _receivePort = ReceivePort();
+    _errorPort = ReceivePort();
+    _exitPort = ReceivePort();
 
     final completer = Completer<SendPort>();
 
-    // Single listener handles both the initial SendPort handshake and all
-    // subsequent IndexEntry replies — no subscription dance needed.
     _receivePort!.listen((message) {
       if (message is SendPort && !completer.isCompleted) {
         completer.complete(message);
@@ -99,13 +106,33 @@ class WriterIsolate {
       }
     });
 
+    _errorPort!.listen((error) {
+      if (!completer.isCompleted) {
+        completer.completeError(error);
+      }
+      _clearCompleter?.complete();
+      _clearCompleter = null;
+      _disposeCompleter?.complete();
+      _disposeCompleter = null;
+    });
+
+    _exitPort!.listen((_) {
+      _clearCompleter?.complete();
+      _clearCompleter = null;
+      _disposeCompleter?.complete();
+      _disposeCompleter = null;
+    });
+
     _isolate = await Isolate.spawn(
       _isolateEntry,
       _InitMessage(
         replyPort: _receivePort!.sendPort,
         settings: _settings,
         tempDirPath: tempDirPath,
+        fileName: fileName,
       ),
+      onError: _errorPort!.sendPort,
+      onExit: _exitPort!.sendPort,
     );
 
     _sendPort = await completer.future;
@@ -136,12 +163,18 @@ class WriterIsolate {
       final completer = Completer<void>();
       _disposeCompleter = completer;
       _sendPort!.send(const _DisposeMessage());
-      await completer.future;
+      try {
+        await completer.future.timeout(const Duration(milliseconds: 500));
+      } catch (_) {}
     }
     _isolate?.kill(priority: Isolate.immediate);
     _isolate = null;
     _receivePort?.close();
     _receivePort = null;
+    _errorPort?.close();
+    _errorPort = null;
+    _exitPort?.close();
+    _exitPort = null;
     await _resultController.close();
   }
 }
@@ -158,21 +191,63 @@ Future<void> _isolateEntry(_InitMessage init) async {
   final bodyStore = BodyStore();
 
   // Use the pre-resolved path — no platform channel call inside the isolate.
-  await bodyStore.initForWrite(init.tempDirPath);
+  try {
+    await bodyStore.initForWrite(init.tempDirPath, fileName: init.fileName);
+  } catch (_) {
+    // If file creation fails (e.g. invalid temp dir path), fallback to memory-only
+  }
 
   await for (final message in receivePort) {
-    if (message is _WriteMessage) {
-      final entry = await _processCapture(message.capture, bodyStore, settings);
-      init.replyPort.send(entry);
-    } else if (message is _ClearMessage) {
-      await bodyStore.resetFile(init.tempDirPath);
-      init.replyPort.send(const _ClearAck());
-    } else if (message is _DisposeMessage) {
-      await bodyStore.dispose();
-      init.replyPort.send(const _DisposeAck());
-      break;
+    try {
+      if (message is _WriteMessage) {
+        final entry =
+            await _processCapture(message.capture, bodyStore, settings);
+        init.replyPort.send(entry);
+      } else if (message is _ClearMessage) {
+        try {
+          await bodyStore.resetFile(init.tempDirPath, fileName: init.fileName);
+        } catch (_) {}
+        init.replyPort.send(const _ClearAck());
+      } else if (message is _DisposeMessage) {
+        try {
+          await bodyStore.dispose();
+        } catch (_) {}
+        init.replyPort.send(const _DisposeAck());
+        break;
+      }
+    } catch (_) {
+      // In case of an unexpected processing error for a capture, emit an in-memory entry if possible
+      if (message is _WriteMessage) {
+        init.replyPort.send(_fallbackEntry(message.capture));
+      }
     }
   }
+}
+
+IndexEntry _fallbackEntry(RawCapture capture) {
+  return IndexEntry(
+    id: capture.id,
+    method: capture.method,
+    url: capture.url,
+    statusCode: capture.statusCode,
+    durationMs: capture.durationMs,
+    requestSizeBytes: 0,
+    responseSizeBytes: 0,
+    timestamp: capture.timestamp,
+    hasError: capture.hasError,
+    bodyLocation: BodyLocation.memory,
+    inlineRequestBody: null,
+    inlineResponseBody: null,
+    requestHeaders: capture.requestHeaders,
+    responseHeaders: capture.responseHeaders,
+    requestContentType: capture.requestContentType,
+    responseContentType: capture.responseContentType,
+    errorType: capture.errorType,
+    errorMessage: capture.errorMessage,
+    isBodyTruncated: false,
+    fileOffset: null,
+    fileLength: null,
+  );
 }
 
 Future<IndexEntry> _processCapture(
@@ -191,7 +266,7 @@ Future<IndexEntry> _processCapture(
   final resSize = resRaw?.length ?? 0;
 
   final largestSize = reqSize > resSize ? reqSize : resSize;
-  final useFile = largestSize >= threshold;
+  var useFile = largestSize >= threshold;
 
   Uint8List? inlineReq;
   Uint8List? inlineRes;
@@ -199,17 +274,24 @@ Future<IndexEntry> _processCapture(
   int? fileLength;
   bool isTruncated = false;
 
+  if (useFile) {
+    try {
+      final packed = _packBodies(reqRaw, resRaw, maxBody, previewLen);
+      isTruncated = packed.truncated;
+      final result = await bodyStore.append(packed.bytes);
+      fileOffset = result.$1;
+      fileLength = result.$2;
+    } catch (_) {
+      // File append failed (e.g. storage error) -> fallback to inline preview
+      useFile = false;
+    }
+  }
+
   if (!useFile) {
-    inlineReq = _maybeTruncate(reqRaw, maxBody, previewLen);
-    inlineRes = _maybeTruncate(resRaw, maxBody, previewLen);
+    inlineReq = _maybeTruncate(reqRaw, maxBody, maxBody);
+    inlineRes = _maybeTruncate(resRaw, maxBody, maxBody);
     isTruncated = (reqRaw != null && reqRaw.length > maxBody) ||
         (resRaw != null && resRaw.length > maxBody);
-  } else {
-    final packed = _packBodies(reqRaw, resRaw, maxBody, previewLen);
-    isTruncated = packed.truncated;
-    final result = await bodyStore.append(packed.bytes);
-    fileOffset = result.$1;
-    fileLength = result.$2;
   }
 
   return IndexEntry(
@@ -265,15 +347,14 @@ _PackedBodies _packBodies(
     truncated = true;
     return bytes.sublist(
       0,
-      previewLen < bytes.length ? previewLen : bytes.length,
+      maxBody < bytes.length ? maxBody : bytes.length,
     );
   }
 
   final reqData = req != null && req.isNotEmpty ? truncate(req) : null;
   final resData = res != null && res.isNotEmpty ? truncate(res) : null;
 
-  final total =
-      4 + (reqData?.length ?? 0) + 4 + (resData?.length ?? 0) + 1;
+  final total = 4 + (reqData?.length ?? 0) + 4 + (resData?.length ?? 0) + 1;
   final out = Uint8List(total);
   final data = ByteData.sublistView(out);
   var offset = 0;

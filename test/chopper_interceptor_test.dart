@@ -103,8 +103,8 @@ void main() {
 
         // Wait for session writer isolate to complete entry processing
         final end = DateTime.now().add(const Duration(seconds: 3));
-        while (session.entries.isEmpty ||
-            session.entries.first.statusCode == 0) {
+        while (
+            session.entries.isEmpty || session.entries.first.statusCode == 0) {
           if (DateTime.now().isAfter(end)) break;
           await Future.delayed(const Duration(milliseconds: 50));
         }
@@ -151,8 +151,7 @@ void main() {
       expect(response.statusCode, 201);
 
       final end = DateTime.now().add(const Duration(seconds: 3));
-      while (session.entries.isEmpty ||
-          session.entries.first.statusCode == 0) {
+      while (session.entries.isEmpty || session.entries.first.statusCode == 0) {
         if (DateTime.now().isAfter(end)) break;
         await Future.delayed(const Duration(milliseconds: 50));
       }
@@ -225,8 +224,7 @@ void main() {
       expect(chain.proceededRequest!.parameters, isEmpty);
 
       final end = DateTime.now().add(const Duration(seconds: 3));
-      while (session.entries.isEmpty ||
-          session.entries.first.statusCode == 0) {
+      while (session.entries.isEmpty || session.entries.first.statusCode == 0) {
         if (DateTime.now().isAfter(end)) break;
         await Future.delayed(const Duration(milliseconds: 50));
       }

@@ -260,7 +260,8 @@ void main() {
 
         if (matched == null) {
           // ignore: avoid_print
-          print('DEBUG tc url: $url, session entries: ${session.entries.map((e) => 'id:${e.id} url:${e.url} err:${e.hasError} type:${e.errorType} status:${e.statusCode}').toList()}');
+          print(
+              'DEBUG tc url: $url, session entries: ${session.entries.map((e) => 'id:${e.id} url:${e.url} err:${e.hasError} type:${e.errorType} status:${e.statusCode}').toList()}');
         }
 
         expect(matched, isNotNull, reason: 'Failed to record error for $url');
@@ -308,7 +309,10 @@ void main() {
         IndexEntry? entry;
         while (DateTime.now().isBefore(deadline)) {
           entry = session.entries.cast<IndexEntry?>().firstWhere(
-                (e) => e != null && e.url.contains(urlPart) && e.statusCode == code,
+                (e) =>
+                    e != null &&
+                    e.url.contains(urlPart) &&
+                    e.statusCode == code,
                 orElse: () => null,
               );
           if (entry != null) break;
@@ -339,8 +343,8 @@ void main() {
 
       final client = InterceptlyHttpClient(
         _MockStreamingClient(
-          (req) => http.StreamedResponse(sourceController.stream, 200,
-              request: req),
+          (req) =>
+              http.StreamedResponse(sourceController.stream, 200, request: req),
         ),
         session,
       );
@@ -389,8 +393,8 @@ void main() {
 
       final client = InterceptlyHttpClient(
         _MockStreamingClient(
-          (req) => http.StreamedResponse(sourceController.stream, 200,
-              request: req),
+          (req) =>
+              http.StreamedResponse(sourceController.stream, 200, request: req),
         ),
         session,
       );
@@ -453,8 +457,8 @@ void main() {
 
       final client = InterceptlyHttpClient(
         _MockStreamingClient(
-          (req) => http.StreamedResponse(sourceController.stream, 200,
-              request: req),
+          (req) =>
+              http.StreamedResponse(sourceController.stream, 200, request: req),
         ),
         session,
       );
@@ -569,10 +573,9 @@ void main() {
 
       // Verify all 20 entries reached terminal states cleanly
       final deadline = DateTime.now().add(const Duration(seconds: 5));
-      while (session.entries
-              .where((e) => e.statusCode != 0 || e.hasError)
-              .length <
-          20) {
+      while (
+          session.entries.where((e) => e.statusCode != 0 || e.hasError).length <
+              20) {
         if (DateTime.now().isAfter(deadline)) break;
         await Future<void>.delayed(const Duration(milliseconds: 50));
       }
@@ -602,8 +605,8 @@ void main() {
 
       final client = InterceptlyHttpClient(
         _MockStreamingClient(
-          (req) => http.StreamedResponse(sourceController.stream, 200,
-              request: req),
+          (req) =>
+              http.StreamedResponse(sourceController.stream, 200, request: req),
         ),
         session,
       );
@@ -647,14 +650,15 @@ void main() {
       final sourceController = StreamController<List<int>>();
       final client = InterceptlyHttpClient(
         _MockStreamingClient(
-          (req) => http.StreamedResponse(sourceController.stream, 200,
-              request: req),
+          (req) =>
+              http.StreamedResponse(sourceController.stream, 200, request: req),
         ),
         session,
       );
 
       final response = await client.send(
-        http.Request('GET', Uri.parse('https://api.example.com/error-priority')),
+        http.Request(
+            'GET', Uri.parse('https://api.example.com/error-priority')),
       );
 
       final entryId = session.entries.first.id;
@@ -694,14 +698,15 @@ void main() {
 
       final client = InterceptlyHttpClient(
         _MockStreamingClient(
-          (req) => http.StreamedResponse(sourceController.stream, 200,
-              request: req),
+          (req) =>
+              http.StreamedResponse(sourceController.stream, 200, request: req),
         ),
         session,
       );
 
       final response = await client.send(
-        http.Request('GET', Uri.parse('https://api.example.com/pause-resume-cancel')),
+        http.Request(
+            'GET', Uri.parse('https://api.example.com/pause-resume-cancel')),
       );
 
       final entryId = session.entries.first.id;
@@ -730,14 +735,13 @@ void main() {
       await sourceController.close();
     });
 
-    test(
-        'Standard Stream operators: stream.first auto-cancels cleanly',
+    test('Standard Stream operators: stream.first auto-cancels cleanly',
         () async {
       final sourceController = StreamController<List<int>>();
       final client = InterceptlyHttpClient(
         _MockStreamingClient(
-          (req) => http.StreamedResponse(sourceController.stream, 200,
-              request: req),
+          (req) =>
+              http.StreamedResponse(sourceController.stream, 200, request: req),
         ),
         session,
       );
@@ -781,14 +785,15 @@ void main() {
 
       final client = InterceptlyHttpClient(
         _MockStreamingClient(
-          (req) => http.StreamedResponse(sourceController.stream, 200,
-              request: req),
+          (req) =>
+              http.StreamedResponse(sourceController.stream, 200, request: req),
         ),
         session,
       );
 
       final response = await client.send(
-        http.Request('GET', Uri.parse('https://api.example.com/trailing-events')),
+        http.Request(
+            'GET', Uri.parse('https://api.example.com/trailing-events')),
       );
 
       final entryId = session.entries.first.id;
@@ -812,8 +817,8 @@ void main() {
       final sourceController = StreamController<List<int>>();
       final client = InterceptlyHttpClient(
         _MockStreamingClient(
-          (req) => http.StreamedResponse(sourceController.stream, 200,
-              request: req),
+          (req) =>
+              http.StreamedResponse(sourceController.stream, 200, request: req),
         ),
         session,
       );
@@ -839,8 +844,9 @@ void main() {
       );
 
       for (var b = 0; b < totalStreamSize; b += chunkSize) {
-        final currentChunkSize =
-            (totalStreamSize - b) < chunkSize ? (totalStreamSize - b) : chunkSize;
+        final currentChunkSize = (totalStreamSize - b) < chunkSize
+            ? (totalStreamSize - b)
+            : chunkSize;
         sourceController.add(List.filled(currentChunkSize, 42));
       }
       await sourceController.close();

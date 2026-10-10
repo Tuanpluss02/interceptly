@@ -20,8 +20,9 @@ class BodyStore {
   ///
   /// [dirPath] must be resolved on the **main isolate** before the
   /// WriterIsolate is spawned, then passed in via the init message.
-  Future<void> initForWrite(String dirPath) async {
-    _file = File('$dirPath/$kFileName');
+  Future<void> initForWrite(String dirPath,
+      {String fileName = kFileName}) async {
+    _file = File('$dirPath/$fileName');
     if (await _file.exists()) await _file.delete();
     await _file.create(recursive: true);
     _raf = await _file.open(mode: FileMode.writeOnlyAppend);
@@ -40,11 +41,11 @@ class BodyStore {
   }
 
   /// Resets the file: deletes and recreates it.
-  Future<void> resetFile(String dirPath) async {
+  Future<void> resetFile(String dirPath, {String fileName = kFileName}) async {
     await _raf?.close();
     _raf = null;
     _currentOffset = 0;
-    _file = File('$dirPath/$kFileName');
+    _file = File('$dirPath/$fileName');
     if (await _file.exists()) await _file.delete();
     await _file.create(recursive: true);
     _raf = await _file.open(mode: FileMode.writeOnlyAppend);

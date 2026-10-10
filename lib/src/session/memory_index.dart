@@ -1,5 +1,3 @@
-import 'dart:collection';
-
 import '../model/index_entry.dart';
 import '../model/request_filter.dart';
 
@@ -15,9 +13,17 @@ class MemoryIndex {
   final Map<String, int> _idIndex = {};
 
   /// Unmodifiable snapshot of the current entries (newest first).
-  List<IndexEntry> get entries => UnmodifiableListView(_entries);
+  List<IndexEntry> get entries => List.unmodifiable(_entries);
 
   int get length => _entries.length;
+
+  IndexEntry? byId(String id) {
+    final idx = _idIndex[id];
+    if (idx != null && idx < _entries.length && _entries[idx].id == id) {
+      return _entries[idx];
+    }
+    return null;
+  }
 
   void add(IndexEntry entry) {
     var existingIndex = _idIndex[entry.id];

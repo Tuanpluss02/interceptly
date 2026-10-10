@@ -10,8 +10,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test('session pack round-trip through temp file', () async {
-    final tempDir =
-        await Directory.systemTemp.createTemp('interceptly_bisect');
+    final tempDir = await Directory.systemTemp.createTemp('interceptly_bisect');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
       const MethodChannel('plugins.flutter.io/path_provider'),
