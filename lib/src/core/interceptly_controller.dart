@@ -1,9 +1,6 @@
 import 'dart:async';
-import 'dart:math';
 
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:sensors_plus/sensors_plus.dart';
 import '../model/interceptly_settings.dart';
 import '../model/network_simulation.dart';
 import '../model/raw_capture.dart';

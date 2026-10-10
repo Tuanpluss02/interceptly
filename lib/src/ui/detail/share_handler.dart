@@ -3,20 +3,29 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../../export/curl_generator.dart';
 import '../../export/har_exporter.dart';
 import '../../export/postman_exporter.dart';
 import '../../model/request_record.dart';
+import '../../share/interceptly_share.dart';
 import '../interceptly_theme.dart';
 import '../widgets/toast_notification.dart';
 
 class ShareHandler {
+  ShareHandler({required this.context, required this.fabKey})
+      : _share = InterceptlyShare();
+
+  @visibleForTesting
+  ShareHandler.withShare({
+    required this.context,
+    required this.fabKey,
+    required InterceptlyShare share,
+  }) : _share = share;
+
   final BuildContext context;
   final GlobalKey fabKey;
-
-  const ShareHandler({required this.context, required this.fabKey});
+  final InterceptlyShare _share;
 
   void showShareMenu(RequestRecord record) {
     showModalBottomSheet(
@@ -139,13 +148,11 @@ class ShareHandler {
       await file.writeAsString(collectionJson);
 
       final origin = await _getSharePositionOrigin();
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile(file.path)],
-          subject: 'Postman Collection Export',
-          text: 'Postman Collection export from Interceptly',
-          sharePositionOrigin: origin,
-        ),
+      await _shareFile(
+        file,
+        subject: 'Postman Collection Export',
+        text: 'Postman Collection export from Interceptly',
+        origin: origin,
       );
     } catch (e) {
       ToastNotification.show('Error exporting Postman collection: $e');
@@ -167,16 +174,37 @@ class ShareHandler {
 
       // Share file using system share UI
       final origin = await _getSharePositionOrigin();
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile(file.path)],
-          subject: 'HAR Export',
-          text: 'Network request HAR export',
-          sharePositionOrigin: origin,
-        ),
+      await _shareFile(
+        file,
+        subject: 'HAR Export',
+        text: 'Network request HAR export',
+        origin: origin,
       );
     } catch (e) {
       ToastNotification.show('Error exporting HAR: $e');
+    }
+  }
+
+  Future<void> _shareFile(
+    File file, {
+    String? subject,
+    String? text,
+    Rect? origin,
+  }) async {
+    final contextHint = context;
+    final presented = await _share.shareFile(
+      filePath: file.path,
+      subject: subject,
+      text: text,
+      mimeType: 'application/json',
+      origin: origin,
+    );
+    if (!presented) {
+      await Clipboard.setData(ClipboardData(text: file.path));
+      ToastNotification.show(
+        'Share unavailable — file path copied: ${file.path}',
+        contextHint: contextHint, // ignore: use_build_context_synchronously
+      );
     }
   }
 

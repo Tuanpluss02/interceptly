@@ -11,25 +11,17 @@ class _AttachState {
   InspectorSession? session;
   InterceptlyConfig? config;
   OverlayEntry? fabEntry;
-  OverlayEntry? longPressEntry;
-  StreamSubscription<UserAccelerometerEvent>? shakeSub;
   StreamSubscription<void>? customTriggerSub;
-  DateTime lastShake = DateTime.fromMillisecondsSinceEpoch(0);
   bool inspectorIsOpen = false;
 
   void reset() {
     fabEntry?.remove();
     fabEntry = null;
-    longPressEntry?.remove();
-    longPressEntry = null;
-    shakeSub?.cancel();
-    shakeSub = null;
     customTriggerSub?.cancel();
     customTriggerSub = null;
     navigatorKey = null;
     session = null;
     config = null;
-    lastShake = DateTime.fromMillisecondsSinceEpoch(0);
   }
 }
 
@@ -51,12 +43,6 @@ Future<void> _attach({
 
   ToastNotification.setNavigatorKey(navigatorKey);
   await _state.session!.initialize();
-
-  final triggers = _state.config!.triggers;
-
-  if (triggers.contains(InspectorTrigger.shake)) {
-    _startShakeListener();
-  }
 
   if (customTrigger != null) {
     _state.customTriggerSub = customTrigger.listen((_) => _openInspector());
@@ -122,10 +108,6 @@ void _tryInsertOverlays([int attempt = 0]) {
       _state.fabEntry == null) {
     _insertFab(overlay);
   }
-  if (triggers.contains(InspectorTrigger.longPress) &&
-      _state.longPressEntry == null) {
-    _insertLongPressOverlay(overlay);
-  }
 }
 
 void _insertFab(OverlayState overlay) {
@@ -167,50 +149,4 @@ void _insertFab(OverlayState overlay) {
     },
   );
   overlay.insert(_state.fabEntry!);
-}
-
-void _insertLongPressOverlay(OverlayState overlay) {
-  final config = _state.config ?? const InterceptlyConfig();
-  _state.longPressEntry = OverlayEntry(
-    builder: (context) => Positioned.fill(
-      child: RawGestureDetector(
-        behavior: HitTestBehavior.translucent,
-        gestures: {
-          LongPressGestureRecognizer:
-              GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
-            () => LongPressGestureRecognizer(
-              duration: config.longPressDuration,
-            ),
-            (instance) => instance.onLongPress = _openInspector,
-          ),
-        },
-        child: const SizedBox.expand(),
-      ),
-    ),
-  );
-  overlay.insert(_state.longPressEntry!);
-}
-
-// ---------------------------------------------------------------------------
-// Shake detection
-// ---------------------------------------------------------------------------
-
-void _startShakeListener() {
-  final config = _state.config ?? const InterceptlyConfig();
-  try {
-    _state.shakeSub = userAccelerometerEventStream(
-      samplingPeriod: SensorInterval.uiInterval,
-    ).listen((event) {
-      final magnitude = sqrt(
-        event.x * event.x + event.y * event.y + event.z * event.z,
-      );
-      if (magnitude < config.shakeThreshold) return;
-      final now = DateTime.now();
-      if (now.difference(_state.lastShake) < config.shakeMinInterval) {
-        return;
-      }
-      _state.lastShake = now;
-      _openInspector();
-    }, onError: (_) {});
-  } catch (_) {}
 }

@@ -23,7 +23,7 @@ Interceptly is a high-performance network inspector for Flutter. It provides rea
 - **Postman-like Replay**: Built-in request editor to modify headers/body and re-send requests.
 - **Network Simulation**: Global profiles for Offline, 3G, 4G, or custom latency/bandwidth.
 - **Advanced Formatters**: Specialized views for GraphQL, Multipart, cURL, and Binary data.
-- **Flexible Triggers**: Support for Shake, Long Press, Floating Button, or Custom Streams.
+- **Flexible Triggers**: Floating bug button or custom streams.
 
 ---
 
@@ -117,8 +117,6 @@ Interceptly.attach(
   config: InterceptlyConfig(
     triggers: {
       InspectorTrigger.floatingButton,
-      InspectorTrigger.shake,
-      InspectorTrigger.longPress,
     },
   ),
 );
