@@ -134,8 +134,8 @@ class InterceptlyDioInterceptor extends Interceptor {
     final reqBytes = options.extra[_reqBytesKey] as Uint8List? ??
         await _toBytesAsync(options.data, options.contentType);
     final resContentType = response?.headers.value(Headers.contentTypeHeader);
-    final finalResBytes = resBytes ??
-        await _toBytesAsync(response?.data, resContentType);
+    final finalResBytes =
+        resBytes ?? await _toBytesAsync(response?.data, resContentType);
 
     final capture = RawCapture(
       id: id,
@@ -209,7 +209,8 @@ class InterceptlyDioInterceptor extends Interceptor {
   }
 
   /// Serializes arbitrary data to UTF-8 bytes in an isolate when appropriate.
-  static Future<Uint8List?> _toBytesAsync(Object? data, [String? contentType]) async {
+  static Future<Uint8List?> _toBytesAsync(Object? data,
+      [String? contentType]) async {
     if (data == null) return null;
     if (data is Uint8List) return data;
     if (data is List<int>) return Uint8List.fromList(data);

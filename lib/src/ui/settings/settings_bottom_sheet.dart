@@ -57,226 +57,236 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.85,
-      decoration: BoxDecoration(
-        color: _colors.surfacePrimary,
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(InterceptlyTheme.radius.lg * 2),
-        ),
-      ),
-      child: Column(
-        children: [
-          // Handle & Header
-          Container(
-            padding: const EdgeInsets.only(top: 12.0, bottom: 12.0),
-            decoration: BoxDecoration(
-              color: _colors.surfacePrimary,
-              borderRadius: BorderRadius.vertical(
-                top: Radius.circular(InterceptlyTheme.radius.lg * 2),
-              ),
-              border: Border(
-                bottom: BorderSide(color: InterceptlyTheme.dividerSubtle),
-              ),
-            ),
-            child: Column(
-              children: [
-                Container(
-                  width: 48,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: InterceptlyTheme.controlMuted,
-                    borderRadius: BorderRadius.circular(10.0),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Settings',
-                        style: _typography.titleSmallBold.copyWith(
-                          color: _colors.textPrimary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+    InterceptlyTheme.bind(context: context, themeMode: _themeMode);
+    final theme = InterceptlyTheme.themeData(
+      context: context,
+      themeMode: _themeMode,
+    );
+
+    return Theme(
+      data: theme,
+      child: Container(
+        height: MediaQuery.of(context).size.height * 0.85,
+        decoration: BoxDecoration(
+          color: _colors.surfacePrimary,
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(InterceptlyTheme.radius.lg * 2),
           ),
-
-          // Content
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(16.0),
-              children: [
-                _buildSectionTitle('UI & Behavior'),
-                _buildSectionCard([
-                  _SettingsTile(
-                    icon: Icons.dark_mode_outlined,
-                    title: 'Theme Mode',
-                    trailing: DropdownButtonHideUnderline(
-                      child: DropdownButton<ThemeMode>(
-                        dropdownColor: _colors.surfaceSecondary,
-                        style: _typography.bodyMediumRegular.copyWith(
-                          color: _colors.textPrimary,
-                          fontSize: 12,
-                        ),
-                        iconEnabledColor: _colors.textSecondary,
-                        iconDisabledColor: _colors.textTertiary,
-                        value: _themeMode,
-                        items: [
-                          const DropdownMenuItem(
-                            value: ThemeMode.system,
-                            child: Text('System'),
-                          ),
-                          const DropdownMenuItem(
-                            value: ThemeMode.light,
-                            child: Text('Light'),
-                          ),
-                          const DropdownMenuItem(
-                            value: ThemeMode.dark,
-                            child: Text('Dark'),
-                          ),
-                        ],
-                        onChanged: (mode) {
-                          if (mode == null) return;
-                          setState(() => _themeMode = mode);
-                          widget.session.preferences.setThemeMode(mode);
-                        },
-                      ),
+        ),
+        child: Column(
+          children: [
+            // Handle & Header
+            Container(
+              padding: const EdgeInsets.only(top: 12.0, bottom: 12.0),
+              decoration: BoxDecoration(
+                color: _colors.surfacePrimary,
+                borderRadius: BorderRadius.vertical(
+                  top: Radius.circular(InterceptlyTheme.radius.lg * 2),
+                ),
+                border: Border(
+                  bottom: BorderSide(color: InterceptlyTheme.dividerSubtle),
+                ),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: InterceptlyTheme.controlMuted,
+                      borderRadius: BorderRadius.circular(10.0),
                     ),
                   ),
-                  _SettingsTile(
-                    icon: Icons.link,
-                    title: 'URL Decoding',
-                    trailing: _CustomSwitch(
-                      value: _urlDecodeEnabled,
-                      activeColor: _colors.actionPrimary,
-                      onChanged: (val) {
-                        setState(() => _urlDecodeEnabled = val);
-                        widget.session.preferences.setUrlDecodeEnabled(val);
-                      },
-                    ),
-                  ),
-                ]),
-
-                const SizedBox(height: 20),
-                _buildSectionTitle('Network Simulation'),
-                _buildSectionCard([
-                  _SettingsTile(
-                    icon: Icons.network_check,
-                    title: 'Preset',
-                    trailing: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        dropdownColor: _colors.surfaceSecondary,
-                        style: _typography.bodyMediumRegular.copyWith(
-                          color: _colors.textPrimary,
-                          fontSize: 12,
-                        ),
-                        iconEnabledColor: _colors.textSecondary,
-                        iconDisabledColor: _colors.textTertiary,
-                        value: _selectedPresetName,
-                        items: [
-                          ..._presetProfiles,
-                          const NetworkSimulationProfile(
-                            name: _customPresetName,
-                            offline: false,
-                            latencyMs: 0,
-                            downloadKbps: 0,
-                            uploadKbps: 0,
-                          ),
-                        ]
-                            .map(
-                              (p) => DropdownMenuItem<String>(
-                                value: p.name,
-                                child: Text(
-                                  p.name,
-                                  style: _typography.bodyMediumRegular.copyWith(
-                                    color: _colors.textPrimary,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) {
-                          if (value == null) return;
-                          if (value == _customPresetName) {
-                            final next = _networkSimulation.copyWith(
-                              name: _customPresetName,
-                            );
-                            setState(() => _networkSimulation = next);
-                            widget.session.setNetworkSimulation(next);
-                            return;
-                          }
-
-                          final selected = _presetProfiles.firstWhere(
-                            (p) => p.name == value,
-                          );
-                          setState(() => _networkSimulation = selected);
-                          widget.session.setNetworkSimulation(selected);
-                        },
-                      ),
-                    ),
-                  ),
-                ]),
-                if (_isCustomSelected) ...[
                   const SizedBox(height: 12),
-                  _buildThrottlingSlider(
-                    title: 'Latency',
-                    value: _networkSimulation.latencyMs.toDouble(),
-                    max: 2000,
-                    unit: 'ms',
-                    onChanged: (v) {
-                      final next = _networkSimulation.copyWith(
-                        name: _customPresetName,
-                        latencyMs: v.round(),
-                      );
-                      setState(() => _networkSimulation = next);
-                      widget.session.setNetworkSimulation(next);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  _buildThrottlingSlider(
-                    title: 'Download',
-                    value: _networkSimulation.downloadKbps.toDouble(),
-                    max: 50000,
-                    unit: 'kbps',
-                    onChanged: (v) {
-                      final next = _networkSimulation.copyWith(
-                        name: _customPresetName,
-                        downloadKbps: v.round(),
-                      );
-                      setState(() => _networkSimulation = next);
-                      widget.session.setNetworkSimulation(next);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  _buildThrottlingSlider(
-                    title: 'Upload',
-                    value: _networkSimulation.uploadKbps.toDouble(),
-                    max: 50000,
-                    unit: 'kbps',
-                    onChanged: (v) {
-                      final next = _networkSimulation.copyWith(
-                        name: _customPresetName,
-                        uploadKbps: v.round(),
-                      );
-                      setState(() => _networkSimulation = next);
-                      widget.session.setNetworkSimulation(next);
-                    },
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Settings',
+                          style: _typography.titleSmallBold.copyWith(
+                            color: _colors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
-
-                const SizedBox(height: 48), // Padding bottom
-              ],
+              ),
             ),
-          ),
-        ],
+
+            // Content
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(16.0),
+                children: [
+                  _buildSectionTitle('UI & Behavior'),
+                  _buildSectionCard([
+                    _SettingsTile(
+                      icon: Icons.dark_mode_outlined,
+                      title: 'Theme Mode',
+                      trailing: DropdownButtonHideUnderline(
+                        child: DropdownButton<ThemeMode>(
+                          dropdownColor: _colors.surfaceSecondary,
+                          style: _typography.bodyMediumRegular.copyWith(
+                            color: _colors.textPrimary,
+                            fontSize: 12,
+                          ),
+                          iconEnabledColor: _colors.textSecondary,
+                          iconDisabledColor: _colors.textTertiary,
+                          value: _themeMode,
+                          items: [
+                            const DropdownMenuItem(
+                              value: ThemeMode.system,
+                              child: Text('System'),
+                            ),
+                            const DropdownMenuItem(
+                              value: ThemeMode.light,
+                              child: Text('Light'),
+                            ),
+                            const DropdownMenuItem(
+                              value: ThemeMode.dark,
+                              child: Text('Dark'),
+                            ),
+                          ],
+                          onChanged: (mode) {
+                            if (mode == null) return;
+                            setState(() => _themeMode = mode);
+                            widget.session.preferences.setThemeMode(mode);
+                          },
+                        ),
+                      ),
+                    ),
+                    _SettingsTile(
+                      icon: Icons.link,
+                      title: 'URL Decoding',
+                      trailing: _CustomSwitch(
+                        value: _urlDecodeEnabled,
+                        activeColor: _colors.actionPrimary,
+                        onChanged: (val) {
+                          setState(() => _urlDecodeEnabled = val);
+                          widget.session.preferences.setUrlDecodeEnabled(val);
+                        },
+                      ),
+                    ),
+                  ]),
+
+                  const SizedBox(height: 20),
+                  _buildSectionTitle('Network Simulation'),
+                  _buildSectionCard([
+                    _SettingsTile(
+                      icon: Icons.network_check,
+                      title: 'Preset',
+                      trailing: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          dropdownColor: _colors.surfaceSecondary,
+                          style: _typography.bodyMediumRegular.copyWith(
+                            color: _colors.textPrimary,
+                            fontSize: 12,
+                          ),
+                          iconEnabledColor: _colors.textSecondary,
+                          iconDisabledColor: _colors.textTertiary,
+                          value: _selectedPresetName,
+                          items: [
+                            ..._presetProfiles,
+                            const NetworkSimulationProfile(
+                              name: _customPresetName,
+                              offline: false,
+                              latencyMs: 0,
+                              downloadKbps: 0,
+                              uploadKbps: 0,
+                            ),
+                          ]
+                              .map(
+                                (p) => DropdownMenuItem<String>(
+                                  value: p.name,
+                                  child: Text(
+                                    p.name,
+                                    style:
+                                        _typography.bodyMediumRegular.copyWith(
+                                      color: _colors.textPrimary,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) {
+                            if (value == null) return;
+                            if (value == _customPresetName) {
+                              final next = _networkSimulation.copyWith(
+                                name: _customPresetName,
+                              );
+                              setState(() => _networkSimulation = next);
+                              widget.session.setNetworkSimulation(next);
+                              return;
+                            }
+
+                            final selected = _presetProfiles.firstWhere(
+                              (p) => p.name == value,
+                            );
+                            setState(() => _networkSimulation = selected);
+                            widget.session.setNetworkSimulation(selected);
+                          },
+                        ),
+                      ),
+                    ),
+                  ]),
+                  if (_isCustomSelected) ...[
+                    const SizedBox(height: 12),
+                    _buildThrottlingSlider(
+                      title: 'Latency',
+                      value: _networkSimulation.latencyMs.toDouble(),
+                      max: 2000,
+                      unit: 'ms',
+                      onChanged: (v) {
+                        final next = _networkSimulation.copyWith(
+                          name: _customPresetName,
+                          latencyMs: v.round(),
+                        );
+                        setState(() => _networkSimulation = next);
+                        widget.session.setNetworkSimulation(next);
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    _buildThrottlingSlider(
+                      title: 'Download',
+                      value: _networkSimulation.downloadKbps.toDouble(),
+                      max: 50000,
+                      unit: 'kbps',
+                      onChanged: (v) {
+                        final next = _networkSimulation.copyWith(
+                          name: _customPresetName,
+                          downloadKbps: v.round(),
+                        );
+                        setState(() => _networkSimulation = next);
+                        widget.session.setNetworkSimulation(next);
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    _buildThrottlingSlider(
+                      title: 'Upload',
+                      value: _networkSimulation.uploadKbps.toDouble(),
+                      max: 50000,
+                      unit: 'kbps',
+                      onChanged: (v) {
+                        final next = _networkSimulation.copyWith(
+                          name: _customPresetName,
+                          uploadKbps: v.round(),
+                        );
+                        setState(() => _networkSimulation = next);
+                        widget.session.setNetworkSimulation(next);
+                      },
+                    ),
+                  ],
+
+                  const SizedBox(height: 48), // Padding bottom
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -318,12 +328,10 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
             ],
           ),
           SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              activeTrackColor: _colors.actionPrimary,
-              inactiveTrackColor: InterceptlyTheme.controlMuted,
-              thumbColor: _colors.actionSecondary,
-              overlayColor: _colors.actionPrimary.withValues(alpha: 0.2),
-            ),
+            data: InterceptlyTheme.themeData(
+              context: context,
+              themeMode: _themeMode,
+            ).sliderTheme,
             child: Slider(
               value: value.clamp(0, max),
               min: 0,

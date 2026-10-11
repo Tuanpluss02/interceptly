@@ -127,202 +127,207 @@ class _FilterPanelState extends State<FilterPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = InterceptlyTheme.themeData(context: context);
     final radius = InterceptlyTheme.radius;
     final spacing = InterceptlyTheme.spacing;
     final colors = InterceptlyTheme.colors;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
 
-    return Container(
-      margin: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 40),
-      decoration: BoxDecoration(
-        color: InterceptlyTheme.surface,
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(radius.lg * 2),
+    return Theme(
+      data: theme,
+      child: Container(
+        margin: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 40),
+        decoration: BoxDecoration(
+          color: InterceptlyTheme.surface,
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(radius.lg * 2),
+          ),
         ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // ── Drag handle ─────────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.only(top: 12, bottom: 4),
-            child: Container(
-              width: 40,
-              height: 5,
-              decoration: BoxDecoration(
-                color: colors.textTertiary.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(2.5),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ── Drag handle ─────────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.only(top: 12, bottom: 4),
+              child: Container(
+                width: 40,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: colors.textTertiary.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2.5),
+                ),
               ),
             ),
-          ),
 
-          // ── Title row ─────────────────────────────────────────────────────
-          Padding(
-            padding: EdgeInsets.fromLTRB(spacing.lg, spacing.sm, spacing.lg, 0),
-            child: Row(
-              children: [
-                Text(
-                  'Filter',
-                  style: InterceptlyTheme.typography.titleSmallBold.copyWith(
-                    color: colors.textPrimary,
-                  ),
-                ),
-                if (_activeFilterCount > 0) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: colors.actionPrimary,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      '$_activeFilterCount',
-                      style:
-                          InterceptlyTheme.typography.labelSmallMedium.copyWith(
-                        color: colors.textOnAction,
-                        fontSize: 11,
-                      ),
+            // ── Title row ─────────────────────────────────────────────────────
+            Padding(
+              padding:
+                  EdgeInsets.fromLTRB(spacing.lg, spacing.sm, spacing.lg, 0),
+              child: Row(
+                children: [
+                  Text(
+                    'Filter',
+                    style: InterceptlyTheme.typography.titleSmallBold.copyWith(
+                      color: colors.textPrimary,
                     ),
                   ),
-                ],
-                const Spacer(),
-                if (_hasChanges)
-                  GestureDetector(
-                    onTap: _resetFilters,
-                    child: Padding(
+                  if (_activeFilterCount > 0) ...[
+                    const SizedBox(width: 8),
+                    Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 4, vertical: 2),
+                          horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: colors.actionPrimary,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                       child: Text(
-                        'Reset',
-                        style: InterceptlyTheme.typography.bodySmallMedium
+                        '$_activeFilterCount',
+                        style: InterceptlyTheme.typography.labelSmallMedium
                             .copyWith(
-                          color: colors.actionPrimary,
+                          color: colors.textOnAction,
+                          fontSize: 11,
                         ),
                       ),
                     ),
-                  ),
-              ],
-            ),
-          ),
-
-          // ── Scrollable sections ────────────────────────────────────────────
-          Flexible(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(
-                spacing.lg,
-                spacing.lg,
-                spacing.lg,
-                bottomPadding + spacing.md,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ── HTTP Methods ────────────────────────────────────────────
-                  _SectionHeader(label: 'HTTP Methods'),
-                  SizedBox(height: spacing.sm),
-                  _MethodChips(
-                    selected: selectedMethods,
-                    onToggle: (m) => setState(() {
-                      if (selectedMethods.contains(m)) {
-                        selectedMethods.remove(m);
-                      } else {
-                        selectedMethods.add(m);
-                      }
-                    }),
-                  ),
-                  SizedBox(height: spacing.xl),
-
-                  // ── Status Codes ────────────────────────────────────────────
-                  _SectionHeader(label: 'Status Codes'),
-                  SizedBox(height: spacing.sm),
-                  _StatusRow(
-                    include2xx: include2xx,
-                    include3xx: include3xx,
-                    include4xx: include4xx,
-                    include5xx: include5xx,
-                    onToggle: (key) => setState(() {
-                      switch (key) {
-                        case '2xx':
-                          include2xx = !include2xx;
-                          break;
-                        case '3xx':
-                          include3xx = !include3xx;
-                          break;
-                        case '4xx':
-                          include4xx = !include4xx;
-                          break;
-                        case '5xx':
-                          include5xx = !include5xx;
-                          break;
-                      }
-                    }),
-                  ),
-                  SizedBox(height: spacing.xl),
-
-                  // ── Domains ────────────────────────────────────────────────
-                  if (widget.availableDomains.isNotEmpty) ...[
-                    _SectionHeader(
-                      label: 'Domains',
-                      subtitle:
-                          '${selectedDomains.length} of ${widget.availableDomains.length} selected',
-                    ),
-                    SizedBox(height: spacing.sm),
-                    _DomainList(
-                      domains: widget.availableDomains,
-                      selected: selectedDomains,
-                      onToggle: (d) => setState(() {
-                        if (selectedDomains.contains(d)) {
-                          selectedDomains.remove(d);
-                        } else {
-                          selectedDomains.add(d);
-                        }
-                      }),
-                      onSelectAll: () => setState(() {
-                        selectedDomains = Set.from(widget.availableDomains);
-                      }),
-                    ),
                   ],
+                  const Spacer(),
+                  if (_hasChanges)
+                    GestureDetector(
+                      onTap: _resetFilters,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 2),
+                        child: Text(
+                          'Reset',
+                          style: InterceptlyTheme.typography.bodySmallMedium
+                              .copyWith(
+                            color: colors.actionPrimary,
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
-          ),
 
-          // ── Apply button ───────────────────────────────────────────────────
-          Container(
-            padding: EdgeInsets.fromLTRB(
-              spacing.lg,
-              spacing.md,
-              spacing.lg,
-              bottomPadding + spacing.md,
-            ),
-            decoration: BoxDecoration(
-              color: InterceptlyTheme.surface,
-              border: Border(
-                top: BorderSide(color: InterceptlyTheme.dividerSubtle),
+            // ── Scrollable sections ────────────────────────────────────────────
+            Flexible(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                  spacing.lg,
+                  spacing.lg,
+                  spacing.lg,
+                  bottomPadding + spacing.md,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ── HTTP Methods ────────────────────────────────────────────
+                    _SectionHeader(label: 'HTTP Methods'),
+                    SizedBox(height: spacing.sm),
+                    _MethodChips(
+                      selected: selectedMethods,
+                      onToggle: (m) => setState(() {
+                        if (selectedMethods.contains(m)) {
+                          selectedMethods.remove(m);
+                        } else {
+                          selectedMethods.add(m);
+                        }
+                      }),
+                    ),
+                    SizedBox(height: spacing.xl),
+
+                    // ── Status Codes ────────────────────────────────────────────
+                    _SectionHeader(label: 'Status Codes'),
+                    SizedBox(height: spacing.sm),
+                    _StatusRow(
+                      include2xx: include2xx,
+                      include3xx: include3xx,
+                      include4xx: include4xx,
+                      include5xx: include5xx,
+                      onToggle: (key) => setState(() {
+                        switch (key) {
+                          case '2xx':
+                            include2xx = !include2xx;
+                            break;
+                          case '3xx':
+                            include3xx = !include3xx;
+                            break;
+                          case '4xx':
+                            include4xx = !include4xx;
+                            break;
+                          case '5xx':
+                            include5xx = !include5xx;
+                            break;
+                        }
+                      }),
+                    ),
+                    SizedBox(height: spacing.xl),
+
+                    // ── Domains ────────────────────────────────────────────────
+                    if (widget.availableDomains.isNotEmpty) ...[
+                      _SectionHeader(
+                        label: 'Domains',
+                        subtitle:
+                            '${selectedDomains.length} of ${widget.availableDomains.length} selected',
+                      ),
+                      SizedBox(height: spacing.sm),
+                      _DomainList(
+                        domains: widget.availableDomains,
+                        selected: selectedDomains,
+                        onToggle: (d) => setState(() {
+                          if (selectedDomains.contains(d)) {
+                            selectedDomains.remove(d);
+                          } else {
+                            selectedDomains.add(d);
+                          }
+                        }),
+                        onSelectAll: () => setState(() {
+                          selectedDomains = Set.from(widget.availableDomains);
+                        }),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
-            child: SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: _applyFilters,
-                style: FilledButton.styleFrom(
-                  backgroundColor: colors.actionPrimary,
-                  foregroundColor: colors.textOnAction,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(radius.md),
+
+            // ── Apply button ───────────────────────────────────────────────────
+            Container(
+              padding: EdgeInsets.fromLTRB(
+                spacing.lg,
+                spacing.md,
+                spacing.lg,
+                bottomPadding + spacing.md,
+              ),
+              decoration: BoxDecoration(
+                color: InterceptlyTheme.surface,
+                border: Border(
+                  top: BorderSide(color: InterceptlyTheme.dividerSubtle),
+                ),
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _applyFilters,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: colors.actionPrimary,
+                    foregroundColor: colors.textOnAction,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(radius.md),
+                    ),
+                  ),
+                  child: Text(
+                    'Apply Filter${_activeFilterCount > 0 ? ' ($_activeFilterCount)' : ''}',
+                    style: InterceptlyTheme.typography.labelMediumMedium,
                   ),
                 ),
-                child: Text(
-                  'Apply Filter${_activeFilterCount > 0 ? ' ($_activeFilterCount)' : ''}',
-                  style: InterceptlyTheme.typography.labelMediumMedium,
-                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

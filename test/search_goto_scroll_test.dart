@@ -131,7 +131,9 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('Search goto match counting & synchronization', () {
-    test('JsonViewer.countMatches searches string scalars and keys matching _flatten', () {
+    test(
+        'JsonViewer.countMatches searches string scalars and keys matching _flatten',
+        () {
       final data = {
         'targetKey': 'simpleValue',
         'anotherKey': 'contains targetKey here',
@@ -161,7 +163,8 @@ void main() {
         isBodyTruncated: true,
       );
 
-      final matches = computeMatches(record, 'findme', false, (s) => jsonDecode(s!));
+      final matches =
+          computeMatches(record, 'findme', false, (s) => jsonDecode(s!));
       expect(matches, isNotEmpty);
 
       // Verify sections are mapped to appropriate tabIndex
@@ -230,7 +233,8 @@ void main() {
   });
 
   group('RequestDetailPage search navigation and scrolling', () {
-    testWidgets('Search navigates to response tab and Next/Prev matches cycle cleanly',
+    testWidgets(
+        'Search navigates to response tab and Next/Prev matches cycle cleanly',
         (tester) async {
       final entry = _createEntry('test_scroll_1');
 
@@ -253,7 +257,8 @@ void main() {
         requestContentType: 'application/json',
         responseContentType: 'application/json',
         requestBodyPreview: '{"client":"apple"}',
-        responseBodyPreview: '{"nested":{"deep_target":"secret_scroll_target"}}',
+        responseBodyPreview:
+            '{"nested":{"deep_target":"secret_scroll_target"}}',
       );
 
       final session = _MockDetailSession(record: record, entry: entry);
@@ -306,7 +311,8 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('JsonViewer scrolls to activeGlobalIndex without infinite animation loop',
+    testWidgets(
+        'JsonViewer scrolls to activeGlobalIndex without infinite animation loop',
         (tester) async {
       final largeData = <String, dynamic>{
         for (int i = 0; i < 50; i++) 'key_$i': 'value_$i',

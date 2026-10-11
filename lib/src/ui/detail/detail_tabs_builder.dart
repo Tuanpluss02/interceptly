@@ -363,7 +363,7 @@ class DetailTabsBuilder {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.all(8.0),
+                padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 3.0),
                 child: JsonViewer(
                   data: msg['data'],
                   searchQuery: query.isEmpty ? null : query,
@@ -592,7 +592,7 @@ class DetailTabsBuilder {
     return Container(
       key: sectionKeys?[section],
       width: double.infinity,
-      padding: const EdgeInsets.all(12.0),
+      padding: const EdgeInsets.fromLTRB(12.0, 12.0, 12.0, 4.0),
       decoration: BoxDecoration(
         color: InterceptlyTheme.surfaceContainer,
         border: Border.all(color: InterceptlyTheme.dividerSubtle),

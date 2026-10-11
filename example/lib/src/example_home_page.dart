@@ -2,6 +2,7 @@ import 'package:chopper/chopper.dart' as chopper;
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:interceptly/interceptly.dart';
 
 import 'example_local_server.dart';
 import 'example_request_runner.dart';
@@ -70,6 +71,21 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
     }
   }
 
+  Future<void> _clearAll() async {
+    await Interceptly.instance.clear();
+    if (!mounted) return;
+    setState(() {
+      _status = 'Cleared all recorded requests in Interceptly.';
+      _lastResult = null;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('All recorded requests cleared from Interceptly.'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _runner.dispose();
@@ -83,8 +99,21 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Interceptly Example'),
+        title: const Text('Interceptly Showcase'),
         elevation: 1,
+        actions: [
+          IconButton(
+            tooltip: 'Clear Recorded Requests',
+            icon: const Icon(Icons.delete_sweep_outlined),
+            onPressed: _clearAll,
+          ),
+          FilledButton.tonalIcon(
+            onPressed: () => Interceptly.showInspector(context),
+            icon: const Icon(Icons.bug_report, size: 18),
+            label: const Text('Inspector'),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -95,7 +124,8 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                color:
+                    colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: colorScheme.outlineVariant),
               ),
@@ -113,14 +143,18 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
                       color: Colors.green.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Text(
                       '100% Offline',
-                      style: TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.green,
+                          fontWeight: FontWeight.w600),
                     ),
                   ),
                 ],
@@ -128,89 +162,234 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
             ),
             const SizedBox(height: 16),
 
-            // ── Section 1: Basic Traffic ──────────────────────────────
-            Text(
-              'Basic Traffic',
-              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            // ── Section 1: RESTful Methods & Status Codes ─────────────
+            _buildSectionHeader(
+              title: 'RESTful Methods & Status Codes',
+              subtitle:
+                  'Test GET, POST 201, PUT, PATCH, DELETE 204, 400, 401, 404, 503 badges.',
+              icon: Icons.alt_route,
+              color: Colors.blue,
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Standard requests served locally (replaces external mockapi.io & httpbin).',
-              style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
-            ),
-            const SizedBox(height: 10),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
                 FilledButton.tonal(
-                  onPressed: _isLoading ? null : () => _runRequest('Dio GET /api/users', _runner.runDioGet),
-                  child: const Text('Dio GET'),
+                  onPressed: _isLoading
+                      ? null
+                      : () => _runRequest('Dio GET (200)', _runner.runDioGet),
+                  child: const Text('Dio GET 200'),
                 ),
                 FilledButton.tonal(
-                  onPressed: _isLoading ? null : () => _runRequest('HTTP GET /api/users', _runner.runHttpGet),
-                  child: const Text('HTTP GET'),
+                  onPressed: _isLoading
+                      ? null
+                      : () => _runRequest('HTTP GET (200)', _runner.runHttpGet),
+                  child: const Text('HTTP GET 200'),
                 ),
                 FilledButton.tonal(
-                  onPressed: _isLoading ? null : () => _runRequest('Chopper GET /api/users', _runner.runChopperGet),
-                  child: const Text('Chopper GET'),
+                  onPressed: _isLoading
+                      ? null
+                      : () => _runRequest(
+                          'Chopper GET (200)', _runner.runChopperGet),
+                  child: const Text('Chopper GET 200'),
+                ),
+                FilledButton.tonal(
+                  onPressed: _isLoading
+                      ? null
+                      : () =>
+                          _runRequest('POST User (201)', _runner.runPostUser),
+                  child: const Text('POST (201 Created)'),
+                ),
+                FilledButton.tonal(
+                  onPressed: _isLoading
+                      ? null
+                      : () => _runRequest('PUT User (200)', _runner.runPutUser),
+                  child: const Text('PUT (200)'),
+                ),
+                FilledButton.tonal(
+                  onPressed: _isLoading
+                      ? null
+                      : () =>
+                          _runRequest('PATCH User (200)', _runner.runPatchUser),
+                  child: const Text('PATCH (200)'),
+                ),
+                FilledButton.tonal(
+                  onPressed: _isLoading
+                      ? null
+                      : () => _runRequest(
+                          'DELETE User (204)', _runner.runDeleteUser),
+                  child: const Text('DELETE (204 No Content)'),
+                ),
+                OutlinedButton(
+                  onPressed: _isLoading
+                      ? null
+                      : () => _runRequest(
+                          'Bad Request (400)', _runner.run400BadRequest),
+                  child: const Text('400 Bad Request'),
+                ),
+                OutlinedButton(
+                  onPressed: _isLoading
+                      ? null
+                      : () => _runRequest(
+                          'Unauthorized (401)', _runner.run401Unauthorized),
+                  child: const Text('401 Unauthorized'),
+                ),
+                OutlinedButton(
+                  onPressed: _isLoading
+                      ? null
+                      : () => _runRequest(
+                          'Not Found (404)', _runner.run404NotFound),
+                  child: const Text('404 Not Found'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: _isLoading ? null : () => _runRequest('Dio Error 503', _runner.runError),
+                  onPressed: _isLoading
+                      ? null
+                      : () =>
+                          _runRequest('Server Error (503)', _runner.runError),
                   icon: const Icon(Icons.error_outline, size: 18),
-                  label: const Text('Error 503'),
+                  label: const Text('503 Error'),
                 ),
               ],
             ),
             const SizedBox(height: 24),
 
-            // ── Section 2: Stress Test & Heavy JSON ───────────────────
-            Row(
+            // ── Section 2: Specialized Viewers (GraphQL, Multipart, Image) ──
+            _buildSectionHeader(
+              title: 'Specialized Formats & Viewers',
+              subtitle:
+                  'Test GraphQL Operation parsing, Multipart FormData summary, and Binary Image preview.',
+              icon: Icons.layers,
+              color: Colors.purple,
+            ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                const Icon(Icons.speed, size: 20, color: Colors.deepOrange),
-                const SizedBox(width: 8),
-                Text(
-                  'Stress Test & Heavy JSON',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.deepOrange,
-                  ),
+                FilledButton.tonal(
+                  onPressed: _isLoading
+                      ? null
+                      : () =>
+                          _runRequest('GraphQL Query', _runner.runGraphQLQuery),
+                  child: const Text('GraphQL Query'),
+                ),
+                FilledButton.tonal(
+                  onPressed: _isLoading
+                      ? null
+                      : () => _runRequest(
+                          'GraphQL Mutation', _runner.runGraphQLMutation),
+                  child: const Text('GraphQL Mutation'),
+                ),
+                FilledButton.tonal(
+                  onPressed: _isLoading
+                      ? null
+                      : () => _runRequest(
+                          'Multipart Upload', _runner.runMultipartUpload),
+                  child: const Text('Multipart Upload (FormData)'),
+                ),
+                FilledButton.tonal(
+                  onPressed: _isLoading
+                      ? null
+                      : () => _runRequest(
+                          'Binary Image (PNG)', _runner.runGetImage),
+                  child: const Text('Binary Image (PNG)'),
+                ),
+                FilledButton.tonal(
+                  onPressed: _isLoading
+                      ? null
+                      : () =>
+                          _runRequest('Vector Image (SVG)', _runner.runGetSvg),
+                  child: const Text('Vector Image (SVG)'),
                 ),
               ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Test JsonViewer virtualization, deep tree indentation, and memory truncation.',
-              style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+            const SizedBox(height: 24),
+
+            // ── Section 3: Security & Filtering ───────────────────────
+            _buildSectionHeader(
+              title: 'Security & Filtering',
+              subtitle:
+                  'Verify sensitive headers redaction and URL blacklist exclusion.',
+              icon: Icons.security,
+              color: Colors.teal,
             ),
-            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.tonalIcon(
+                  onPressed: _isLoading
+                      ? null
+                      : () => _runRequest('Redacted Headers',
+                          _runner.runSecureRequestWithTokens),
+                  icon: const Icon(Icons.lock_outline, size: 18),
+                  label: const Text('Redacted Headers (Token/Cookie)'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _isLoading
+                      ? null
+                      : () => _runRequest(
+                          'Analytics Request', _runner.runAnalyticsRequest),
+                  icon: const Icon(Icons.filter_alt_off_outlined, size: 18),
+                  label: const Text('Analytics (Filtered by shouldCapture)'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // ── Section 4: Stress Test & Heavy JSON ───────────────────
+            _buildSectionHeader(
+              title: 'Stress Test & Heavy Payloads',
+              subtitle:
+                  'Test JsonViewer virtualization, deep nesting, and memory truncation.',
+              icon: Icons.speed,
+              color: Colors.deepOrange,
+            ),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
                 FilledButton(
-                  onPressed: _isLoading ? null : () => _runRequest('Heavy List (3k items)', _runner.runHeavyListGet),
+                  onPressed: _isLoading
+                      ? null
+                      : () => _runRequest(
+                          'Heavy List (3k items)', _runner.runHeavyListGet),
                   child: const Text('Heavy List (~1MB)'),
                 ),
                 FilledButton(
-                  style: FilledButton.styleFrom(backgroundColor: Colors.deepOrange),
-                  onPressed: _isLoading ? null : () => _runRequest('Extreme List (20k items)', _runner.runExtremeListGet),
-                  child: const Text('Extreme List (>6MB)'),
+                  style: FilledButton.styleFrom(
+                      backgroundColor: Colors.deepOrange),
+                  onPressed: _isLoading
+                      ? null
+                      : () => _runRequest('Extreme List (20k items)',
+                          _runner.runExtremeListGet),
+                  child: const Text('Extreme List (>6MB Truncate)'),
                 ),
                 FilledButton.tonal(
-                  onPressed: _isLoading ? null : () => _runRequest('Deep Nested (35 levels)', _runner.runDeepNestedGet),
+                  onPressed: _isLoading
+                      ? null
+                      : () => _runRequest(
+                          'Deep Nested (35 levels)', _runner.runDeepNestedGet),
                   child: const Text('Deep Nested (35 lvls)'),
                 ),
                 FilledButton.tonal(
-                  onPressed: _isLoading ? null : () => _runRequest('Wide Text (100k chars)', _runner.runWideTextGet),
+                  onPressed: _isLoading
+                      ? null
+                      : () => _runRequest(
+                          'Wide Text (100k chars)', _runner.runWideTextGet),
                   child: const Text('Wide Text (100k)'),
                 ),
                 FilledButton.tonal(
-                  onPressed: _isLoading ? null : () => _runRequest('Heavy POST (1k items)', _runner.runHeavyPost),
+                  onPressed: _isLoading
+                      ? null
+                      : () => _runRequest(
+                          'Heavy POST (1k items)', _runner.runHeavyPost),
                   child: const Text('Heavy POST (1k)'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: _isLoading ? null : () => _runRequest('Delayed (1.5s)', _runner.runDelayedGet),
+                  onPressed: _isLoading
+                      ? null
+                      : () =>
+                          _runRequest('Delayed (1.5s)', _runner.runDelayedGet),
                   icon: const Icon(Icons.timer_outlined, size: 18),
                   label: const Text('Delayed (1.5s)'),
                 ),
@@ -242,9 +421,13 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                       children: [
                         _Badge(
                           label: 'Status ${_lastResult!.statusCode}',
-                          color: _lastResult!.statusCode >= 200 && _lastResult!.statusCode < 300
+                          color: _lastResult!.statusCode >= 200 &&
+                                  _lastResult!.statusCode < 300
                               ? Colors.green
-                              : Colors.red,
+                              : (_lastResult!.statusCode >= 400 &&
+                                      _lastResult!.statusCode < 500
+                                  ? Colors.orange
+                                  : Colors.red),
                         ),
                         const SizedBox(width: 8),
                         _Badge(
@@ -261,7 +444,8 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                     const SizedBox(height: 10),
                     Text(
                       _lastResult!.preview,
-                      style: theme.textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(fontFamily: 'monospace'),
                       maxLines: 6,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -272,21 +456,63 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
             ],
 
             const Divider(),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Row(
               children: [
-                const Icon(Icons.bug_report, size: 20, color: Colors.blue),
-                const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    'Tap the floating bug icon to open the Interceptly inspector and test JsonViewer rendering, search, and folding.',
-                    style: theme.textTheme.bodySmall,
+                  child: OutlinedButton.icon(
+                    onPressed: () => Interceptly.showInspector(context),
+                    icon: const Icon(Icons.open_in_new),
+                    label: const Text('Open Inspector Screen'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _clearAll,
+                    icon: const Icon(Icons.clear_all),
+                    label: const Text('Clear All Calls'),
                   ),
                 ),
               ],
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+  }) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 20, color: color),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+          ),
+        ],
       ),
     );
   }

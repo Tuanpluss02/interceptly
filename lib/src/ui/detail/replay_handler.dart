@@ -25,54 +25,57 @@ class ReplayHandler {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: InterceptlyTheme.controlMuted,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            ListTile(
-              leading: const Icon(
-                Icons.refresh,
-                color: InterceptlyTheme.indigo500,
-              ),
-              title: Text(
-                'Retry Request',
-                style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
-                  color: InterceptlyTheme.textPrimary,
+      builder: (context) => Theme(
+        data: InterceptlyTheme.themeData(context: context),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: InterceptlyTheme.controlMuted,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              onTap: () {
-                Navigator.pop(context);
-                retry(record);
-              },
-            ),
-            Divider(color: InterceptlyTheme.dividerSubtle, height: 1),
-            ListTile(
-              leading: const Icon(
-                Icons.edit_note,
-                color: InterceptlyTheme.indigo500,
-              ),
-              title: Text(
-                'Duplicate & Edit',
-                style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
-                  color: InterceptlyTheme.textPrimary,
+              ListTile(
+                leading: const Icon(
+                  Icons.refresh,
+                  color: InterceptlyTheme.indigo500,
                 ),
+                title: Text(
+                  'Retry Request',
+                  style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
+                    color: InterceptlyTheme.textPrimary,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  retry(record);
+                },
               ),
-              onTap: () {
-                Navigator.pop(context);
-                duplicateAndEdit(record);
-              },
-            ),
-          ],
+              Divider(color: InterceptlyTheme.dividerSubtle, height: 1),
+              ListTile(
+                leading: const Icon(
+                  Icons.edit_note,
+                  color: InterceptlyTheme.indigo500,
+                ),
+                title: Text(
+                  'Duplicate & Edit',
+                  style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
+                    color: InterceptlyTheme.textPrimary,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  duplicateAndEdit(record);
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );

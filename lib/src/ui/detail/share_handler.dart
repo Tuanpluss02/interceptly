@@ -34,102 +34,106 @@ class ShareHandler {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: InterceptlyTheme.controlMuted,
-                borderRadius: BorderRadius.circular(2),
+      builder: (context) => Theme(
+        data: InterceptlyTheme.themeData(context: context),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: InterceptlyTheme.controlMuted,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
-              child: Row(
-                children: [
-                  Text(
-                    'Share Request',
-                    style: InterceptlyTheme.typography.bodyMediumBold.copyWith(
-                      color: InterceptlyTheme.textPrimary,
-                      fontSize: 15,
+              Padding(
+                padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
+                child: Row(
+                  children: [
+                    Text(
+                      'Share Request',
+                      style:
+                          InterceptlyTheme.typography.bodyMediumBold.copyWith(
+                        color: InterceptlyTheme.textPrimary,
+                        fontSize: 15,
+                      ),
                     ),
+                  ],
+                ),
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.copy,
+                  color: InterceptlyTheme.indigo500,
+                ),
+                title: Text(
+                  'Copy cURL',
+                  style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
+                    color: InterceptlyTheme.textPrimary,
                   ),
-                ],
-              ),
-            ),
-            ListTile(
-              leading: const Icon(
-                Icons.copy,
-                color: InterceptlyTheme.indigo500,
-              ),
-              title: Text(
-                'Copy cURL',
-                style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
-                  color: InterceptlyTheme.textPrimary,
                 ),
+                onTap: () {
+                  Navigator.pop(context);
+                  shareCurlCommand(record);
+                },
               ),
-              onTap: () {
-                Navigator.pop(context);
-                shareCurlCommand(record);
-              },
-            ),
-            Divider(color: InterceptlyTheme.dividerSubtle, height: 1),
-            ListTile(
-              leading: const Icon(
-                Icons.download,
-                color: InterceptlyTheme.indigo500,
-              ),
-              title: Text(
-                'Export HAR',
-                style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
-                  color: InterceptlyTheme.textPrimary,
+              Divider(color: InterceptlyTheme.dividerSubtle, height: 1),
+              ListTile(
+                leading: const Icon(
+                  Icons.download,
+                  color: InterceptlyTheme.indigo500,
                 ),
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                exportHarFile(record);
-              },
-            ),
-            Divider(color: InterceptlyTheme.dividerSubtle, height: 1),
-            ListTile(
-              leading: const Icon(
-                Icons.upload_file,
-                color: InterceptlyTheme.indigo500,
-              ),
-              title: Text(
-                'Export Postman Collection',
-                style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
-                  color: InterceptlyTheme.textPrimary,
+                title: Text(
+                  'Export HAR',
+                  style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
+                    color: InterceptlyTheme.textPrimary,
+                  ),
                 ),
+                onTap: () {
+                  Navigator.pop(context);
+                  exportHarFile(record);
+                },
               ),
-              onTap: () {
-                Navigator.pop(context);
-                exportPostmanFile(record);
-              },
-            ),
-            Divider(color: InterceptlyTheme.dividerSubtle, height: 1),
-            ListTile(
-              leading: const Icon(
-                Icons.file_download_outlined,
-                color: InterceptlyTheme.indigo500,
-              ),
-              title: Text(
-                'Export Full Response',
-                style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
-                  color: InterceptlyTheme.textPrimary,
+              Divider(color: InterceptlyTheme.dividerSubtle, height: 1),
+              ListTile(
+                leading: const Icon(
+                  Icons.upload_file,
+                  color: InterceptlyTheme.indigo500,
                 ),
+                title: Text(
+                  'Export Postman Collection',
+                  style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
+                    color: InterceptlyTheme.textPrimary,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  exportPostmanFile(record);
+                },
               ),
-              onTap: () {
-                Navigator.pop(context);
-                exportResponseBodyFile(record);
-              },
-            ),
-          ],
+              Divider(color: InterceptlyTheme.dividerSubtle, height: 1),
+              ListTile(
+                leading: const Icon(
+                  Icons.file_download_outlined,
+                  color: InterceptlyTheme.indigo500,
+                ),
+                title: Text(
+                  'Export Full Response',
+                  style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
+                    color: InterceptlyTheme.textPrimary,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  exportResponseBodyFile(record);
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );

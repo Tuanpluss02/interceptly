@@ -20,5 +20,17 @@ void main() async {
     ),
   );
 
-  Interceptly.init(navigatorKey: appNavigatorKey);
+  Interceptly.init(
+    navigatorKey: appNavigatorKey,
+    settings: InterceptlySettings(
+      shouldCapture: (url) => !url.contains('/analytics'),
+      redactedHeaders: const {
+        'authorization',
+        'cookie',
+        'set-cookie',
+        'x-api-key',
+        'token',
+      },
+    ),
+  );
 }

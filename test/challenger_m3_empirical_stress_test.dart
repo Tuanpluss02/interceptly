@@ -110,7 +110,9 @@ void main() {
   });
 
   group('Stress Test: High Volume File-Backed Records & Handle Lifecycle', () {
-    test('Searches 60 file-backed records (15 batches) cleanly with single handle', () async {
+    test(
+        'Searches 60 file-backed records (15 batches) cleanly with single handle',
+        () async {
       final entries = <IndexEntry>[];
       for (var i = 0; i < 60; i++) {
         final packed = _packBody(
@@ -146,7 +148,8 @@ void main() {
       expect(File(tempFilePath).existsSync(), isTrue);
     });
 
-    test('Single open handle reused across batches without opening per item', () async {
+    test('Single open handle reused across batches without opening per item',
+        () async {
       final entries = <IndexEntry>[];
       for (var i = 0; i < 16; i++) {
         final packed = _packBody(
@@ -176,7 +179,9 @@ void main() {
   });
 
   group('Stress Test: UI Throttling Behavior', () {
-    test('Rapid match updates are throttled within 150ms window and do not fire per match', () async {
+    test(
+        'Rapid match updates are throttled within 150ms window and do not fire per match',
+        () async {
       var notifyCount = 0;
       final notifyTimes = <int>[];
       final stopwatch = Stopwatch()..start();
@@ -217,7 +222,8 @@ void main() {
       final ctrl = MasterSearchController();
       var notificationsAfterDispose = 0;
 
-      final body = Uint8List.fromList(utf8.encode('{"target": "disposed_target"}'));
+      final body =
+          Uint8List.fromList(utf8.encode('{"target": "disposed_target"}'));
       final entry = _makeEntry(
         id: 'disp_1',
         url: 'https://other.com/item',
@@ -246,8 +252,12 @@ void main() {
     });
   });
 
-  group('Adversarial Challenge: Cancellation & Race Conditions in Phase 1 & Phase 3', () {
-    test('Phase 1 yielding cancellation: cancel() during Phase 1 does not crash', () async {
+  group(
+      'Adversarial Challenge: Cancellation & Race Conditions in Phase 1 & Phase 3',
+      () {
+    test(
+        'Phase 1 yielding cancellation: cancel() during Phase 1 does not crash',
+        () async {
       // 120 entries triggers Phase 1 yield at i = 50 and i = 100
       final entries = List.generate(
         120,
@@ -275,7 +285,9 @@ void main() {
       expect(controller.results, isNull);
     });
 
-    test('Phase 3 cancellation: cancel() during file scanning does not throw null-check error', () async {
+    test(
+        'Phase 3 cancellation: cancel() during file scanning does not throw null-check error',
+        () async {
       final entries = <IndexEntry>[];
       for (var i = 0; i < 4; i++) {
         // Large payload > 100KB so compute() isolate runs
@@ -315,14 +327,18 @@ void main() {
       expect(controller.isActive, isFalse);
     });
 
-    test('Rapid consecutive queries: query 2 supersedes query 1 without result contamination in Phase 1', () async {
+    test(
+        'Rapid consecutive queries: query 2 supersedes query 1 without result contamination in Phase 1',
+        () async {
       // 100 entries: 50 with 'alpha' in URL, 50 with 'beta' in URL
       final entries = <IndexEntry>[];
       for (var i = 0; i < 50; i++) {
-        entries.add(_makeEntry(id: 'alpha_$i', url: 'https://example.com/alpha_$i'));
+        entries.add(
+            _makeEntry(id: 'alpha_$i', url: 'https://example.com/alpha_$i'));
       }
       for (var i = 0; i < 50; i++) {
-        entries.add(_makeEntry(id: 'beta_$i', url: 'https://example.com/beta_$i'));
+        entries
+            .add(_makeEntry(id: 'beta_$i', url: 'https://example.com/beta_$i'));
       }
 
       // Start search for 'alpha'
@@ -344,12 +360,17 @@ void main() {
       expect(controller.query, equals('beta'));
       expect(controller.results, isNotNull);
       // Results MUST only contain 'beta', not 'alpha'
-      final containsAlpha = controller.results!.any((e) => e.url.contains('alpha'));
-      expect(containsAlpha, isFalse, reason: 'Results for "beta" were contaminated with "alpha" results from previous search');
+      final containsAlpha =
+          controller.results!.any((e) => e.url.contains('alpha'));
+      expect(containsAlpha, isFalse,
+          reason:
+              'Results for "beta" were contaminated with "alpha" results from previous search');
       expect(controller.results!.length, equals(50));
     });
 
-    test('Rapid consecutive queries: query 2 supersedes query 1 without result contamination in Phase 3', () async {
+    test(
+        'Rapid consecutive queries: query 2 supersedes query 1 without result contamination in Phase 3',
+        () async {
       final entries = <IndexEntry>[];
       for (var i = 0; i < 40; i++) {
         final packedAlpha = _packBody(
@@ -399,12 +420,17 @@ void main() {
 
       await Future.wait([search1, search2]);
 
-      final containsAlpha = controller.results!.any((e) => e.id.contains('alpha'));
-      expect(containsAlpha, isFalse, reason: 'Phase 3 results for "beta" were contaminated with "alpha" file records');
+      final containsAlpha =
+          controller.results!.any((e) => e.id.contains('alpha'));
+      expect(containsAlpha, isFalse,
+          reason:
+              'Phase 3 results for "beta" were contaminated with "alpha" file records');
       expect(controller.results!.length, equals(10));
     });
 
-    test('dispose() during Phase 3 file scanning closes handle and terminates cleanly', () async {
+    test(
+        'dispose() during Phase 3 file scanning closes handle and terminates cleanly',
+        () async {
       final ctrl = MasterSearchController();
       final entries = <IndexEntry>[];
       for (var i = 0; i < 16; i++) {

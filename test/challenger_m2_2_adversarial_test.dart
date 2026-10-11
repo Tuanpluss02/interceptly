@@ -158,7 +158,9 @@ RequestRecord _buildTestRecord({
     responseSizeBytes: responseSizeBytes,
     timestamp: DateTime.now(),
     requestHeaders: const {},
-    responseHeaders: {'content-type': responseContentType ?? 'application/json'},
+    responseHeaders: {
+      'content-type': responseContentType ?? 'application/json'
+    },
     responseContentType: responseContentType,
     requestBodyPreview: null,
     responseBodyPreview: responseBodyPreview,
@@ -189,7 +191,8 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('Challenger M2: JsonViewer Corner Cases', () {
-    testWidgets('handles null data by rendering fallback text gracefully', (tester) async {
+    testWidgets('handles null data by rendering fallback text gracefully',
+        (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
@@ -204,7 +207,8 @@ void main() {
       expect(JsonViewer.countMatches(null, 'null'), equals(1));
     });
 
-    testWidgets('handles empty Map and empty List without collapsing or error', (tester) async {
+    testWidgets('handles empty Map and empty List without collapsing or error',
+        (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
@@ -223,7 +227,8 @@ void main() {
       expect(find.text('[]'), findsOneWidget);
     });
 
-    testWidgets('handles nested empty collections and empty string scalars', (tester) async {
+    testWidgets('handles nested empty collections and empty string scalars',
+        (tester) async {
       final nestedEmpty = {
         'empty_map': {},
         'empty_list': [],
@@ -252,7 +257,9 @@ void main() {
       expect(find.textContaining('""'), findsOneWidget);
     });
 
-    testWidgets('handles single extremely long line (50,000 chars) without layout crashes', (tester) async {
+    testWidgets(
+        'handles single extremely long line (50,000 chars) without layout crashes',
+        (tester) async {
       final longKey = 'key_${'a' * 25000}';
       final longVal = 'val_${'b' * 25000}';
       final data = {longKey: longVal};
@@ -274,11 +281,14 @@ void main() {
       expect(find.byType(ListView), findsNWidgets(2));
     });
 
-    testWidgets('handles special characters, unicode, emojis, and regex query characters', (tester) async {
+    testWidgets(
+        'handles special characters, unicode, emojis, and regex query characters',
+        (tester) async {
       final specialData = {
         'unicode': 'Tiếng Việt có dấu: ă, â, đ, ê, ô, ơ, ư',
         'emojis': '🚀🔥🎉💎✨',
-        'symbols': '<script>alert("xss")</script> & "quotes" \'single\' \\backslash\\',
+        'symbols':
+            '<script>alert("xss")</script> & "quotes" \'single\' \\backslash\\',
         'special_math': 'x = (a + b) * [c - d] ^ {e} | f \$ g',
       };
 
@@ -306,7 +316,9 @@ void main() {
       expect(countSpecial, equals(1));
     });
 
-    testWidgets('handles unparsed strings with unmatched braces and corrupted JSON', (tester) async {
+    testWidgets(
+        'handles unparsed strings with unmatched braces and corrupted JSON',
+        (tester) async {
       const brokenJson = '{"unmatched": [1, 2, 3, {"missing_close": true';
 
       await tester.pumpWidget(
@@ -326,7 +338,8 @@ void main() {
       expect(JsonViewer.formatData(brokenJson), equals(brokenJson));
     });
 
-    testWidgets('survives rapid consecutive folding and unfolding toggles', (tester) async {
+    testWidgets('survives rapid consecutive folding and unfolding toggles',
+        (tester) async {
       final deepData = {
         'layer_1': {
           'layer_2': {
@@ -377,7 +390,8 @@ void main() {
     late Directory tempDir;
 
     setUp(() async {
-      tempDir = await Directory.systemTemp.createTemp('interceptly_storage_boundary_');
+      tempDir = await Directory.systemTemp
+          .createTemp('interceptly_storage_boundary_');
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
         const MethodChannel('plugins.flutter.io/path_provider'),
@@ -394,7 +408,8 @@ void main() {
       } catch (_) {}
     });
 
-    test('exact 2MB payload: full bytes kept in file and UI is NOT truncated', () async {
+    test('exact 2MB payload: full bytes kept in file and UI is NOT truncated',
+        () async {
       final session = InspectorSession(
         settings: const InterceptlySettings(
           maxBodyBytes: 50 * 1024 * 1024,
@@ -424,7 +439,9 @@ void main() {
 
       final end = DateTime.now().add(const Duration(seconds: 10));
       while (session.entries.isEmpty) {
-        if (DateTime.now().isAfter(end)) throw StateError('Timeout waiting for entry');
+        if (DateTime.now().isAfter(end)) {
+          throw StateError('Timeout waiting for entry');
+        }
         await Future.delayed(const Duration(milliseconds: 50));
       }
 
@@ -440,7 +457,8 @@ void main() {
       await session.dispose();
     });
 
-    test('2MB + 1 byte payload: full bytes kept in file and UI IS truncated', () async {
+    test('2MB + 1 byte payload: full bytes kept in file and UI IS truncated',
+        () async {
       final session = InspectorSession(
         settings: const InterceptlySettings(
           maxBodyBytes: 50 * 1024 * 1024,
@@ -470,7 +488,9 @@ void main() {
 
       final end = DateTime.now().add(const Duration(seconds: 10));
       while (session.entries.isEmpty) {
-        if (DateTime.now().isAfter(end)) throw StateError('Timeout waiting for entry');
+        if (DateTime.now().isAfter(end)) {
+          throw StateError('Timeout waiting for entry');
+        }
         await Future.delayed(const Duration(milliseconds: 50));
       }
 
@@ -486,7 +506,8 @@ void main() {
       await session.dispose();
     });
 
-    test('0 bytes payload: empty buffers handle cleanly without exceptions', () async {
+    test('0 bytes payload: empty buffers handle cleanly without exceptions',
+        () async {
       final session = InspectorSession();
       await session.initialize();
 
@@ -508,7 +529,9 @@ void main() {
 
       final end = DateTime.now().add(const Duration(seconds: 10));
       while (session.entries.isEmpty) {
-        if (DateTime.now().isAfter(end)) throw StateError('Timeout waiting for entry');
+        if (DateTime.now().isAfter(end)) {
+          throw StateError('Timeout waiting for entry');
+        }
         await Future.delayed(const Duration(milliseconds: 50));
       }
 
@@ -530,7 +553,8 @@ void main() {
       await session.dispose();
     });
 
-    test('negative and zero maxBodyBytes treated as unlimited storage cap', () async {
+    test('negative and zero maxBodyBytes treated as unlimited storage cap',
+        () async {
       for (final maxBodySetting in [0, -1, -500]) {
         final session = InspectorSession(
           settings: InterceptlySettings(
@@ -561,7 +585,9 @@ void main() {
 
         final end = DateTime.now().add(const Duration(seconds: 10));
         while (session.entries.isEmpty) {
-          if (DateTime.now().isAfter(end)) throw StateError('Timeout waiting for entry');
+          if (DateTime.now().isAfter(end)) {
+            throw StateError('Timeout waiting for entry');
+          }
           await Future.delayed(const Duration(milliseconds: 50));
         }
 
@@ -605,7 +631,8 @@ void main() {
     late Directory shareTempDir;
 
     setUp(() async {
-      shareTempDir = await Directory.systemTemp.createTemp('interceptly_share_group_');
+      shareTempDir =
+          await Directory.systemTemp.createTemp('interceptly_share_group_');
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
         const MethodChannel('plugins.flutter.io/path_provider'),
@@ -632,7 +659,8 @@ void main() {
       expect(dir.path, equals(shareTempDir.path));
     });
 
-    testWidgets('banner is not displayed when isUiTruncated is true', (tester) async {
+    testWidgets('banner is not displayed when isUiTruncated is true',
+        (tester) async {
       const totalSize = 3 * 1024 * 1024;
       final record = _buildTestRecord(
         id: 'banner_trunc',
@@ -662,7 +690,9 @@ void main() {
       expect(find.textContaining('preview'), findsOneWidget);
     });
 
-    testWidgets('banner does not display when payload is <= 2MB and untruncated', (tester) async {
+    testWidgets(
+        'banner does not display when payload is <= 2MB and untruncated',
+        (tester) async {
       const smallSize = 2 * 1024 * 1024;
       final record = _buildTestRecord(
         id: 'banner_small',
@@ -692,12 +722,15 @@ void main() {
       expect(find.text('Export Full'), findsNothing);
     });
 
-    test('ShareHandler exportResponseBodyFile writes complete binary payload file', () async {
+    test(
+        'ShareHandler exportResponseBodyFile writes complete binary payload file',
+        () async {
       final fakeShare = _FakeShare();
       final renderBox = _MockRenderBox();
       final mockContext = _MockContext(renderBox);
       final mockFabKey = _MockGlobalKey(mockContext);
-      final fullBytes = Uint8List.fromList(utf8.encode('{"complete_file_payload": true, "size": 3145728}'));
+      final fullBytes = Uint8List.fromList(
+          utf8.encode('{"complete_file_payload": true, "size": 3145728}'));
 
       final record = _buildTestRecord(
         id: 'rec_share_full',
@@ -725,7 +758,9 @@ void main() {
       expect(writtenBytes, equals(fullBytes));
     });
 
-    test('ShareHandler exportResponseBodyFile handles null or empty bodies cleanly without writing file', () async {
+    test(
+        'ShareHandler exportResponseBodyFile handles null or empty bodies cleanly without writing file',
+        () async {
       final fakeShare = _FakeShare();
       final renderBox = _MockRenderBox();
       final mockContext = _MockContext(renderBox);

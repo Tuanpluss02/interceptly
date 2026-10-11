@@ -225,8 +225,10 @@ class _RequestDetailPageState extends State<RequestDetailPage>
       return jsonDecodeSafe(preview);
     }
 
-    final reqFuture = parseOne(record.requestBodyPreview, record.requestBodyBytes);
-    final resFuture = parseOne(record.responseBodyPreview, record.responseBodyBytes);
+    final reqFuture =
+        parseOne(record.requestBodyPreview, record.requestBodyBytes);
+    final resFuture =
+        parseOne(record.responseBodyPreview, record.responseBodyBytes);
     final reqParsed = await reqFuture;
     final resParsed = await resFuture;
 
@@ -311,11 +313,12 @@ class _RequestDetailPageState extends State<RequestDetailPage>
     final path = Uri.tryParse(displayUrl)?.path ?? displayUrl;
 
     return Theme(
-        data: InterceptlyTheme.themeData(
-          context: context,
-          themeMode: themeMode,
-        ),
-        child: Scaffold(
+      data: InterceptlyTheme.themeData(
+        context: context,
+        themeMode: themeMode,
+      ),
+      child: Builder(
+        builder: (themedContext) => Scaffold(
           backgroundColor: InterceptlyTheme.surface,
           appBar: AppBar(
             backgroundColor: InterceptlyTheme.surface,
@@ -336,7 +339,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
             actions: [
               Padding(
                 padding: const EdgeInsets.only(right: 8.0),
-                child: _buildReplayChip(),
+                child: _buildReplayChip(themedContext),
               ),
               Padding(
                 padding: const EdgeInsets.only(right: 16.0),
@@ -538,7 +541,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
           floatingActionButton: FloatingActionButton.extended(
             key: _fabKey,
             heroTag: null,
-            onPressed: _showShareMenu,
+            onPressed: () => _showShareMenu(themedContext),
             backgroundColor: InterceptlyTheme.indigo500,
             foregroundColor: InterceptlyGlobalColor.white,
             icon: const Icon(Icons.share, size: 18),
@@ -550,16 +553,18 @@ class _RequestDetailPageState extends State<RequestDetailPage>
               ),
             ),
           ),
-        ));
+        ),
+      ),
+    );
   }
 
-  Widget _buildReplayChip() {
+  Widget _buildReplayChip(BuildContext ctx) {
     return Material(
       color: InterceptlyTheme.surfaceContainer,
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
-        onTap: _showReplayMenu,
+        onTap: () => _showReplayMenu(ctx),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           child: Row(
@@ -637,21 +642,20 @@ class _RequestDetailPageState extends State<RequestDetailPage>
     );
   }
 
-
-  void _showShareMenu() {
+  void _showShareMenu(BuildContext ctx) {
     final record = _cachedRecord;
     if (record == null) return;
 
-    final shareHandler = ShareHandler(context: context, fabKey: _fabKey);
+    final shareHandler = ShareHandler(context: ctx, fabKey: _fabKey);
     shareHandler.showShareMenu(record);
   }
 
-  void _showReplayMenu() {
+  void _showReplayMenu(BuildContext ctx) {
     final record = _cachedRecord;
     if (record == null) return;
 
     final replayHandler = ReplayHandler(
-      context: context,
+      context: ctx,
       session: widget.session as InspectorSession,
     );
     replayHandler.showReplayMenu(record);

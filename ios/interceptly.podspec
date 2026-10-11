@@ -6,7 +6,7 @@ Pod::Spec.new do |s|
   s.license          = { :type => 'MIT' }
   s.author           = { 'stormx' => 'dongoctuan2002sp@gmail.com' }
   s.source           = { :path => '.' }
-  s.source_files     = 'Classes/**/*'
+  s.source_files     = 'interceptly/Sources/interceptly/**/*.swift'
   s.dependency 'Flutter'
   s.platform         = :ios, '12.0'
   s.swift_version    = '5.0'

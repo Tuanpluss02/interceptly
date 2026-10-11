@@ -113,12 +113,12 @@ class _E2EFakeSession extends InspectorSessionView {
 }
 
 /// Helper for packing body bytes compatible with BodyDecodeService.
-Uint8List _packPayloadBytes(String? req, String? res, {bool truncated = false}) {
+Uint8List _packPayloadBytes(String? req, String? res,
+    {bool truncated = false}) {
   final reqBytes = req != null ? Uint8List.fromList(utf8.encode(req)) : null;
   final resBytes = res != null ? Uint8List.fromList(utf8.encode(res)) : null;
 
-  final total =
-      4 + (reqBytes?.length ?? 0) + 4 + (resBytes?.length ?? 0) + 1;
+  final total = 4 + (reqBytes?.length ?? 0) + 4 + (resBytes?.length ?? 0) + 1;
   final out = Uint8List(total);
   final data = ByteData.sublistView(out);
   var offset = 0;
@@ -203,8 +203,12 @@ RequestRecord _createRequestRecord({
   int requestSizeBytes = 120,
   int responseSizeBytes = 450,
   bool isBodyTruncated = false,
-  Map<String, String> requestHeaders = const {'content-type': 'application/json'},
-  Map<String, String> responseHeaders = const {'content-type': 'application/json'},
+  Map<String, String> requestHeaders = const {
+    'content-type': 'application/json'
+  },
+  Map<String, String> responseHeaders = const {
+    'content-type': 'application/json'
+  },
   String? requestBodyPreview = '{"action":"create"}',
   String? responseBodyPreview = '{"id":"res-123","status":"created"}',
   String? requestContentType = 'application/json',
@@ -255,7 +259,8 @@ void main() {
   });
 
   group('Tier 1: Feature Coverage (F1 to F13 in Isolation)', () {
-    test('[F1] MemoryIndex maintains newest-first order and length invariant', () {
+    test('[F1] MemoryIndex maintains newest-first order and length invariant',
+        () {
       final index = MemoryIndex(maxEntries: 10);
       final e1 = _createIndexEntry('id-1');
       final e2 = _createIndexEntry('id-2');
@@ -272,7 +277,9 @@ void main() {
       expect(() => index.entries.add(e1), throwsUnsupportedError);
     });
 
-    test('[F2] MemoryIndex O(1) ID lookup and in-place updates preserve position', () {
+    test(
+        '[F2] MemoryIndex O(1) ID lookup and in-place updates preserve position',
+        () {
       final index = MemoryIndex(maxEntries: 5);
       final initial = _createIndexEntry('item-1', statusCode: 0);
       final second = _createIndexEntry('item-2', statusCode: 200);
@@ -283,7 +290,8 @@ void main() {
       expect(index.byId('item-1')?.statusCode, equals(0));
       expect(index.byId('non-existent'), isNull);
 
-      final updated = _createIndexEntry('item-1', statusCode: 201, durationMs: 90);
+      final updated =
+          _createIndexEntry('item-1', statusCode: 201, durationMs: 90);
       index.add(updated);
 
       expect(index.length, equals(2));
@@ -292,7 +300,8 @@ void main() {
       expect(index.entries.first.id, equals('item-2'));
     });
 
-    testWidgets('[F3] RequestDetailPage mounts Overview and leaves other tabs lazy',
+    testWidgets(
+        '[F3] RequestDetailPage mounts Overview and leaves other tabs lazy',
         (tester) async {
       final entry = _createIndexEntry('lazy-test');
       final record = _createRequestRecord(id: 'lazy-test');
@@ -319,7 +328,9 @@ void main() {
       expect(find.text('RESPONSE HEADERS'), findsNothing);
     });
 
-    test('[F4] Redacted headers case-insensitively masks secrets without leaking', () {
+    test(
+        '[F4] Redacted headers case-insensitively masks secrets without leaking',
+        () {
       final headers = {
         'Authorization': 'Bearer secret_token_xyz',
         'COOKIE': 'session=abc12345',
@@ -397,7 +408,9 @@ void main() {
       expect(find.textContaining('…'), findsWidgets);
     });
 
-    test('[F7] BodyStore preserves complete byte payload on disk without data loss', () async {
+    test(
+        '[F7] BodyStore preserves complete byte payload on disk without data loss',
+        () async {
       final store = BodyStore();
       await store.initForWrite(tempDir.path, fileName: 'f7_store.tmp');
 
@@ -422,7 +435,8 @@ void main() {
       await store.dispose();
     });
 
-    testWidgets('[F8] Detail page displays truncation note when body is truncated',
+    testWidgets(
+        '[F8] Detail page displays truncation note when body is truncated',
         (tester) async {
       final entry = _createIndexEntry('truncated-entry', isBodyTruncated: true);
       final record = _createRequestRecord(
@@ -455,7 +469,10 @@ void main() {
       final curl = CurlGenerator.fromRecord(record);
       expect(curl, contains('curl -X POST'));
       expect(curl, contains('https://api.example.com/login'));
-      expect(curl, contains('--data-raw \'{"username":"agent","password":"secret_password"}\''));
+      expect(
+          curl,
+          contains(
+              '--data-raw \'{"username":"agent","password":"secret_password"}\''));
 
       final har = HarExporter.toJson([record]);
       expect(har, contains('"version":"1.2"'));
@@ -468,7 +485,8 @@ void main() {
       expect(postman, contains('secret_password'));
     });
 
-    test('[F10] InterceptlyShare sends export file parameters across channel', () async {
+    test('[F10] InterceptlyShare sends export file parameters across channel',
+        () async {
       InterceptlyShare.debugMobileOverride = true;
       addTearDown(() => InterceptlyShare.debugMobileOverride = null);
 
@@ -493,7 +511,8 @@ void main() {
       expect(channelArgs?['mimeType'], equals('application/json'));
     });
 
-    test('[F11] MasterSearchController executes Phase 3 file body search', () async {
+    test('[F11] MasterSearchController executes Phase 3 file body search',
+        () async {
       final store = BodyStore();
       await store.initForWrite(tempDir.path, fileName: 'f11_search.tmp');
       final filePath = '${tempDir.path}/f11_search.tmp';
@@ -526,12 +545,14 @@ void main() {
       await store.dispose();
     });
 
-    test('[F12] MasterSearchController notifies listeners on search lifecycle', () async {
+    test('[F12] MasterSearchController notifies listeners on search lifecycle',
+        () async {
       final controller = MasterSearchController();
       var notifyCount = 0;
       controller.addListener(() => notifyCount++);
 
-      final entry = _createIndexEntry('f12-entry', url: 'https://api.example.com/test');
+      final entry =
+          _createIndexEntry('f12-entry', url: 'https://api.example.com/test');
       await controller.start(
         query: 'test',
         allEntries: [entry],
@@ -557,7 +578,8 @@ void main() {
   });
 
   group('Tier 2: Boundary & Corner Cases', () {
-    test('Boundary: empty URL, zero status code, empty headers, and empty body', () {
+    test('Boundary: empty URL, zero status code, empty headers, and empty body',
+        () {
       final entry = _createIndexEntry(
         'empty-boundary',
         url: '',
@@ -575,7 +597,9 @@ void main() {
       expect(index.byId('empty-boundary')?.statusCode, equals(0));
     });
 
-    test('Boundary: maxEntries = 1 continually evicts oldest maintaining single entry', () {
+    test(
+        'Boundary: maxEntries = 1 continually evicts oldest maintaining single entry',
+        () {
       final index = MemoryIndex(maxEntries: 1);
 
       for (var i = 1; i <= 50; i++) {
@@ -585,9 +609,11 @@ void main() {
       }
     });
 
-    test('Boundary: 50MB+ payload storage write and readback simulation', () async {
+    test('Boundary: 50MB+ payload storage write and readback simulation',
+        () async {
       final store = BodyStore();
-      await store.initForWrite(tempDir.path, fileName: 'large_payload_50mb.tmp');
+      await store.initForWrite(tempDir.path,
+          fileName: 'large_payload_50mb.tmp');
 
       final chunk = Uint8List(1024 * 1024);
       chunk.fillRange(0, chunk.length, 65);
@@ -612,10 +638,14 @@ void main() {
       await store.dispose();
     });
 
-    test('Boundary: search with regex meta-characters, accents, and zero matches', () async {
+    test(
+        'Boundary: search with regex meta-characters, accents, and zero matches',
+        () async {
       final controller = MasterSearchController();
-      final e1 = _createIndexEntry('special-1', url: 'https://api.example.com/items?filter=[0-9]+.*');
-      final e2 = _createIndexEntry('special-2', url: 'https://api.example.com/items/caffè_latte');
+      final e1 = _createIndexEntry('special-1',
+          url: 'https://api.example.com/items?filter=[0-9]+.*');
+      final e2 = _createIndexEntry('special-2',
+          url: 'https://api.example.com/items/caffè_latte');
 
       await controller.start(
         query: '[0-9]+.*',
@@ -644,27 +674,34 @@ void main() {
       controller.dispose();
     });
 
-    test('Boundary: non-interceptly files in temp directory remain strictly untouched', () async {
+    test(
+        'Boundary: non-interceptly files in temp directory remain strictly untouched',
+        () async {
       final nonInterceptlyFile = File('${tempDir.path}/app_database.sqlite');
       await nonInterceptlyFile.writeAsString('sqlite binary content');
 
       final store = BodyStore();
-      await store.initForWrite(tempDir.path, fileName: 'interceptly_temp_session.tmp');
+      await store.initForWrite(tempDir.path,
+          fileName: 'interceptly_temp_session.tmp');
       await store.append(Uint8List.fromList([1, 2, 3]));
       await store.dispose();
 
       expect(await nonInterceptlyFile.exists(), isTrue);
-      expect(await nonInterceptlyFile.readAsString(), equals('sqlite binary content'));
+      expect(await nonInterceptlyFile.readAsString(),
+          equals('sqlite binary content'));
     });
   });
 
   group('Tier 3: Cross-Feature Combinations', () {
-    test('Cross: Large file payload persistence combined with Master Search Phase 3', () async {
+    test(
+        'Cross: Large file payload persistence combined with Master Search Phase 3',
+        () async {
       final store = BodyStore();
       await store.initForWrite(tempDir.path, fileName: 'cross_search.tmp');
       final filePath = '${tempDir.path}/cross_search.tmp';
 
-      final largeResponseBody = '{"data": "${"A" * 15000}", "marker": "TARGET_NEEDLE_FOUND"}';
+      final largeResponseBody =
+          '{"data": "${"A" * 15000}", "marker": "TARGET_NEEDLE_FOUND"}';
       final packed = _packPayloadBytes(null, largeResponseBody);
       final (offset, length) = await store.append(packed);
 
@@ -694,7 +731,8 @@ void main() {
       final entry = _createIndexEntry('tab-json-cross');
       final record = _createRequestRecord(
         id: 'tab-json-cross',
-        responseBodyPreview: '{"status":"active","metrics":{"cpu":15,"memory":2048}}',
+        responseBodyPreview:
+            '{"status":"active","metrics":{"cpu":15,"memory":2048}}',
       );
       final session = _E2EFakeSession(record: record, entry: entry);
 
@@ -718,7 +756,9 @@ void main() {
       expect(find.textContaining('cpu'), findsWidgets);
     });
 
-    test('Cross: Redacted headers preserved across cURL, HAR, and Postman exporters', () {
+    test(
+        'Cross: Redacted headers preserved across cURL, HAR, and Postman exporters',
+        () {
       final sensitiveHeaders = {
         'authorization': 'Bearer secret_super_token',
         'cookie': 'session_id=confidential_session',
@@ -749,7 +789,9 @@ void main() {
       expect(postman, isNot(contains('secret_super_token')));
     });
 
-    test('Cross: Multiple sequential sessions isolate files and clean up independently', () async {
+    test(
+        'Cross: Multiple sequential sessions isolate files and clean up independently',
+        () async {
       final storeA = BodyStore();
       final storeB = BodyStore();
 
@@ -772,7 +814,9 @@ void main() {
   });
 
   group('Tier 4: Real-World Scenarios', () {
-    test('Scenario 1: End-to-end HTTP client request capture into InspectorSession', () async {
+    test(
+        'Scenario 1: End-to-end HTTP client request capture into InspectorSession',
+        () async {
       final session = InspectorSession();
       await session.initialize();
 
@@ -796,9 +840,11 @@ void main() {
       expect(response.statusCode, equals(200));
 
       final deadline = DateTime.now().add(const Duration(seconds: 3));
-      while (session.entries.isEmpty || session.entries.first.statusCode != 200) {
+      while (
+          session.entries.isEmpty || session.entries.first.statusCode != 200) {
         if (DateTime.now().isAfter(deadline)) {
-          fail('Timed out waiting for intercepted entry to settle in InspectorSession');
+          fail(
+              'Timed out waiting for intercepted entry to settle in InspectorSession');
         }
         await Future<void>.delayed(const Duration(milliseconds: 50));
       }
@@ -812,7 +858,8 @@ void main() {
       session.dispose();
     });
 
-    testWidgets('Scenario 2: Inspecting full response and headers in RequestDetailPage',
+    testWidgets(
+        'Scenario 2: Inspecting full response and headers in RequestDetailPage',
         (tester) async {
       final entry = _createIndexEntry('inspect-scenario');
       final record = _createRequestRecord(
@@ -884,7 +931,8 @@ void main() {
       );
 
       final dummySession = InspectorSession();
-      final handler = ReplayHandler(context: savedContext, session: dummySession);
+      final handler =
+          ReplayHandler(context: savedContext, session: dummySession);
 
       await tester.runAsync(() async {
         await http.runWithClient(() async {
@@ -894,11 +942,14 @@ void main() {
 
       expect(capturedReplayRequest, isNotNull);
       expect(capturedReplayRequest!.method, equals('POST'));
-      expect(capturedReplayRequest!.url.toString(), equals('https://api.example.com/checkout'));
+      expect(capturedReplayRequest!.url.toString(),
+          equals('https://api.example.com/checkout'));
       expect(capturedReplayRequest!.body, equals('{"cartId":"cart_789"}'));
     });
 
-    test('Scenario 4: Multi-format export consistency across cURL, HAR, Postman', () {
+    test(
+        'Scenario 4: Multi-format export consistency across cURL, HAR, Postman',
+        () {
       final record = _createRequestRecord(
         method: 'PUT',
         url: 'https://api.example.com/users/42',
@@ -931,7 +982,8 @@ void main() {
       expect(items.length, equals(1));
       final postmanReq = items.first['request'] as Map<String, dynamic>;
       expect(postmanReq['method'], equals('PUT'));
-      expect(postmanReq['url']['raw'], equals('https://api.example.com/users/42'));
+      expect(
+          postmanReq['url']['raw'], equals('https://api.example.com/users/42'));
     });
   });
 }

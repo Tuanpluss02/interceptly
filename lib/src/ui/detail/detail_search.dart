@@ -1,4 +1,3 @@
-
 import 'package:flutter/foundation.dart';
 import 'package:interceptly/src/ui/widgets/json_viewer.dart';
 

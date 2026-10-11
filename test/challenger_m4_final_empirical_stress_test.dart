@@ -96,7 +96,9 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('Milestone 4 Final Adversarial Verification Suite', () {
-    test('Vector 1: MemoryIndex massive concurrency flood and ring eviction integrity', () async {
+    test(
+        'Vector 1: MemoryIndex massive concurrency flood and ring eviction integrity',
+        () async {
       const capacity = 100;
       final index = MemoryIndex(maxEntries: capacity);
 
@@ -108,7 +110,8 @@ void main() {
         final end = start + (totalItems ~/ 10);
         futures.add(Future(() {
           for (var i = start; i < end; i++) {
-            index.add(_makeEntry(id: 'req_$i', url: 'https://api.example.com/item/$i'));
+            index.add(_makeEntry(
+                id: 'req_$i', url: 'https://api.example.com/item/$i'));
           }
         }));
       }
@@ -138,8 +141,11 @@ void main() {
       }
     });
 
-    test('Vector 2: MasterSearchController extreme concurrent cancellations and disposed safety', () async {
-      final tempDir = await Directory.systemTemp.createTemp('m4_search_stress_');
+    test(
+        'Vector 2: MasterSearchController extreme concurrent cancellations and disposed safety',
+        () async {
+      final tempDir =
+          await Directory.systemTemp.createTemp('m4_search_stress_');
       final sessionFile = File('${tempDir.path}/interceptly_session.tmp');
       final raf = await sessionFile.open(mode: FileMode.write);
 
@@ -191,7 +197,8 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 60));
       expect(controller.results, isNotNull);
       expect(controller.results!.any((e) => e.id == 'file_entry_50'), isTrue);
-      expect(controller.results!.every((e) => !e.id.contains('target_49')), isTrue);
+      expect(controller.results!.every((e) => !e.id.contains('target_49')),
+          isTrue);
 
       controller.dispose();
 
@@ -207,7 +214,9 @@ void main() {
       await tempDir.delete(recursive: true);
     });
 
-    test('Vector 3: High-Ceiling payload decoupling & cURL export integrity for > 2MB payloads', () {
+    test(
+        'Vector 3: High-Ceiling payload decoupling & cURL export integrity for > 2MB payloads',
+        () {
       final largeBytes = Uint8List(3 * 1024 * 1024);
       for (var i = 0; i < 1000; i++) {
         largeBytes[i] = 65;
@@ -222,7 +231,10 @@ void main() {
         requestSizeBytes: largeBytes.length,
         responseSizeBytes: largeBytes.length,
         timestamp: DateTime(2026, 1, 1),
-        requestHeaders: {'content-type': 'application/octet-stream', 'Authorization': 'Bearer 12345'},
+        requestHeaders: {
+          'content-type': 'application/octet-stream',
+          'Authorization': 'Bearer 12345'
+        },
         responseHeaders: {'content-type': 'application/json'},
         requestBodyBytes: largeBytes,
         requestBodyPreview: 'A' * 2048,
@@ -243,7 +255,8 @@ void main() {
       expect(curl, contains('-X POST'));
     });
 
-    testWidgets('Vector 4: JsonViewer virtualization with 30,000 lines payload', (tester) async {
+    testWidgets('Vector 4: JsonViewer virtualization with 30,000 lines payload',
+        (tester) async {
       final sb = StringBuffer('{\n');
       for (var i = 0; i < 30000; i++) {
         sb.write('  "key_$i": "value_$i",\n');
@@ -274,8 +287,11 @@ void main() {
       expect(firstListView.itemExtent, 18.0);
     });
 
-    test('Vector 5: Temp file cleanup robustness with nested directories and non-orphan files', () async {
-      final tempDir = await Directory.systemTemp.createTemp('m4_cleanup_stress_');
+    test(
+        'Vector 5: Temp file cleanup robustness with nested directories and non-orphan files',
+        () async {
+      final tempDir =
+          await Directory.systemTemp.createTemp('m4_cleanup_stress_');
 
       final activeFile = File('${tempDir.path}/interceptly_active.tmp');
       await activeFile.writeAsString('active session content');
@@ -314,9 +330,16 @@ void main() {
       await tempDir.delete(recursive: true);
     });
 
-    test('Vector 6: Redacted headers pre-normalization and case-insensitivity verification', () {
+    test(
+        'Vector 6: Redacted headers pre-normalization and case-insensitivity verification',
+        () {
       final settings = InterceptlySettings(
-        redactedHeaders: {'Authorization', 'X-Api-Key', 'COOKIE', 'sEcReT-ToKeN'},
+        redactedHeaders: {
+          'Authorization',
+          'X-Api-Key',
+          'COOKIE',
+          'sEcReT-ToKeN'
+        },
       );
 
       final normalized = settings.normalizedRedactedHeaders;

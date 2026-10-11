@@ -109,8 +109,12 @@ void main() {
     }
   });
 
-  group('Deep Empirical Stress: Phase 1 Yielding & Cancellation Race Conditions', () {
-    test('Cancel during every Phase 1 yield iteration (i=0, 50, 100, 150) never crashes', () async {
+  group(
+      'Deep Empirical Stress: Phase 1 Yielding & Cancellation Race Conditions',
+      () {
+    test(
+        'Cancel during every Phase 1 yield iteration (i=0, 50, 100, 150) never crashes',
+        () async {
       final entries = List.generate(
         200,
         (i) => _makeEntry(
@@ -142,7 +146,8 @@ void main() {
       }
     });
 
-    test('Reset during Phase 1 yield cleanly aborts and leaves null results', () async {
+    test('Reset during Phase 1 yield cleanly aborts and leaves null results',
+        () async {
       final entries = List.generate(
         150,
         (i) => _makeEntry(id: 'reset_$i', url: 'https://example.com/reset_$i'),
@@ -164,8 +169,12 @@ void main() {
     });
   });
 
-  group('Deep Empirical Stress: Rapid Keystroke Barrage & Cross-Contamination Oracle', () {
-    test('10 rapid consecutive queries supersede each other without cross-contamination in Phase 1', () async {
+  group(
+      'Deep Empirical Stress: Rapid Keystroke Barrage & Cross-Contamination Oracle',
+      () {
+    test(
+        '10 rapid consecutive queries supersede each other without cross-contamination in Phase 1',
+        () async {
       final categories = [
         'apple',
         'banana',
@@ -208,12 +217,15 @@ void main() {
         expect(r.url, contains('lemon'));
         for (final other in categories.where((c) => c != 'lemon')) {
           expect(r.url.contains(other), isFalse,
-              reason: 'Found contaminated result from previous query $other in lemon results');
+              reason:
+                  'Found contaminated result from previous query $other in lemon results');
         }
       }
     });
 
-    test('Barrage of 20 rapid interleaved queries across Phase 1, Phase 2, and Phase 3', () async {
+    test(
+        'Barrage of 20 rapid interleaved queries across Phase 1, Phase 2, and Phase 3',
+        () async {
       final entries = <IndexEntry>[];
 
       for (var i = 0; i < 15; i++) {
@@ -237,7 +249,8 @@ void main() {
           id: 'mem_entry_$i',
           url: 'https://example.com/mem/$i',
           bodyLocation: BodyLocation.memory,
-          inlineResponseBody: Uint8List.fromList(utf8.encode('{"note": "mem_needle_$i"}')),
+          inlineResponseBody:
+              Uint8List.fromList(utf8.encode('{"note": "mem_needle_$i"}')),
         ));
       }
 
@@ -281,7 +294,9 @@ void main() {
   });
 
   group('Deep Empirical Stress: Randomized Concurrency Torture Harness', () {
-    test('50 randomized concurrent operations (start, cancel, reset) maintain invariant integrity', () async {
+    test(
+        '50 randomized concurrent operations (start, cancel, reset) maintain invariant integrity',
+        () async {
       final rng = Random(42);
       final entries = List.generate(
         80,

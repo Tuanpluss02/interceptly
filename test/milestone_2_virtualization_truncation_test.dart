@@ -143,7 +143,9 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('Milestone 2: Settings and Decoupling Constants', () {
-    test('InterceptlySettings defaults decouple storage limit from UI preview limit', () {
+    test(
+        'InterceptlySettings defaults decouple storage limit from UI preview limit',
+        () {
       const settings = InterceptlySettings();
       expect(settings.maxBodyBytes, equals(5 * 1024 * 1024));
       expect(settings.maxUiPreviewBytes, equals(2 * 1024 * 1024));
@@ -175,7 +177,9 @@ void main() {
   });
 
   group('Milestone 2: Exporter Data Integrity', () {
-    test('CurlGenerator prioritizes intact requestBodyBytes over preview string', () {
+    test(
+        'CurlGenerator prioritizes intact requestBodyBytes over preview string',
+        () {
       final rawPayload = '{"full_key":"full_value_exceeding_preview"}';
       final record = _createRecord(
         id: 'rec_curl_1',
@@ -191,7 +195,8 @@ void main() {
       expect(curl, isNot(contains('truncated...')));
     });
 
-    test('HarExporter utilizes intact requestBodyBytes and responseBodyBytes', () {
+    test('HarExporter utilizes intact requestBodyBytes and responseBodyBytes',
+        () {
       final intactReq = '{"req_param":12345}';
       final intactRes = '{"res_result":"complete_untruncated_data"}';
 
@@ -209,7 +214,8 @@ void main() {
 
       final harJson = HarExporter.toJson([record]);
       final parsed = jsonDecode(harJson) as Map<String, dynamic>;
-      final entry = (parsed['log']['entries'] as List).first as Map<String, dynamic>;
+      final entry =
+          (parsed['log']['entries'] as List).first as Map<String, dynamic>;
 
       final postText = entry['request']['postData']['text'] as String;
       final resText = entry['response']['content']['text'] as String;
@@ -239,7 +245,9 @@ void main() {
   });
 
   group('Milestone 2: Virtualized JsonViewer', () {
-    testWidgets('renders 5,000 lines cleanly using dual virtualized ListView.builders with itemExtent 18.0', (tester) async {
+    testWidgets(
+        'renders 5,000 lines cleanly using dual virtualized ListView.builders with itemExtent 18.0',
+        (tester) async {
       final largeMap = {
         for (int i = 1; i <= 5000; i++) 'key_$i': 'val_$i',
       };
@@ -268,9 +276,11 @@ void main() {
       expect(find.text('1'), findsOneWidget);
     });
 
-    testWidgets('navigates to target line on search match jumping', (tester) async {
+    testWidgets('navigates to target line on search match jumping',
+        (tester) async {
       final searchData = {
-        for (int i = 1; i <= 100; i++) 'item_$i': i == 50 ? 'TARGET_VALUE' : 'val_$i',
+        for (int i = 1; i <= 100; i++)
+          'item_$i': i == 50 ? 'TARGET_VALUE' : 'val_$i',
       };
 
       await tester.pumpWidget(
@@ -293,9 +303,11 @@ void main() {
       expect(find.textContaining('TARGET_VALUE'), findsOneWidget);
     });
 
-    testWidgets('docked gutter stays pinned when content scrolls horizontally', (tester) async {
+    testWidgets('docked gutter stays pinned when content scrolls horizontally',
+        (tester) async {
       final longData = {
-        'very_wide_key_that_requires_horizontal_scroll_to_fit': 'very_wide_value_in_json',
+        'very_wide_key_that_requires_horizontal_scroll_to_fit':
+            'very_wide_value_in_json',
       };
 
       await tester.pumpWidget(
@@ -326,7 +338,8 @@ void main() {
       expect(afterScrollGutterX, equals(initialGutterX));
     });
 
-    testWidgets('code folding collapses and expands object entries', (tester) async {
+    testWidgets('code folding collapses and expands object entries',
+        (tester) async {
       final collData = {
         'section': {
           'sub_1': 'alpha',
@@ -363,7 +376,9 @@ void main() {
   });
 
   group('Milestone 2: UI Truncation Clean Rendering', () {
-    testWidgets('renders response content without warning banner when isUiTruncated is true', (tester) async {
+    testWidgets(
+        'renders response content without warning banner when isUiTruncated is true',
+        (tester) async {
       final largeBytes = Uint8List(5 * 1024 * 1024);
       final record = _createRecord(
         id: 'rec_trunc_banner_1',
@@ -397,7 +412,8 @@ void main() {
       expect(find.textContaining('first 2MB'), findsOneWidget);
     });
 
-    testWidgets('does not render warning banner when isUiTruncated is false', (tester) async {
+    testWidgets('does not render warning banner when isUiTruncated is false',
+        (tester) async {
       final record = _createRecord(
         id: 'rec_not_trunc_1',
         method: 'GET',

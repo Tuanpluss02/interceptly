@@ -107,8 +107,8 @@ class _DraggableFabState extends State<DraggableFab>
 
     _isRightEdge = target.dx >= (size.width / 2);
     if (size.height > 0) {
-      _relativeY = ((target.dy + _widgetSize.height / 2) / size.height)
-          .clamp(0.0, 1.0);
+      _relativeY =
+          ((target.dy + _widgetSize.height / 2) / size.height).clamp(0.0, 1.0);
     }
 
     _snapAnimation = Tween<Offset>(begin: pos, end: target).animate(

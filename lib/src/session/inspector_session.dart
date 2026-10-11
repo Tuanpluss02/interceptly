@@ -558,8 +558,9 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     }
 
     final maxUi = _settings.maxUiPreviewBytes;
-    final isUiTruncated = (reqBytes != null && maxUi > 0 && reqBytes.length > maxUi) ||
-        (resBytes != null && maxUi > 0 && resBytes.length > maxUi);
+    final isUiTruncated =
+        (reqBytes != null && maxUi > 0 && reqBytes.length > maxUi) ||
+            (resBytes != null && maxUi > 0 && resBytes.length > maxUi);
 
     if (reqPreview == null && reqBytes != null) {
       final reqSlice = (maxUi > 0 && reqBytes.length > maxUi)

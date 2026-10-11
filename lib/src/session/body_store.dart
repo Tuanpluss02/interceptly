@@ -106,8 +106,7 @@ class BodyStore {
       if (!await dir.exists()) return 0;
 
       final entities = await dir.list().toList();
-      final activeBaseName =
-          currentFileName?.split(RegExp(r'[/\\]')).last;
+      final activeBaseName = currentFileName?.split(RegExp(r'[/\\]')).last;
 
       for (final entity in entities) {
         if (entity is File) {

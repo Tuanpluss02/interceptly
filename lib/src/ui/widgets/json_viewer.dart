@@ -25,6 +25,10 @@ class JsonViewer extends StatefulWidget {
   /// Active global match index currently selected by parent UI.
   final int? activeGlobalIndex;
 
+  /// Optional flag to control scrollbar thumb visibility.
+  /// If null, follows standard platform behavior (shows while scrolling or hovering).
+  final bool? thumbVisibility;
+
   /// Creates a JSON viewer for [data] with optional search metadata.
   const JsonViewer({
     super.key,
@@ -32,6 +36,7 @@ class JsonViewer extends StatefulWidget {
     this.searchQuery,
     this.matchOffset = 0,
     this.activeGlobalIndex,
+    this.thumbVisibility,
   });
 
   /// Format any data into a pretty-printed JSON string.
@@ -296,14 +301,12 @@ class _JsonViewerState extends State<JsonViewer> {
               text: TextSpan(text: textBefore, style: contentStyle),
               textDirection: TextDirection.ltr,
             )..layout();
-            final matchLeft =
-                4.0 + line.indentLevel * 16.0 + textPainter.width;
+            final matchLeft = 4.0 + line.indentLevel * 16.0 + textPainter.width;
 
             double matchWidth = 0.0;
             if (widget.searchQuery != null && widget.searchQuery!.isNotEmpty) {
               final matchPainter = TextPainter(
-                text: TextSpan(
-                    text: widget.searchQuery!, style: contentStyle),
+                text: TextSpan(text: widget.searchQuery!, style: contentStyle),
                 textDirection: TextDirection.ltr,
               )..layout();
               matchWidth = matchPainter.width;
@@ -429,8 +432,8 @@ class _JsonViewerState extends State<JsonViewer> {
       return;
     }
     _lineCountMemo ??= Expando<int>('json_line_counts');
-    _memoForceCollapse =
-        _countExpandedLines(widget.data, _lineCountMemo) > _largeDocLineThreshold;
+    _memoForceCollapse = _countExpandedLines(widget.data, _lineCountMemo) >
+        _largeDocLineThreshold;
     _memoMatchCounts = effectiveQuery == null
         ? null
         : _matchCountsByPath(widget.data, effectiveQuery);
@@ -609,133 +612,176 @@ class _JsonViewerState extends State<JsonViewer> {
       }
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final viewportHeight = constraints.hasBoundedHeight
-            ? constraints.maxHeight
-            : (lines.length * lineHeight).clamp(24.0, 500.0);
+    return MediaQuery.removePadding(
+      context: context,
+      removeTop: true,
+      removeBottom: true,
+      removeLeft: true,
+      removeRight: true,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final viewportHeight = constraints.hasBoundedHeight
+              ? constraints.maxHeight
+              : (lines.length * lineHeight).clamp(24.0, 500.0);
 
-        final gutterTotalWidth = lineNumberWidth + _foldIconWidth + 8.0;
-        final minContentWidth = constraints.hasBoundedWidth
-            ? math.max(0.0, constraints.maxWidth - gutterTotalWidth)
-            : 0.0;
-        final contentWidth = math.max(minContentWidth, maxChars * 7.5 + 40.0);
+          final gutterTotalWidth = lineNumberWidth + _foldIconWidth + 8.0;
+          final minContentWidth = constraints.hasBoundedWidth
+              ? math.max(0.0, constraints.maxWidth - gutterTotalWidth)
+              : 0.0;
+          final contentWidth = math.max(minContentWidth, maxChars * 7.5 + 40.0);
 
-        if (activeLineIndex != null) {
-          _checkScrollToActive(
-            activeLineIndex: activeLineIndex,
-            line: lines[activeLineIndex],
-            viewportHeight: viewportHeight,
-            viewportWidth: minContentWidth,
-            lineHeight: lineHeight,
-            contentStyle: contentStyle,
-          );
-        }
+          if (activeLineIndex != null) {
+            _checkScrollToActive(
+              activeLineIndex: activeLineIndex,
+              line: lines[activeLineIndex],
+              viewportHeight: viewportHeight,
+              viewportWidth: minContentWidth,
+              lineHeight: lineHeight,
+              contentStyle: contentStyle,
+            );
+          }
 
-        return SizedBox(
-          height: viewportHeight,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              DefaultTextStyle(
-                style: contentStyle,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: gutterTotalWidth,
-                      height: viewportHeight,
-                      child: Container(
-                        padding: const EdgeInsets.only(right: 4.0),
-                        decoration: BoxDecoration(
-                          border: Border(
-                            right: BorderSide(
-                              color: InterceptlyTheme.dividerSubtle,
-                              width: 1.0,
+          return SizedBox(
+            height: viewportHeight,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                DefaultTextStyle(
+                  style: contentStyle,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: gutterTotalWidth,
+                        height: viewportHeight,
+                        child: Container(
+                          padding: const EdgeInsets.only(right: 4.0),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              right: BorderSide(
+                                color: InterceptlyTheme.dividerSubtle,
+                                width: 1.0,
+                              ),
                             ),
                           ),
-                        ),
-                        child: ListView.builder(
-                          controller: _gutterScrollController,
-                          itemExtent: lineHeight,
-                          itemCount: lines.length,
-                          cacheExtent: 1000.0,
-                          addAutomaticKeepAlives: false,
-                          physics: const ClampingScrollPhysics(),
-                          itemBuilder: (context, index) {
-                            return _buildGutterCell(
-                              line: lines[index],
-                              lineNumberWidth: lineNumberWidth,
-                              lineHeight: lineHeight,
-                              style: contentStyle,
-                            );
-                          },
+                          child: ListView.builder(
+                            controller: _gutterScrollController,
+                            itemExtent: lineHeight,
+                            itemCount: lines.length,
+                            cacheExtent: 1000.0,
+                            addAutomaticKeepAlives: false,
+                            physics: const ClampingScrollPhysics(),
+                            itemBuilder: (context, index) {
+                              return _buildGutterCell(
+                                line: lines[index],
+                                lineNumberWidth: lineNumberWidth,
+                                lineHeight: lineHeight,
+                                style: contentStyle,
+                              );
+                            },
+                          ),
                         ),
                       ),
-                    ),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        controller: _horizontalScrollController,
-                        scrollDirection: Axis.horizontal,
-                        child: SizedBox(
-                          width: contentWidth,
-                          height: viewportHeight,
-                          child: SelectableRegion(
-                            focusNode: _selectableFocusNode,
-                            selectionControls: materialTextSelectionControls,
-                            child: Padding(
-                              padding: const EdgeInsets.only(left: 4.0),
-                              child: ListView.builder(
-                                controller: _contentScrollController,
-                                itemExtent: lineHeight,
-                                itemCount: lines.length,
-                                cacheExtent: 1000.0,
-                                addAutomaticKeepAlives: false,
-                                physics: const ClampingScrollPhysics(),
-                                itemBuilder: (context, index) {
-                                  return _buildLine(
-                                    index,
-                                    lines[index],
-                                    lineHeight,
-                                    contentStyle,
-                                  );
-                                },
+                      Expanded(
+                        child: ScrollbarTheme(
+                          data: ScrollbarThemeData(
+                            thumbColor:
+                                WidgetStateProperty.resolveWith((states) {
+                              final baseColor =
+                                  InterceptlyTheme.colors.textTertiary;
+                              if (states.contains(WidgetState.dragged)) {
+                                return baseColor.withValues(alpha: 0.6);
+                              }
+                              if (states.contains(WidgetState.hovered)) {
+                                return baseColor.withValues(alpha: 0.5);
+                              }
+                              return baseColor.withValues(alpha: 0.35);
+                            }),
+                            radius: const Radius.circular(4.0),
+                            thickness: const WidgetStatePropertyAll(5.0),
+                            crossAxisMargin: 0.0,
+                            mainAxisMargin: 0.0,
+                            interactive: true,
+                          ),
+                          child: Scrollbar(
+                            controller: _contentScrollController,
+                            notificationPredicate: (notif) =>
+                                notif.metrics.axis == Axis.vertical,
+                            interactive: true,
+                            thumbVisibility: widget.thumbVisibility,
+                            child: Scrollbar(
+                              controller: _horizontalScrollController,
+                              notificationPredicate: (notif) =>
+                                  notif.metrics.axis == Axis.horizontal,
+                              interactive: true,
+                              thumbVisibility: widget.thumbVisibility,
+                              child: SingleChildScrollView(
+                                controller: _horizontalScrollController,
+                                scrollDirection: Axis.horizontal,
+                                child: SizedBox(
+                                  width: contentWidth,
+                                  height: viewportHeight,
+                                  child: SelectableRegion(
+                                    focusNode: _selectableFocusNode,
+                                    selectionControls:
+                                        materialTextSelectionControls,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(left: 4.0),
+                                      child: ListView.builder(
+                                        controller: _contentScrollController,
+                                        itemExtent: lineHeight,
+                                        itemCount: lines.length,
+                                        cacheExtent: 1000.0,
+                                        addAutomaticKeepAlives: false,
+                                        physics: const ClampingScrollPhysics(),
+                                        itemBuilder: (context, index) {
+                                          return _buildLine(
+                                            index,
+                                            lines[index],
+                                            lineHeight,
+                                            contentStyle,
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              Positioned(
-                top: -10,
-                right: -10,
-                child: Material(
-                  color: InterceptlyGlobalColor.transparent,
-                  child: IconButton(
-                    icon: const Icon(
-                      Icons.copy,
-                      size: 16,
-                      color: InterceptlyTheme.textMuted,
-                    ),
-                    tooltip: 'Copy JSON',
-                    onPressed: _copyToClipboard,
-                    splashRadius: 16,
-                    constraints: const BoxConstraints.tightFor(
-                      width: 24,
-                      height: 24,
-                    ),
-                    padding: EdgeInsets.zero,
-                    alignment: Alignment.topCenter,
+                    ],
                   ),
                 ),
-              ),
-            ],
-          ),
-        );
-      },
+                Positioned(
+                  top: -10,
+                  right: -10,
+                  child: Material(
+                    color: InterceptlyGlobalColor.transparent,
+                    child: IconButton(
+                      icon: const Icon(
+                        Icons.copy,
+                        size: 16,
+                        color: InterceptlyTheme.textMuted,
+                      ),
+                      tooltip: 'Copy JSON',
+                      onPressed: _copyToClipboard,
+                      splashRadius: 16,
+                      constraints: const BoxConstraints.tightFor(
+                        width: 24,
+                        height: 24,
+                      ),
+                      padding: EdgeInsets.zero,
+                      alignment: Alignment.topCenter,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 

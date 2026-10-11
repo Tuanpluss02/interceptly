@@ -33,7 +33,7 @@ class InterceptlySettings {
   /// Defaults to 2 MB (2 * 1024 * 1024).
   final int maxUiPreviewBytes;
 
-  /// Maximum number of pending [RawCapture]s in the writer queue.
+  /// Maximum number of pending capture events in the writer queue.
   /// When full, the oldest unprocessed item is dropped.
   final int maxQueuedEvents;
 

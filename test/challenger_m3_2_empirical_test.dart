@@ -22,8 +22,7 @@ Uint8List _createPackedBody({
       ? Uint8List.fromList(utf8.encode(responseBody))
       : null;
 
-  final total =
-      4 + (reqBytes?.length ?? 0) + 4 + (resBytes?.length ?? 0) + 1;
+  final total = 4 + (reqBytes?.length ?? 0) + 4 + (resBytes?.length ?? 0) + 1;
   final out = Uint8List(total);
   final data = ByteData.sublistView(out);
   var offset = 0;
@@ -115,7 +114,9 @@ void main() {
   });
 
   group('Challenge Area 1: Lifecycle Temp Cleanup & Boundary Stress', () {
-    test('purges 150+ simulated orphan files while strictly preserving active file', () async {
+    test(
+        'purges 150+ simulated orphan files while strictly preserving active file',
+        () async {
       const orphanCount = 150;
       final orphanFiles = <File>[];
       for (var i = 0; i < orphanCount; i++) {
@@ -140,7 +141,9 @@ void main() {
       expect(await activeFile.readAsString(), equals('active_session_payload'));
     });
 
-    test('preserves active file when currentFileName is passed as full absolute path', () async {
+    test(
+        'preserves active file when currentFileName is passed as full absolute path',
+        () async {
       final orphan = File('${tempDir.path}/interceptly_old_1.tmp');
       await orphan.writeAsString('orphan');
       final active = File('${tempDir.path}/interceptly_my_session.tmp');
@@ -156,7 +159,9 @@ void main() {
       expect(await active.exists(), isTrue);
     });
 
-    test('strictly preserves non-interceptly files, atypical extensions, and subdirectories', () async {
+    test(
+        'strictly preserves non-interceptly files, atypical extensions, and subdirectories',
+        () async {
       final filesToKeep = [
         File('${tempDir.path}/interceptly_notes.txt'),
         File('${tempDir.path}/interceptly_config.json'),
@@ -201,17 +206,21 @@ void main() {
       }
     });
 
-    test('handles empty directory and nonexistent directory gracefully', () async {
+    test('handles empty directory and nonexistent directory gracefully',
+        () async {
       final emptySubdir = await tempDir.createTemp('empty_test_');
-      final purgedEmpty = await BodyStore.purgeOrphanedTempFiles(emptySubdir.path);
+      final purgedEmpty =
+          await BodyStore.purgeOrphanedTempFiles(emptySubdir.path);
       expect(purgedEmpty, equals(0));
 
       final nonExistentPath = '${tempDir.path}/missing_folder_12345';
-      final purgedMissing = await BodyStore.purgeOrphanedTempFiles(nonExistentPath);
+      final purgedMissing =
+          await BodyStore.purgeOrphanedTempFiles(nonExistentPath);
       expect(purgedMissing, equals(0));
     });
 
-    test('recovers gracefully when a file delete throws FileSystemException', () async {
+    test('recovers gracefully when a file delete throws FileSystemException',
+        () async {
       final orphan1 = File('${tempDir.path}/interceptly_normal_1.tmp');
       await orphan1.writeAsString('normal');
 
@@ -230,7 +239,9 @@ void main() {
   });
 
   group('Challenge Area 2: InspectorSession Auto-Purge Lifecycle', () {
-    test('InspectorSession initialization detects and purges prior orphans while preserving its active file', () async {
+    test(
+        'InspectorSession initialization detects and purges prior orphans while preserving its active file',
+        () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
         const MethodChannel('plugins.flutter.io/path_provider'),
@@ -240,8 +251,10 @@ void main() {
         },
       );
 
-      final priorOrphan1 = File('${tempDir.path}/interceptly_old_session_1.tmp');
-      final priorOrphan2 = File('${tempDir.path}/interceptly_old_session_2.tmp');
+      final priorOrphan1 =
+          File('${tempDir.path}/interceptly_old_session_1.tmp');
+      final priorOrphan2 =
+          File('${tempDir.path}/interceptly_old_session_2.tmp');
       final regularFile = File('${tempDir.path}/app_cache.db');
       final subFolder = Directory('${tempDir.path}/session_logs');
 
@@ -292,7 +305,8 @@ void main() {
       expect(await activeFile.exists(), isFalse);
     });
 
-    test('Consecutive simulated crash session cleaned up by next session', () async {
+    test('Consecutive simulated crash session cleaned up by next session',
+        () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
         const MethodChannel('plugins.flutter.io/path_provider'),
@@ -302,7 +316,8 @@ void main() {
         },
       );
 
-      final crashedSessionFile = File('${tempDir.path}/interceptly_crash_session.tmp');
+      final crashedSessionFile =
+          File('${tempDir.path}/interceptly_crash_session.tmp');
       await crashedSessionFile.writeAsString('unclosed session from crash');
 
       final newSession = InspectorSession();
@@ -324,7 +339,9 @@ void main() {
     });
   });
 
-  group('Challenge Area 3: MasterSearchController Boundary Cases & Concurrency Stress', () {
+  group(
+      'Challenge Area 3: MasterSearchController Boundary Cases & Concurrency Stress',
+      () {
     late MasterSearchController controller;
     late BodyStore store;
     late String backingFilePath;
@@ -341,7 +358,9 @@ void main() {
       await store.dispose();
     });
 
-    test('0 file entries: skips Phase 3 safely when all entries are memory-backed or list is empty', () async {
+    test(
+        '0 file entries: skips Phase 3 safely when all entries are memory-backed or list is empty',
+        () async {
       await controller.start(
         query: 'search_term',
         allEntries: [],
@@ -365,7 +384,8 @@ void main() {
       expect(controller.isScanningFiles, isFalse);
     });
 
-    test('skips entries with missing fileOffset or fileLength without errors', () async {
+    test('skips entries with missing fileOffset or fileLength without errors',
+        () async {
       final entryNullOffset = _buildTestEntry(
         id: 'null_offset',
         bodyLocation: BodyLocation.file,
@@ -390,7 +410,9 @@ void main() {
       expect(controller.isScanningFiles, isFalse);
     });
 
-    test('corrupt file offsets (beyond EOF, negative, zero length) handled gracefully without crash', () async {
+    test(
+        'corrupt file offsets (beyond EOF, negative, zero length) handled gracefully without crash',
+        () async {
       final packed = _createPackedBody(
         requestBody: '{"valid": "data"}',
         responseBody: '{"status": "ok"}',
@@ -421,9 +443,12 @@ void main() {
       expect(controller.isScanningFiles, isFalse);
     });
 
-    test('corrupt or garbage file bytes decoded safely without exception', () async {
-      final corruptRaf = await File(backingFilePath).open(mode: FileMode.writeOnlyAppend);
-      await corruptRaf.writeFrom(Uint8List.fromList([0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]));
+    test('corrupt or garbage file bytes decoded safely without exception',
+        () async {
+      final corruptRaf =
+          await File(backingFilePath).open(mode: FileMode.writeOnlyAppend);
+      await corruptRaf
+          .writeFrom(Uint8List.fromList([0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]));
       await corruptRaf.close();
 
       final corruptEntry = _buildTestEntry(
@@ -444,7 +469,8 @@ void main() {
       expect(controller.isScanningFiles, isFalse);
     });
 
-    test('missing backing file handled gracefully without unhandled exception', () async {
+    test('missing backing file handled gracefully without unhandled exception',
+        () async {
       final entry = _buildTestEntry(
         id: 'missing_backing',
         bodyLocation: BodyLocation.file,
@@ -463,7 +489,8 @@ void main() {
       expect(controller.isScanningFiles, isFalse);
     });
 
-    test('empty and whitespace-only queries trigger cancel immediately', () async {
+    test('empty and whitespace-only queries trigger cancel immediately',
+        () async {
       final entry = _buildTestEntry(id: 'entry_1', url: 'https://example.com');
 
       for (final emptyQuery in ['', '   ', '\t\n  \r']) {
@@ -479,7 +506,9 @@ void main() {
       }
     });
 
-    test('search reset during active scan cancels in-flight operation without race exception', () async {
+    test(
+        'search reset during active scan cancels in-flight operation without race exception',
+        () async {
       final entries = <IndexEntry>[];
       for (var i = 0; i < 300; i++) {
         final packed = _createPackedBody(
@@ -514,10 +543,12 @@ void main() {
       expect(controller.isActive, isFalse);
     });
 
-    test('search cancel during active scan clears state and notifies listeners', () async {
+    test('search cancel during active scan clears state and notifies listeners',
+        () async {
       final entries = <IndexEntry>[];
       for (var i = 0; i < 300; i++) {
-        final bodyBytes = Uint8List.fromList(utf8.encode('{"item": $i, "tag": "bulk_$i"}'));
+        final bodyBytes =
+            Uint8List.fromList(utf8.encode('{"item": $i, "tag": "bulk_$i"}'));
         entries.add(
           _buildTestEntry(
             id: 'mem_$i',
@@ -551,9 +582,12 @@ void main() {
       expect(notifiedAfterCancel, isTrue);
     });
 
-    test('search reset during Phase 1 when matching entry follows yield', () async {
-      final e1 = _buildTestEntry(id: 'e1', url: 'https://api.example.com/other');
-      final e2 = _buildTestEntry(id: 'e2', url: 'https://api.example.com/target');
+    test('search reset during Phase 1 when matching entry follows yield',
+        () async {
+      final e1 =
+          _buildTestEntry(id: 'e1', url: 'https://api.example.com/other');
+      final e2 =
+          _buildTestEntry(id: 'e2', url: 'https://api.example.com/target');
 
       final searchFuture = controller.start(
         query: 'target',
@@ -567,23 +601,31 @@ void main() {
       expect(controller.results, isNull);
     });
 
-    test('rapid alternating start, reset, and start operations resolve to final query', () async {
-      final e1 = _buildTestEntry(id: 'e1', url: 'https://api.example.com/alpha');
+    test(
+        'rapid alternating start, reset, and start operations resolve to final query',
+        () async {
+      final e1 =
+          _buildTestEntry(id: 'e1', url: 'https://api.example.com/alpha');
       final e2 = _buildTestEntry(id: 'e2', url: 'https://api.example.com/beta');
-      final e3 = _buildTestEntry(id: 'e3', url: 'https://api.example.com/gamma');
+      final e3 =
+          _buildTestEntry(id: 'e3', url: 'https://api.example.com/gamma');
 
-      controller.start(query: 'alpha', allEntries: [e1, e2, e3], filePath: null);
+      controller.start(
+          query: 'alpha', allEntries: [e1, e2, e3], filePath: null);
       controller.reset();
       controller.start(query: 'beta', allEntries: [e1, e2, e3], filePath: null);
       controller.reset();
-      await controller.start(query: 'gamma', allEntries: [e1, e2, e3], filePath: null);
+      await controller.start(
+          query: 'gamma', allEntries: [e1, e2, e3], filePath: null);
 
       expect(controller.query, equals('gamma'));
       expect(controller.results!.length, equals(1));
       expect(controller.results!.first.id, equals('e3'));
     });
 
-    test('new search started during Phase 3 does not get polluted by prior file scan matches', () async {
+    test(
+        'new search started during Phase 3 does not get polluted by prior file scan matches',
+        () async {
       final packed1 = _createPackedBody(
         requestBody: '{"payload": "first_query_match"}',
         responseBody: '{"ok": true}',

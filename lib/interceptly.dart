@@ -1,3 +1,6 @@
+/// Flutter network inspector for Dio, HTTP, and Chopper with overlay UI, replay tools, and HAR/cURL export.
+library;
+
 export 'src/capture/chopper/interceptly_chopper_interceptor.dart'
     show InterceptlyChopperInterceptor;
 export 'src/capture/dio/interceptly_dio_interceptor.dart'

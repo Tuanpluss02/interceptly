@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:chopper/chopper.dart' as chopper;
 import 'package:dio/dio.dart';
@@ -17,7 +18,7 @@ class ExampleRequestRunner {
   final http.Client httpClient;
   final chopper.ChopperClient chopperClient;
 
-  // ── Basic Traffic (Replaces external endpoints) ──────────────────────
+  // ── 1. Basic Traffic (GET 200) ────────────────────────────────────────
 
   Future<ExampleRequestResult> runDioGet() async {
     final sw = Stopwatch()..start();
@@ -96,6 +97,204 @@ class ExampleRequestRunner {
     }
   }
 
+  // ── 2. Full RESTful Methods & Status Codes ───────────────────────────
+
+  /// POST /api/users -> 201 Created
+  Future<ExampleRequestResult> runPostUser() async {
+    final sw = Stopwatch()..start();
+    try {
+      final response = await dio.post<dynamic>(
+        '/api/users',
+        data: {
+          'name': 'Grace Hopper',
+          'email': 'grace@navy.mil',
+          'role': 'Rear Admiral & Pioneer',
+        },
+      );
+      sw.stop();
+      final bodyStr = jsonEncode(response.data);
+      return ExampleRequestResult(
+        statusCode: response.statusCode ?? 201,
+        preview: bodyStr,
+        bytesReceived: utf8.encode(bodyStr).length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    } on DioException catch (e) {
+      sw.stop();
+      final preview = e.message ?? e.type.name;
+      return ExampleRequestResult(
+        statusCode: e.response?.statusCode ?? 0,
+        preview: preview,
+        bytesReceived: utf8.encode(preview).length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    }
+  }
+
+  /// PUT /api/users/1 -> 200 OK (Full Update)
+  Future<ExampleRequestResult> runPutUser() async {
+    final sw = Stopwatch()..start();
+    try {
+      final response = await dio.put<dynamic>(
+        '/api/users/1',
+        data: {
+          'id': '1',
+          'name': 'Alice Johnson (Updated)',
+          'email': 'alice.new@example.com',
+          'role': 'Principal Admin',
+        },
+      );
+      sw.stop();
+      final bodyStr = jsonEncode(response.data);
+      return ExampleRequestResult(
+        statusCode: response.statusCode ?? 200,
+        preview: bodyStr,
+        bytesReceived: utf8.encode(bodyStr).length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    } on DioException catch (e) {
+      sw.stop();
+      final preview = e.message ?? e.type.name;
+      return ExampleRequestResult(
+        statusCode: e.response?.statusCode ?? 0,
+        preview: preview,
+        bytesReceived: utf8.encode(preview).length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    }
+  }
+
+  /// PATCH /api/users/1 -> 200 OK (Partial Update)
+  Future<ExampleRequestResult> runPatchUser() async {
+    final sw = Stopwatch()..start();
+    try {
+      final response = await dio.patch<dynamic>(
+        '/api/users/1',
+        data: {'role': 'Lead Software Architect'},
+      );
+      sw.stop();
+      final bodyStr = jsonEncode(response.data);
+      return ExampleRequestResult(
+        statusCode: response.statusCode ?? 200,
+        preview: bodyStr,
+        bytesReceived: utf8.encode(bodyStr).length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    } on DioException catch (e) {
+      sw.stop();
+      final preview = e.message ?? e.type.name;
+      return ExampleRequestResult(
+        statusCode: e.response?.statusCode ?? 0,
+        preview: preview,
+        bytesReceived: utf8.encode(preview).length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    }
+  }
+
+  /// DELETE /api/users/1 -> 204 No Content
+  Future<ExampleRequestResult> runDeleteUser() async {
+    final sw = Stopwatch()..start();
+    try {
+      final response = await dio.delete<dynamic>('/api/users/1');
+      sw.stop();
+      return ExampleRequestResult(
+        statusCode: response.statusCode ?? 204,
+        preview: '[204 No Content] Resource deleted successfully.',
+        bytesReceived: 0,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    } on DioException catch (e) {
+      sw.stop();
+      final preview = e.message ?? e.type.name;
+      return ExampleRequestResult(
+        statusCode: e.response?.statusCode ?? 0,
+        preview: preview,
+        bytesReceived: utf8.encode(preview).length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    }
+  }
+
+  /// POST /api/bad-request -> 400 Bad Request
+  Future<ExampleRequestResult> run400BadRequest() async {
+    final sw = Stopwatch()..start();
+    try {
+      final response = await dio.post<dynamic>(
+        '/api/bad-request',
+        data: {'email': 'not_an_email', 'age': 12},
+      );
+      sw.stop();
+      final bodyStr = jsonEncode(response.data);
+      return ExampleRequestResult(
+        statusCode: response.statusCode ?? 200,
+        preview: bodyStr,
+        bytesReceived: utf8.encode(bodyStr).length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    } on DioException catch (e) {
+      sw.stop();
+      final bodyStr = jsonEncode(e.response?.data);
+      return ExampleRequestResult(
+        statusCode: e.response?.statusCode ?? 400,
+        preview: bodyStr,
+        bytesReceived: utf8.encode(bodyStr).length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    }
+  }
+
+  /// GET /api/unauthorized -> 401 Unauthorized
+  Future<ExampleRequestResult> run401Unauthorized() async {
+    final sw = Stopwatch()..start();
+    try {
+      final response = await dio.get<dynamic>('/api/unauthorized');
+      sw.stop();
+      final bodyStr = jsonEncode(response.data);
+      return ExampleRequestResult(
+        statusCode: response.statusCode ?? 200,
+        preview: bodyStr,
+        bytesReceived: utf8.encode(bodyStr).length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    } on DioException catch (e) {
+      sw.stop();
+      final bodyStr = jsonEncode(e.response?.data);
+      return ExampleRequestResult(
+        statusCode: e.response?.statusCode ?? 401,
+        preview: bodyStr,
+        bytesReceived: utf8.encode(bodyStr).length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    }
+  }
+
+  /// GET /api/not-found -> 404 Not Found
+  Future<ExampleRequestResult> run404NotFound() async {
+    final sw = Stopwatch()..start();
+    try {
+      final response = await dio.get<dynamic>('/api/not-found');
+      sw.stop();
+      final bodyStr = jsonEncode(response.data);
+      return ExampleRequestResult(
+        statusCode: response.statusCode ?? 200,
+        preview: bodyStr,
+        bytesReceived: utf8.encode(bodyStr).length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    } on DioException catch (e) {
+      sw.stop();
+      final bodyStr = jsonEncode(e.response?.data);
+      return ExampleRequestResult(
+        statusCode: e.response?.statusCode ?? 404,
+        preview: bodyStr,
+        bytesReceived: utf8.encode(bodyStr).length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    }
+  }
+
+  /// GET /api/error?status=503 -> 503 Service Unavailable
   Future<ExampleRequestResult> runError() async {
     final sw = Stopwatch()..start();
     try {
@@ -122,7 +321,286 @@ class ExampleRequestRunner {
     }
   }
 
-  // ── Stress Test & Heavy JSON Endpoints ──────────────────────────────
+  // ── 3. Specialized Formats (GraphQL, Multipart, Image) ───────────────
+
+  /// POST /api/graphql (Query with variables)
+  Future<ExampleRequestResult> runGraphQLQuery() async {
+    final sw = Stopwatch()..start();
+    try {
+      final response = await dio.post<dynamic>(
+        '/api/graphql',
+        data: {
+          'operationName': 'GetUser',
+          'query': '''
+query GetUser(\$id: ID!) {
+  user(id: \$id) {
+    id
+    name
+    email
+    role
+    status
+    projects {
+      id
+      name
+    }
+  }
+}''',
+          'variables': {'id': 'usr_42'},
+        },
+      );
+      sw.stop();
+      final bodyStr = jsonEncode(response.data);
+      return ExampleRequestResult(
+        statusCode: response.statusCode ?? 200,
+        preview: bodyStr,
+        bytesReceived: utf8.encode(bodyStr).length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    } on DioException catch (e) {
+      sw.stop();
+      final preview = e.message ?? e.type.name;
+      return ExampleRequestResult(
+        statusCode: e.response?.statusCode ?? 0,
+        preview: preview,
+        bytesReceived: utf8.encode(preview).length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    }
+  }
+
+  /// POST /api/graphql (Mutation)
+  Future<ExampleRequestResult> runGraphQLMutation() async {
+    final sw = Stopwatch()..start();
+    try {
+      final response = await dio.post<dynamic>(
+        '/api/graphql',
+        data: {
+          'operationName': 'UpdateUserStatus',
+          'query': '''
+mutation UpdateUserStatus(\$id: ID!, \$status: String!) {
+  mutateUser(id: \$id, status: \$status) {
+    success
+    operationName
+    timestamp
+    affectedId
+  }
+}''',
+          'variables': {'id': 'usr_42', 'status': 'VERIFIED'},
+        },
+      );
+      sw.stop();
+      final bodyStr = jsonEncode(response.data);
+      return ExampleRequestResult(
+        statusCode: response.statusCode ?? 200,
+        preview: bodyStr,
+        bytesReceived: utf8.encode(bodyStr).length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    } on DioException catch (e) {
+      sw.stop();
+      final preview = e.message ?? e.type.name;
+      return ExampleRequestResult(
+        statusCode: e.response?.statusCode ?? 0,
+        preview: preview,
+        bytesReceived: utf8.encode(preview).length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    }
+  }
+
+  /// POST /api/upload (Dio FormData with fields and files)
+  Future<ExampleRequestResult> runMultipartUpload() async {
+    final sw = Stopwatch()..start();
+    try {
+      final fakeImageBytes = Uint8List.fromList([
+        0x89,
+        0x50,
+        0x4E,
+        0x47,
+        0x0D,
+        0x0A,
+        0x1A,
+        0x0A,
+        0x00,
+        0x00,
+        0x00,
+        0x0D,
+        0x49,
+        0x48,
+        0x44,
+        0x52,
+      ]);
+      final fakeTextDoc = utf8
+          .encode('Hello Interceptly multipart upload demonstration document.');
+
+      final formData = FormData.fromMap({
+        'username': 'johndoe',
+        'accountType': 'ENTERPRISE',
+        'notes': 'Uploaded via Interceptly Example App',
+        'avatar': MultipartFile.fromBytes(
+          fakeImageBytes,
+          filename: 'user_avatar.png',
+          contentType: DioMediaType('image', 'png'),
+        ),
+        'document': MultipartFile.fromBytes(
+          fakeTextDoc,
+          filename: 'attachment.txt',
+          contentType: DioMediaType('text', 'plain'),
+        ),
+      });
+
+      final response = await dio.post<dynamic>(
+        '/api/upload',
+        data: formData,
+      );
+      sw.stop();
+      final bodyStr = jsonEncode(response.data);
+      return ExampleRequestResult(
+        statusCode: response.statusCode ?? 200,
+        preview: bodyStr,
+        bytesReceived: utf8.encode(bodyStr).length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    } on DioException catch (e) {
+      sw.stop();
+      final preview = e.message ?? e.type.name;
+      return ExampleRequestResult(
+        statusCode: e.response?.statusCode ?? 0,
+        preview: preview,
+        bytesReceived: utf8.encode(preview).length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    }
+  }
+
+  /// GET /api/image/png -> Binary image preview
+  Future<ExampleRequestResult> runGetImage() async {
+    final sw = Stopwatch()..start();
+    try {
+      final response = await dio.get<List<int>>(
+        '/api/image/png',
+        options: Options(responseType: ResponseType.bytes),
+      );
+      sw.stop();
+      final length = response.data?.length ?? 0;
+      return ExampleRequestResult(
+        statusCode: response.statusCode ?? 200,
+        preview:
+            '[Binary PNG Image: $length bytes received]. Check Request Detail > Response tab for binary inspection.',
+        bytesReceived: length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    } on DioException catch (e) {
+      sw.stop();
+      final preview = e.message ?? e.type.name;
+      return ExampleRequestResult(
+        statusCode: e.response?.statusCode ?? 0,
+        preview: preview,
+        bytesReceived: utf8.encode(preview).length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    }
+  }
+
+  /// GET /api/image/svg -> Vector image
+  Future<ExampleRequestResult> runGetSvg() async {
+    final sw = Stopwatch()..start();
+    try {
+      final response = await dio.get<String>(
+        '/api/image/svg',
+      );
+      sw.stop();
+      final length = utf8.encode(response.data ?? '').length;
+      return ExampleRequestResult(
+        statusCode: response.statusCode ?? 200,
+        preview: response.data ?? '',
+        bytesReceived: length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    } on DioException catch (e) {
+      sw.stop();
+      final preview = e.message ?? e.type.name;
+      return ExampleRequestResult(
+        statusCode: e.response?.statusCode ?? 0,
+        preview: preview,
+        bytesReceived: utf8.encode(preview).length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    }
+  }
+
+  // ── 4. Security & URL Filtering ─────────────────────────────────────
+
+  /// GET /api/secure-profile -> Sends Bearer token, Cookie, and API Key
+  Future<ExampleRequestResult> runSecureRequestWithTokens() async {
+    final sw = Stopwatch()..start();
+    try {
+      final response = await dio.get<dynamic>(
+        '/api/secure-profile',
+        options: Options(
+          headers: {
+            'Authorization':
+                'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.super_secret_payload_987654321',
+            'X-Api-Key': 'prod_secret_api_key_ABC123XYZ',
+            'Cookie':
+                'session_token=secret_cookie_session_456; refresh_token=refresh_secret_789',
+          },
+        ),
+      );
+      sw.stop();
+      final bodyStr = jsonEncode(response.data);
+      return ExampleRequestResult(
+        statusCode: response.statusCode ?? 200,
+        preview: bodyStr,
+        bytesReceived: utf8.encode(bodyStr).length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    } on DioException catch (e) {
+      sw.stop();
+      final preview = e.message ?? e.type.name;
+      return ExampleRequestResult(
+        statusCode: e.response?.statusCode ?? 0,
+        preview: preview,
+        bytesReceived: utf8.encode(preview).length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    }
+  }
+
+  /// POST /api/analytics/track -> URL blacklisted by shouldCapture
+  Future<ExampleRequestResult> runAnalyticsRequest() async {
+    final sw = Stopwatch()..start();
+    try {
+      final response = await dio.post<dynamic>(
+        '/api/analytics/track',
+        data: {
+          'eventType': 'button_click',
+          'screen': 'example_home',
+          'timestamp': DateTime.now().toIso8601String(),
+        },
+      );
+      sw.stop();
+      final bodyStr = jsonEncode(response.data);
+      return ExampleRequestResult(
+        statusCode: response.statusCode ?? 200,
+        preview:
+            'Request completed with 200 OK! Note: Notice that Interceptly DID NOT capture this call because url contains "/analytics" (shouldCapture filter).',
+        bytesReceived: utf8.encode(bodyStr).length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    } on DioException catch (e) {
+      sw.stop();
+      final preview = e.message ?? e.type.name;
+      return ExampleRequestResult(
+        statusCode: e.response?.statusCode ?? 0,
+        preview: preview,
+        bytesReceived: utf8.encode(preview).length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    }
+  }
+
+  // ── 5. Stress Test & Heavy JSON Endpoints ────────────────────────────
 
   /// Heavy JSON (~1MB, ~3,000 items, ~25k lines)
   Future<ExampleRequestResult> runHeavyListGet({int count = 3000}) async {
@@ -136,7 +614,8 @@ class ExampleRequestRunner {
       final bodyStr = jsonEncode(response.data);
       return ExampleRequestResult(
         statusCode: response.statusCode ?? 200,
-        preview: 'Received $count items. (Preview first 300 chars: ${bodyStr.substring(0, bodyStr.length.clamp(0, 300))}...)',
+        preview:
+            'Received $count items. (Preview first 300 chars: ${bodyStr.substring(0, bodyStr.length.clamp(0, 300))}...)',
         bytesReceived: utf8.encode(bodyStr).length,
         durationMs: sw.elapsedMilliseconds,
       );
@@ -164,7 +643,8 @@ class ExampleRequestRunner {
       final bodyStr = jsonEncode(response.data);
       return ExampleRequestResult(
         statusCode: response.statusCode ?? 200,
-        preview: 'Received $count items (>2MB). Open Inspector to verify truncation banner & disk offload!',
+        preview:
+            'Received $count items (>2MB). Open Inspector to verify truncation banner & disk offload!',
         bytesReceived: utf8.encode(bodyStr).length,
         durationMs: sw.elapsedMilliseconds,
       );
@@ -192,7 +672,8 @@ class ExampleRequestRunner {
       final bodyStr = jsonEncode(response.data);
       return ExampleRequestResult(
         statusCode: response.statusCode ?? 200,
-        preview: 'Nested JSON with depth: $depth. (First 200 chars: ${bodyStr.substring(0, bodyStr.length.clamp(0, 200))}...)',
+        preview:
+            'Nested JSON with depth: $depth. (First 200 chars: ${bodyStr.substring(0, bodyStr.length.clamp(0, 200))}...)',
         bytesReceived: utf8.encode(bodyStr).length,
         durationMs: sw.elapsedMilliseconds,
       );
@@ -220,7 +701,8 @@ class ExampleRequestRunner {
       final bodyStr = jsonEncode(response.data);
       return ExampleRequestResult(
         statusCode: response.statusCode ?? 200,
-        preview: 'Wide text payload with $chars chars. Test horizontal scroll & copy.',
+        preview:
+            'Wide text payload with $chars chars. Test horizontal scroll & copy.',
         bytesReceived: utf8.encode(bodyStr).length,
         durationMs: sw.elapsedMilliseconds,
       );
@@ -244,11 +726,13 @@ class ExampleRequestRunner {
         'action': 'bulk_upload',
         'itemCount': items,
         'submittedAt': DateTime.now().toIso8601String(),
-        'records': List.generate(items, (i) => {
-          'index': i,
-          'token': 'auth_token_sample_${i * 42}',
-          'data': 'Record details for entry $i',
-        }),
+        'records': List.generate(
+            items,
+            (i) => {
+                  'index': i,
+                  'token': 'auth_token_sample_${i * 42}',
+                  'data': 'Record details for entry $i',
+                }),
       };
       final response = await dio.post<dynamic>('/api/echo', data: payload);
       sw.stop();
@@ -326,4 +810,3 @@ class ExampleRequestResult {
     return '${(bytesReceived / (1024 * 1024)).toStringAsFixed(2)} MB';
   }
 }
-

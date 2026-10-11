@@ -20,8 +20,7 @@ Uint8List _createPackedBody({
       ? Uint8List.fromList(utf8.encode(responseBody))
       : null;
 
-  final total =
-      4 + (reqBytes?.length ?? 0) + 4 + (resBytes?.length ?? 0) + 1;
+  final total = 4 + (reqBytes?.length ?? 0) + 4 + (resBytes?.length ?? 0) + 1;
   final out = Uint8List(total);
   final data = ByteData.sublistView(out);
   var offset = 0;
@@ -133,7 +132,8 @@ void main() {
       var notified = false;
       controller.addListener(() => notified = true);
 
-      final entry = _buildEntry(id: 'entry-1', url: 'https://api.example.com/users');
+      final entry =
+          _buildEntry(id: 'entry-1', url: 'https://api.example.com/users');
       await controller.start(
         query: 'users',
         allEntries: [entry],
@@ -152,8 +152,10 @@ void main() {
       expect(controller.isActive, isFalse);
     });
 
-    test('reset() resets query and results without notifying listeners', () async {
-      final entry = _buildEntry(id: 'entry-2', url: 'https://api.example.com/orders');
+    test('reset() resets query and results without notifying listeners',
+        () async {
+      final entry =
+          _buildEntry(id: 'entry-2', url: 'https://api.example.com/orders');
       await controller.start(
         query: 'orders',
         allEntries: [entry],
@@ -172,7 +174,8 @@ void main() {
     });
 
     test('Empty or whitespace query cancels search immediately', () async {
-      final entry = _buildEntry(id: 'entry-3', url: 'https://api.example.com/items');
+      final entry =
+          _buildEntry(id: 'entry-3', url: 'https://api.example.com/items');
       await controller.start(
         query: '   ',
         allEntries: [entry],
@@ -187,7 +190,8 @@ void main() {
 
   group('MasterSearchController: Phase 1 Structured Fields', () {
     test('Matches URL case-insensitively and returns matching entry', () async {
-      final e1 = _buildEntry(id: 'e1', url: 'https://checkout.stripe.com/v1/pay');
+      final e1 =
+          _buildEntry(id: 'e1', url: 'https://checkout.stripe.com/v1/pay');
       final e2 = _buildEntry(id: 'e2', url: 'https://api.github.com/repos');
 
       await controller.start(
@@ -222,7 +226,9 @@ void main() {
       );
       final e2 = _buildEntry(
         id: 'e2',
-        responseHeaders: {'content-disposition': 'attachment; filename=report.pdf'},
+        responseHeaders: {
+          'content-disposition': 'attachment; filename=report.pdf'
+        },
       );
       final e3 = _buildEntry(id: 'e3');
 
@@ -262,7 +268,8 @@ void main() {
 
   group('MasterSearchController: Phase 2 In-Memory Body Search', () {
     test('Matches in-memory request body bytes', () async {
-      final bodyBytes = Uint8List.fromList(utf8.encode('{"customerEmail": "john.doe@example.com"}'));
+      final bodyBytes = Uint8List.fromList(
+          utf8.encode('{"customerEmail": "john.doe@example.com"}'));
       final e1 = _buildEntry(
         id: 'e1',
         bodyLocation: BodyLocation.memory,
@@ -281,7 +288,8 @@ void main() {
     });
 
     test('Matches in-memory response body bytes', () async {
-      final bodyBytes = Uint8List.fromList(utf8.encode('{"transactionId": "tx_987654321"}'));
+      final bodyBytes =
+          Uint8List.fromList(utf8.encode('{"transactionId": "tx_987654321"}'));
       final e1 = _buildEntry(
         id: 'e1',
         bodyLocation: BodyLocation.memory,
@@ -344,7 +352,8 @@ void main() {
       expect(controller.results!.first.id, equals('e2'));
     });
 
-    test('Deduplicates results when entry matches Phase 1 and file body', () async {
+    test('Deduplicates results when entry matches Phase 1 and file body',
+        () async {
       final packed = _createPackedBody(
         requestBody: '{"product": "keyboard"}',
         responseBody: '{"status": "in_stock"}',
@@ -368,7 +377,8 @@ void main() {
       expect(controller.results!.length, equals(1));
     });
 
-    test('Gracefully ignores invalid file paths and corrupted offsets', () async {
+    test('Gracefully ignores invalid file paths and corrupted offsets',
+        () async {
       final e1 = _buildEntry(
         id: 'e1',
         bodyLocation: BodyLocation.file,
@@ -388,9 +398,12 @@ void main() {
   });
 
   group('MasterSearchController: Boundary Cases & Race Resistance', () {
-    test('Treats special regex characters as plain literal substrings', () async {
-      final e1 = _buildEntry(id: 'e1', url: 'https://api.example.com/test?filter=.*&tag=[a-z]');
-      final e2 = _buildEntry(id: 'e2', url: 'https://api.example.com/test?filter=normal');
+    test('Treats special regex characters as plain literal substrings',
+        () async {
+      final e1 = _buildEntry(
+          id: 'e1', url: 'https://api.example.com/test?filter=.*&tag=[a-z]');
+      final e2 = _buildEntry(
+          id: 'e2', url: 'https://api.example.com/test?filter=normal');
 
       await controller.start(
         query: '.*&tag=[a-z]',
@@ -402,9 +415,12 @@ void main() {
       expect(controller.results!.first.id, equals('e1'));
     });
 
-    test('Supports unicode, accents, emojis, and symbols in search query', () async {
-      final e1 = _buildEntry(id: 'e1', url: 'https://api.example.com/users/nguy%E1%BB%85n');
-      final body = Uint8List.fromList(utf8.encode('{"greeting": "Xin chào thế giới 🚀"}'));
+    test('Supports unicode, accents, emojis, and symbols in search query',
+        () async {
+      final e1 = _buildEntry(
+          id: 'e1', url: 'https://api.example.com/users/nguy%E1%BB%85n');
+      final body = Uint8List.fromList(
+          utf8.encode('{"greeting": "Xin chào thế giới 🚀"}'));
       final e2 = _buildEntry(
         id: 'e2',
         bodyLocation: BodyLocation.memory,
@@ -428,7 +444,8 @@ void main() {
       expect(controller.results!.first.id, equals('e2'));
     });
 
-    test('Rapid consecutive search calls cancel prior generations cleanly', () async {
+    test('Rapid consecutive search calls cancel prior generations cleanly',
+        () async {
       final e1 = _buildEntry(id: 'e1', url: 'https://api.example.com/first');
       final e2 = _buildEntry(id: 'e2', url: 'https://api.example.com/second');
 
@@ -463,13 +480,16 @@ void main() {
   });
 
   group('MasterSearchController: Notification Throttling & Handle Reuse', () {
-    test('Throttles UI notifications during active search and forces final notification', () async {
+    test(
+        'Throttles UI notifications during active search and forces final notification',
+        () async {
       var notificationCount = 0;
       controller.addListener(() => notificationCount++);
 
       final entries = <IndexEntry>[];
       for (var i = 0; i < 30; i++) {
-        final bodyBytes = Uint8List.fromList(utf8.encode('{"item": "target_$i"}'));
+        final bodyBytes =
+            Uint8List.fromList(utf8.encode('{"item": "target_$i"}'));
         entries.add(
           _buildEntry(
             id: 'mem_$i',
@@ -521,9 +541,11 @@ void main() {
       expect(controller.results!.length, equals(10));
     });
 
-    test('dispose cancels active throttle timer cleanly without exception', () async {
+    test('dispose cancels active throttle timer cleanly without exception',
+        () async {
       final controllerToDispose = MasterSearchController();
-      final bodyBytes = Uint8List.fromList(utf8.encode('{"data": "disposable_test"}'));
+      final bodyBytes =
+          Uint8List.fromList(utf8.encode('{"data": "disposable_test"}'));
       final entry = _buildEntry(
         id: 'disp_1',
         url: 'https://api.example.com/disp',

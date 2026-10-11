@@ -267,14 +267,14 @@ void _pushInspector({
   _state.inspectorIsOpen = true;
   navigator
       .push<void>(
-        MaterialPageRoute<void>(
-          builder: (_) => InterceptlyScreen(session: session),
-        ),
-      )
+    MaterialPageRoute<void>(
+      builder: (_) => InterceptlyScreen(session: session),
+    ),
+  )
       .whenComplete(() {
-        _state.inspectorIsOpen = false;
-        _tryInsertOverlays();
-      });
+    _state.inspectorIsOpen = false;
+    _tryInsertOverlays();
+  });
 }
 
 void _tryInsertOverlays([int attempt = 0]) {
@@ -343,15 +343,18 @@ void _insertFab(OverlayState overlay) {
             child: SizedBox(
               width: 44,
               height: 44,
-              child: Material(
-                color: InterceptlyGlobalColor.red500,
-                elevation: 2,
-                shape: const CircleBorder(),
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  onTap: _openInspector,
-                  customBorder: const CircleBorder(),
-                  child: Center(child: fabChild),
+              child: Theme(
+                data: InterceptlyTheme.themeData(context: context),
+                child: Material(
+                  color: InterceptlyGlobalColor.red500,
+                  elevation: 2,
+                  shape: const CircleBorder(),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: _openInspector,
+                    customBorder: const CircleBorder(),
+                    child: Center(child: fabChild),
+                  ),
                 ),
               ),
             ),

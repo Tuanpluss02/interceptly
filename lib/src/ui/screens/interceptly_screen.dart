@@ -30,13 +30,13 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
     _filter = widget.session.filter;
   }
 
-  void _showSettings() {
-    SettingsBottomSheet.show(context, widget.session);
+  void _showSettings(BuildContext ctx) {
+    SettingsBottomSheet.show(ctx, widget.session);
   }
 
-  void _showFilterPanel() {
+  void _showFilterPanel(BuildContext ctx) {
     FilterPanel.show(
-      context: context,
+      context: ctx,
       currentFilter: _filter,
       availableDomains: widget.session.availableDomains,
       onFilterChanged: (newFilter) {
@@ -46,9 +46,9 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
     );
   }
 
-  Future<void> _clearLogs() async {
+  Future<void> _clearLogs(BuildContext ctx) async {
     final shouldClear = await InterceptlyConfirmDialog.show(
-      context,
+      ctx,
       title: 'Clear all logs?',
       message: 'This action cannot be undone.',
       confirmText: 'Clear',
@@ -74,39 +74,41 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
             context: context,
             themeMode: widget.session.preferences.themeMode,
           ),
-          child: Scaffold(
-            appBar: AppBar(
-              title: const Text('Interceptly'),
-              actions: [
-                IconButton(
-                  icon: Icon(widget.session.groupingEnabled
-                      ? Icons.group_work
-                      : Icons.public),
-                  onPressed: () => widget.session
-                      .toggleGrouping(!widget.session.groupingEnabled),
-                  tooltip: 'Group by domain',
+          child: Builder(
+            builder: (themedContext) => Scaffold(
+              appBar: AppBar(
+                title: const Text('Interceptly'),
+                actions: [
+                  IconButton(
+                    icon: Icon(widget.session.groupingEnabled
+                        ? Icons.group_work
+                        : Icons.public),
+                    onPressed: () => widget.session
+                        .toggleGrouping(!widget.session.groupingEnabled),
+                    tooltip: 'Group by domain',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: () => _clearLogs(themedContext),
+                    tooltip: 'Clear logs',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.settings_outlined),
+                    onPressed: () => _showSettings(themedContext),
+                    tooltip: 'Settings',
+                  ),
+                ],
+                bottom: PreferredSize(
+                  preferredSize: const Size.fromHeight(1.0),
+                  child: Container(
+                      color: InterceptlyTheme.dividerSubtle, height: 1.0),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: _clearLogs,
-                  tooltip: 'Clear logs',
-                ),
-                IconButton(
-                  icon: const Icon(Icons.settings_outlined),
-                  onPressed: _showSettings,
-                  tooltip: 'Settings',
-                ),
-              ],
-              bottom: PreferredSize(
-                preferredSize: const Size.fromHeight(1.0),
-                child: Container(
-                    color: InterceptlyTheme.dividerSubtle, height: 1.0),
               ),
-            ),
-            body: NetworkTab(
-              session: widget.session,
-              groupingEnabled: widget.session.groupingEnabled,
-              onShowFilterPanel: _showFilterPanel,
+              body: NetworkTab(
+                session: widget.session,
+                groupingEnabled: widget.session.groupingEnabled,
+                onShowFilterPanel: () => _showFilterPanel(themedContext),
+              ),
             ),
           ),
         );

@@ -44,7 +44,8 @@ class _MockSessionView extends InspectorSessionView {
   @override
   int get droppedCount => 0;
   @override
-  NetworkSimulationProfile get networkSimulation => NetworkSimulationProfile.none;
+  NetworkSimulationProfile get networkSimulation =>
+      NetworkSimulationProfile.none;
   @override
   String? get masterQuery => null;
   @override
@@ -91,7 +92,8 @@ void main() {
   late Directory globalTempDir;
 
   setUp(() async {
-    globalTempDir = await Directory.systemTemp.createTemp('interceptly_challenger_m2_');
+    globalTempDir =
+        await Directory.systemTemp.createTemp('interceptly_challenger_m2_');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
       const MethodChannel('plugins.flutter.io/path_provider'),
@@ -108,8 +110,11 @@ void main() {
     } catch (_) {}
   });
 
-  group('Empirical Challenge 1: Virtualized JsonViewer Stress & Performance', () {
-    testWidgets('renders 20,000 lines without freezing, verifying true virtualization', (tester) async {
+  group('Empirical Challenge 1: Virtualized JsonViewer Stress & Performance',
+      () {
+    testWidgets(
+        'renders 20,000 lines without freezing, verifying true virtualization',
+        (tester) async {
       final massiveMap = <String, dynamic>{
         for (int i = 1; i <= 20000; i++) 'row_$i': 'value_content_$i',
       };
@@ -144,7 +149,9 @@ void main() {
       }
     });
 
-    testWidgets('stress tests aggressive scrolling and verified dual-scroll synchronization', (tester) async {
+    testWidgets(
+        'stress tests aggressive scrolling and verified dual-scroll synchronization',
+        (tester) async {
       final dataset = <String, dynamic>{
         for (int i = 1; i <= 5000; i++) 'k_$i': 'v_$i',
       };
@@ -178,7 +185,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        (gutterScrollState.position.pixels - contentScrollState.position.pixels).abs(),
+        (gutterScrollState.position.pixels - contentScrollState.position.pixels)
+            .abs(),
         lessThan(0.01),
       );
 
@@ -187,12 +195,15 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        (contentScrollState.position.pixels - gutterScrollState.position.pixels).abs(),
+        (contentScrollState.position.pixels - gutterScrollState.position.pixels)
+            .abs(),
         lessThan(0.01),
       );
     });
 
-    testWidgets('stress tests deep nesting up to 40 levels without stack overflow', (tester) async {
+    testWidgets(
+        'stress tests deep nesting up to 40 levels without stack overflow',
+        (tester) async {
       dynamic nested = 'leaf_reached_at_level_40';
       for (int i = 40; i >= 1; i--) {
         nested = {'level_$i': nested};
@@ -214,12 +225,13 @@ void main() {
       expect(find.textContaining('"level_1":'), findsOneWidget);
     });
 
-    testWidgets('search jumping accurately centers match at line 3500 and auto-expands ancestors', (tester) async {
+    testWidgets(
+        'search jumping accurately centers match at line 3500 and auto-expands ancestors',
+        (tester) async {
       final searchData = <String, dynamic>{
         for (int i = 1; i <= 5000; i++)
-          'entry_$i': i == 3500
-              ? {'hidden_sub': 'SEARCH_PINPOINT_TARGET'}
-              : 'val_$i',
+          'entry_$i':
+              i == 3500 ? {'hidden_sub': 'SEARCH_PINPOINT_TARGET'} : 'val_$i',
       };
 
       await tester.pumpWidget(
@@ -250,7 +262,8 @@ void main() {
       expect(contentScrollState.position.pixels, greaterThan(60000.0));
     });
 
-    testWidgets('multi-match jump sequence updates scroll position accurately', (tester) async {
+    testWidgets('multi-match jump sequence updates scroll position accurately',
+        (tester) async {
       final multiMatchData = <String, dynamic>{
         for (int i = 1; i <= 3000; i++)
           'item_$i': (i == 100 || i == 1500 || i == 2800)
@@ -336,8 +349,12 @@ void main() {
     });
   });
 
-  group('Empirical Challenge 2: Large Payload Storage & Truncation Decoupling (>2MB up to 50MB)', () {
-    test('3 MB payload (>2MB UI limit) is stored 100% intact to disk; UI preview is cleanly sliced to 2MB', () async {
+  group(
+      'Empirical Challenge 2: Large Payload Storage & Truncation Decoupling (>2MB up to 50MB)',
+      () {
+    test(
+        '3 MB payload (>2MB UI limit) is stored 100% intact to disk; UI preview is cleanly sliced to 2MB',
+        () async {
       final session = InspectorSession(
         settings: const InterceptlySettings(
           bodyOffloadThreshold: 10 * 1024,
@@ -373,11 +390,14 @@ void main() {
 
       final end = DateTime.now().add(const Duration(seconds: 10));
       while (session.entries.isEmpty) {
-        if (DateTime.now().isAfter(end)) throw StateError('timeout waiting for cap_3mb entry');
+        if (DateTime.now().isAfter(end)) {
+          throw StateError('timeout waiting for cap_3mb entry');
+        }
         await Future.delayed(const Duration(milliseconds: 50));
       }
 
-      final entry = session.entries.firstWhere((e) => e.id == 'cap_3mb') as IndexEntry;
+      final entry =
+          session.entries.firstWhere((e) => e.id == 'cap_3mb') as IndexEntry;
       expect(entry.bodyLocation, equals(BodyLocation.file));
       expect(entry.isBodyTruncated, isFalse);
 
@@ -388,18 +408,22 @@ void main() {
       expect(record.responseBodyBytes, isNotNull);
       expect(record.responseBodyBytes!.length, equals(3 * 1024 * 1024));
 
-      final decodedTail = utf8.decode(record.responseBodyBytes!.sublist(record.responseBodyBytes!.length - 40));
+      final decodedTail = utf8.decode(record.responseBodyBytes!
+          .sublist(record.responseBodyBytes!.length - 40));
       expect(decodedTail, contains('REACHED_END_OF_3MB'));
 
       expect(record.isUiTruncated, isTrue);
       expect(record.responseBodyPreview, isNotNull);
-      expect(record.responseBodyPreview!.length, lessThanOrEqualTo(2 * 1024 * 1024 + 10));
+      expect(record.responseBodyPreview!.length,
+          lessThanOrEqualTo(2 * 1024 * 1024 + 10));
       expect(record.responseBodyPreview, isNot(contains('REACHED_END_OF_3MB')));
 
       await session.dispose();
     });
 
-    test('storage ceiling: when maxBodyBytes = 4MB, a 6MB payload is truncated at 4MB with isBodyTruncated = true', () async {
+    test(
+        'storage ceiling: when maxBodyBytes = 4MB, a 6MB payload is truncated at 4MB with isBodyTruncated = true',
+        () async {
       final session = InspectorSession(
         settings: const InterceptlySettings(
           bodyOffloadThreshold: 10 * 1024,
@@ -426,11 +450,14 @@ void main() {
 
       final end = DateTime.now().add(const Duration(seconds: 10));
       while (session.entries.isEmpty) {
-        if (DateTime.now().isAfter(end)) throw StateError('timeout waiting for cap_6mb entry');
+        if (DateTime.now().isAfter(end)) {
+          throw StateError('timeout waiting for cap_6mb entry');
+        }
         await Future.delayed(const Duration(milliseconds: 50));
       }
 
-      final entry = session.entries.firstWhere((e) => e.id == 'cap_6mb') as IndexEntry;
+      final entry =
+          session.entries.firstWhere((e) => e.id == 'cap_6mb') as IndexEntry;
       expect(entry.isBodyTruncated, isTrue);
 
       final record = await session.loadDetail(entry);
@@ -441,7 +468,9 @@ void main() {
       await session.dispose();
     });
 
-    test('unlimited storage: when maxBodyBytes <= 0, bodies are preserved without ceiling cap', () async {
+    test(
+        'unlimited storage: when maxBodyBytes <= 0, bodies are preserved without ceiling cap',
+        () async {
       final session = InspectorSession(
         settings: const InterceptlySettings(
           bodyOffloadThreshold: 10 * 1024,
@@ -468,11 +497,14 @@ void main() {
 
       final end = DateTime.now().add(const Duration(seconds: 10));
       while (session.entries.isEmpty) {
-        if (DateTime.now().isAfter(end)) throw StateError('timeout waiting for cap_unlimited entry');
+        if (DateTime.now().isAfter(end)) {
+          throw StateError('timeout waiting for cap_unlimited entry');
+        }
         await Future.delayed(const Duration(milliseconds: 50));
       }
 
-      final entry = session.entries.firstWhere((e) => e.id == 'cap_unlimited') as IndexEntry;
+      final entry = session.entries.firstWhere((e) => e.id == 'cap_unlimited')
+          as IndexEntry;
       expect(entry.isBodyTruncated, isFalse);
 
       final record = await session.loadDetail(entry);
@@ -483,12 +515,15 @@ void main() {
     });
   });
 
-  group('Empirical Challenge 3: Exporters & Replay Byte Fidelity with Payloads > 2MB', () {
+  group(
+      'Empirical Challenge 3: Exporters & Replay Byte Fidelity with Payloads > 2MB',
+      () {
     late Directory replayTempDir;
     late InspectorSession replaySession;
 
     setUp(() async {
-      replayTempDir = await Directory.systemTemp.createTemp('interceptly_replay_m2_');
+      replayTempDir =
+          await Directory.systemTemp.createTemp('interceptly_replay_m2_');
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
         const MethodChannel('plugins.flutter.io/path_provider'),
@@ -508,9 +543,13 @@ void main() {
       } catch (_) {}
     });
 
-    test('CurlGenerator exports full intact 3MB payload, not the truncated 2MB preview', () {
-      final intact3Mb = '{"full_3mb_data":"${'X' * (3 * 1024 * 1024 - 40)}","intact_end":true}';
-      final truncatedPreview = '{"full_3mb_data":"${'X' * (2 * 1024 * 1024 - 40)}';
+    test(
+        'CurlGenerator exports full intact 3MB payload, not the truncated 2MB preview',
+        () {
+      final intact3Mb =
+          '{"full_3mb_data":"${'X' * (3 * 1024 * 1024 - 40)}","intact_end":true}';
+      final truncatedPreview =
+          '{"full_3mb_data":"${'X' * (2 * 1024 * 1024 - 40)}';
 
       final record = RequestRecord(
         id: 'rec_curl_3mb',
@@ -533,9 +572,12 @@ void main() {
       expect(curl.length, greaterThan(3 * 1024 * 1024));
     });
 
-    test('HarExporter and PostmanExporter preserve full intact 3MB payloads', () {
-      final intact3Mb = '{"export_payload":"${'Y' * (3 * 1024 * 1024 - 40)}","end_marker":99}';
-      final truncatedPreview = '{"export_payload":"${'Y' * (2 * 1024 * 1024 - 40)}';
+    test('HarExporter and PostmanExporter preserve full intact 3MB payloads',
+        () {
+      final intact3Mb =
+          '{"export_payload":"${'Y' * (3 * 1024 * 1024 - 40)}","end_marker":99}';
+      final truncatedPreview =
+          '{"export_payload":"${'Y' * (2 * 1024 * 1024 - 40)}';
 
       final record = RequestRecord(
         id: 'rec_export_3mb',
@@ -562,9 +604,13 @@ void main() {
       expect(postmanJson, contains('end_marker'));
     });
 
-    testWidgets('ReplayHandler re-sends full 3MB intact bytes over network on retry', (tester) async {
-      final intact3Mb = '{"replay_action":"send","content":"${'Z' * (3 * 1024 * 1024 - 50)}","final":true}';
-      final truncatedPreview = '{"replay_action":"send","content":"${'Z' * (2 * 1024 * 1024 - 50)}';
+    testWidgets(
+        'ReplayHandler re-sends full 3MB intact bytes over network on retry',
+        (tester) async {
+      final intact3Mb =
+          '{"replay_action":"send","content":"${'Z' * (3 * 1024 * 1024 - 50)}","final":true}';
+      final truncatedPreview =
+          '{"replay_action":"send","content":"${'Z' * (2 * 1024 * 1024 - 50)}';
       final intactBytes = Uint8List.fromList(utf8.encode(intact3Mb));
 
       final record = RequestRecord(
@@ -603,7 +649,8 @@ void main() {
 
       await tester.runAsync(() async {
         await http.runWithClient(() async {
-          final handler = ReplayHandler(context: savedContext, session: replaySession);
+          final handler =
+              ReplayHandler(context: savedContext, session: replaySession);
           await handler.retry(record);
         }, () => mockClient);
       });
@@ -614,8 +661,11 @@ void main() {
       expect(decodedBody, contains('"final":true'));
     });
 
-    test('ShareHandler exportResponseBodyFile writes complete binary payload file to disk', () async {
-      final intactBytes = Uint8List.fromList(utf8.encode('{"complete_file_payload": true, "size": 3145728}'));
+    test(
+        'ShareHandler exportResponseBodyFile writes complete binary payload file to disk',
+        () async {
+      final intactBytes = Uint8List.fromList(
+          utf8.encode('{"complete_file_payload": true, "size": 3145728}'));
       final fileName = 'response_rec_share_full_test.json';
       final file = File('${replayTempDir.path}/$fileName');
       await file.writeAsBytes(intactBytes);
@@ -627,7 +677,9 @@ void main() {
   });
 
   group('Empirical Challenge 4: UI Truncation Clean Rendering', () {
-    testWidgets('Response tab renders response cleanly without warning banner when isUiTruncated is true', (tester) async {
+    testWidgets(
+        'Response tab renders response cleanly without warning banner when isUiTruncated is true',
+        (tester) async {
       final largeBytes = Uint8List(4 * 1024 * 1024);
       final record = RequestRecord(
         id: 'rec_ui_banner_check',

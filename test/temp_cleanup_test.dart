@@ -57,7 +57,8 @@ void main() {
       final sessionFile = File('${tempDir.path}/$fileName');
       expect(await sessionFile.exists(), isTrue);
 
-      final (offset, length) = await store.append(Uint8List.fromList([1, 2, 3, 4]));
+      final (offset, length) =
+          await store.append(Uint8List.fromList([1, 2, 3, 4]));
       expect(offset, equals(0));
       expect(length, equals(4));
 
@@ -89,8 +90,10 @@ void main() {
       final store1 = BodyStore();
       final store2 = BodyStore();
 
-      await store1.initForWrite(tempDir.path, fileName: 'interceptly_store_1.tmp');
-      await store2.initForWrite(tempDir.path, fileName: 'interceptly_store_2.tmp');
+      await store1.initForWrite(tempDir.path,
+          fileName: 'interceptly_store_1.tmp');
+      await store2.initForWrite(tempDir.path,
+          fileName: 'interceptly_store_2.tmp');
 
       final file1 = File('${tempDir.path}/interceptly_store_1.tmp');
       final file2 = File('${tempDir.path}/interceptly_store_2.tmp');
@@ -108,7 +111,8 @@ void main() {
   });
 
   group('Temp File Management: Orphan Purge Algorithm Contract (F13)', () {
-    test('Purges orphan session files while preserving active session file', () async {
+    test('Purges orphan session files while preserving active session file',
+        () async {
       final orphan1 = File('${tempDir.path}/interceptly_old_session_1.tmp');
       final orphan2 = File('${tempDir.path}/interceptly_old_session_2.tmp');
       final active = File('${tempDir.path}/interceptly_active_session.tmp');
@@ -128,7 +132,8 @@ void main() {
       expect(await active.exists(), isTrue);
     });
 
-    test('Strictly preserves non-interceptly files and subdirectories', () async {
+    test('Strictly preserves non-interceptly files and subdirectories',
+        () async {
       final nonTmp = File('${tempDir.path}/interceptly_data.json');
       final otherFile = File('${tempDir.path}/user_document.pdf');
       final dbFile = File('${tempDir.path}/sqlite_cache.db');
@@ -163,7 +168,9 @@ void main() {
   });
 
   group('Temp File Management: InspectorSession Lifecycle & Cleanup', () {
-    test('BodyStore.purgeOrphanedTempFiles purges orphaned files and ignores active file', () async {
+    test(
+        'BodyStore.purgeOrphanedTempFiles purges orphaned files and ignores active file',
+        () async {
       final orphan = File('${tempDir.path}/interceptly_crashed_1.tmp');
       final active = File('${tempDir.path}/interceptly_active_2.tmp');
       await orphan.writeAsString('crashed');
@@ -179,7 +186,8 @@ void main() {
       expect(await active.exists(), isTrue);
     });
 
-    test('BodyStore.openReadHandle and readWithHandle read slice correctly', () async {
+    test('BodyStore.openReadHandle and readWithHandle read slice correctly',
+        () async {
       final store = BodyStore();
       const fileName = 'interceptly_handle_test.tmp';
       await store.initForWrite(tempDir.path, fileName: fileName);
@@ -213,7 +221,8 @@ void main() {
 
       final files = tempDir.listSync().whereType<File>().toList();
       final hasSessionFile = files.any(
-        (f) => f.uri.pathSegments.last.startsWith('interceptly_') &&
+        (f) =>
+            f.uri.pathSegments.last.startsWith('interceptly_') &&
             f.uri.pathSegments.last.endsWith('.tmp'),
       );
       expect(hasSessionFile, isTrue);
@@ -223,13 +232,16 @@ void main() {
 
       final remaining = tempDir.listSync().whereType<File>().toList();
       final sessionStillExists = remaining.any(
-        (f) => f.uri.pathSegments.last.startsWith('interceptly_') &&
+        (f) =>
+            f.uri.pathSegments.last.startsWith('interceptly_') &&
             f.uri.pathSegments.last.endsWith('.tmp'),
       );
       expect(sessionStillExists, isFalse);
     });
 
-    test('InspectorSession.initialize() automatically purges prior orphan session files', () async {
+    test(
+        'InspectorSession.initialize() automatically purges prior orphan session files',
+        () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
         const MethodChannel('plugins.flutter.io/path_provider'),

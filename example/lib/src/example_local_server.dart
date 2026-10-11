@@ -1,11 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 /// Lightweight local HTTP server running inside the example app.
 ///
-/// Binds to `127.0.0.1:0` (ephemeral port assigned by OS) to serve both standard
-/// API endpoints (replacing external mocks) and stress-test endpoints (heavy JSON,
-/// deep nesting, slow responses, large echo POST).
+/// Binds to `127.0.0.1:0` (ephemeral port assigned by OS) to serve:
+/// 1. Standard RESTful endpoints (GET, POST 201, PUT, PATCH, DELETE 204, 400, 401, 404, 503).
+/// 2. Specialized formats (GraphQL, Multipart upload, Binary PNG, Vector SVG).
+/// 3. Security verification (Redacted headers like Authorization, Cookies, API Keys).
+/// 4. URL filtering test (Analytics endpoint).
+/// 5. Stress test endpoints (Heavy list 1MB, Extreme list 6MB, Deeply nested 35 lvls, Wide text, Delayed).
 class ExampleLocalServer {
   HttpServer? _server;
   String? _baseUrl;
@@ -43,11 +47,11 @@ class ExampleLocalServer {
   Future<void> _handleRequest(HttpRequest request) async {
     final response = request.response;
 
-    // CORS and JSON headers
+    // CORS and default headers
     response.headers
-      ..set(HttpHeaders.contentTypeHeader, 'application/json; charset=utf-8')
       ..set('Access-Control-Allow-Origin', '*')
-      ..set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+      ..set('Access-Control-Allow-Methods',
+          'GET, POST, PUT, PATCH, DELETE, OPTIONS')
       ..set('Access-Control-Allow-Headers', '*');
 
     if (request.method == 'OPTIONS') {
@@ -59,8 +63,28 @@ class ExampleLocalServer {
     final path = request.uri.path;
 
     try {
-      if (path == '/api/users') {
-        _handleUsers(response);
+      if (path == '/api/users' || path == '/api/users/') {
+        await _handleUsersRoot(request, response);
+      } else if (path.startsWith('/api/users/')) {
+        await _handleUserResource(request, response);
+      } else if (path == '/api/graphql') {
+        await _handleGraphQL(request, response);
+      } else if (path == '/api/upload') {
+        await _handleUpload(request, response);
+      } else if (path == '/api/image/png') {
+        _handleImagePng(response);
+      } else if (path == '/api/image/svg') {
+        _handleImageSvg(response);
+      } else if (path == '/api/secure-profile') {
+        _handleSecureProfile(request, response);
+      } else if (path == '/api/analytics/track') {
+        _handleAnalytics(request, response);
+      } else if (path == '/api/unauthorized') {
+        _handleUnauthorized(response);
+      } else if (path == '/api/not-found') {
+        _handleNotFound(response);
+      } else if (path == '/api/bad-request') {
+        await _handleBadRequest(request, response);
       } else if (path == '/api/error') {
         _handleError(request, response);
       } else if (path == '/api/heavy-list') {
@@ -76,25 +100,17 @@ class ExampleLocalServer {
       } else if (path == '/api/delayed') {
         await _handleDelayed(request, response);
       } else {
+        response.headers.contentType = ContentType.json;
         response.statusCode = HttpStatus.notFound;
         response.write(
           jsonEncode({
             'error': 'Not Found',
             'path': path,
-            'availableEndpoints': [
-              '/api/users',
-              '/api/error',
-              '/api/heavy-list',
-              '/api/extreme-list',
-              '/api/nested',
-              '/api/wide-text',
-              '/api/echo',
-              '/api/delayed',
-            ],
           }),
         );
       }
     } catch (e, stack) {
+      response.headers.contentType = ContentType.json;
       response.statusCode = HttpStatus.internalServerError;
       response.write(
         jsonEncode({
@@ -108,84 +124,352 @@ class ExampleLocalServer {
     }
   }
 
-  void _handleUsers(HttpResponse response) {
-    response.statusCode = HttpStatus.ok;
-    final users = [
-      {
-        'id': '1',
-        'name': 'Alice Johnson',
-        'email': 'alice@example.com',
-        'role': 'Admin',
-        'avatar': 'https://i.pravatar.cc/150?u=1',
-        'createdAt': '2026-01-15T08:00:00Z',
-      },
-      {
-        'id': '2',
-        'name': 'Bob Smith',
-        'email': 'bob@example.com',
-        'role': 'Developer',
-        'avatar': 'https://i.pravatar.cc/150?u=2',
-        'createdAt': '2026-02-10T09:30:00Z',
-      },
-      {
-        'id': '3',
-        'name': 'Carol Williams',
-        'email': 'carol@example.com',
-        'role': 'Designer',
-        'avatar': 'https://i.pravatar.cc/150?u=3',
-        'createdAt': '2026-03-01T11:15:00Z',
-      },
-      {
-        'id': '4',
-        'name': 'David Brown',
-        'email': 'david@example.com',
-        'role': 'Product Manager',
-        'avatar': 'https://i.pravatar.cc/150?u=4',
-        'createdAt': '2026-03-12T14:45:00Z',
-      },
-      {
-        'id': '5',
-        'name': 'Eva Davis',
-        'email': 'eva@example.com',
-        'role': 'QA Engineer',
-        'avatar': 'https://i.pravatar.cc/150?u=5',
-        'createdAt': '2026-04-05T16:20:00Z',
-      },
-    ];
-    response.write(jsonEncode(users));
+  // ── RESTful Users API (GET 200, POST 201, PUT 200, PATCH 200, DELETE 204) ──
+
+  Future<void> _handleUsersRoot(
+      HttpRequest request, HttpResponse response) async {
+    response.headers.contentType = ContentType.json;
+
+    if (request.method == 'GET') {
+      response.statusCode = HttpStatus.ok;
+      final users = [
+        {
+          'id': '1',
+          'name': 'Alice Johnson',
+          'email': 'alice@example.com',
+          'role': 'Admin',
+          'avatar': 'https://i.pravatar.cc/150?u=1',
+          'createdAt': '2026-01-15T08:00:00Z',
+        },
+        {
+          'id': '2',
+          'name': 'Bob Smith',
+          'email': 'bob@example.com',
+          'role': 'Developer',
+          'avatar': 'https://i.pravatar.cc/150?u=2',
+          'createdAt': '2026-02-10T09:30:00Z',
+        },
+        {
+          'id': '3',
+          'name': 'Carol Williams',
+          'email': 'carol@example.com',
+          'role': 'Designer',
+          'avatar': 'https://i.pravatar.cc/150?u=3',
+          'createdAt': '2026-03-01T11:15:00Z',
+        },
+        {
+          'id': '4',
+          'name': 'David Brown',
+          'email': 'david@example.com',
+          'role': 'Product Manager',
+          'avatar': 'https://i.pravatar.cc/150?u=4',
+          'createdAt': '2026-03-12T14:45:00Z',
+        },
+        {
+          'id': '5',
+          'name': 'Eva Davis',
+          'email': 'eva@example.com',
+          'role': 'QA Engineer',
+          'avatar': 'https://i.pravatar.cc/150?u=5',
+          'createdAt': '2026-04-05T16:20:00Z',
+        },
+      ];
+      response.write(jsonEncode(users));
+      return;
+    }
+
+    if (request.method == 'POST') {
+      final content = await utf8.decoder.bind(request).join();
+      dynamic body;
+      try {
+        body = jsonDecode(content);
+      } catch (_) {
+        body = {'raw': content};
+      }
+
+      response.statusCode = HttpStatus.created; // 201 Created
+      response.write(
+        jsonEncode({
+          'id': '101',
+          'status': 'created',
+          'message': 'User successfully created',
+          'createdData': body,
+          'createdAt': DateTime.now().toIso8601String(),
+        }),
+      );
+      return;
+    }
+
+    response.statusCode = HttpStatus.methodNotAllowed;
   }
 
-  void _handleError(HttpRequest request, HttpResponse response) {
-    final statusStr = request.uri.queryParameters['status'];
-    final status = int.tryParse(statusStr ?? '') ?? HttpStatus.serviceUnavailable;
-    response.statusCode = status;
+  Future<void> _handleUserResource(
+      HttpRequest request, HttpResponse response) async {
+    final id = request.uri.pathSegments.last;
+    response.headers.contentType = ContentType.json;
+
+    if (request.method == 'PUT') {
+      final content = await utf8.decoder.bind(request).join();
+      response.statusCode = HttpStatus.ok;
+      response.write(
+        jsonEncode({
+          'id': id,
+          'status': 'updated_full',
+          'action': 'PUT (Full Replace)',
+          'receivedData': content,
+          'updatedAt': DateTime.now().toIso8601String(),
+        }),
+      );
+      return;
+    }
+
+    if (request.method == 'PATCH') {
+      final content = await utf8.decoder.bind(request).join();
+      response.statusCode = HttpStatus.ok;
+      response.write(
+        jsonEncode({
+          'id': id,
+          'status': 'patched',
+          'action': 'PATCH (Partial Update)',
+          'receivedDelta': content,
+          'updatedAt': DateTime.now().toIso8601String(),
+        }),
+      );
+      return;
+    }
+
+    if (request.method == 'DELETE') {
+      response.statusCode = HttpStatus.noContent; // 204 No Content
+      return;
+    }
+
+    response.statusCode = HttpStatus.methodNotAllowed;
+  }
+
+  // ── Specialized Formats: GraphQL ────────────────────────────────────
+
+  Future<void> _handleGraphQL(
+      HttpRequest request, HttpResponse response) async {
+    response.headers.contentType = ContentType.json;
+    final content = await utf8.decoder.bind(request).join();
+
+    dynamic parsed;
+    try {
+      parsed = jsonDecode(content);
+    } catch (_) {
+      parsed = {};
+    }
+
+    final query = (parsed is Map ? parsed['query'] : null)?.toString() ?? '';
+    final operationName =
+        (parsed is Map ? parsed['operationName'] : null)?.toString() ?? '';
+
+    if (operationName == 'GetUser' ||
+        query.contains('user(') ||
+        query.contains('GetUser')) {
+      response.statusCode = HttpStatus.ok;
+      response.write(
+        jsonEncode({
+          'data': {
+            'user': {
+              'id': 'usr_42',
+              'name': 'GraphQL Alice',
+              'email': 'alice.gql@example.com',
+              'role': 'GRAPHQL_ADMIN',
+              'status': 'ACTIVE',
+              'projects': [
+                {'id': 'prj_1', 'name': 'Interceptly Flutter Inspector'},
+                {'id': 'prj_2', 'name': 'GraphQL Performance Suite'},
+              ],
+            },
+          },
+        }),
+      );
+      return;
+    }
+
+    // Default GraphQL mutation / generic query response
+    response.statusCode = HttpStatus.ok;
     response.write(
       jsonEncode({
-        'error': 'Service Unavailable',
-        'statusCode': status,
-        'message': 'Simulated service failure from ExampleLocalServer',
+        'data': {
+          'mutateUser': {
+            'success': true,
+            'operationName':
+                operationName.isEmpty ? 'AnonymousOperation' : operationName,
+            'timestamp': DateTime.now().toIso8601String(),
+            'affectedId': 'usr_42',
+          },
+        },
+      }),
+    );
+  }
+
+  // ── Specialized Formats: Multipart Upload ───────────────────────────
+
+  Future<void> _handleUpload(HttpRequest request, HttpResponse response) async {
+    response.headers.contentType = ContentType.json;
+    final contentType = request.headers.contentType?.toString() ?? 'unknown';
+
+    // Read full bytes to consume the request stream
+    final bytes = await request
+        .fold<List<int>>([], (prev, element) => prev..addAll(element));
+
+    response.statusCode = HttpStatus.ok;
+    response.write(
+      jsonEncode({
+        'status': 'upload_received',
+        'contentType': contentType,
+        'bytesReceived': bytes.length,
+        'message':
+            'Inspect the Request tab in Interceptly to see the parsed Multipart summary and file parts!',
         'timestamp': DateTime.now().toIso8601String(),
       }),
     );
   }
 
+  // ── Specialized Formats: Binary & Image Preview ─────────────────────
+
+  void _handleImagePng(HttpResponse response) {
+    response.headers.contentType = ContentType('image', 'png');
+    response.statusCode = HttpStatus.ok;
+    response.add(_samplePngBytes);
+  }
+
+  void _handleImageSvg(HttpResponse response) {
+    response.headers.contentType = ContentType('image', 'svg+xml');
+    response.statusCode = HttpStatus.ok;
+    response.write('''
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
+  <circle cx="100" cy="100" r="90" fill="#2196F3" opacity="0.15" stroke="#2196F3" stroke-width="4"/>
+  <circle cx="100" cy="100" r="50" fill="#2196F3"/>
+  <text x="100" y="105" font-family="sans-serif" font-size="14" fill="#ffffff" text-anchor="middle" font-weight="bold">INTERCEPTLY</text>
+</svg>
+''');
+  }
+
+  // ── Security & Redacted Headers Test ────────────────────────────────
+
+  void _handleSecureProfile(HttpRequest request, HttpResponse response) {
+    response.headers.contentType = ContentType.json;
+    final auth = request.headers.value('authorization');
+    final apiKey = request.headers.value('x-api-key');
+    final cookie = request.headers.value('cookie');
+
+    response.statusCode = HttpStatus.ok;
+    response.write(
+      jsonEncode({
+        'status': 'authorized',
+        'user': 'security_tester',
+        'hasAuthorization': auth != null,
+        'hasApiKey': apiKey != null,
+        'hasCookie': cookie != null,
+        'securityAudit':
+            'All sensitive authorization/cookie/api-key headers should appear as [REDACTED] in Interceptly!',
+      }),
+    );
+  }
+
+  // ── URL Blacklist (shouldCapture) Test ──────────────────────────────
+
+  void _handleAnalytics(HttpRequest request, HttpResponse response) {
+    response.headers.contentType = ContentType.json;
+    response.statusCode = HttpStatus.ok;
+    response.write(
+      jsonEncode({
+        'status': 'tracked',
+        'event': 'user_engagement',
+        'note':
+            'This request was processed by server, but SHOULD NOT appear in Interceptly if shouldCapture is active.',
+        'timestamp': DateTime.now().toIso8601String(),
+      }),
+    );
+  }
+
+  // ── HTTP Status Codes: 400, 401, 404, 503 ────────────────────────────
+
+  void _handleUnauthorized(HttpResponse response) {
+    response.headers.contentType = ContentType.json;
+    response.statusCode = HttpStatus.unauthorized; // 401
+    response.write(
+      jsonEncode({
+        'error': 'Unauthorized',
+        'statusCode': 401,
+        'message': 'Missing or expired Bearer token.',
+      }),
+    );
+  }
+
+  void _handleNotFound(HttpResponse response) {
+    response.headers.contentType = ContentType.json;
+    response.statusCode = HttpStatus.notFound; // 404
+    response.write(
+      jsonEncode({
+        'error': 'Resource Not Found',
+        'statusCode': 404,
+        'message': 'The requested user or document does not exist.',
+      }),
+    );
+  }
+
+  Future<void> _handleBadRequest(
+      HttpRequest request, HttpResponse response) async {
+    response.headers.contentType = ContentType.json;
+    response.statusCode = HttpStatus.badRequest; // 400
+    response.write(
+      jsonEncode({
+        'error': 'Validation Failed',
+        'statusCode': 400,
+        'invalidFields': {
+          'email': 'Must be a valid organizational email address.',
+          'age': 'Must be an integer >= 18.',
+          'terms': 'Terms and conditions must be accepted.',
+        },
+      }),
+    );
+  }
+
+  void _handleError(HttpRequest request, HttpResponse response) {
+    response.headers.contentType = ContentType.json;
+    final statusStr = request.uri.queryParameters['status'];
+    final status =
+        int.tryParse(statusStr ?? '') ?? HttpStatus.serviceUnavailable;
+    response.statusCode = status;
+    response.write(
+      jsonEncode({
+        'error': 'Service Unavailable',
+        'statusCode': status,
+        'message': 'Simulated server error from ExampleLocalServer',
+        'timestamp': DateTime.now().toIso8601String(),
+      }),
+    );
+  }
+
+  // ── Stress Test & Heavy JSON Endpoints ──────────────────────────────
+
   void _handleHeavyList(HttpRequest request, HttpResponse response) {
-    final count = int.tryParse(request.uri.queryParameters['count'] ?? '') ?? 3000;
+    response.headers.contentType = ContentType.json;
+    final count =
+        int.tryParse(request.uri.queryParameters['count'] ?? '') ?? 3000;
     response.statusCode = HttpStatus.ok;
     final items = List.generate(count, (i) => _generateItem(i));
     response.write(jsonEncode(items));
   }
 
   void _handleExtremeList(HttpRequest request, HttpResponse response) {
+    response.headers.contentType = ContentType.json;
     // 20,000 items is ~6 MB, safely exceeding Interceptly's 2MB maxUiPreviewBytes limit
-    final count = int.tryParse(request.uri.queryParameters['count'] ?? '') ?? 20000;
+    final count =
+        int.tryParse(request.uri.queryParameters['count'] ?? '') ?? 20000;
     response.statusCode = HttpStatus.ok;
     final items = List.generate(count, (i) => _generateItem(i));
     response.write(jsonEncode(items));
   }
 
   void _handleNested(HttpRequest request, HttpResponse response) {
-    final depth = int.tryParse(request.uri.queryParameters['depth'] ?? '') ?? 35;
+    response.headers.contentType = ContentType.json;
+    final depth =
+        int.tryParse(request.uri.queryParameters['depth'] ?? '') ?? 35;
     response.statusCode = HttpStatus.ok;
 
     Map<String, dynamic> buildNode(int current, int max) {
@@ -213,10 +497,11 @@ class ExampleLocalServer {
   }
 
   void _handleWideText(HttpRequest request, HttpResponse response) {
-    final chars = int.tryParse(request.uri.queryParameters['chars'] ?? '') ?? 100000;
+    response.headers.contentType = ContentType.json;
+    final chars =
+        int.tryParse(request.uri.queryParameters['chars'] ?? '') ?? 100000;
     response.statusCode = HttpStatus.ok;
 
-    // Repeating structured sentence so it can be formatted and searched
     const sample = 'The quick brown fox jumps over the lazy dog. 1234567890 ';
     final repeatCount = (chars / sample.length).ceil();
     final bigText = (sample * repeatCount).substring(0, chars);
@@ -231,6 +516,7 @@ class ExampleLocalServer {
   }
 
   Future<void> _handleEcho(HttpRequest request, HttpResponse response) async {
+    response.headers.contentType = ContentType.json;
     final content = await utf8.decoder.bind(request).join();
     dynamic parsed;
     try {
@@ -245,14 +531,16 @@ class ExampleLocalServer {
         'status': 'echo_received',
         'timestamp': DateTime.now().toIso8601String(),
         'method': request.method,
-        'receivedHeaders': request.headers.contentType?.toString(),
         'body': parsed,
       }),
     );
   }
 
-  Future<void> _handleDelayed(HttpRequest request, HttpResponse response) async {
-    final delayMs = int.tryParse(request.uri.queryParameters['delayMs'] ?? '') ?? 1500;
+  Future<void> _handleDelayed(
+      HttpRequest request, HttpResponse response) async {
+    response.headers.contentType = ContentType.json;
+    final delayMs =
+        int.tryParse(request.uri.queryParameters['delayMs'] ?? '') ?? 1500;
     await Future<void>.delayed(Duration(milliseconds: delayMs));
 
     response.statusCode = HttpStatus.ok;
@@ -260,7 +548,8 @@ class ExampleLocalServer {
       jsonEncode({
         'status': 'delayed_response_complete',
         'delayMs': delayMs,
-        'message': 'This request delayed for ${delayMs}ms to test pending state.',
+        'message':
+            'This request delayed for ${delayMs}ms to test pending state.',
         'timestamp': DateTime.now().toIso8601String(),
       }),
     );
@@ -285,4 +574,20 @@ class ExampleLocalServer {
       },
     };
   }
+
+  /// 8x8 transparent/blue pixel valid PNG byte array
+  static final Uint8List _samplePngBytes = Uint8List.fromList([
+    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG header
+    0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, // IHDR chunk
+    0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x08, // 8x8 pixels
+    0x08, 0x02, 0x00, 0x00, 0x00, 0x4B, 0x6D, 0x29, // bit depth 8, truecolor
+    0xDC, 0x00, 0x00, 0x00, 0x24, 0x49, 0x44, 0x41, // IDAT chunk
+    0x54, 0x78, 0x9C, 0x63, 0x64, 0xF8, 0xCF, 0xC0,
+    0x40, 0x10, 0xE7, 0x7F, 0x06, 0x33, 0xA1, 0x8D,
+    0x6C, 0x64, 0x48, 0x62, 0x08, 0x82, 0x10, 0x23,
+    0x46, 0x8C, 0x18, 0x31, 0x62, 0xC4, 0x88, 0x11,
+    0x23, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x03, 0x00,
+    0x5A, 0x91, 0x0A, 0x13, 0x00, 0x00, 0x00, 0x00, // IEND chunk
+    0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+  ]);
 }

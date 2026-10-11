@@ -163,8 +163,12 @@ void main() {
     });
 
     test('returns null for non-JSON content', () {
-      expect(BodyDecodeService.repairTruncatedJson('<html><body>500 Internal Error</body></html>'), isNull);
-      expect(BodyDecodeService.repairTruncatedJson('Plain text error message'), isNull);
+      expect(
+          BodyDecodeService.repairTruncatedJson(
+              '<html><body>500 Internal Error</body></html>'),
+          isNull);
+      expect(BodyDecodeService.repairTruncatedJson('Plain text error message'),
+          isNull);
       expect(BodyDecodeService.repairTruncatedJson(''), isNull);
     });
   });
@@ -177,7 +181,8 @@ void main() {
     });
 
     test('returns repaired Map when input is truncated JSON', () {
-      final result = BodyDecodeService.decodeJsonLenient('{"items": [{"id": 1}, {"id": 2');
+      final result =
+          BodyDecodeService.decodeJsonLenient('{"items": [{"id": 1}, {"id": 2');
       expect(result, isA<Map<String, dynamic>>());
       final items = (result as Map)['items'] as List;
       expect(items.length, equals(2));
@@ -193,8 +198,11 @@ void main() {
   });
 
   group('RequestDetailPage & Search Integration with Lenient JSON', () {
-    testWidgets('renders truncated JSON into full virtualized JsonViewer with folding nodes', (tester) async {
-      const truncatedJson = '{"response_status": "success", "users": [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bo';
+    testWidgets(
+        'renders truncated JSON into full virtualized JsonViewer with folding nodes',
+        (tester) async {
+      const truncatedJson =
+          '{"response_status": "success", "users": [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bo';
       final record = RequestRecord(
         id: 'rec_trunc_json_1',
         method: 'GET',
@@ -245,8 +253,10 @@ void main() {
       expect(find.byIcon(Icons.arrow_drop_down), findsWidgets);
     });
 
-    test('detail_search finds matches within keys and values of truncated JSON', () async {
-      const truncatedJson = '{"status": "ok", "customers": [{"customer_code": "CUST_999", "tier": "gold';
+    test('detail_search finds matches within keys and values of truncated JSON',
+        () async {
+      const truncatedJson =
+          '{"status": "ok", "customers": [{"customer_code": "CUST_999", "tier": "gold';
       final record = RequestRecord(
         id: 'rec_search_trunc_1',
         method: 'GET',
@@ -264,11 +274,13 @@ void main() {
 
       final matches = await computeMatchesAsync(record, 'CUST_999', false);
       expect(matches, isNotEmpty);
-      expect(matches.any((m) => m.section == DetailSection.responseBody), isTrue);
+      expect(
+          matches.any((m) => m.section == DetailSection.responseBody), isTrue);
 
       final tierMatches = await computeMatchesAsync(record, 'gold', false);
       expect(tierMatches, isNotEmpty);
-      expect(tierMatches.any((m) => m.section == DetailSection.responseBody), isTrue);
+      expect(tierMatches.any((m) => m.section == DetailSection.responseBody),
+          isTrue);
     });
   });
 }
