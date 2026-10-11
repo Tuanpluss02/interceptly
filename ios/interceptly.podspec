@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'interceptly'
-  s.version          = '1.2.1'
+  s.version          = '1.2.0'
   s.summary          = 'Flutter network inspector with hand-rolled file share.'
   s.homepage         = 'https://github.com/Tuanpluss02/interceptly'
   s.license          = { :type => 'MIT' }

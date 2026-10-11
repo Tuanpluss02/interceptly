@@ -106,8 +106,7 @@ class InterceptlyDioInterceptor extends Interceptor {
         options: err.requestOptions,
         response: err.response,
         errorType: err.type.name,
-        errorMessage:
-            err.message ?? (err.error != null ? err.error.toString() : null),
+        errorMessage: err.message ?? err.error?.toString(),
       );
     });
 

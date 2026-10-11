@@ -45,7 +45,6 @@ class _RequestDetailPageState extends State<RequestDetailPage>
   String _query = '';
   int _currentMatchIndex = 0;
 
-  // Cached data
   RequestRecord? _cachedRecord;
   List<DetailMatch> _cachedMatches = const [];
 
@@ -54,7 +53,6 @@ class _RequestDetailPageState extends State<RequestDetailPage>
   String? _parsedResForId;
   dynamic _parsedRes;
 
-  // Track which tabs have been visited (for lazy building)
   final Set<int> _visitedTabs = {0};
   int _detailLoadGeneration = 0;
 
@@ -71,16 +69,6 @@ class _RequestDetailPageState extends State<RequestDetailPage>
         });
         _parseBodiesAsync(record);
         _recomputeMatchesAsync();
-        // Pre-build remaining tabs on the next frame after initial render
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            setState(() {
-              for (int i = 0; i < _tabController.length; i++) {
-                _visitedTabs.add(i);
-              }
-            });
-          }
-        });
       }
     });
     final isWs = _currentEntry.method == 'WS';
@@ -135,13 +123,11 @@ class _RequestDetailPageState extends State<RequestDetailPage>
   }
 
   void _onTabChanged() {
-    if (!_tabController.indexIsChanging) {
-      final idx = _tabController.index;
-      if (!_visitedTabs.contains(idx)) {
-        setState(() {
-          _visitedTabs.add(idx);
-        });
-      }
+    final idx = _tabController.index;
+    if (!_visitedTabs.contains(idx)) {
+      setState(() {
+        _visitedTabs.add(idx);
+      });
     }
   }
 
@@ -228,7 +214,6 @@ class _RequestDetailPageState extends State<RequestDetailPage>
 
   @override
   Widget build(BuildContext context) {
-    // Cache preference values - these are the only session values that need reactive rebuilding
     final themeMode = widget.session.preferences.themeMode;
     final urlDecodeEnabled = widget.session.preferences.urlDecodeEnabled;
 
@@ -439,6 +424,9 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                       animation: _tabController,
                       builder: (context, _) {
                         final tabIndex = _tabController.index;
+                        if (!_visitedTabs.contains(tabIndex)) {
+                          _visitedTabs.add(tabIndex);
+                        }
                         final tabsBuilder = DetailTabsBuilder(
                           record: record,
                           matches: matches,
@@ -466,7 +454,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                                       ? tabsBuilder.buildRequestTab()
                                       : const SizedBox.shrink(),
                                   _visitedTabs.contains(2)
-                                      ? tabsBuilder.buildResponseTab()
+                                      ? _buildResponseTab(record, tabsBuilder)
                                       : const SizedBox.shrink(),
                                   _visitedTabs.contains(3)
                                       ? tabsBuilder.buildErrorTab()
@@ -582,6 +570,107 @@ class _RequestDetailPageState extends State<RequestDetailPage>
     );
   }
 
+  Widget _buildResponseTab(
+    RequestRecord record,
+    DetailTabsBuilder tabsBuilder,
+  ) {
+    final isTruncated = record.isUiTruncated ||
+        record.isBodyTruncated ||
+        record.responseSizeBytes > 2 * 1024 * 1024;
+    if (!isTruncated) {
+      return tabsBuilder.buildResponseTab();
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildTruncationBanner(record),
+        Expanded(child: tabsBuilder.buildResponseTab()),
+      ],
+    );
+  }
+
+  /// Builds a prominent warning banner when response body is truncated for UI preview.
+  Widget _buildTruncationBanner(RequestRecord record) {
+    final totalBytes = record.responseSizeBytes;
+    final previewBytes = record.responseBodyBytes != null
+        ? (record.responseBodyBytes!.length > 2 * 1024 * 1024
+            ? 2 * 1024 * 1024
+            : record.responseBodyBytes!.length)
+        : (record.responseBodyPreview?.length ?? 2 * 1024 * 1024);
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: InterceptlyGlobalColor.orange.withValues(alpha: 0.12),
+        border: Border.all(
+          color: InterceptlyGlobalColor.orange.withValues(alpha: 0.4),
+        ),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.warning_amber_rounded,
+            color: InterceptlyGlobalColor.orange,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Response is ${_formatBytes(totalBytes)}',
+                  style: InterceptlyTheme.typography.bodyMediumBold.copyWith(
+                    color: InterceptlyGlobalColor.orange,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Body truncated preview: showing first ${_formatBytes(previewBytes)} to avoid UI lag.',
+                  style: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
+                    color: InterceptlyTheme.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton.icon(
+            style: TextButton.styleFrom(
+              backgroundColor:
+                  InterceptlyGlobalColor.orange.withValues(alpha: 0.18),
+              foregroundColor: InterceptlyGlobalColor.orange,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(6),
+              ),
+            ),
+            icon: const Icon(Icons.download, size: 16),
+            label: const Text('Export Full'),
+            onPressed: () {
+              final shareHandler =
+                  ShareHandler(context: context, fabKey: _fabKey);
+              shareHandler.exportResponseBodyFile(record);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) {
+      return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    }
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
   void _showShareMenu() {
     final record = _cachedRecord;
     if (record == null) return;
@@ -594,9 +683,6 @@ class _RequestDetailPageState extends State<RequestDetailPage>
     final record = _cachedRecord;
     if (record == null) return;
 
-    // ReplayHandler wraps a new http.Client with the session for replaying;
-    // it needs the concrete type. All sessions passed through the attach flow
-    // are InspectorSession instances.
     final replayHandler = ReplayHandler(
       context: context,
       session: widget.session as InspectorSession,

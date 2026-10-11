@@ -3,7 +3,8 @@ class InterceptlySettings {
   const InterceptlySettings({
     this.bodyOffloadThreshold = 50 * 1024,
     this.previewTruncationBytes = 16 * 1024,
-    this.maxBodyBytes = 2 * 1024 * 1024,
+    this.maxBodyBytes = 50 * 1024 * 1024,
+    this.maxUiPreviewBytes = 2 * 1024 * 1024,
     this.maxQueuedEvents = 500,
     this.maxEntries = 5000,
     this.urlDecodeEnabled = true,
@@ -25,7 +26,12 @@ class InterceptlySettings {
   final int previewTruncationBytes;
 
   /// Hard cap: bodies larger than this are truncated before storage.
+  /// Defaults to 50 MB (50 * 1024 * 1024). Values <= 0 indicate unlimited storage.
   final int maxBodyBytes;
+
+  /// Maximum payload bytes rendered in the UI preview to avoid UI lag.
+  /// Defaults to 2 MB (2 * 1024 * 1024).
+  final int maxUiPreviewBytes;
 
   /// Maximum number of pending [RawCapture]s in the writer queue.
   /// When full, the oldest unprocessed item is dropped.
@@ -44,6 +50,12 @@ class InterceptlySettings {
   /// Header names (case-insensitive) whose values should be redacted with `[REDACTED]`.
   final Set<String> redactedHeaders;
 
+  static final Expando<Set<String>> _normalizedCache = Expando<Set<String>>();
+
+  /// Pre-normalized lowercase set of [redactedHeaders] for fast case-insensitive lookup.
+  Set<String> get normalizedRedactedHeaders => _normalizedCache[this] ??=
+      Set<String>.unmodifiable(redactedHeaders.map((k) => k.toLowerCase()));
+
   /// Optional predicate to exclude URLs or requests from being captured.
   final bool Function(String url)? shouldCapture;
 
@@ -51,6 +63,7 @@ class InterceptlySettings {
     int? bodyOffloadThreshold,
     int? previewTruncationBytes,
     int? maxBodyBytes,
+    int? maxUiPreviewBytes,
     int? maxQueuedEvents,
     int? maxEntries,
     bool? urlDecodeEnabled,
@@ -63,6 +76,7 @@ class InterceptlySettings {
       previewTruncationBytes:
           previewTruncationBytes ?? this.previewTruncationBytes,
       maxBodyBytes: maxBodyBytes ?? this.maxBodyBytes,
+      maxUiPreviewBytes: maxUiPreviewBytes ?? this.maxUiPreviewBytes,
       maxQueuedEvents: maxQueuedEvents ?? this.maxQueuedEvents,
       maxEntries: maxEntries ?? this.maxEntries,
       urlDecodeEnabled: urlDecodeEnabled ?? this.urlDecodeEnabled,

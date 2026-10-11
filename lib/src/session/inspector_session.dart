@@ -34,6 +34,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   InspectorSession({InterceptlySettings? settings})
       : _settings = settings ?? _defaultSettings,
         sessionId = _generateSessionId() {
+    _normalizedRedactedHeaders = _settings.normalizedRedactedHeaders;
     _memoryIndex = MemoryIndex(maxEntries: _settings.maxEntries);
     _writerIsolate = WriterIsolate(_settings);
     _preInitQueue = BoundedEventQueue(maxSize: _settings.maxQueuedEvents);
@@ -66,12 +67,14 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   final String sessionId;
 
   InterceptlySettings _settings;
+  late Set<String> _normalizedRedactedHeaders;
 
   @override
   InterceptlySettings get settings => _settings;
 
   void _applySettings(InterceptlySettings newSettings) {
     _settings = newSettings;
+    _normalizedRedactedHeaders = newSettings.normalizedRedactedHeaders;
     notifyListeners();
   }
 
@@ -176,18 +179,19 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     if (_initialized) return;
 
     try {
-      // Resolve the temp directory HERE on the main isolate — never inside
-      // the background isolate where platform channels are unavailable.
       final dir = await getTemporaryDirectory();
       final fileName = 'interceptly_${sessionId}_session.tmp';
       _tempFilePath = '${dir.path}/$fileName';
+
+      await BodyStore.purgeOrphanedTempFiles(
+        dir.path,
+        currentFileName: fileName,
+      );
 
       await _writerIsolate.start(tempDirPath: dir.path, fileName: fileName);
       _resultSub = _writerIsolate.results.listen(_onEntryReady);
       _initialized = true;
 
-      // Flush captures buffered before the isolate was ready.
-      // Runs synchronously (no awaits) so no new record() call can interleave.
       _droppedCount += _preInitQueue.droppedCount;
       _preferences.setUrlDecodeEnabled(settings.urlDecodeEnabled);
       while (true) {
@@ -332,9 +336,9 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       method: capture.method,
       url: capture.url,
       requestHeaders:
-          redactHeaders(capture.requestHeaders, settings.redactedHeaders),
+          redactHeaders(capture.requestHeaders, _normalizedRedactedHeaders),
       responseHeaders:
-          redactHeaders(capture.responseHeaders, settings.redactedHeaders),
+          redactHeaders(capture.responseHeaders, _normalizedRedactedHeaders),
       statusCode: capture.statusCode,
       durationMs: capture.durationMs,
       timestamp: capture.timestamp,
@@ -389,7 +393,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     }
 
     final sanitizedHeaders =
-        redactHeaders(requestHeaders, settings.redactedHeaders);
+        redactHeaders(requestHeaders, _normalizedRedactedHeaders);
     final inlineRequestBody = BodyDecodeService.truncate(
       requestBodyBytes,
       settings.maxBodyBytes,
@@ -532,14 +536,6 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     if (entry.bodyLocation == BodyLocation.memory) {
       reqBytes = entry.inlineRequestBody;
       resBytes = entry.inlineResponseBody;
-      reqPreview = await BodyDecodeService.decodeAsync(
-        reqBytes,
-        entry.requestContentType,
-      );
-      resPreview = await BodyDecodeService.decodeAsync(
-        resBytes,
-        entry.responseContentType,
-      );
     } else {
       final offset = entry.fileOffset;
       final length = entry.fileLength;
@@ -553,20 +549,36 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
               : BodyDecodeService.unpackToBytes(raw);
           reqBytes = decoded.$1;
           resBytes = decoded.$2;
-          reqPreview = await BodyDecodeService.decodeAsync(
-            reqBytes,
-            entry.requestContentType,
-          );
-          resPreview = await BodyDecodeService.decodeAsync(
-            resBytes,
-            entry.responseContentType,
-          );
           isTruncated = isTruncated || decoded.$3;
         } catch (_) {
           reqPreview = BodyDecodeService.unavailablePlaceholder;
           resPreview = BodyDecodeService.unavailablePlaceholder;
         }
       }
+    }
+
+    final maxUi = _settings.maxUiPreviewBytes;
+    final isUiTruncated = (reqBytes != null && maxUi > 0 && reqBytes.length > maxUi) ||
+        (resBytes != null && maxUi > 0 && resBytes.length > maxUi);
+
+    if (reqPreview == null && reqBytes != null) {
+      final reqSlice = (maxUi > 0 && reqBytes.length > maxUi)
+          ? reqBytes.sublist(0, maxUi)
+          : reqBytes;
+      reqPreview = await BodyDecodeService.decodeAsync(
+        reqSlice,
+        entry.requestContentType,
+      );
+    }
+
+    if (resPreview == null && resBytes != null) {
+      final resSlice = (maxUi > 0 && resBytes.length > maxUi)
+          ? resBytes.sublist(0, maxUi)
+          : resBytes;
+      resPreview = await BodyDecodeService.decodeAsync(
+        resSlice,
+        entry.responseContentType,
+      );
     }
 
     return RequestRecord(
@@ -584,7 +596,10 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       responseContentType: entry.responseContentType,
       requestBodyPreview: reqPreview,
       responseBodyPreview: resPreview,
+      requestBodyBytes: reqBytes,
+      responseBodyBytes: resBytes,
       isBodyTruncated: isTruncated,
+      isUiTruncated: isUiTruncated,
       errorType: entry.errorType,
       errorMessage: entry.errorMessage,
     );

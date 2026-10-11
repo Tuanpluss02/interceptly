@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -91,6 +92,7 @@ class ReplayHandler {
       url: record.url,
       headers: Map<String, String>.from(record.requestHeaders),
       body: record.requestBodyPreview,
+      bodyBytes: record.requestBodyBytes,
       isBodyTruncated: record.isBodyTruncated,
     );
   }
@@ -138,6 +140,7 @@ class ReplayHandler {
     required String url,
     required Map<String, String> headers,
     required String? body,
+    Uint8List? bodyBytes,
     required bool isBodyTruncated,
   }) async {
     final uri = Uri.tryParse(url);
@@ -171,12 +174,20 @@ class ReplayHandler {
     final allowBody =
         upperMethod != 'GET' && upperMethod != 'HEAD' && upperMethod != 'TRACE';
 
-    if (allowBody && body != null && body.isNotEmpty && !isPlaceholder) {
-      request.bodyBytes = utf8.encode(body);
-      request.headers.putIfAbsent(
-        'content-type',
-        () => 'application/json; charset=utf-8',
-      );
+    if (allowBody) {
+      if (bodyBytes != null && bodyBytes.isNotEmpty) {
+        request.bodyBytes = bodyBytes;
+        request.headers.putIfAbsent(
+          'content-type',
+          () => 'application/json; charset=utf-8',
+        );
+      } else if (body != null && body.isNotEmpty && !isPlaceholder) {
+        request.bodyBytes = utf8.encode(body);
+        request.headers.putIfAbsent(
+          'content-type',
+          () => 'application/json; charset=utf-8',
+        );
+      }
     }
 
     final client = InterceptlyHttpClient.wrap(http.Client(), session);

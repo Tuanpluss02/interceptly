@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -184,7 +185,11 @@ class _JsonViewerState extends State<JsonViewer> {
 
   final Set<String> _userCollapsedPaths = {};
 
-  GlobalKey? _activeScrollKey;
+  final ScrollController _gutterScrollController = ScrollController();
+
+  final ScrollController _contentScrollController = ScrollController();
+
+  bool _isSyncingScroll = false;
 
   List<_FlatLine>? _memoLines;
 
@@ -206,7 +211,40 @@ class _JsonViewerState extends State<JsonViewer> {
 
   final FocusNode _selectableFocusNode = FocusNode();
 
-  // ── Lifecycle ──
+  @override
+  void initState() {
+    super.initState();
+    _contentScrollController.addListener(_syncGutter);
+    _gutterScrollController.addListener(_syncContent);
+  }
+
+  void _syncGutter() {
+    if (_isSyncingScroll) return;
+    if (_gutterScrollController.hasClients &&
+        _contentScrollController.hasClients) {
+      if ((_gutterScrollController.offset - _contentScrollController.offset)
+              .abs() >
+          0.01) {
+        _isSyncingScroll = true;
+        _gutterScrollController.jumpTo(_contentScrollController.offset);
+        _isSyncingScroll = false;
+      }
+    }
+  }
+
+  void _syncContent() {
+    if (_isSyncingScroll) return;
+    if (_gutterScrollController.hasClients &&
+        _contentScrollController.hasClients) {
+      if ((_contentScrollController.offset - _gutterScrollController.offset)
+              .abs() >
+          0.01) {
+        _isSyncingScroll = true;
+        _contentScrollController.jumpTo(_gutterScrollController.offset);
+        _isSyncingScroll = false;
+      }
+    }
+  }
 
   @override
   void didUpdateWidget(covariant JsonViewer oldWidget) {
@@ -226,6 +264,10 @@ class _JsonViewerState extends State<JsonViewer> {
 
   @override
   void dispose() {
+    _contentScrollController.removeListener(_syncGutter);
+    _gutterScrollController.removeListener(_syncContent);
+    _contentScrollController.dispose();
+    _gutterScrollController.dispose();
     _selectableFocusNode.dispose();
     super.dispose();
   }
@@ -264,7 +306,6 @@ class _JsonViewerState extends State<JsonViewer> {
         _memoBrightness == brightness) {
       return;
     }
-    _activeScrollKey = null;
     _memoForceCollapse =
         _countExpandedLines(widget.data) > _largeDocLineThreshold;
     _memoMatchCounts = effectiveQuery == null
@@ -402,98 +443,171 @@ class _JsonViewerState extends State<JsonViewer> {
     );
     const lineHeight = 18.0; // fontSize 12 × height 1.5
 
-    // Schedule scroll-to for the active search match.
-    final scrollKey = _activeScrollKey;
-    if (scrollKey != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final ctx = scrollKey.currentContext;
-        if (ctx != null && ctx.mounted) {
-          Scrollable.ensureVisible(
-            ctx,
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeInOut,
-          );
-        }
-      });
+    int maxChars = 0;
+    int? activeLineIndex;
+    for (int i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      if (line.hasActiveMatch && activeLineIndex == null) {
+        activeLineIndex = i;
+      }
+      var len = line.indentLevel * 2;
+      for (final s in line.spans) {
+        len += (s.text?.length ?? 0);
+      }
+      if (len > maxChars) maxChars = len;
     }
 
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 24),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          DefaultTextStyle(
-            style: contentStyle,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.vertical,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ── Gutter (line numbers + fold icons) ──
-                  Container(
-                    padding: const EdgeInsets.only(right: 4.0),
-                    decoration: BoxDecoration(
-                      border: Border(
-                        right: BorderSide(
-                          color: InterceptlyTheme.dividerSubtle,
-                          width: 1.0,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final viewportHeight = constraints.hasBoundedHeight
+            ? constraints.maxHeight
+            : (lines.length * lineHeight).clamp(24.0, 500.0);
+
+        if (activeLineIndex != null) {
+          final targetIndex = activeLineIndex;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_contentScrollController.hasClients) {
+              final maxScroll =
+                  _contentScrollController.position.maxScrollExtent;
+              final targetOffset =
+                  (targetIndex * lineHeight - (viewportHeight - lineHeight) / 2)
+                      .clamp(0.0, maxScroll);
+              _contentScrollController.animateTo(
+                targetOffset,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOut,
+              );
+            }
+          });
+        }
+
+        final gutterTotalWidth = lineNumberWidth + _foldIconWidth + 8.0;
+        final minContentWidth = constraints.hasBoundedWidth
+            ? math.max(0.0, constraints.maxWidth - gutterTotalWidth)
+            : 0.0;
+        final contentWidth = math.max(minContentWidth, maxChars * 7.5 + 40.0);
+
+        return SizedBox(
+          height: viewportHeight,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              DefaultTextStyle(
+                style: contentStyle,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: gutterTotalWidth,
+                      height: viewportHeight,
+                      child: Container(
+                        padding: const EdgeInsets.only(right: 4.0),
+                        decoration: BoxDecoration(
+                          border: Border(
+                            right: BorderSide(
+                              color: InterceptlyTheme.dividerSubtle,
+                              width: 1.0,
+                            ),
+                          ),
+                        ),
+                        child: ListView.builder(
+                          controller: _gutterScrollController,
+                          itemExtent: lineHeight,
+                          itemCount: lines.length,
+                          cacheExtent: 1000.0,
+                          addAutomaticKeepAlives: false,
+                          physics: const ClampingScrollPhysics(),
+                          itemBuilder: (context, index) {
+                            return _buildGutterCell(
+                              line: lines[index],
+                              lineNumberWidth: lineNumberWidth,
+                              lineHeight: lineHeight,
+                              style: contentStyle,
+                            );
+                          },
                         ),
                       ),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        for (int i = 0; i < lines.length; i++)
-                          _buildGutterCell(
-                            line: lines[i],
-                            lineNumberWidth: lineNumberWidth,
-                            lineHeight: lineHeight,
-                            style: contentStyle,
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: SizedBox(
+                          width: contentWidth,
+                          height: viewportHeight,
+                          child: SelectableRegion(
+                            focusNode: _selectableFocusNode,
+                            selectionControls: materialTextSelectionControls,
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 4.0),
+                              child: ListView.builder(
+                                controller: _contentScrollController,
+                                itemExtent: lineHeight,
+                                itemCount: lines.length,
+                                cacheExtent: 1000.0,
+                                addAutomaticKeepAlives: false,
+                                physics: const ClampingScrollPhysics(),
+                                itemBuilder: (context, index) {
+                                  return _buildLine(
+                                    index,
+                                    lines[index],
+                                    lineHeight,
+                                    contentStyle,
+                                  );
+                                },
+                              ),
+                            ),
                           ),
-                      ],
+                        ),
+                      ),
                     ),
-                  ),
-
-                  // ── Content (horizontally scrollable) ──
-                  // Using SelectableRegion for multi-line text selection
-                  Expanded(
-                    child: _SelectableJsonContent(
-                      lines: lines,
-                      lineHeight: lineHeight,
-                      contentStyle: contentStyle,
-                      focusNode: _selectableFocusNode,
+                  ],
+                ),
+              ),
+              Positioned(
+                top: -10,
+                right: -10,
+                child: Material(
+                  color: InterceptlyGlobalColor.transparent,
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.copy,
+                      size: 16,
+                      color: InterceptlyTheme.textMuted,
                     ),
+                    tooltip: 'Copy JSON',
+                    onPressed: _copyToClipboard,
+                    splashRadius: 16,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 24,
+                      height: 24,
+                    ),
+                    padding: EdgeInsets.zero,
+                    alignment: Alignment.topCenter,
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
+        );
+      },
+    );
+  }
 
-          // ── Copy button ──
-          Positioned(
-            top: -10,
-            right: -10,
-            child: Material(
-              color: InterceptlyGlobalColor.transparent,
-              child: IconButton(
-                icon: const Icon(
-                  Icons.copy,
-                  size: 16,
-                  color: InterceptlyTheme.textMuted,
-                ),
-                tooltip: 'Copy JSON',
-                onPressed: _copyToClipboard,
-                splashRadius: 16,
-                constraints: const BoxConstraints.tightFor(
-                  width: 24,
-                  height: 24,
-                ),
-                padding: EdgeInsets.zero,
-                alignment: Alignment.topCenter,
-              ),
-            ),
-          ),
-        ],
+  Widget _buildLine(
+    int index,
+    _FlatLine line,
+    double lineHeight,
+    TextStyle style,
+  ) {
+    return Container(
+      height: lineHeight,
+      alignment: Alignment.centerLeft,
+      padding: EdgeInsets.only(left: line.indentLevel * 16.0),
+      child: Text.rich(
+        TextSpan(
+          style: style,
+          children: line.spans,
+        ),
       ),
     );
   }
@@ -516,37 +630,38 @@ class _JsonViewerState extends State<JsonViewer> {
 
     Widget cell = SizedBox(
       height: lineHeight,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Line number (real position in the fully-expanded document)
-          SizedBox(
-            width: lineNumberWidth,
-            child: Text(
-              '${line.realLineNumber}',
-              textAlign: TextAlign.right,
-              style: style.copyWith(color: _lineNumberColor),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: lineNumberWidth,
+              child: Text(
+                '${line.realLineNumber}',
+                textAlign: TextAlign.right,
+                style: style.copyWith(color: _lineNumberColor),
+              ),
             ),
-          ),
-          // Fold icon slot
-          SizedBox(
-            width: _foldIconWidth,
-            height: lineHeight,
-            child: hasFold
-                ? Center(
-                    child: Transform.rotate(
-                      angle: line.collapsible!.isExpanded ? 0 : -1.5708,
-                      child: const Icon(
-                        Icons.arrow_drop_down,
-                        size: 16,
-                        color: InterceptlyTheme.textMuted,
+            SizedBox(
+              width: _foldIconWidth,
+              height: lineHeight,
+              child: hasFold
+                  ? Center(
+                      child: Transform.rotate(
+                        angle: line.collapsible!.isExpanded ? 0 : -1.5708,
+                        child: const Icon(
+                          Icons.arrow_drop_down,
+                          size: 16,
+                          color: InterceptlyTheme.textMuted,
+                        ),
                       ),
-                    ),
-                  )
-                : null,
-          ),
-        ],
+                    )
+                  : null,
+            ),
+          ],
+        ),
       ),
     );
 
@@ -992,61 +1107,4 @@ class _ChildEntry {
     this.isLast = false,
     required this.childPath,
   });
-}
-
-/// Custom widget that handles text selection across multiple lines using SelectableRegion.
-/// SelectableRegion allows selection across multiple widgets without SelectionArea + ScrollView conflict.
-class _SelectableJsonContent extends StatefulWidget {
-  final List<_FlatLine> lines;
-  final double lineHeight;
-  final TextStyle contentStyle;
-  final FocusNode focusNode;
-
-  const _SelectableJsonContent({
-    required this.lines,
-    required this.lineHeight,
-    required this.contentStyle,
-    required this.focusNode,
-  });
-
-  @override
-  State<_SelectableJsonContent> createState() => _SelectableJsonContentState();
-}
-
-class _SelectableJsonContentState extends State<_SelectableJsonContent> {
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: SelectableRegion(
-        focusNode: widget.focusNode,
-        selectionControls: materialTextSelectionControls,
-        child: Padding(
-          padding: const EdgeInsets.only(left: 4.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (int i = 0; i < widget.lines.length; i++)
-                _buildLine(i, widget.lines[i]),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLine(int index, _FlatLine line) {
-    return Container(
-      height: widget.lineHeight,
-      alignment: Alignment.centerLeft,
-      padding: EdgeInsets.only(left: line.indentLevel * 16.0),
-      child: Text.rich(
-        TextSpan(
-          style: widget.contentStyle,
-          children: line.spans,
-        ),
-      ),
-    );
-  }
 }

@@ -36,17 +36,30 @@ String? headerValue(Map<String, String> headers, String name) {
   return null;
 }
 
+/// Utility class for safe capture guards and header sanitization.
+abstract final class CaptureGuard {
+  /// Redacts sensitive headers defined in [redactedKeys] (compared case-insensitively).
+  ///
+  /// For optimal performance, [redactedKeys] should be pre-normalized to lowercase.
+  static Map<String, String> redactHeaders(
+    Map<String, String> headers,
+    Set<String> redactedKeys,
+  ) {
+    if (redactedKeys.isEmpty) return headers;
+    return headers.map((k, v) {
+      if (redactedKeys.contains(k.toLowerCase())) {
+        return MapEntry(k, '[REDACTED]');
+      }
+      return MapEntry(k, v);
+    });
+  }
+}
+
 /// Redacts sensitive headers defined in [redactedKeys] (compared case-insensitively).
+///
+/// For optimal performance, [redactedKeys] should be pre-normalized to lowercase.
 Map<String, String> redactHeaders(
   Map<String, String> headers,
   Set<String> redactedKeys,
-) {
-  if (redactedKeys.isEmpty) return headers;
-  final lowerKeys = redactedKeys.map((k) => k.toLowerCase()).toSet();
-  return headers.map((k, v) {
-    if (lowerKeys.contains(k.toLowerCase())) {
-      return MapEntry(k, '[REDACTED]');
-    }
-    return MapEntry(k, v);
-  });
-}
+) =>
+    CaptureGuard.redactHeaders(headers, redactedKeys);

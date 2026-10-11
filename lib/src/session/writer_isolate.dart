@@ -282,7 +282,6 @@ Future<IndexEntry> _processCapture(
       fileOffset = result.$1;
       fileLength = result.$2;
     } catch (_) {
-      // File append failed (e.g. storage error) -> fallback to inline preview
       useFile = false;
     }
   }
@@ -290,8 +289,9 @@ Future<IndexEntry> _processCapture(
   if (!useFile) {
     inlineReq = _maybeTruncate(reqRaw, maxBody, maxBody);
     inlineRes = _maybeTruncate(resRaw, maxBody, maxBody);
-    isTruncated = (reqRaw != null && reqRaw.length > maxBody) ||
-        (resRaw != null && resRaw.length > maxBody);
+    isTruncated = maxBody > 0 &&
+        ((reqRaw != null && reqRaw.length > maxBody) ||
+            (resRaw != null && resRaw.length > maxBody));
   }
 
   return IndexEntry(
@@ -321,7 +321,7 @@ Future<IndexEntry> _processCapture(
 
 Uint8List? _maybeTruncate(Uint8List? bytes, int maxBytes, int previewLen) {
   if (bytes == null || bytes.isEmpty) return null;
-  if (bytes.length <= maxBytes) return bytes;
+  if (maxBytes <= 0 || bytes.length <= maxBytes) return bytes;
   return bytes.sublist(
     0,
     previewLen < bytes.length ? previewLen : bytes.length,
@@ -343,12 +343,9 @@ _PackedBodies _packBodies(
   bool truncated = false;
 
   Uint8List? truncate(Uint8List bytes) {
-    if (bytes.length <= maxBody) return bytes;
+    if (maxBody <= 0 || bytes.length <= maxBody) return bytes;
     truncated = true;
-    return bytes.sublist(
-      0,
-      maxBody < bytes.length ? maxBody : bytes.length,
-    );
+    return bytes.sublist(0, maxBody);
   }
 
   final reqData = req != null && req.isNotEmpty ? truncate(req) : null;

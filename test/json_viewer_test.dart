@@ -53,7 +53,7 @@ void main() {
         // 2. Perform vertical scroll by dragging SingleChildScrollView
         await tester.drag(
           find.byType(SingleChildScrollView).first,
-          const Offset(0, -120),
+          const Offset(0, -25),
         );
         await tester.pumpAndSettle();
 

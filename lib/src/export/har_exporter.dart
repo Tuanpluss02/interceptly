@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import '../model/request_record.dart';
 import '../session/body_decode_service.dart';
@@ -51,7 +52,7 @@ class HarExporter {
         'content': {
           'size': r.responseSizeBytes,
           'mimeType': r.responseContentType ?? 'application/octet-stream',
-          'text': _safeBody(r.responseBodyPreview),
+          'text': _safeBody(r.responseBodyBytes, r.responseBodyPreview),
         },
         'redirectURL': '',
         'headersSize': -1,
@@ -67,8 +68,8 @@ class HarExporter {
   }
 
   static Map<String, Object?>? _buildPostData(RequestRecord r) {
-    final body = r.requestBodyPreview;
-    if (body == null || body.isEmpty || BodyDecodeService.isPlaceholder(body)) {
+    final body = _safeBody(r.requestBodyBytes, r.requestBodyPreview);
+    if (body.isEmpty) {
       return null;
     }
     return {
@@ -77,9 +78,15 @@ class HarExporter {
     };
   }
 
-  /// Returns empty text for binary placeholders in HAR content.
-  static String _safeBody(String? body) {
-    if (body == null || BodyDecodeService.isPlaceholder(body)) return '';
-    return body;
+  /// Returns decoded body text, falling back to preview or empty for binary placeholders.
+  static String _safeBody(Uint8List? bytes, String? preview) {
+    if (bytes != null && bytes.isNotEmpty) {
+      try {
+        final decoded = utf8.decode(bytes);
+        if (!BodyDecodeService.isPlaceholder(decoded)) return decoded;
+      } catch (_) {}
+    }
+    if (preview == null || BodyDecodeService.isPlaceholder(preview)) return '';
+    return preview;
   }
 }

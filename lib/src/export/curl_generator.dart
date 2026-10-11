@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../model/request_record.dart';
 import '../session/body_decode_service.dart';
 
@@ -15,7 +17,18 @@ class CurlGenerator {
       buffer.write(" -H '${_escapeShell('${entry.key}: ${entry.value}')}'");
     }
 
-    final body = record.requestBodyPreview;
+    String? body;
+    if (record.requestBodyBytes != null &&
+        record.requestBodyBytes!.isNotEmpty) {
+      try {
+        body = utf8.decode(record.requestBodyBytes!);
+      } catch (_) {
+        body = record.requestBodyPreview;
+      }
+    } else {
+      body = record.requestBodyPreview;
+    }
+
     if (body != null &&
         body.isNotEmpty &&
         !BodyDecodeService.isPlaceholder(body)) {

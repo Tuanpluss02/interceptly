@@ -1,4 +1,4 @@
-## 1.2.1
+## 1.2.0
 
 ### Added
 - Single-entrypoint initialization via `Interceptly.init(navigatorKey: ...)` with flattened, frictionless configuration options (`maxBodyBytes`, `maxEntries`, `redactedHeaders`, `shouldCapture`, `showFloatingButton`, `customTrigger`).

@@ -112,6 +112,23 @@ class ShareHandler {
                 exportPostmanFile(record);
               },
             ),
+            Divider(color: InterceptlyTheme.dividerSubtle, height: 1),
+            ListTile(
+              leading: const Icon(
+                Icons.file_download_outlined,
+                color: InterceptlyTheme.indigo500,
+              ),
+              title: Text(
+                'Export Full Response',
+                style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
+                  color: InterceptlyTheme.textPrimary,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                exportResponseBodyFile(record);
+              },
+            ),
           ],
         ),
       ),
@@ -185,26 +202,76 @@ class ShareHandler {
     }
   }
 
+  Future<void> exportResponseBodyFile(RequestRecord record) async {
+    try {
+      final bytes = record.responseBodyBytes;
+      final preview = record.responseBodyPreview;
+      if ((bytes == null || bytes.isEmpty) &&
+          (preview == null || preview.isEmpty)) {
+        ToastNotification.show('No response payload available to export');
+        return;
+      }
+
+      final directory = await getTemporaryDirectory();
+      final sanitizedId = _sanitizeFilename(record.id);
+      final ext = _resolveExtension(record.responseContentType);
+      final fileName =
+          'response_${sanitizedId}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+      final file = File('${directory.path}/$fileName');
+
+      if (bytes != null && bytes.isNotEmpty) {
+        await file.writeAsBytes(bytes);
+      } else {
+        await file.writeAsString(preview!);
+      }
+
+      final origin = await _getSharePositionOrigin();
+      await _shareFile(
+        file,
+        subject: 'Response Payload Export',
+        text: 'Full response payload export from Interceptly',
+        mimeType: record.responseContentType ?? 'application/octet-stream',
+        origin: origin,
+      );
+    } catch (e) {
+      ToastNotification.show('Error exporting response body: $e');
+    }
+  }
+
+  static String _resolveExtension(String? contentType) {
+    final ct = (contentType ?? '').toLowerCase();
+    if (ct.contains('json')) return 'json';
+    if (ct.contains('xml')) return 'xml';
+    if (ct.contains('html')) return 'html';
+    if (ct.contains('text/plain')) return 'txt';
+    if (ct.contains('image/png')) return 'png';
+    if (ct.contains('image/jpeg')) return 'jpg';
+    if (ct.contains('application/pdf')) return 'pdf';
+    return 'bin';
+  }
+
   Future<void> _shareFile(
     File file, {
     String? subject,
     String? text,
+    String mimeType = 'application/json',
     Rect? origin,
   }) async {
-    final contextHint = context;
     final presented = await _share.shareFile(
       filePath: file.path,
       subject: subject,
       text: text,
-      mimeType: 'application/json',
+      mimeType: mimeType,
       origin: origin,
     );
     if (!presented) {
       await Clipboard.setData(ClipboardData(text: file.path));
-      ToastNotification.show(
-        'Share unavailable — file path copied: ${file.path}',
-        contextHint: contextHint, // ignore: use_build_context_synchronously
-      );
+      if (context.mounted) {
+        ToastNotification.show(
+          'Share unavailable — file path copied: ${file.path}',
+          contextHint: context,
+        );
+      }
     }
   }
 

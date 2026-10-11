@@ -61,7 +61,17 @@ class PostmanExporter {
   }
 
   static Map<String, Object?>? _buildBody(RequestRecord r) {
-    final body = r.requestBodyPreview;
+    String? body;
+    if (r.requestBodyBytes != null && r.requestBodyBytes!.isNotEmpty) {
+      try {
+        body = utf8.decode(r.requestBodyBytes!);
+      } catch (_) {
+        body = r.requestBodyPreview;
+      }
+    } else {
+      body = r.requestBodyPreview;
+    }
+
     if (body == null || body.isEmpty || BodyDecodeService.isPlaceholder(body)) {
       return null;
     }

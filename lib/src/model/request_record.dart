@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 /// Full detail model — loaded on demand when user opens a request.
 ///
 /// Built by [InspectorSession.loadDetail] from an [IndexEntry].
@@ -17,7 +19,10 @@ class RequestRecord {
     this.responseContentType,
     this.requestBodyPreview,
     this.responseBodyPreview,
+    this.requestBodyBytes,
+    this.responseBodyBytes,
     this.isBodyTruncated = false,
+    this.isUiTruncated = false,
     this.errorType,
     this.errorMessage,
   });
@@ -39,8 +44,17 @@ class RequestRecord {
   final String? requestBodyPreview;
   final String? responseBodyPreview;
 
-  /// True if the body exceeded [InterceptlySettings.maxBodyBytes] and was cut.
+  /// Complete un-truncated raw request bytes, if available.
+  final Uint8List? requestBodyBytes;
+
+  /// Complete un-truncated raw response bytes, if available.
+  final Uint8List? responseBodyBytes;
+
+  /// True if the body exceeded [InterceptlySettings.maxBodyBytes] and was cut before storage.
   final bool isBodyTruncated;
+
+  /// True if UI preview was truncated to avoid lag while storage has full bytes.
+  final bool isUiTruncated;
 
   final String? errorType;
   final String? errorMessage;

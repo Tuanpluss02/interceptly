@@ -1,68 +1,116 @@
+import 'dart:collection';
+
 import '../model/index_entry.dart';
 import '../model/request_filter.dart';
 
-/// In-memory list of [IndexEntry]s.
+/// In-memory fixed-capacity ring buffer of [IndexEntry] items.
 ///
-/// All mutations happen on the main isolate (after the WriterIsolate sends
-/// back a completed [IndexEntry]). No locking needed.
+/// Mutations occur on the main isolate after background processing completes.
 class MemoryIndex {
-  MemoryIndex({required this.maxEntries});
+  MemoryIndex({required this.maxEntries})
+      : _buffer = List<IndexEntry?>.filled(
+          maxEntries > 0 ? maxEntries : 0,
+          null,
+        );
 
   final int maxEntries;
-  final List<IndexEntry> _entries = [];
+  final List<IndexEntry?> _buffer;
   final Map<String, int> _idIndex = {};
 
-  /// Unmodifiable snapshot of the current entries (newest first).
-  List<IndexEntry> get entries => List.unmodifiable(_entries);
+  int _head = 0;
+  int _count = 0;
 
-  int get length => _entries.length;
+  /// Number of entries currently stored in the buffer.
+  int get length => _count;
 
-  IndexEntry? byId(String id) {
-    final idx = _idIndex[id];
-    if (idx != null && idx < _entries.length && _entries[idx].id == id) {
-      return _entries[idx];
-    }
-    return null;
+  /// Live unmodifiable view of entries ordered newest-first.
+  ///
+  /// This is a live view backed by the ring buffer, not an isolated snapshot.
+  /// Do not retain references across mutations to [MemoryIndex].
+  List<IndexEntry> get entries {
+    if (_count == 0) return const <IndexEntry>[];
+    return _RingBufferListView(_buffer, _head, _count, maxEntries);
   }
 
+  /// Looks up an entry by its unique [id] in O(1) time.
+  IndexEntry? byId(String id) {
+    final slot = _idIndex[id];
+    if (slot == null) return null;
+    return _buffer[slot];
+  }
+
+  /// Alias for [byId] matching interface contract.
+  IndexEntry? get(String id) => byId(id);
+
+  /// Inserts a new entry or updates an existing entry in-place in O(1) time.
   void add(IndexEntry entry) {
-    var existingIndex = _idIndex[entry.id];
-    if (existingIndex == null ||
-        existingIndex >= _entries.length ||
-        _entries[existingIndex].id != entry.id) {
-      final idx = _entries.indexWhere((e) => e.id == entry.id);
-      if (idx != -1) {
-        existingIndex = idx;
-        _idIndex[entry.id] = idx;
-      } else {
-        _idIndex.remove(entry.id);
-      }
+    if (maxEntries <= 0) {
+      throw RangeError.value(
+        maxEntries,
+        'maxEntries',
+        'Must be greater than 0',
+      );
     }
 
-    if (existingIndex != null &&
-        existingIndex < _entries.length &&
-        _entries[existingIndex].id == entry.id) {
-      _entries[existingIndex] = entry;
+    final existingSlot = _idIndex[entry.id];
+    if (existingSlot != null) {
+      _buffer[existingSlot] = entry;
       return;
     }
 
-    if (_entries.length >= maxEntries) {
-      final removed = _entries.removeLast();
-      _idIndex.remove(removed.id);
+    if (_count >= maxEntries) {
+      final oldest = _buffer[_head]!;
+      _idIndex.remove(oldest.id);
+      _buffer[_head] = entry;
+      _idIndex[entry.id] = _head;
+      _head = (_head + 1) % maxEntries;
+    } else {
+      final slot = (_head + _count) % maxEntries;
+      _buffer[slot] = entry;
+      _idIndex[entry.id] = slot;
+      _count++;
     }
-    _entries.insert(0, entry);
-    _idIndex.updateAll((key, val) => val + 1);
-    _idIndex[entry.id] = 0;
   }
 
   /// Returns entries matching [filter], or all entries if [filter.isEmpty].
   List<IndexEntry> filtered(RequestFilter filter) {
     if (filter.isEmpty) return entries;
-    return _entries.where(filter.matches).toList();
+    return entries.where(filter.matches).toList();
   }
 
+  /// Clears all entries and resets the ring buffer state.
   void clear() {
-    _entries.clear();
+    _buffer.fillRange(0, _buffer.length, null);
+    _head = 0;
+    _count = 0;
     _idIndex.clear();
   }
+}
+
+/// Unmodifiable, reverse-indexed List view over a ring buffer.
+class _RingBufferListView extends ListBase<IndexEntry> {
+  _RingBufferListView(this._buffer, this._head, this._count, this._capacity);
+
+  final List<IndexEntry?> _buffer;
+  final int _head;
+  final int _count;
+  final int _capacity;
+
+  @override
+  int get length => _count;
+
+  @override
+  set length(int newLength) =>
+      throw UnsupportedError('Cannot modify an unmodifiable list view');
+
+  @override
+  IndexEntry operator [](int index) {
+    RangeError.checkValidIndex(index, this, null, _count);
+    final slot = (_head + _count - 1 - index) % _capacity;
+    return _buffer[slot]!;
+  }
+
+  @override
+  void operator []=(int index, IndexEntry value) =>
+      throw UnsupportedError('Cannot modify an unmodifiable list view');
 }

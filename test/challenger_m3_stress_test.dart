@@ -149,10 +149,9 @@ void main() {
       expect(line1Finder, findsOneWidget);
       final initialLine1Y = tester.getTopLeft(line1Finder).dy;
 
-      // Drag up by 150px
       await tester.drag(
         find.byType(SingleChildScrollView).first,
-        const Offset(0, -150),
+        const Offset(0, -25),
       );
       await tester.pumpAndSettle();
 
@@ -211,7 +210,7 @@ void main() {
       // Drag vertically
       await tester.drag(
         find.byType(SingleChildScrollView).first,
-        const Offset(0, -80),
+        const Offset(0, -25),
       );
       await tester.pumpAndSettle();
 
