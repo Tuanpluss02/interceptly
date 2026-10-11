@@ -4,6 +4,7 @@ import 'package:interceptly/src/ui/widgets/json_viewer.dart';
 
 import '../../model/request_record.dart';
 import '../../session/body_decode_service.dart';
+import '../widgets/error_summary.dart';
 
 class DetailMatch {
   const DetailMatch({required this.tabIndex, required this.section});
@@ -16,6 +17,9 @@ enum DetailSection {
   overviewMethod,
   overviewStatus,
   overviewDuration,
+  overviewRequestSize,
+  overviewResponseSize,
+  overviewError,
   overviewTime,
   overviewNote,
   queryParams,
@@ -23,8 +27,118 @@ enum DetailSection {
   requestBody,
   responseHeaders,
   responseBody,
+  errorSummary,
   errorType,
   errorMessage,
+}
+
+String formatBytes(int bytes) {
+  if (bytes < 1024) return '$bytes B';
+  if (bytes < 1024 * 1024) {
+    return '${(bytes / 1024).toStringAsFixed(1)} KB';
+  }
+  return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+}
+
+Map<String, dynamic> parseFormUrlEncoded(String body) {
+  try {
+    return Uri.splitQueryString(body);
+  } catch (_) {
+    final map = <String, String>{};
+    for (final part in body.split('&')) {
+      if (part.isEmpty) continue;
+      final idx = part.indexOf('=');
+      if (idx < 0) {
+        map[Uri.decodeQueryComponent(part)] = '';
+      } else {
+        final k = part.substring(0, idx);
+        final v = part.substring(idx + 1);
+        map[Uri.decodeQueryComponent(k)] = Uri.decodeQueryComponent(v);
+      }
+    }
+    return map;
+  }
+}
+
+Map<String, dynamic> parseMultipartSummary(String body) {
+  final fields = <String, String>{};
+  final files = <Map<String, String>>[];
+  final rawLines = <String>[];
+
+  for (final line in body.split('\n')) {
+    final trimmed = line.trim();
+    if (trimmed.isEmpty) continue;
+
+    if (trimmed.startsWith('[field] ')) {
+      final payload = trimmed.substring(8);
+      final idx = payload.indexOf('=');
+      if (idx > 0) {
+        fields[payload.substring(0, idx).trim()] =
+            payload.substring(idx + 1).trim();
+      } else {
+        rawLines.add(trimmed);
+      }
+      continue;
+    }
+
+    if (trimmed.startsWith('[file] ')) {
+      final payload = trimmed.substring(7);
+      final idx = payload.indexOf(':');
+      if (idx > 0) {
+        final field = payload.substring(0, idx).trim();
+        final rest = payload.substring(idx + 1).trim();
+        files.add({'field': field, 'value': rest});
+      } else {
+        files.add({'value': payload});
+      }
+      continue;
+    }
+
+    rawLines.add(trimmed);
+  }
+
+  return {
+    'fields': fields,
+    'files': files,
+    if (rawLines.isNotEmpty) 'raw': rawLines,
+  };
+}
+
+dynamic formatBodyData({
+  required String? contentType,
+  required String? bodyPreview,
+  dynamic Function(String?)? tryParseJson,
+}) {
+  if (bodyPreview == null || bodyPreview.isEmpty) return 'No Data';
+  final ct = (contentType ?? '').toLowerCase();
+
+  if (ct.contains('application/x-www-form-urlencoded')) {
+    return parseFormUrlEncoded(bodyPreview);
+  }
+
+  if (ct.contains('multipart/form-data')) {
+    return parseMultipartSummary(bodyPreview);
+  }
+
+  if (ct.contains('application/graphql')) {
+    return {'query': bodyPreview};
+  }
+
+  final parsed = tryParseJson != null
+      ? tryParseJson(bodyPreview)
+      : jsonDecodeSafe(bodyPreview);
+  if (parsed is Map<String, dynamic> &&
+      (parsed.containsKey('query') ||
+          parsed.containsKey('operationName') ||
+          parsed.containsKey('variables'))) {
+    return {
+      'operationName': parsed['operationName'],
+      'query': parsed['query'],
+      'variables': parsed['variables'],
+    };
+  }
+
+  return parsed;
 }
 
 /// Synchronous variant — kept for backward compatibility with code paths that
@@ -76,13 +190,32 @@ List<DetailMatch> computeMatches(
     DetailSection.overviewDuration,
   );
   addMatches(
+    countOccurrences(formatBytes(record.requestSizeBytes)),
+    0,
+    DetailSection.overviewRequestSize,
+  );
+  addMatches(
+    countOccurrences(record.statusCode == 0 && !record.hasError
+        ? 'loading…'
+        : formatBytes(record.responseSizeBytes)),
+    0,
+    DetailSection.overviewResponseSize,
+  );
+  if (record.hasError) {
+    final shortErr = summarizeRequestError(
+      errorType: record.errorType,
+      errorMessage: record.errorMessage,
+    );
+    addMatches(countOccurrences(shortErr), 0, DetailSection.overviewError);
+  }
+  addMatches(
     countOccurrences(record.timestamp.toIso8601String()),
     0,
     DetailSection.overviewTime,
   );
   if (record.isBodyTruncated) {
     addMatches(
-      countOccurrences('Body truncated — response exceeded the size limit.'),
+      countOccurrences('Body truncated — exceeded maxBodyBytes limit.'),
       0,
       DetailSection.overviewNote,
     );
@@ -102,8 +235,13 @@ List<DetailMatch> computeMatches(
       1,
       DetailSection.requestHeaders,
     );
+    final reqBody = formatBodyData(
+      contentType: record.requestContentType,
+      bodyPreview: record.requestBodyPreview,
+      tryParseJson: tryParseJson,
+    );
     addMatches(
-      JsonViewer.countMatches(tryParseJson(record.requestBodyPreview), query),
+      JsonViewer.countMatches(reqBody, query),
       1,
       DetailSection.requestBody,
     );
@@ -113,12 +251,28 @@ List<DetailMatch> computeMatches(
       2,
       DetailSection.responseHeaders,
     );
+    final resBody = formatBodyData(
+      contentType: record.responseContentType,
+      bodyPreview: record.responseBodyPreview,
+      tryParseJson: tryParseJson,
+    );
     addMatches(
-      JsonViewer.countMatches(tryParseJson(record.responseBodyPreview), query),
+      JsonViewer.countMatches(resBody, query),
       2,
       DetailSection.responseBody,
     );
 
+    if (record.hasError) {
+      final shortErr = summarizeRequestError(
+        errorType: record.errorType,
+        errorMessage: record.errorMessage,
+      );
+      addMatches(
+        JsonViewer.countMatches(shortErr, query),
+        3,
+        DetailSection.errorSummary,
+      );
+    }
     addMatches(
       JsonViewer.countMatches(record.errorType ?? 'None', query),
       3,
@@ -234,10 +388,29 @@ List<DetailMatch> _computeMatchesIsolate(_IsolateArgs args) {
     0,
     DetailSection.overviewDuration,
   );
+  addMatches(
+    countOccurrences(formatBytes(r.requestSizeBytes)),
+    0,
+    DetailSection.overviewRequestSize,
+  );
+  addMatches(
+    countOccurrences(r.statusCode == 0 && r.errorType == null
+        ? 'loading…'
+        : formatBytes(r.responseSizeBytes)),
+    0,
+    DetailSection.overviewResponseSize,
+  );
+  if (r.errorType != null || r.errorMessage != null) {
+    final shortErr = summarizeRequestError(
+      errorType: r.errorType,
+      errorMessage: r.errorMessage,
+    );
+    addMatches(countOccurrences(shortErr), 0, DetailSection.overviewError);
+  }
   addMatches(countOccurrences(r.timestampIso), 0, DetailSection.overviewTime);
   if (r.isBodyTruncated) {
     addMatches(
-      countOccurrences('Body truncated — response exceeded the size limit.'),
+      countOccurrences('Body truncated — exceeded maxBodyBytes limit.'),
       0,
       DetailSection.overviewNote,
     );
@@ -257,14 +430,13 @@ List<DetailMatch> _computeMatchesIsolate(_IsolateArgs args) {
       1,
       DetailSection.requestHeaders,
     );
-    final reqBodyParsed = r.requestBodyPreview == null
-        ? null
-        : jsonDecodeSafe(r.requestBodyPreview!);
-    final resBodyParsed = r.responseBodyPreview == null
-        ? null
-        : jsonDecodeSafe(r.responseBodyPreview!);
+    final reqBody = formatBodyData(
+      contentType: r.requestContentType,
+      bodyPreview: r.requestBodyPreview,
+      tryParseJson: (s) => s != null ? jsonDecodeSafe(s) : null,
+    );
     addMatches(
-      JsonViewer.countMatches(reqBodyParsed, args.query),
+      JsonViewer.countMatches(reqBody, args.query),
       1,
       DetailSection.requestBody,
     );
@@ -273,11 +445,27 @@ List<DetailMatch> _computeMatchesIsolate(_IsolateArgs args) {
       2,
       DetailSection.responseHeaders,
     );
+    final resBody = formatBodyData(
+      contentType: r.responseContentType,
+      bodyPreview: r.responseBodyPreview,
+      tryParseJson: (s) => s != null ? jsonDecodeSafe(s) : null,
+    );
     addMatches(
-      JsonViewer.countMatches(resBodyParsed, args.query),
+      JsonViewer.countMatches(resBody, args.query),
       2,
       DetailSection.responseBody,
     );
+    if (r.errorType != null || r.errorMessage != null) {
+      final shortErr = summarizeRequestError(
+        errorType: r.errorType,
+        errorMessage: r.errorMessage,
+      );
+      addMatches(
+        JsonViewer.countMatches(shortErr, args.query),
+        3,
+        DetailSection.errorSummary,
+      );
+    }
     addMatches(
       JsonViewer.countMatches(r.errorType ?? 'None', args.query),
       3,

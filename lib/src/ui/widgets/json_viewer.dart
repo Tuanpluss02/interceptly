@@ -63,7 +63,7 @@ class JsonViewer extends StatefulWidget {
     if (data is bool) return _countIn(data.toString(), q);
     if (data is num) return _countIn(data.toString(), q);
     if (data is String) {
-      return _countIn(data, q);
+      return _countIn('"$data"', q);
     }
     if (data is List) {
       int total = 0;
@@ -75,7 +75,7 @@ class JsonViewer extends StatefulWidget {
     if (data is Map) {
       int total = 0;
       for (final entry in data.entries) {
-        total += _countIn(entry.key.toString(), q);
+        total += _countIn('"${entry.key}"', q);
         total += countMatches(entry.value, query);
       }
       return total;
@@ -189,6 +189,8 @@ class _JsonViewerState extends State<JsonViewer> {
 
   final ScrollController _contentScrollController = ScrollController();
 
+  final ScrollController _horizontalScrollController = ScrollController();
+
   bool _isSyncingScroll = false;
 
   List<_FlatLine>? _memoLines;
@@ -214,6 +216,116 @@ class _JsonViewerState extends State<JsonViewer> {
   Expando<int>? _lineCountMemo;
 
   final FocusNode _selectableFocusNode = FocusNode();
+
+  @visibleForTesting
+  List<_FlatLine>? get memoLinesForTest => _memoLines;
+
+  @visibleForTesting
+  ScrollController get contentScrollControllerForTest =>
+      _contentScrollController;
+
+  @visibleForTesting
+  ScrollController get horizontalScrollControllerForTest =>
+      _horizontalScrollController;
+
+  int? _lastScrolledGlobalIndex;
+  String? _lastScrolledQuery;
+
+  void _checkScrollToActive({
+    required int activeLineIndex,
+    required _FlatLine line,
+    required double viewportHeight,
+    required double viewportWidth,
+    required double lineHeight,
+    required TextStyle contentStyle,
+  }) {
+    if (_lastScrolledGlobalIndex == widget.activeGlobalIndex &&
+        _lastScrolledQuery == widget.searchQuery) {
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_contentScrollController.hasClients) {
+        final maxScroll = _contentScrollController.position.maxScrollExtent;
+        final totalContentHeight = (_memoLines?.length ?? 0) * lineHeight;
+        final needsScroll = totalContentHeight > viewportHeight;
+        if (needsScroll && maxScroll <= 0) {
+          // Layout extent not yet settled (e.g. just mounted from offstage)
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              _checkScrollToActive(
+                activeLineIndex: activeLineIndex,
+                line: line,
+                viewportHeight: viewportHeight,
+                viewportWidth: viewportWidth,
+                lineHeight: lineHeight,
+                contentStyle: contentStyle,
+              );
+            }
+          });
+          return;
+        }
+
+        _lastScrolledGlobalIndex = widget.activeGlobalIndex;
+        _lastScrolledQuery = widget.searchQuery;
+
+        if (maxScroll > 0) {
+          final targetOffset =
+              (activeLineIndex * lineHeight - (viewportHeight - lineHeight) / 2)
+                  .clamp(0.0, maxScroll);
+          if ((_contentScrollController.offset - targetOffset).abs() > 1.0) {
+            _contentScrollController.animateTo(
+              targetOffset,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+            );
+          }
+        }
+
+        if (_horizontalScrollController.hasClients) {
+          final maxHorizontal =
+              _horizontalScrollController.position.maxScrollExtent;
+          if (maxHorizontal > 0) {
+            final textBefore = line.spans
+                .takeWhile(
+                    (s) => s.style?.backgroundColor != _activeHighlightColor)
+                .map((s) => s.text ?? '')
+                .join();
+            final textPainter = TextPainter(
+              text: TextSpan(text: textBefore, style: contentStyle),
+              textDirection: TextDirection.ltr,
+            )..layout();
+            final matchLeft =
+                4.0 + line.indentLevel * 16.0 + textPainter.width;
+
+            double matchWidth = 0.0;
+            if (widget.searchQuery != null && widget.searchQuery!.isNotEmpty) {
+              final matchPainter = TextPainter(
+                text: TextSpan(
+                    text: widget.searchQuery!, style: contentStyle),
+                textDirection: TextDirection.ltr,
+              )..layout();
+              matchWidth = matchPainter.width;
+            }
+
+            final targetHorizontal =
+                (matchLeft - (viewportWidth - matchWidth) / 2)
+                    .clamp(0.0, maxHorizontal);
+
+            if ((_horizontalScrollController.offset - targetHorizontal).abs() >
+                1.0) {
+              _horizontalScrollController.animateTo(
+                targetHorizontal,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOut,
+              );
+            }
+          }
+        }
+      }
+    });
+  }
 
   @override
   void initState() {
@@ -257,6 +369,8 @@ class _JsonViewerState extends State<JsonViewer> {
         widget.searchQuery != oldWidget.searchQuery) {
       _searchAutoExpanded.clear();
       _userCollapsedPaths.clear();
+      _lastScrolledGlobalIndex = null;
+      _lastScrolledQuery = widget.searchQuery;
     }
     if (!identical(widget.data, oldWidget.data)) {
       _lineCountMemo = null;
@@ -275,6 +389,7 @@ class _JsonViewerState extends State<JsonViewer> {
     _gutterScrollController.removeListener(_syncContent);
     _contentScrollController.dispose();
     _gutterScrollController.dispose();
+    _horizontalScrollController.dispose();
     _selectableFocusNode.dispose();
     super.dispose();
   }
@@ -367,9 +482,11 @@ class _JsonViewerState extends State<JsonViewer> {
         }
       } else if (value is Map) {
         value.forEach((k, v) {
-          total += JsonViewer._countIn(k.toString(), query);
+          total += JsonViewer._countIn('"$k"', query);
           total += walk(v, '$path.$k');
         });
+      } else if (value is String) {
+        total += JsonViewer._countIn('"$value"', query);
       } else if (value != null) {
         total += JsonViewer._countIn(value.toString(), query);
       } else {
@@ -498,29 +615,22 @@ class _JsonViewerState extends State<JsonViewer> {
             ? constraints.maxHeight
             : (lines.length * lineHeight).clamp(24.0, 500.0);
 
-        if (activeLineIndex != null) {
-          final targetIndex = activeLineIndex;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (_contentScrollController.hasClients) {
-              final maxScroll =
-                  _contentScrollController.position.maxScrollExtent;
-              final targetOffset =
-                  (targetIndex * lineHeight - (viewportHeight - lineHeight) / 2)
-                      .clamp(0.0, maxScroll);
-              _contentScrollController.animateTo(
-                targetOffset,
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeInOut,
-              );
-            }
-          });
-        }
-
         final gutterTotalWidth = lineNumberWidth + _foldIconWidth + 8.0;
         final minContentWidth = constraints.hasBoundedWidth
             ? math.max(0.0, constraints.maxWidth - gutterTotalWidth)
             : 0.0;
         final contentWidth = math.max(minContentWidth, maxChars * 7.5 + 40.0);
+
+        if (activeLineIndex != null) {
+          _checkScrollToActive(
+            activeLineIndex: activeLineIndex,
+            line: lines[activeLineIndex],
+            viewportHeight: viewportHeight,
+            viewportWidth: minContentWidth,
+            lineHeight: lineHeight,
+            contentStyle: contentStyle,
+          );
+        }
 
         return SizedBox(
           height: viewportHeight,
@@ -565,6 +675,7 @@ class _JsonViewerState extends State<JsonViewer> {
                     ),
                     Expanded(
                       child: SingleChildScrollView(
+                        controller: _horizontalScrollController,
                         scrollDirection: Axis.horizontal,
                         child: SizedBox(
                           width: contentWidth,

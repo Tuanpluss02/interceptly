@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
 import 'package:interceptly/src/ui/widgets/error_summary.dart';
@@ -15,6 +13,7 @@ class DetailTabsBuilder {
   final String query;
   final bool urlDecodeEnabled;
   final dynamic Function(String?) tryParseJson;
+  final Map<DetailSection, GlobalKey>? sectionKeys;
 
   DetailTabsBuilder({
     required this.record,
@@ -23,6 +22,7 @@ class DetailTabsBuilder {
     required this.query,
     required this.urlDecodeEnabled,
     required this.tryParseJson,
+    this.sectionKeys,
   });
 
   Widget buildOverviewTab() {
@@ -74,21 +74,21 @@ class DetailTabsBuilder {
         const SizedBox(height: 16),
         _buildOverviewRow(
           'Request size',
-          _formatBytes(record.requestSizeBytes),
-          DetailSection.overviewDuration,
+          formatBytes(record.requestSizeBytes),
+          DetailSection.overviewRequestSize,
         ),
         const SizedBox(height: 16),
         _buildOverviewRow(
           'Response size',
-          isPending ? 'loading…' : _formatBytes(record.responseSizeBytes),
-          DetailSection.overviewDuration,
+          isPending ? 'loading…' : formatBytes(record.responseSizeBytes),
+          DetailSection.overviewResponseSize,
         ),
         if (record.hasError) ...[
           const SizedBox(height: 16),
           _buildOverviewRow(
             'Error',
             shortError,
-            DetailSection.errorType,
+            DetailSection.overviewError,
             valueStyle: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
               color: InterceptlyTheme.yellow400,
               fontSize: 12,
@@ -240,7 +240,7 @@ class DetailTabsBuilder {
       padding: const EdgeInsets.all(16.0).copyWith(bottom: 100),
       children: [
         _buildSectionHeader('Error Summary', color: InterceptlyTheme.yellow400),
-        _buildJsonBox(shortError, DetailSection.errorType),
+        _buildJsonBox(shortError, DetailSection.errorSummary),
         const SizedBox(height: 24),
         _buildSectionHeader('Error Type', color: InterceptlyTheme.yellow400),
         _buildJsonBox(record.errorType ?? 'None', DetailSection.errorType),
@@ -407,21 +407,24 @@ class DetailTabsBuilder {
       valueWidget = Text(value, style: baseStyle);
     }
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 80,
-          child: Text(
-            label,
-            style: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
-              fontSize: 12,
-              color: InterceptlyTheme.textMuted,
+    return Container(
+      key: sectionKeys?[section],
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              label,
+              style: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
+                fontSize: 12,
+                color: InterceptlyTheme.textMuted,
+              ),
             ),
           ),
-        ),
-        Expanded(child: valueWidget),
-      ],
+          Expanded(child: valueWidget),
+        ],
+      ),
     );
   }
 
@@ -501,98 +504,11 @@ class DetailTabsBuilder {
     required String? contentType,
     required String? bodyPreview,
   }) {
-    if (bodyPreview == null || bodyPreview.isEmpty) return 'No Data';
-    final ct = (contentType ?? '').toLowerCase();
-
-    if (ct.contains('application/x-www-form-urlencoded')) {
-      return _parseFormUrlEncoded(bodyPreview);
-    }
-
-    if (ct.contains('multipart/form-data')) {
-      return _parseMultipartSummary(bodyPreview);
-    }
-
-    if (ct.contains('application/graphql')) {
-      return {'query': bodyPreview};
-    }
-
-    final parsed = tryParseJson(bodyPreview);
-    if (parsed is Map<String, dynamic> &&
-        (parsed.containsKey('query') ||
-            parsed.containsKey('operationName') ||
-            parsed.containsKey('variables'))) {
-      return {
-        'operationName': parsed['operationName'],
-        'query': parsed['query'],
-        'variables': parsed['variables'],
-      };
-    }
-
-    return parsed;
-  }
-
-  Map<String, dynamic> _parseFormUrlEncoded(String body) {
-    try {
-      return Uri.splitQueryString(body, encoding: utf8);
-    } catch (_) {
-      final map = <String, String>{};
-      for (final part in body.split('&')) {
-        if (part.isEmpty) continue;
-        final idx = part.indexOf('=');
-        if (idx < 0) {
-          map[Uri.decodeQueryComponent(part)] = '';
-        } else {
-          final k = part.substring(0, idx);
-          final v = part.substring(idx + 1);
-          map[Uri.decodeQueryComponent(k)] = Uri.decodeQueryComponent(v);
-        }
-      }
-      return map;
-    }
-  }
-
-  Map<String, dynamic> _parseMultipartSummary(String body) {
-    final fields = <String, String>{};
-    final files = <Map<String, String>>[];
-    final rawLines = <String>[];
-
-    for (final line in body.split('\n')) {
-      final trimmed = line.trim();
-      if (trimmed.isEmpty) continue;
-
-      if (trimmed.startsWith('[field] ')) {
-        final payload = trimmed.substring(8);
-        final idx = payload.indexOf('=');
-        if (idx > 0) {
-          fields[payload.substring(0, idx).trim()] =
-              payload.substring(idx + 1).trim();
-        } else {
-          rawLines.add(trimmed);
-        }
-        continue;
-      }
-
-      if (trimmed.startsWith('[file] ')) {
-        final payload = trimmed.substring(7);
-        final idx = payload.indexOf(':');
-        if (idx > 0) {
-          final field = payload.substring(0, idx).trim();
-          final rest = payload.substring(idx + 1).trim();
-          files.add({'field': field, 'value': rest});
-        } else {
-          files.add({'value': payload});
-        }
-        continue;
-      }
-
-      rawLines.add(trimmed);
-    }
-
-    return {
-      'fields': fields,
-      'files': files,
-      if (rawLines.isNotEmpty) 'raw': rawLines,
-    };
+    return formatBodyData(
+      contentType: contentType,
+      bodyPreview: bodyPreview,
+      tryParseJson: tryParseJson,
+    );
   }
 
   bool _isBinaryPayload(String? contentType, String? bodyPreview) {
@@ -674,6 +590,7 @@ class DetailTabsBuilder {
     if (matchOffset < 0) matchOffset = 0;
 
     return Container(
+      key: sectionKeys?[section],
       width: double.infinity,
       padding: const EdgeInsets.all(12.0),
       decoration: BoxDecoration(
@@ -688,13 +605,5 @@ class DetailTabsBuilder {
         activeGlobalIndex: activeGlobalIndex,
       ),
     );
-  }
-
-  static String _formatBytes(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) {
-      return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    }
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 }

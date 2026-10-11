@@ -55,6 +55,10 @@ class _RequestDetailPageState extends State<RequestDetailPage>
 
   final Set<int> _visitedTabs = {0};
   int _detailLoadGeneration = 0;
+  final Map<DetailSection, GlobalKey> _sectionKeys = {
+    for (final s in DetailSection.values) s: GlobalKey(),
+  };
+  int _scrollNavGeneration = 0;
 
   @override
   void initState() {
@@ -158,6 +162,47 @@ class _RequestDetailPageState extends State<RequestDetailPage>
       _cachedMatches = next;
       _currentMatchIndex = 0;
     });
+    if (next.isNotEmpty) {
+      _scrollToActiveMatch(next[0]);
+    }
+  }
+
+  void _scrollToActiveMatch(DetailMatch activeMatch) {
+    final gen = ++_scrollNavGeneration;
+
+    void executeOuterScroll() {
+      if (!mounted || gen != _scrollNavGeneration) return;
+      final key = _sectionKeys[activeMatch.section];
+      final targetContext = key?.currentContext;
+      if (targetContext != null) {
+        Scrollable.ensureVisible(
+          targetContext,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeInOut,
+          alignment: 0.05,
+        );
+      }
+    }
+
+    if (_tabController.index != activeMatch.tabIndex) {
+      if (_tabController.length > activeMatch.tabIndex) {
+        if (!_visitedTabs.contains(activeMatch.tabIndex)) {
+          setState(() {
+            _visitedTabs.add(activeMatch.tabIndex);
+          });
+        }
+        _tabController.animateTo(activeMatch.tabIndex);
+        Future.delayed(const Duration(milliseconds: 320), () {
+          if (mounted && gen == _scrollNavGeneration) {
+            executeOuterScroll();
+          }
+        });
+      }
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        executeOuterScroll();
+      });
+    }
   }
 
   Future<void> _parseBodiesAsync(RequestRecord record) async {
@@ -330,18 +375,6 @@ class _RequestDetailPageState extends State<RequestDetailPage>
 
               final activeGlobalIndex =
                   totalMatches == 0 ? null : effectiveIndex;
-              final activeMatch =
-                  totalMatches == 0 ? null : matches[effectiveIndex];
-
-              if (activeMatch != null &&
-                  _tabController.index != activeMatch.tabIndex &&
-                  _tabController.length > activeMatch.tabIndex) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted) {
-                    _tabController.animateTo(activeMatch.tabIndex);
-                  }
-                });
-              }
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -404,9 +437,14 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                           onPressed: totalMatches == 0
                               ? null
                               : () {
+                                  final newIndex =
+                                      (_currentMatchIndex - 1) % totalMatches;
+                                  final normalized =
+                                      (newIndex + totalMatches) % totalMatches;
                                   setState(() {
-                                    _currentMatchIndex--;
+                                    _currentMatchIndex = normalized;
                                   });
+                                  _scrollToActiveMatch(matches[normalized]);
                                 },
                         ),
                         IconButton(
@@ -419,9 +457,14 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                           onPressed: totalMatches == 0
                               ? null
                               : () {
+                                  final newIndex =
+                                      (_currentMatchIndex + 1) % totalMatches;
+                                  final normalized =
+                                      (newIndex + totalMatches) % totalMatches;
                                   setState(() {
-                                    _currentMatchIndex++;
+                                    _currentMatchIndex = normalized;
                                   });
+                                  _scrollToActiveMatch(matches[normalized]);
                                 },
                         ),
                       ],
@@ -457,6 +500,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                           query: _query,
                           urlDecodeEnabled: urlDecodeEnabled,
                           tryParseJson: _tryParseJson,
+                          sectionKeys: _sectionKeys,
                         );
                         return IndexedStack(
                           index: tabIndex,
