@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../session/request_id.dart';
 import '../../model/network_simulation.dart';
@@ -36,8 +36,8 @@ class InterceptlyDioInterceptor extends Interceptor {
 
     Uint8List? reqBytes;
     if (session.isEnabled) {
-      reqBytes = guardCapture<Uint8List?>(
-          () => _toBytes(options.data, options.contentType));
+      reqBytes = await guardCaptureAsync<Uint8List?>(
+          () => _toBytesAsync(options.data, options.contentType));
       options.extra[_reqBytesKey] = reqBytes;
 
       guardCapture(() {
@@ -87,12 +87,16 @@ class InterceptlyDioInterceptor extends Interceptor {
   ) async {
     await guardCaptureAsync(() async {
       final resContentType = response.headers.value(Headers.contentTypeHeader);
-      final resBytes = _toBytes(response.data, resContentType);
+      final resBytes = await _toBytesAsync(response.data, resContentType);
       await session.applyNetworkSimulationAfterResponse(
         downloadBytes: resBytes?.length ?? 0,
       );
 
-      _record(options: response.requestOptions, response: response);
+      await _recordAsync(
+        options: response.requestOptions,
+        response: response,
+        resBytes: resBytes,
+      );
     });
 
     handler.next(response);
@@ -111,6 +115,48 @@ class InterceptlyDioInterceptor extends Interceptor {
     });
 
     handler.next(err);
+  }
+
+  Future<void> _recordAsync({
+    required RequestOptions options,
+    Response<dynamic>? response,
+    Uint8List? resBytes,
+    String? errorType,
+    String? errorMessage,
+  }) async {
+    if (!session.isEnabled) return;
+
+    final startedAt =
+        options.extra[_startedAtKey] as DateTime? ?? DateTime.now();
+    final id = options.extra[_requestIdKey] as String? ?? RequestId.generate();
+    final durationMs = DateTime.now().difference(startedAt).inMilliseconds;
+
+    final reqBytes = options.extra[_reqBytesKey] as Uint8List? ??
+        await _toBytesAsync(options.data, options.contentType);
+    final resContentType = response?.headers.value(Headers.contentTypeHeader);
+    final finalResBytes = resBytes ??
+        await _toBytesAsync(response?.data, resContentType);
+
+    final capture = RawCapture(
+      id: id,
+      method: options.method,
+      url: options.uri.toString(),
+      requestHeaders: _mapHeaders(options.headers),
+      responseHeaders:
+          response?.headers.map.map((k, v) => MapEntry(k, v.join(', '))) ??
+              const {},
+      statusCode: response?.statusCode ?? 0,
+      durationMs: durationMs,
+      timestamp: startedAt,
+      requestBodyBytes: RawCapture.wrapBytes(reqBytes),
+      responseBodyBytes: RawCapture.wrapBytes(finalResBytes),
+      requestContentType: options.contentType,
+      responseContentType: resContentType,
+      errorType: errorType,
+      errorMessage: errorMessage,
+    );
+
+    session.record(capture);
   }
 
   void _record({
@@ -162,7 +208,40 @@ class InterceptlyDioInterceptor extends Interceptor {
     });
   }
 
-  /// Converts request/response data to raw bytes for the capture.
+  /// Serializes arbitrary data to UTF-8 bytes in an isolate when appropriate.
+  static Future<Uint8List?> _toBytesAsync(Object? data, [String? contentType]) async {
+    if (data == null) return null;
+    if (data is Uint8List) return data;
+    if (data is List<int>) return Uint8List.fromList(data);
+
+    if (data is String) {
+      if (data.length > 50 * 1024) {
+        return compute(utf8.encode, data);
+      }
+      return utf8.encode(data);
+    }
+
+    if (data is Map || data is List) {
+      final isLarge = (data is List && data.length > 100) ||
+          (data is Map && data.length > 100);
+      if (isLarge) {
+        return compute(_encodeJsonBytes, data);
+      }
+      return _toBytes(data, contentType);
+    }
+
+    return _toBytes(data, contentType);
+  }
+
+  static Uint8List _encodeJsonBytes(Object? data) {
+    try {
+      return utf8.encode(jsonEncode(data));
+    } catch (_) {
+      return utf8.encode(data.toString());
+    }
+  }
+
+  /// Converts request/response data to raw bytes for the capture synchronously.
   static Uint8List? _toBytes(Object? data, [String? contentType]) {
     if (data == null) return null;
 

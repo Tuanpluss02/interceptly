@@ -632,7 +632,7 @@ void main() {
       expect(dir.path, equals(shareTempDir.path));
     });
 
-    testWidgets('banner displays when isUiTruncated is true and formats sizes accurately', (tester) async {
+    testWidgets('banner is not displayed when isUiTruncated is true', (tester) async {
       const totalSize = 3 * 1024 * 1024;
       final record = _buildTestRecord(
         id: 'banner_trunc',
@@ -657,9 +657,9 @@ void main() {
       await tester.tap(find.text('Response'));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('Response is 3.0 MB'), findsOneWidget);
-      expect(find.textContaining('Body truncated preview: showing first 2.0 MB'), findsOneWidget);
-      expect(find.text('Export Full'), findsOneWidget);
+      expect(find.textContaining('Body truncated preview'), findsNothing);
+      expect(find.text('Export Full'), findsNothing);
+      expect(find.textContaining('preview'), findsOneWidget);
     });
 
     testWidgets('banner does not display when payload is <= 2MB and untruncated', (tester) async {

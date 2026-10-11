@@ -362,8 +362,8 @@ void main() {
     });
   });
 
-  group('Milestone 2: UI Truncation Warning Banner', () {
-    testWidgets('renders warning banner with export button when isUiTruncated is true', (tester) async {
+  group('Milestone 2: UI Truncation Clean Rendering', () {
+    testWidgets('renders response content without warning banner when isUiTruncated is true', (tester) async {
       final largeBytes = Uint8List(5 * 1024 * 1024);
       final record = _createRecord(
         id: 'rec_trunc_banner_1',
@@ -392,9 +392,9 @@ void main() {
       await tester.tap(find.text('Response'));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('Body truncated preview'), findsOneWidget);
-      expect(find.textContaining('Response is 5.0 MB'), findsOneWidget);
-      expect(find.text('Export Full'), findsOneWidget);
+      expect(find.textContaining('Body truncated preview'), findsNothing);
+      expect(find.text('Export Full'), findsNothing);
+      expect(find.textContaining('first 2MB'), findsOneWidget);
     });
 
     testWidgets('does not render warning banner when isUiTruncated is false', (tester) async {

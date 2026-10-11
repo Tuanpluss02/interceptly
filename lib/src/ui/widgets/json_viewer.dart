@@ -195,6 +195,8 @@ class _JsonViewerState extends State<JsonViewer> {
 
   double _memoLineNumberWidth = 0;
 
+  int _memoMaxChars = 0;
+
   Map<String, int>? _memoMatchCounts;
 
   Object? _memoData;
@@ -208,6 +210,8 @@ class _JsonViewerState extends State<JsonViewer> {
   Brightness? _memoBrightness;
 
   bool _memoForceCollapse = false;
+
+  Expando<int>? _lineCountMemo;
 
   final FocusNode _selectableFocusNode = FocusNode();
 
@@ -253,6 +257,9 @@ class _JsonViewerState extends State<JsonViewer> {
         widget.searchQuery != oldWidget.searchQuery) {
       _searchAutoExpanded.clear();
       _userCollapsedPaths.clear();
+    }
+    if (!identical(widget.data, oldWidget.data)) {
+      _lineCountMemo = null;
     }
     if (!identical(widget.data, oldWidget.data) ||
         widget.searchQuery != oldWidget.searchQuery ||
@@ -306,8 +313,9 @@ class _JsonViewerState extends State<JsonViewer> {
         _memoBrightness == brightness) {
       return;
     }
+    _lineCountMemo ??= Expando<int>('json_line_counts');
     _memoForceCollapse =
-        _countExpandedLines(widget.data) > _largeDocLineThreshold;
+        _countExpandedLines(widget.data, _lineCountMemo) > _largeDocLineThreshold;
     _memoMatchCounts = effectiveQuery == null
         ? null
         : _matchCountsByPath(widget.data, effectiveQuery);
@@ -331,9 +339,21 @@ class _JsonViewerState extends State<JsonViewer> {
     _memoBrightness = brightness;
     if (lines.isEmpty) {
       _memoLineNumberWidth = 0;
+      _memoMaxChars = 0;
     } else {
       final digits = lines.last.realLineNumber.toString().length;
       _memoLineNumberWidth = digits * 8.0 + 8.0;
+      int maxLen = 60;
+      final sampleCount = math.min(lines.length, 200);
+      for (int i = 0; i < sampleCount; i++) {
+        final line = lines[i];
+        var len = line.indentLevel * 2;
+        for (final s in line.spans) {
+          len += (s.text?.length ?? 0);
+        }
+        if (len > maxLen) maxLen = len;
+      }
+      _memoMaxChars = maxLen;
     }
   }
 
@@ -388,27 +408,45 @@ class _JsonViewerState extends State<JsonViewer> {
   /// Used to assign correct real line numbers when a collapsible node
   /// is folded — the line numbers skip the hidden range, matching
   /// VSCode behavior.
-  static int _countExpandedLines(dynamic value) {
+  static int _countExpandedLines(
+    dynamic value, [
+    Expando<int>? memo,
+  ]) {
     if (value == null || value is bool || value is num || value is String) {
       return 1;
     }
+    if (memo != null && (value is List || value is Map)) {
+      final cached = memo[value];
+      if (cached != null) return cached;
+    }
+
+    int count = 1;
     if (value is List) {
-      if (value.isEmpty) return 1; // rendered as "[]"
-      int total = 2; // opening '[' + closing ']'
-      for (final item in value) {
-        total += _countExpandedLines(item);
+      if (value.isEmpty) {
+        count = 1;
+      } else {
+        int total = 2;
+        for (final item in value) {
+          total += _countExpandedLines(item, memo);
+        }
+        count = total;
       }
-      return total;
-    }
-    if (value is Map) {
-      if (value.isEmpty) return 1; // rendered as "{}"
-      int total = 2; // opening '{' + closing '}'
-      for (final entry in value.entries) {
-        total += _countExpandedLines(entry.value);
+    } else if (value is Map) {
+      if (value.isEmpty) {
+        count = 1;
+      } else {
+        int total = 2;
+        for (final entry in value.entries) {
+          total += _countExpandedLines(entry.value, memo);
+        }
+        count = total;
       }
-      return total;
     }
-    return 1; // fallback for unknown types
+
+    if (memo != null && (value is List || value is Map)) {
+      memo[value] = count;
+    }
+    return count;
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -443,18 +481,15 @@ class _JsonViewerState extends State<JsonViewer> {
     );
     const lineHeight = 18.0; // fontSize 12 × height 1.5
 
-    int maxChars = 0;
+    final maxChars = _memoMaxChars;
     int? activeLineIndex;
-    for (int i = 0; i < lines.length; i++) {
-      final line = lines[i];
-      if (line.hasActiveMatch && activeLineIndex == null) {
-        activeLineIndex = i;
+    if (widget.activeGlobalIndex != null) {
+      for (int i = 0; i < lines.length; i++) {
+        if (lines[i].hasActiveMatch) {
+          activeLineIndex = i;
+          break;
+        }
       }
-      var len = line.indentLevel * 2;
-      for (final s in line.spans) {
-        len += (s.text?.length ?? 0);
-      }
-      if (len > maxChars) maxChars = len;
     }
 
     return LayoutBuilder(
@@ -755,6 +790,18 @@ class _JsonViewerState extends State<JsonViewer> {
           currentOffset, query, commaSpan, realLine);
     }
     if (value is String) {
+      if (value.contains('\n') || value.length > 2000) {
+        return _emitChunkedString(
+          output: output,
+          indent: indent,
+          keySpans: keySpans,
+          value: value,
+          commaSpan: commaSpan,
+          currentOffset: currentOffset,
+          query: query,
+          realLine: realLine,
+        );
+      }
       return _emitLeaf(output, indent, keySpans, '"$value"', _stringColor,
           currentOffset, query, commaSpan, realLine);
     }
@@ -890,6 +937,85 @@ class _JsonViewerState extends State<JsonViewer> {
     return (matchOffset: matchOffset, nextRealLine: realLine + 1);
   }
 
+  ({int matchOffset, int nextRealLine}) _emitChunkedString({
+    required List<_FlatLine> output,
+    required int indent,
+    required List<TextSpan> keySpans,
+    required String value,
+    required TextSpan? commaSpan,
+    required int currentOffset,
+    required String? query,
+    required int realLine,
+  }) {
+    final splitLines = value.split('\n');
+    final rawLines = <String>[];
+    const maxLineLen = 1000;
+    for (final l in splitLines) {
+      if (l.length <= maxLineLen) {
+        rawLines.add(l);
+      } else {
+        for (int i = 0; i < l.length; i += maxLineLen) {
+          rawLines.add(l.substring(i, math.min(i + maxLineLen, l.length)));
+        }
+      }
+    }
+
+    int lineNum = realLine;
+    int offset = currentOffset;
+
+    for (int i = 0; i < rawLines.length; i++) {
+      final lineStr = rawLines[i];
+      final isFirst = i == 0;
+      final isLastLine = i == rawLines.length - 1;
+
+      final chunkSpans = <TextSpan>[
+        if (isFirst) ...keySpans,
+      ];
+
+      final prefix = isFirst ? '"' : '';
+      final suffix = isLastLine ? '"' : '';
+      final displayText = '$prefix$lineStr$suffix';
+
+      bool hasActiveMatch = false;
+      if (query != null) {
+        final highlighted = JsonViewer.buildHighlightedSpans(
+          displayText,
+          query,
+          offset,
+          widget.activeGlobalIndex,
+          _stringColor,
+        );
+        final activeInText = highlighted.any(
+          (s) => s.style?.backgroundColor == _activeHighlightColor,
+        );
+        final activeInKey = isFirst && keySpans.any(_spanHasActiveHighlight);
+        hasActiveMatch = activeInText || activeInKey;
+        chunkSpans.addAll(highlighted);
+        offset += JsonViewer._countIn(displayText, query);
+      } else {
+        chunkSpans.add(TextSpan(
+          text: displayText,
+          style: _baseTextStyle.copyWith(color: _stringColor),
+        ));
+      }
+
+      if (isLastLine && commaSpan != null) {
+        chunkSpans.add(commaSpan);
+      }
+
+      output.add(_FlatLine(
+        indentLevel: isFirst ? indent : indent + 1,
+        realLineNumber: lineNum,
+        spans: chunkSpans,
+        hasActiveMatch: hasActiveMatch,
+      ));
+
+      lineNum++;
+    }
+
+    return (matchOffset: offset, nextRealLine: lineNum);
+  }
+
   /// Emit lines for a collapsible Map or List.
   ///
   /// When expanded: header + children + closing bracket.
@@ -983,7 +1109,7 @@ class _JsonViewerState extends State<JsonViewer> {
       // The real line number is the opening bracket line. We advance
       // by the total expanded line count so the next sibling picks up
       // the correct real line number.
-      final expandedLineCount = _countExpandedLines(rawValue);
+      final expandedLineCount = _countExpandedLines(rawValue, _lineCountMemo);
 
       output.add(_FlatLine(
         indentLevel: indent,

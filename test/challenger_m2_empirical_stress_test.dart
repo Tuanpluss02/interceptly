@@ -626,8 +626,8 @@ void main() {
     });
   });
 
-  group('Empirical Challenge 4: UI Warning Banner and Truncation Notice', () {
-    testWidgets('Response tab renders prominent warning banner and triggers export action', (tester) async {
+  group('Empirical Challenge 4: UI Truncation Clean Rendering', () {
+    testWidgets('Response tab renders response cleanly without warning banner when isUiTruncated is true', (tester) async {
       final largeBytes = Uint8List(4 * 1024 * 1024);
       final record = RequestRecord(
         id: 'rec_ui_banner_check',
@@ -673,9 +673,9 @@ void main() {
       await tester.tap(find.text('Response'));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('Response is 4.0 MB'), findsOneWidget);
-      expect(find.textContaining('Body truncated preview: showing first 2.0 MB to avoid UI lag.'), findsOneWidget);
-      expect(find.text('Export Full'), findsOneWidget);
+      expect(find.textContaining('Body truncated preview'), findsNothing);
+      expect(find.text('Export Full'), findsNothing);
+      expect(find.textContaining('first 2MB'), findsOneWidget);
     });
   });
 }

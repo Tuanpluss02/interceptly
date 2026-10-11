@@ -1,9 +1,9 @@
-import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:interceptly/src/ui/widgets/json_viewer.dart';
 
 import '../../model/request_record.dart';
+import '../../session/body_decode_service.dart';
 
 class DetailMatch {
   const DetailMatch({required this.tabIndex, required this.section});
@@ -169,15 +169,9 @@ Future<List<DetailMatch>> computeMatchesAsync(
   }
   try {
     final snapshot = snapshotRecord(record);
-    final reqJson = snapshot.requestBodyPreview == null
-        ? null
-        : jsonDecodeSafe(snapshot.requestBodyPreview!);
-    final resJson = snapshot.responseBodyPreview == null
-        ? null
-        : jsonDecodeSafe(snapshot.responseBodyPreview!);
     return compute(
       _computeMatchesIsolate,
-      _IsolateArgs(snapshot, query, isWs, reqJson, resJson),
+      _IsolateArgs(snapshot, query, isWs),
     );
   } catch (_) {
     return SynchronousFuture(
@@ -186,11 +180,7 @@ Future<List<DetailMatch>> computeMatchesAsync(
 }
 
 dynamic jsonDecodeSafe(String text) {
-  try {
-    return jsonDecode(text);
-  } catch (_) {
-    return text;
-  }
+  return BodyDecodeService.decodeJsonLenient(text);
 }
 
 dynamic _syncParseJson(String? s) => s == null ? null : jsonDecodeSafe(s);
@@ -199,14 +189,10 @@ class _IsolateArgs {
   final RequestRecordSnapshot record;
   final String query;
   final bool isWs;
-  final dynamic requestBody;
-  final dynamic responseBody;
   const _IsolateArgs(
     this.record,
     this.query,
     this.isWs,
-    this.requestBody,
-    this.responseBody,
   );
 }
 
@@ -271,8 +257,14 @@ List<DetailMatch> _computeMatchesIsolate(_IsolateArgs args) {
       1,
       DetailSection.requestHeaders,
     );
+    final reqBodyParsed = r.requestBodyPreview == null
+        ? null
+        : jsonDecodeSafe(r.requestBodyPreview!);
+    final resBodyParsed = r.responseBodyPreview == null
+        ? null
+        : jsonDecodeSafe(r.responseBodyPreview!);
     addMatches(
-      JsonViewer.countMatches(args.requestBody, args.query),
+      JsonViewer.countMatches(reqBodyParsed, args.query),
       1,
       DetailSection.requestBody,
     );
@@ -282,7 +274,7 @@ List<DetailMatch> _computeMatchesIsolate(_IsolateArgs args) {
       DetailSection.responseHeaders,
     );
     addMatches(
-      JsonViewer.countMatches(args.responseBody, args.query),
+      JsonViewer.countMatches(resBodyParsed, args.query),
       2,
       DetailSection.responseBody,
     );

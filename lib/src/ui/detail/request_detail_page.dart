@@ -161,16 +161,27 @@ class _RequestDetailPageState extends State<RequestDetailPage>
   }
 
   Future<void> _parseBodiesAsync(RequestRecord record) async {
-    Future<dynamic> parseOne(String? preview) async {
+    Future<dynamic> parseOne(String? preview, Uint8List? bytes) async {
+      if (bytes != null && bytes.isNotEmpty) {
+        if (bytes.length > 50 * 1024) {
+          return compute(_decodeBytesToJson, bytes);
+        }
+        try {
+          return jsonDecode(utf8.decode(bytes));
+        } catch (_) {
+          return _decodeBytesToJson(bytes);
+        }
+      }
+
       if (preview == null || preview.isEmpty) return preview;
-      if (preview.length > 100 * 1024) {
+      if (preview.length > 50 * 1024) {
         return compute(jsonDecodeSafe, preview);
       }
       return jsonDecodeSafe(preview);
     }
 
-    final reqFuture = parseOne(record.requestBodyPreview);
-    final resFuture = parseOne(record.responseBodyPreview);
+    final reqFuture = parseOne(record.requestBodyPreview, record.requestBodyBytes);
+    final resFuture = parseOne(record.responseBodyPreview, record.responseBodyBytes);
     final reqParsed = await reqFuture;
     final resParsed = await resFuture;
 
@@ -181,6 +192,22 @@ class _RequestDetailPageState extends State<RequestDetailPage>
       _parsedResForId = record.id;
       _parsedRes = resParsed;
     });
+  }
+
+  static dynamic _decodeBytesToJson(Uint8List bytes) {
+    try {
+      return jsonDecode(utf8.decode(bytes));
+    } catch (_) {
+      try {
+        final slice = bytes.length > 2 * 1024 * 1024
+            ? bytes.sublist(0, 2 * 1024 * 1024)
+            : bytes;
+        final text = utf8.decode(slice, allowMalformed: true);
+        return jsonDecodeSafe(text);
+      } catch (e) {
+        return e.toString();
+      }
+    }
   }
 
   @override
@@ -205,11 +232,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
         return _parsedRes;
       }
     }
-    try {
-      return jsonDecode(content);
-    } catch (_) {
-      return content;
-    }
+    return jsonDecodeSafe(content);
   }
 
   @override
@@ -454,7 +477,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                                       ? tabsBuilder.buildRequestTab()
                                       : const SizedBox.shrink(),
                                   _visitedTabs.contains(2)
-                                      ? _buildResponseTab(record, tabsBuilder)
+                                      ? tabsBuilder.buildResponseTab()
                                       : const SizedBox.shrink(),
                                   _visitedTabs.contains(3)
                                       ? tabsBuilder.buildErrorTab()
@@ -570,113 +593,6 @@ class _RequestDetailPageState extends State<RequestDetailPage>
     );
   }
 
-  Widget _buildResponseTab(
-    RequestRecord record,
-    DetailTabsBuilder tabsBuilder,
-  ) {
-    final isTruncated = record.isUiTruncated ||
-        record.isBodyTruncated ||
-        record.responseSizeBytes > 2 * 1024 * 1024;
-    if (!isTruncated) {
-      return tabsBuilder.buildResponseTab();
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _buildTruncationBanner(record),
-        Expanded(child: tabsBuilder.buildResponseTab()),
-      ],
-    );
-  }
-
-  Widget _buildTruncationBanner(RequestRecord record) {
-    final totalBytes = record.responseSizeBytes;
-    final bodyBytes = record.responseBodyBytes;
-    final previewBytes = bodyBytes != null
-        ? (bodyBytes.length > 2 * 1024 * 1024
-            ? 2 * 1024 * 1024
-            : bodyBytes.length)
-        : (record.responseBodyPreview?.length ?? 2 * 1024 * 1024);
-
-    final isStorageTruncated = record.isBodyTruncated;
-    final title = 'Response is ${_formatBytes(totalBytes)}';
-    final subtitle = isStorageTruncated
-        ? 'Body truncated by maxBodyBytes limit: captured first ${_formatBytes(previewBytes)} to protect storage (not a network or server error).'
-        : 'Body truncated preview: showing first ${_formatBytes(previewBytes)} to avoid UI lag.';
-    final buttonLabel = isStorageTruncated ? 'Export Body' : 'Export Full';
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: InterceptlyGlobalColor.orange.withValues(alpha: 0.12),
-        border: Border.all(
-          color: InterceptlyGlobalColor.orange.withValues(alpha: 0.4),
-        ),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.warning_amber_rounded,
-            color: InterceptlyGlobalColor.orange,
-            size: 20,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  style: InterceptlyTheme.typography.bodyMediumBold.copyWith(
-                    color: InterceptlyGlobalColor.orange,
-                    fontSize: 13,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
-                    color: InterceptlyTheme.textSecondary,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          TextButton.icon(
-            style: TextButton.styleFrom(
-              backgroundColor:
-                  InterceptlyGlobalColor.orange.withValues(alpha: 0.18),
-              foregroundColor: InterceptlyGlobalColor.orange,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(6),
-              ),
-            ),
-            icon: const Icon(Icons.download, size: 16),
-            label: Text(buttonLabel),
-            onPressed: () {
-              final shareHandler =
-                  ShareHandler(context: context, fabKey: _fabKey);
-              shareHandler.exportResponseBodyFile(record);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  static String _formatBytes(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) {
-      return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    }
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-  }
 
   void _showShareMenu() {
     final record = _cachedRecord;
