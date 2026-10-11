@@ -3,7 +3,7 @@ class InterceptlySettings {
   const InterceptlySettings({
     this.bodyOffloadThreshold = 50 * 1024,
     this.previewTruncationBytes = 16 * 1024,
-    this.maxBodyBytes = 50 * 1024 * 1024,
+    this.maxBodyBytes = 5 * 1024 * 1024,
     this.maxUiPreviewBytes = 2 * 1024 * 1024,
     this.maxQueuedEvents = 500,
     this.maxEntries = 5000,
@@ -26,7 +26,7 @@ class InterceptlySettings {
   final int previewTruncationBytes;
 
   /// Hard cap: bodies larger than this are truncated before storage.
-  /// Defaults to 50 MB (50 * 1024 * 1024). Values <= 0 indicate unlimited storage.
+  /// Defaults to 5 MB (5 * 1024 * 1024). Values <= 0 indicate unlimited storage.
   final int maxBodyBytes;
 
   /// Maximum payload bytes rendered in the UI preview to avoid UI lag.

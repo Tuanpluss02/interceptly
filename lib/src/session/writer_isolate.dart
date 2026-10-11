@@ -8,10 +8,6 @@ import '../model/interceptly_settings.dart';
 import '../model/raw_capture.dart';
 import 'body_store.dart';
 
-// ---------------------------------------------------------------------------
-// Messages sent between main isolate ↔ writer isolate
-// ---------------------------------------------------------------------------
-
 class _InitMessage {
   const _InitMessage({
     required this.replyPort,
@@ -51,10 +47,6 @@ class _DisposeMessage {
 class _DisposeAck {
   const _DisposeAck();
 }
-
-// ---------------------------------------------------------------------------
-// WriterIsolate
-// ---------------------------------------------------------------------------
 
 /// Manages a dedicated [Isolate] that processes [RawCapture]s one-at-a-time.
 ///
@@ -154,7 +146,6 @@ class WriterIsolate {
   }
 
   Future<void> dispose() async {
-    // Unblock any in-progress clear so its awaiter doesn't hang.
     if (_clearCompleter != null && !_clearCompleter!.isCompleted) {
       _clearCompleter!.complete();
     }
@@ -179,10 +170,6 @@ class WriterIsolate {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Isolate entry point (runs in the background isolate)
-// ---------------------------------------------------------------------------
-
 Future<void> _isolateEntry(_InitMessage init) async {
   final receivePort = ReceivePort();
   init.replyPort.send(receivePort.sendPort);
@@ -190,12 +177,9 @@ Future<void> _isolateEntry(_InitMessage init) async {
   final settings = init.settings;
   final bodyStore = BodyStore();
 
-  // Use the pre-resolved path — no platform channel call inside the isolate.
   try {
     await bodyStore.initForWrite(init.tempDirPath, fileName: init.fileName);
-  } catch (_) {
-    // If file creation fails (e.g. invalid temp dir path), fallback to memory-only
-  }
+  } catch (_) {}
 
   await for (final message in receivePort) {
     try {
@@ -216,7 +200,6 @@ Future<void> _isolateEntry(_InitMessage init) async {
         break;
       }
     } catch (_) {
-      // In case of an unexpected processing error for a capture, emit an in-memory entry if possible
       if (message is _WriteMessage) {
         init.replyPort.send(_fallbackEntry(message.capture));
       }
@@ -257,7 +240,6 @@ Future<IndexEntry> _processCapture(
 ) async {
   final threshold = settings.bodyOffloadThreshold;
   final maxBody = settings.maxBodyBytes;
-  final previewLen = settings.previewTruncationBytes;
 
   final reqRaw = capture.requestBodyBytes?.materialize().asUint8List();
   final resRaw = capture.responseBodyBytes?.materialize().asUint8List();
@@ -276,9 +258,9 @@ Future<IndexEntry> _processCapture(
 
   if (useFile) {
     try {
-      final packed = _packBodies(reqRaw, resRaw, maxBody, previewLen);
-      isTruncated = packed.truncated;
-      final result = await bodyStore.append(packed.bytes);
+      final (packedBytes, truncated) = _packBodies(reqRaw, resRaw, maxBody);
+      isTruncated = truncated;
+      final result = await bodyStore.append(packedBytes);
       fileOffset = result.$1;
       fileLength = result.$2;
     } catch (_) {
@@ -287,8 +269,8 @@ Future<IndexEntry> _processCapture(
   }
 
   if (!useFile) {
-    inlineReq = _maybeTruncate(reqRaw, maxBody, maxBody);
-    inlineRes = _maybeTruncate(resRaw, maxBody, maxBody);
+    inlineReq = _maybeTruncate(reqRaw, maxBody);
+    inlineRes = _maybeTruncate(resRaw, maxBody);
     isTruncated = maxBody > 0 &&
         ((reqRaw != null && reqRaw.length > maxBody) ||
             (resRaw != null && resRaw.length > maxBody));
@@ -319,28 +301,18 @@ Future<IndexEntry> _processCapture(
   );
 }
 
-Uint8List? _maybeTruncate(Uint8List? bytes, int maxBytes, int previewLen) {
+Uint8List? _maybeTruncate(Uint8List? bytes, int maxBytes) {
   if (bytes == null || bytes.isEmpty) return null;
   if (maxBytes <= 0 || bytes.length <= maxBytes) return bytes;
-  return bytes.sublist(
-    0,
-    previewLen < bytes.length ? previewLen : bytes.length,
-  );
+  return bytes.sublist(0, maxBytes);
 }
 
-class _PackedBodies {
-  const _PackedBodies({required this.bytes, required this.truncated});
-  final Uint8List bytes;
-  final bool truncated;
-}
-
-_PackedBodies _packBodies(
+(Uint8List, bool) _packBodies(
   Uint8List? req,
   Uint8List? res,
   int maxBody,
-  int previewLen,
 ) {
-  bool truncated = false;
+  var truncated = false;
 
   Uint8List? truncate(Uint8List bytes) {
     if (maxBody <= 0 || bytes.length <= maxBody) return bytes;
@@ -372,5 +344,5 @@ _PackedBodies _packBodies(
   writePart(resData);
   out[offset] = truncated ? 1 : 0;
 
-  return _PackedBodies(bytes: out, truncated: truncated);
+  return (out, truncated);
 }

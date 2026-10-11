@@ -105,7 +105,7 @@ class DetailTabsBuilder {
           const SizedBox(height: 16),
           _buildOverviewRow(
             'Note',
-            'Body truncated — response exceeded the size limit.',
+            'Body truncated — exceeded maxBodyBytes limit.',
             DetailSection.overviewNote,
             valueStyle: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
               color: InterceptlyTheme.yellow400,

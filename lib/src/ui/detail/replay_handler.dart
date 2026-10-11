@@ -108,9 +108,21 @@ class ReplayHandler {
 
     final (baseUrl, queryParams) = _splitUrlForEditing(record.url);
 
-    final rawBody = record.requestBodyPreview;
-    final initialBodyText =
-        (rawBody != null && !_isPlaceholder(rawBody)) ? rawBody : '';
+    String initialBodyText = '';
+    if (record.requestBodyBytes != null &&
+        record.requestBodyBytes!.isNotEmpty) {
+      try {
+        initialBodyText = utf8.decode(record.requestBodyBytes!);
+      } catch (_) {
+        final rawBody = record.requestBodyPreview;
+        initialBodyText =
+            (rawBody != null && !_isPlaceholder(rawBody)) ? rawBody : '';
+      }
+    } else {
+      final rawBody = record.requestBodyPreview;
+      initialBodyText =
+          (rawBody != null && !_isPlaceholder(rawBody)) ? rawBody : '';
+    }
 
     final result = await Navigator.of(context).push<CustomRequestDraft>(
       MaterialPageRoute(
@@ -131,7 +143,8 @@ class ReplayHandler {
       url: result.url,
       headers: result.headers,
       body: result.body,
-      isBodyTruncated: record.isBodyTruncated,
+      bodyBytes: utf8.encode(result.body),
+      isBodyTruncated: false,
     );
   }
 
@@ -160,7 +173,11 @@ class ReplayHandler {
     final cleanedHeaders = _sanitizeReplayHeaders(headers);
     final isPlaceholder = _isPlaceholder(body);
 
-    if (isBodyTruncated && body != null && body.isNotEmpty && !isPlaceholder) {
+    if (bodyBytes == null &&
+        isBodyTruncated &&
+        body != null &&
+        body.isNotEmpty &&
+        !isPlaceholder) {
       ToastNotification.show(
         'Warning: body may be truncated',
         contextHint: context,

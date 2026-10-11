@@ -145,7 +145,7 @@ void main() {
   group('Milestone 2: Settings and Decoupling Constants', () {
     test('InterceptlySettings defaults decouple storage limit from UI preview limit', () {
       const settings = InterceptlySettings();
-      expect(settings.maxBodyBytes, equals(50 * 1024 * 1024));
+      expect(settings.maxBodyBytes, equals(5 * 1024 * 1024));
       expect(settings.maxUiPreviewBytes, equals(2 * 1024 * 1024));
 
       final updated = settings.copyWith(

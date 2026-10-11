@@ -3,13 +3,21 @@ import 'package:interceptly/interceptly.dart';
 
 import 'src/example.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final clients = ExampleClients.create();
+
+  final server = ExampleLocalServer();
+  final baseUrl = await server.start();
+
+  final clients = ExampleClients.create(baseUrl: baseUrl);
   final appNavigatorKey = GlobalKey<NavigatorState>();
 
   runApp(
-    InterceptlyExampleApp(clients: clients, navigatorKey: appNavigatorKey),
+    InterceptlyExampleApp(
+      clients: clients,
+      navigatorKey: appNavigatorKey,
+      server: server,
+    ),
   );
 
   Interceptly.init(navigatorKey: appNavigatorKey);

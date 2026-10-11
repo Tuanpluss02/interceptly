@@ -384,8 +384,10 @@ void main() {
       await Interceptly.init(
         navigatorKey: navKey,
         session: customSession,
-        maxBodyBytes: 1024,
-        redactedHeaders: {'custom-token'},
+        settings: const InterceptlySettings(
+          maxBodyBytes: 1024,
+          redactedHeaders: {'custom-token'},
+        ),
         showFloatingButton: false,
       );
 
@@ -393,8 +395,7 @@ void main() {
       expect(customSession.settings.redactedHeaders, contains('custom-token'));
     });
 
-    test('Interceptly.init merges flattened overrides with explicit settings',
-        () async {
+    test('Interceptly.init uses default settings when none provided', () async {
       final customSession = InspectorSession();
       addTearDown(customSession.dispose);
       final navKey = GlobalKey<NavigatorState>();
@@ -402,13 +403,11 @@ void main() {
       await Interceptly.init(
         navigatorKey: navKey,
         session: customSession,
-        settings: const InterceptlySettings(maxEntries: 100),
-        maxBodyBytes: 2048,
         showFloatingButton: false,
       );
 
-      expect(customSession.settings.maxEntries, 100);
-      expect(customSession.settings.maxBodyBytes, 2048);
+      expect(customSession.settings.maxBodyBytes, 5 * 1024 * 1024);
+      expect(customSession.settings.maxEntries, 5000);
     });
   });
 }

@@ -589,14 +589,21 @@ class _RequestDetailPageState extends State<RequestDetailPage>
     );
   }
 
-  /// Builds a prominent warning banner when response body is truncated for UI preview.
   Widget _buildTruncationBanner(RequestRecord record) {
     final totalBytes = record.responseSizeBytes;
-    final previewBytes = record.responseBodyBytes != null
-        ? (record.responseBodyBytes!.length > 2 * 1024 * 1024
+    final bodyBytes = record.responseBodyBytes;
+    final previewBytes = bodyBytes != null
+        ? (bodyBytes.length > 2 * 1024 * 1024
             ? 2 * 1024 * 1024
-            : record.responseBodyBytes!.length)
+            : bodyBytes.length)
         : (record.responseBodyPreview?.length ?? 2 * 1024 * 1024);
+
+    final isStorageTruncated = record.isBodyTruncated;
+    final title = 'Response is ${_formatBytes(totalBytes)}';
+    final subtitle = isStorageTruncated
+        ? 'Body truncated by maxBodyBytes limit: captured first ${_formatBytes(previewBytes)} to protect storage (not a network or server error).'
+        : 'Body truncated preview: showing first ${_formatBytes(previewBytes)} to avoid UI lag.';
+    final buttonLabel = isStorageTruncated ? 'Export Body' : 'Export Full';
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
@@ -622,7 +629,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Response is ${_formatBytes(totalBytes)}',
+                  title,
                   style: InterceptlyTheme.typography.bodyMediumBold.copyWith(
                     color: InterceptlyGlobalColor.orange,
                     fontSize: 13,
@@ -630,7 +637,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Body truncated preview: showing first ${_formatBytes(previewBytes)} to avoid UI lag.',
+                  subtitle,
                   style: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
                     color: InterceptlyTheme.textSecondary,
                     fontSize: 12,
@@ -651,7 +658,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
               ),
             ),
             icon: const Icon(Icons.download, size: 16),
-            label: const Text('Export Full'),
+            label: Text(buttonLabel),
             onPressed: () {
               final shareHandler =
                   ShareHandler(context: context, fabKey: _fabKey);

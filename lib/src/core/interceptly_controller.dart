@@ -39,8 +39,10 @@ class Interceptly extends ChangeNotifier {
   /// ```dart
   /// Interceptly.init(
   ///   navigatorKey: _navKey,
-  ///   maxBodyBytes: 1024 * 1024,
-  ///   redactedHeaders: {'authorization', 'x-api-key'},
+  ///   settings: const InterceptlySettings(
+  ///     maxBodyBytes: 1024 * 1024,
+  ///     redactedHeaders: {'authorization', 'x-api-key'},
+  ///   ),
   ///   showFloatingButton: true,
   /// );
   /// ```
@@ -49,28 +51,11 @@ class Interceptly extends ChangeNotifier {
     bool showFloatingButton = true,
     Widget? fabChild,
     Stream<void>? customTrigger,
-    int? maxBodyBytes,
-    int? maxEntries,
-    Set<String>? redactedHeaders,
-    bool Function(String url)? shouldCapture,
-    Duration? pendingTimeout,
-    int? bodyOffloadThreshold,
-    InterceptlySettings? settings,
+    InterceptlySettings settings = const InterceptlySettings(),
     InspectorSession? session,
   }) {
-    final baseSettings =
-        settings ?? (session?.settings ?? InspectorSession.instance.settings);
-    final effectiveSettings = baseSettings.copyWith(
-      maxBodyBytes: maxBodyBytes,
-      maxEntries: maxEntries,
-      redactedHeaders: redactedHeaders,
-      shouldCapture: shouldCapture,
-      pendingTimeout: pendingTimeout,
-      bodyOffloadThreshold: bodyOffloadThreshold,
-    );
-
     final targetSession = session ?? InspectorSession.instance;
-    targetSession.configureSession(effectiveSettings);
+    targetSession.configureSession(settings);
 
     return _init(
       navigatorKey: navigatorKey,
