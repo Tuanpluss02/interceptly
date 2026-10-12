@@ -211,8 +211,11 @@ class _NetworkTabState extends State<NetworkTab> {
           entry: req,
           onTapNavigate: () => Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) =>
-                  RequestDetailPage(entry: req, session: widget.session),
+              builder: (_) => RequestDetailPage(
+                entry: req,
+                session: widget.session,
+                initialQuery: widget.session.masterQuery,
+              ),
             ),
           ),
         );
@@ -291,6 +294,7 @@ class _NetworkTabState extends State<NetworkTab> {
                             builder: (_) => RequestDetailPage(
                               entry: record,
                               session: widget.session,
+                              initialQuery: widget.session.masterQuery,
                             ),
                           ),
                         ),
@@ -329,6 +333,11 @@ class _NetworkTabState extends State<NetworkTab> {
       } catch (_) {}
     }
 
+    final activeQuery = widget.session.masterQuery;
+    final scopes = activeQuery != null && activeQuery.isNotEmpty
+        ? widget.session.getSearchScopes(entry.id)
+        : null;
+
     return RequestLogItem(
       method: entry.method,
       url: displayUrl,
@@ -344,6 +353,8 @@ class _NetworkTabState extends State<NetworkTab> {
       responseSizeBytes: entry.responseSizeBytes,
       isSelectionMode: _isSelectionMode,
       isSelected: _selectedIds.contains(entry.id),
+      searchScopes: scopes,
+      highlightQuery: activeQuery,
       onLongPress: () => _enterSelectionMode(entry.id),
       onTap: () {
         if (_isSelectionMode) {

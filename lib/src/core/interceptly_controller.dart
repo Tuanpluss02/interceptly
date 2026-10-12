@@ -31,6 +31,9 @@ class Interceptly extends ChangeNotifier {
   /// Single entrypoint to initialize Interceptly: attaches the UI to [navigatorKey]
   /// and applies all desired configuration options in one clean call.
   ///
+  /// Pass [settings] only to (re)configure capture behavior; when omitted the
+  /// session keeps whatever configuration it already has.
+  ///
   /// ```dart
   /// Interceptly.init(
   ///   navigatorKey: _navKey,
@@ -46,11 +49,11 @@ class Interceptly extends ChangeNotifier {
     bool showFloatingButton = true,
     Widget? fabChild,
     Stream<void>? customTrigger,
-    InterceptlySettings settings = const InterceptlySettings(),
+    InterceptlySettings? settings,
     InspectorSession? session,
   }) {
     final targetSession = session ?? InspectorSession.instance;
-    targetSession.configureSession(settings);
+    if (settings != null) targetSession.configureSession(settings);
 
     return _init(
       navigatorKey: navigatorKey,

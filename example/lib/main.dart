@@ -23,6 +23,8 @@ void main() async {
   Interceptly.init(
     navigatorKey: appNavigatorKey,
     settings: InterceptlySettings(
+      maxBodyBytes: 50 * 1024 * 1024,
+      maxUiPreviewBytes: 50 * 1024 * 1024,
       shouldCapture: (url) => !url.contains('/analytics'),
       redactedHeaders: const {
         'authorization',

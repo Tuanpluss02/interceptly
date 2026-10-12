@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../model/body_location.dart';
 import '../model/index_entry.dart';
+import '../model/search_match_scope.dart';
 import 'body_decode_service.dart';
 import 'body_store.dart';
 
@@ -18,6 +19,7 @@ import 'body_store.dart';
 class MasterSearchController extends ChangeNotifier {
   String? _query;
   List<IndexEntry>? _results;
+  final Map<String, Set<SearchMatchScope>> _matchScopes = {};
   bool _isScanningBodies = false;
   bool _isScanningFiles = false;
   int _generation = 0;
@@ -29,6 +31,9 @@ class MasterSearchController extends ChangeNotifier {
   bool get isActive => _query != null;
   bool get isScanningBodies => _isScanningBodies;
   bool get isScanningFiles => _isScanningFiles;
+
+  Set<SearchMatchScope> getScopes(String id) =>
+      _matchScopes[id] ?? const <SearchMatchScope>{};
 
   void _notifyThrottled({bool force = false}) {
     if (_isDisposed) return;
@@ -54,6 +59,7 @@ class MasterSearchController extends ChangeNotifier {
     _throttleTimer = null;
     _query = null;
     _results = null;
+    _matchScopes.clear();
     _isScanningBodies = false;
     _isScanningFiles = false;
     if (!_isDisposed) {
@@ -68,6 +74,7 @@ class MasterSearchController extends ChangeNotifier {
     _throttleTimer = null;
     _query = null;
     _results = null;
+    _matchScopes.clear();
     _isScanningBodies = false;
     _isScanningFiles = false;
   }
@@ -96,25 +103,39 @@ class MasterSearchController extends ChangeNotifier {
 
     _query = trimmed;
     _results = [];
+    _matchScopes.clear();
     _isScanningBodies = false;
     _isScanningFiles = false;
     _notifyThrottled(force: true);
 
     final matchedIds = <String>{};
 
-    bool matchesStructured(IndexEntry e) {
-      if (e.url.toLowerCase().contains(q)) return true;
-      if (e.method.toLowerCase().contains(q)) return true;
-      if (e.errorMessage?.toLowerCase().contains(q) ?? false) return true;
+    Set<SearchMatchScope> checkStructuredScopes(IndexEntry e) {
+      final scopes = <SearchMatchScope>{};
+      if (e.url.toLowerCase().contains(q) ||
+          e.method.toLowerCase().contains(q)) {
+        scopes.add(SearchMatchScope.url);
+      }
+      if (e.errorMessage?.toLowerCase().contains(q) ?? false) {
+        scopes.add(SearchMatchScope.error);
+      }
       for (final h in e.requestHeaders.entries) {
-        if (h.key.toLowerCase().contains(q)) return true;
-        if (h.value.toLowerCase().contains(q)) return true;
+        if (h.key.toLowerCase().contains(q) ||
+            h.value.toLowerCase().contains(q)) {
+          scopes.add(SearchMatchScope.headers);
+          break;
+        }
       }
-      for (final h in e.responseHeaders.entries) {
-        if (h.key.toLowerCase().contains(q)) return true;
-        if (h.value.toLowerCase().contains(q)) return true;
+      if (!scopes.contains(SearchMatchScope.headers)) {
+        for (final h in e.responseHeaders.entries) {
+          if (h.key.toLowerCase().contains(q) ||
+              h.value.toLowerCase().contains(q)) {
+            scopes.add(SearchMatchScope.headers);
+            break;
+          }
+        }
       }
-      return false;
+      return scopes;
     }
 
     bool matchesInlineBody(IndexEntry e) {
@@ -133,9 +154,11 @@ class MasterSearchController extends ChangeNotifier {
     for (var i = 0; i < entriesSnapshot.length; i++) {
       if (gen != _generation || _isDisposed) return;
       final e = entriesSnapshot[i];
-      if (matchesStructured(e)) {
+      final scopes = checkStructuredScopes(e);
+      if (scopes.isNotEmpty) {
         matchedIds.add(e.id);
         _results?.add(e);
+        _matchScopes[e.id] = scopes;
       }
       if (i % 50 == 0) {
         await Future<void>.delayed(Duration.zero);
@@ -149,12 +172,15 @@ class MasterSearchController extends ChangeNotifier {
     for (var i = 0; i < entriesSnapshot.length; i++) {
       if (gen != _generation || _isDisposed) return;
       final e = entriesSnapshot[i];
-      if (e.bodyLocation == BodyLocation.memory &&
-          !matchedIds.contains(e.id) &&
-          matchesInlineBody(e)) {
-        matchedIds.add(e.id);
-        _results?.add(e);
-        _notifyThrottled();
+      if (e.bodyLocation == BodyLocation.memory && matchesInlineBody(e)) {
+        if (!matchedIds.contains(e.id)) {
+          matchedIds.add(e.id);
+          _results?.add(e);
+          _matchScopes[e.id] = {SearchMatchScope.body};
+          _notifyThrottled();
+        } else {
+          _matchScopes[e.id]?.add(SearchMatchScope.body);
+        }
       }
       if (i % 20 == 0) {
         await Future<void>.delayed(Duration.zero);
@@ -227,10 +253,14 @@ class MasterSearchController extends ChangeNotifier {
             if (gen != _generation || _isDisposed) return;
             var hasNewMatch = false;
             for (final (matched, e) in results) {
-              if (matched && e != null && !matchedIds.contains(e.id)) {
-                matchedIds.add(e.id);
-                _results?.add(e);
-                hasNewMatch = true;
+              if (matched && e != null) {
+                if (!matchedIds.contains(e.id)) {
+                  matchedIds.add(e.id);
+                  _results?.add(e);
+                  hasNewMatch = true;
+                }
+                (_matchScopes[e.id] ??= <SearchMatchScope>{})
+                    .add(SearchMatchScope.body);
               }
             }
             if (hasNewMatch) {

@@ -13,8 +13,8 @@ class MemoryIndex {
           null,
         );
 
-  final int maxEntries;
-  final List<IndexEntry?> _buffer;
+  int maxEntries;
+  List<IndexEntry?> _buffer;
   final Map<String, int> _idIndex = {};
 
   int _head = 0;
@@ -84,6 +84,20 @@ class MemoryIndex {
     _head = 0;
     _count = 0;
     _idIndex.clear();
+  }
+
+  /// Changes capacity, keeping the newest entries when shrinking.
+  void updateMaxEntries(int value) {
+    if (value == maxEntries) return;
+    final retained = value <= 0 ? <IndexEntry>[] : entries.take(value).toList();
+    maxEntries = value;
+    _buffer = List<IndexEntry?>.filled(value > 0 ? value : 0, null);
+    _head = 0;
+    _count = 0;
+    _idIndex.clear();
+    for (var i = retained.length - 1; i >= 0; i--) {
+      add(retained[i]);
+    }
   }
 }
 

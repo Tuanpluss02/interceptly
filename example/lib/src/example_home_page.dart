@@ -135,26 +135,11 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Local Server: ${widget.server.baseUrl}',
+                      'Local Server: \n${widget.server.baseUrl}',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         fontFamily: 'monospace',
                         fontWeight: FontWeight.bold,
                       ),
-                    ),
-                  ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.green.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Text(
-                      '100% Offline',
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.green,
-                          fontWeight: FontWeight.w600),
                     ),
                   ),
                 ],
@@ -167,7 +152,6 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
               title: 'RESTful Methods & Status Codes',
               subtitle:
                   'Test GET, POST 201, PUT, PATCH, DELETE 204, 400, 401, 404, 503 badges.',
-              icon: Icons.alt_route,
               color: Colors.blue,
             ),
             Wrap(
@@ -258,7 +242,6 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
               title: 'Specialized Formats & Viewers',
               subtitle:
                   'Test GraphQL Operation parsing, Multipart FormData summary, and Binary Image preview.',
-              icon: Icons.layers,
               color: Colors.purple,
             ),
             Wrap(
@@ -309,7 +292,6 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
               title: 'Security & Filtering',
               subtitle:
                   'Verify sensitive headers redaction and URL blacklist exclusion.',
-              icon: Icons.security,
               color: Colors.teal,
             ),
             Wrap(
@@ -341,7 +323,6 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
               title: 'Stress Test & Heavy Payloads',
               subtitle:
                   'Test JsonViewer virtualization, deep nesting, and memory truncation.',
-              icon: Icons.speed,
               color: Colors.deepOrange,
             ),
             Wrap(
@@ -454,28 +435,6 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
               ),
               const SizedBox(height: 20),
             ],
-
-            const Divider(),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => Interceptly.showInspector(context),
-                    icon: const Icon(Icons.open_in_new),
-                    label: const Text('Open Inspector Screen'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _clearAll,
-                    icon: const Icon(Icons.clear_all),
-                    label: const Text('Clear All Calls'),
-                  ),
-                ),
-              ],
-            ),
           ],
         ),
       ),
@@ -485,7 +444,6 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
   Widget _buildSectionHeader({
     required String title,
     required String subtitle,
-    required IconData icon,
     required Color color,
   }) {
     final theme = Theme.of(context);
@@ -496,8 +454,6 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
         children: [
           Row(
             children: [
-              Icon(icon, size: 20, color: color),
-              const SizedBox(width: 8),
               Text(
                 title,
                 style: theme.textTheme.titleMedium?.copyWith(

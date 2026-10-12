@@ -17,5 +17,6 @@ export 'src/model/network_simulation.dart'
 export 'src/model/request_filter.dart' show RequestFilter;
 export 'src/model/request_record.dart' show RequestRecord;
 export 'src/model/request_summary.dart' show RequestSummary;
+export 'src/model/search_match_scope.dart' show SearchMatchScope;
 export 'src/session/inspector_session.dart' show InspectorSession;
 export 'src/session/inspector_session_view.dart' show InspectorSessionView;

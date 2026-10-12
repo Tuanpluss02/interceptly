@@ -465,5 +465,57 @@ void main() {
 
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets(
+        'initialQuery pre-populates search and automatically navigates to match',
+        (tester) async {
+      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final entry = _createEntry('req_init_q');
+      final record = RequestRecord(
+        id: entry.id,
+        method: entry.method,
+        url: entry.url,
+        statusCode: entry.statusCode,
+        timestamp: entry.timestamp,
+        durationMs: entry.durationMs,
+        requestSizeBytes: entry.requestSizeBytes,
+        responseSizeBytes: entry.responseSizeBytes,
+        requestHeaders: const {'Accept': 'application/json'},
+        responseHeaders: const {'Content-Type': 'application/json'},
+        responseBodyPreview: '{"secret_key": "initial_target_value"}',
+      );
+
+      final session = _MockDetailSession(record: record, entry: entry);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: RequestDetailPage(
+              entry: entry,
+              session: session,
+              initialQuery: 'initial_target',
+            ),
+          ),
+        ),
+      );
+
+      // Let record load and matches compute
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 350));
+      });
+      await tester.pumpAndSettle();
+
+      // Search field should be pre-populated
+      final searchField = find.byType(TextField);
+      expect(searchField, findsOneWidget);
+      expect(tester.widget<TextField>(searchField).controller?.text,
+          'initial_target');
+
+      // Floating capsule match counter should be visible showing matches
+      expect(find.textContaining('/'), findsWidgets);
+    });
   });
 }

@@ -12,6 +12,7 @@ import '../model/raw_capture.dart';
 import '../model/request_filter.dart';
 import '../model/request_record.dart';
 import '../model/request_summary.dart';
+import '../model/search_match_scope.dart';
 import '../session/bounded_event_queue.dart';
 import '../simulation/network_simulation_service.dart';
 import 'body_decode_service.dart';
@@ -75,6 +76,10 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   void _applySettings(InterceptlySettings newSettings) {
     _settings = newSettings;
     _normalizedRedactedHeaders = newSettings.normalizedRedactedHeaders;
+    _writerIsolate.updateSettings(newSettings);
+    _memoryIndex.updateMaxEntries(newSettings.maxEntries);
+    _preInitQueue.updateMaxSize(newSettings.maxQueuedEvents);
+    _preferences.setUrlDecodeEnabled(newSettings.urlDecodeEnabled);
     notifyListeners();
   }
 
@@ -141,6 +146,9 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
 
   @override
   bool get isScanningFiles => _search.isScanningFiles;
+
+  @override
+  Set<SearchMatchScope> getSearchScopes(String id) => _search.getScopes(id);
 
   // Grouping getters
   @override

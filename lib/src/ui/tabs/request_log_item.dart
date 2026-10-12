@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
 
+import '../../model/search_match_scope.dart';
+
 /// Visual treatment for the status pill on list rows (so 2xx reads
 /// differently from HTTP method chips at a glance).
 class _ListStatusLook {
@@ -78,6 +80,8 @@ class RequestLogItem extends StatelessWidget {
     required this.onLongPress,
     this.isSelectionMode = false,
     this.isSelected = false,
+    this.searchScopes,
+    this.highlightQuery,
   });
 
   final String method;
@@ -90,8 +94,51 @@ class RequestLogItem extends StatelessWidget {
   final int responseSizeBytes;
   final bool isSelectionMode;
   final bool isSelected;
+  final Set<SearchMatchScope>? searchScopes;
+  final String? highlightQuery;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
+
+  static TextSpan _buildHighlightedSpan({
+    required String text,
+    required String? query,
+    required TextStyle normalStyle,
+    required TextStyle highlightStyle,
+  }) {
+    final q = query?.trim().toLowerCase();
+    if (q == null || q.isEmpty) {
+      return TextSpan(text: text, style: normalStyle);
+    }
+    final lowerText = text.toLowerCase();
+    int start = 0;
+    int index = lowerText.indexOf(q, start);
+    if (index == -1) {
+      return TextSpan(text: text, style: normalStyle);
+    }
+
+    final spans = <InlineSpan>[];
+    while (index != -1) {
+      if (index > start) {
+        spans.add(TextSpan(
+          text: text.substring(start, index),
+          style: normalStyle,
+        ));
+      }
+      spans.add(TextSpan(
+        text: text.substring(index, index + q.length),
+        style: highlightStyle,
+      ));
+      start = index + q.length;
+      index = lowerText.indexOf(q, start);
+    }
+    if (start < text.length) {
+      spans.add(TextSpan(
+        text: text.substring(start),
+        style: normalStyle,
+      ));
+    }
+    return TextSpan(children: spans);
+  }
 
   static String _formatBytes(int bytes) {
     if (bytes < 1024) return '$bytes B';
@@ -112,7 +159,9 @@ class RequestLogItem extends StatelessWidget {
   static ({String path, String host}) _splitUrl(String url) {
     final uri = Uri.tryParse(url);
     if (uri != null && uri.hasAuthority) {
-      final path = uri.path.isEmpty ? '/' : uri.path;
+      final pathWithQuery =
+          uri.hasQuery ? '${uri.path}?${uri.query}' : uri.path;
+      final path = pathWithQuery.isEmpty ? '/' : pathWithQuery;
       return (path: path, host: uri.host);
     }
     return (path: url, host: '');
@@ -204,30 +253,70 @@ class RequestLogItem extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      path,
-                      style:
-                          InterceptlyTheme.typography.bodyMediumMedium.copyWith(
-                        fontSize: 14,
-                        height: 1.25,
-                        color: colors.textPrimary,
+                    Text.rich(
+                      _buildHighlightedSpan(
+                        text: path,
+                        query: highlightQuery,
+                        normalStyle: InterceptlyTheme
+                            .typography.bodyMediumMedium
+                            .copyWith(
+                          fontSize: 14,
+                          height: 1.25,
+                          color: colors.textPrimary,
+                        ),
+                        highlightStyle: InterceptlyTheme
+                            .typography.bodyMediumMedium
+                            .copyWith(
+                          fontSize: 14,
+                          height: 1.25,
+                          backgroundColor: InterceptlyTheme.yellow500
+                              .withValues(alpha: 0.28),
+                          color: colors.textPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                     if (host.isNotEmpty) ...[
                       const SizedBox(height: 4),
-                      Text(
-                        host,
-                        style: InterceptlyTheme.typography.bodySmallRegular
-                            .copyWith(
-                          fontSize: 12,
-                          height: 1.2,
-                          color: colors.textTertiary,
-                          fontWeight: FontWeight.w500,
+                      Text.rich(
+                        _buildHighlightedSpan(
+                          text: host,
+                          query: highlightQuery,
+                          normalStyle: InterceptlyTheme
+                              .typography.bodySmallRegular
+                              .copyWith(
+                            fontSize: 12,
+                            height: 1.2,
+                            color: colors.textTertiary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          highlightStyle: InterceptlyTheme
+                              .typography.bodySmallRegular
+                              .copyWith(
+                            fontSize: 12,
+                            height: 1.2,
+                            backgroundColor: InterceptlyTheme.yellow500
+                                .withValues(alpha: 0.28),
+                            color: colors.textPrimary,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    if (searchScopes != null && searchScopes!.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 4,
+                        runSpacing: 4,
+                        children: [
+                          for (final scope in SearchMatchScope.values)
+                            if (searchScopes!.contains(scope))
+                              _ScopeBadge(scope: scope),
+                        ],
                       ),
                     ],
                     const SizedBox(height: 6),
@@ -336,6 +425,63 @@ class _SelectionCheckbox extends StatelessWidget {
         child: isSelected
             ? Icon(Icons.check, size: 14, color: InterceptlyGlobalColor.white)
             : null,
+      ),
+    );
+  }
+}
+
+class _ScopeBadge extends StatelessWidget {
+  const _ScopeBadge({required this.scope});
+
+  final SearchMatchScope scope;
+
+  @override
+  Widget build(BuildContext context) {
+    final (color, icon) = switch (scope) {
+      SearchMatchScope.url => (
+          InterceptlyTheme.blue400,
+          Icons.link_rounded,
+        ),
+      SearchMatchScope.headers => (
+          InterceptlyTheme.yellow500,
+          Icons.tag_rounded,
+        ),
+      SearchMatchScope.body => (
+          InterceptlyTheme.green400,
+          Icons.data_object_rounded,
+        ),
+      SearchMatchScope.error => (
+          InterceptlyTheme.red400,
+          Icons.error_outline_rounded,
+        ),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(InterceptlyTheme.radius.sm),
+        border: Border.all(
+          color: color.withValues(alpha: 0.38),
+          width: 0.8,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10.5, color: color),
+          const SizedBox(width: 3.5),
+          Text(
+            scope.label,
+            style: InterceptlyTheme.typography.labelSmallMedium.copyWith(
+              color: color,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              height: 1.1,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
       ),
     );
   }

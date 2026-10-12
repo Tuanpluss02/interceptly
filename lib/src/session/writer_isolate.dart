@@ -11,13 +11,11 @@ import 'body_store.dart';
 class _InitMessage {
   const _InitMessage({
     required this.replyPort,
-    required this.settings,
     required this.tempDirPath,
     this.fileName = BodyStore.kFileName,
   });
 
   final SendPort replyPort;
-  final InterceptlySettings settings;
 
   /// Pre-resolved temp directory path from the main isolate.
   ///
@@ -28,8 +26,18 @@ class _InitMessage {
 }
 
 class _WriteMessage {
-  const _WriteMessage({required this.capture});
+  const _WriteMessage({
+    required this.capture,
+    required this.bodyOffloadThreshold,
+    required this.maxBodyBytes,
+  });
+
   final RawCapture capture;
+
+  /// Storage tunables snapshotted when the capture was recorded, so the
+  /// background isolate stays stateless and always honors current settings.
+  final int bodyOffloadThreshold;
+  final int maxBodyBytes;
 }
 
 class _ClearMessage {
@@ -52,10 +60,20 @@ class _DisposeAck {
 ///
 /// All [BodyStore] appends are serialised through this isolate, preventing
 /// race conditions on file offsets when many requests arrive simultaneously.
+///
+/// The isolate itself is stateless with respect to configuration: every write
+/// message carries the storage tunables in effect when the capture was
+/// recorded, so reconfiguring settings never leaves stale limits behind and
+/// no settings object ever needs to cross isolate boundaries.
 class WriterIsolate {
   WriterIsolate(this._settings);
 
-  final InterceptlySettings _settings;
+  InterceptlySettings _settings;
+
+  /// Refreshes the settings stamped onto subsequently recorded captures.
+  void updateSettings(InterceptlySettings settings) {
+    _settings = settings;
+  }
 
   Isolate? _isolate;
   SendPort? _sendPort;
@@ -119,7 +137,6 @@ class WriterIsolate {
       _isolateEntry,
       _InitMessage(
         replyPort: _receivePort!.sendPort,
-        settings: _settings,
         tempDirPath: tempDirPath,
         fileName: fileName,
       ),
@@ -132,7 +149,11 @@ class WriterIsolate {
 
   /// Fire-and-forget: enqueue a capture for background processing.
   void send(RawCapture capture) {
-    _sendPort?.send(_WriteMessage(capture: capture));
+    _sendPort?.send(_WriteMessage(
+      capture: capture,
+      bodyOffloadThreshold: _settings.bodyOffloadThreshold,
+      maxBodyBytes: _settings.maxBodyBytes,
+    ));
   }
 
   /// Sends a clear request and waits for the isolate to confirm the file has
@@ -174,7 +195,6 @@ Future<void> _isolateEntry(_InitMessage init) async {
   final receivePort = ReceivePort();
   init.replyPort.send(receivePort.sendPort);
 
-  final settings = init.settings;
   final bodyStore = BodyStore();
 
   try {
@@ -184,8 +204,12 @@ Future<void> _isolateEntry(_InitMessage init) async {
   await for (final message in receivePort) {
     try {
       if (message is _WriteMessage) {
-        final entry =
-            await _processCapture(message.capture, bodyStore, settings);
+        final entry = await _processCapture(
+          message.capture,
+          bodyStore,
+          message.bodyOffloadThreshold,
+          message.maxBodyBytes,
+        );
         init.replyPort.send(entry);
       } else if (message is _ClearMessage) {
         try {
@@ -236,11 +260,9 @@ IndexEntry _fallbackEntry(RawCapture capture) {
 Future<IndexEntry> _processCapture(
   RawCapture capture,
   BodyStore bodyStore,
-  InterceptlySettings settings,
+  int threshold,
+  int maxBody,
 ) async {
-  final threshold = settings.bodyOffloadThreshold;
-  final maxBody = settings.maxBodyBytes;
-
   final reqRaw = capture.requestBodyBytes?.materialize().asUint8List();
   final resRaw = capture.responseBodyBytes?.materialize().asUint8List();
 

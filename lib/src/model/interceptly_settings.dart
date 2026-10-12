@@ -22,7 +22,9 @@ class InterceptlySettings {
   /// Below this threshold the raw bytes are kept inline in RAM.
   final int bodyOffloadThreshold;
 
-  /// Max characters shown in the body preview before the "truncated" suffix.
+  /// Inline byte budget for pending request rows still waiting for a response.
+  /// When a pending body exceeds [maxBodyBytes], only this many leading bytes
+  /// are kept in RAM; smaller bodies are kept whole.
   final int previewTruncationBytes;
 
   /// Hard cap: bodies larger than this are truncated before storage.

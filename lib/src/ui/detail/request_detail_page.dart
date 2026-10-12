@@ -23,11 +23,15 @@ class RequestDetailPage extends StatefulWidget {
   /// Session used to load full detail and replay actions.
   final InspectorSessionView session;
 
+  /// Optional initial query carried over from master list search.
+  final String? initialQuery;
+
   /// Creates a detail page for [entry] using [session].
   const RequestDetailPage({
     super.key,
     required this.entry,
     required this.session,
+    this.initialQuery,
   });
 
   @override
@@ -64,6 +68,11 @@ class _RequestDetailPageState extends State<RequestDetailPage>
   void initState() {
     super.initState();
     _currentEntry = widget.entry;
+    final initial = widget.initialQuery?.trim();
+    if (initial != null && initial.isNotEmpty) {
+      _query = initial;
+      _searchController.text = initial;
+    }
     _recordFuture = widget.session.loadDetail(_currentEntry);
     widget.session.addListener(_onSessionChanged);
     _recordFuture.then((record) {

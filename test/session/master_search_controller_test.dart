@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/src/model/body_location.dart';
 import 'package:interceptly/src/model/index_entry.dart';
+import 'package:interceptly/src/model/search_match_scope.dart';
 import 'package:interceptly/src/session/body_store.dart';
 import 'package:interceptly/src/session/master_search_controller.dart';
 
@@ -564,6 +565,54 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 200));
 
       expect(true, isTrue);
+    });
+
+    test('getScopes accurately identifies URL, Headers, Body, and Error scopes',
+        () async {
+      final entryUrl = _buildEntry(
+        id: 'scope_url',
+        url: 'https://api.example.com/special_endpoint',
+      );
+      final entryHeader = _buildEntry(
+        id: 'scope_header',
+        url: 'https://api.example.com/other',
+        requestHeaders: {'X-Custom-Token': 'special_secret'},
+      );
+      final entryError = _buildEntry(
+        id: 'scope_error',
+        url: 'https://api.example.com/failed',
+        hasError: true,
+        errorMessage: 'special_failure connection timeout',
+      );
+      final entryBody = _buildEntry(
+        id: 'scope_body',
+        url: 'https://api.example.com/data',
+        bodyLocation: BodyLocation.memory,
+        inlineResponseBody:
+            Uint8List.fromList(utf8.encode('{"result": "special_payload"}')),
+      );
+
+      final searchCtrl = MasterSearchController();
+      await searchCtrl.start(
+        query: 'special_',
+        allEntries: [entryUrl, entryHeader, entryError, entryBody],
+        filePath: null,
+      );
+
+      expect(
+          searchCtrl.results!.map((e) => e.id),
+          containsAll(
+              ['scope_url', 'scope_header', 'scope_error', 'scope_body']));
+      expect(searchCtrl.getScopes('scope_url'), equals({SearchMatchScope.url}));
+      expect(searchCtrl.getScopes('scope_header'),
+          equals({SearchMatchScope.headers}));
+      expect(searchCtrl.getScopes('scope_error'),
+          equals({SearchMatchScope.error}));
+      expect(
+          searchCtrl.getScopes('scope_body'), equals({SearchMatchScope.body}));
+
+      searchCtrl.cancel();
+      expect(searchCtrl.getScopes('scope_url'), isEmpty);
     });
   });
 }
