@@ -636,7 +636,7 @@ class _JsonViewerState extends State<JsonViewer> {
           final minContentWidth = constraints.hasBoundedWidth
               ? math.max(0.0, constraints.maxWidth - gutterTotalWidth)
               : 0.0;
-          final contentWidth = math.max(minContentWidth, maxChars * 7.5 + 40.0);
+          final contentWidth = math.max(minContentWidth, maxChars * 8.5 + 60.0);
 
           if (activeLineIndex != null) {
             _checkScrollToActive(
@@ -732,23 +732,41 @@ class _JsonViewerState extends State<JsonViewer> {
                                     focusNode: _selectableFocusNode,
                                     selectionControls:
                                         materialTextSelectionControls,
-                                    child: Padding(
-                                      padding: const EdgeInsets.only(left: 4.0),
-                                      child: ListView.builder(
-                                        controller: _contentScrollController,
-                                        itemExtent: lineHeight,
-                                        itemCount: lines.length,
-                                        addAutomaticKeepAlives: false,
-                                        physics: const ClampingScrollPhysics(),
-                                        itemBuilder: (context, index) {
-                                          return _buildLine(
-                                            index,
-                                            lines[index],
-                                            lineHeight,
-                                            contentStyle,
-                                          );
-                                        },
-                                      ),
+                                    child: Builder(
+                                      builder: (context) {
+                                        final registrar =
+                                            SelectionContainer.maybeOf(context);
+                                        return SelectionContainer.disabled(
+                                          child: Padding(
+                                            padding: const EdgeInsets.only(
+                                                left: 4.0),
+                                            child: ListView.builder(
+                                              controller:
+                                                  _contentScrollController,
+                                              itemExtent: lineHeight,
+                                              itemCount: lines.length,
+                                              addAutomaticKeepAlives: false,
+                                              physics:
+                                                  const ClampingScrollPhysics(),
+                                              itemBuilder: (context, index) {
+                                                final lineWidget = _buildLine(
+                                                  index,
+                                                  lines[index],
+                                                  lineHeight,
+                                                  contentStyle,
+                                                );
+                                                if (registrar == null) {
+                                                  return lineWidget;
+                                                }
+                                                return SelectionRegistrarScope(
+                                                  registrar: registrar,
+                                                  child: lineWidget,
+                                                );
+                                              },
+                                            ),
+                                          ),
+                                        );
+                                      },
                                     ),
                                   ),
                                 ),
@@ -806,6 +824,8 @@ class _JsonViewerState extends State<JsonViewer> {
           style: style,
           children: line.spans,
         ),
+        softWrap: false,
+        overflow: TextOverflow.visible,
       ),
     );
   }

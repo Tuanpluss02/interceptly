@@ -1,3 +1,9 @@
+## 2.0.2
+
+### Fixed
+- Fixed a Flutter assertion crash (`assert(!_selectionStartsInScrollable)`) when long-pressing empty spaces inside `JsonViewer`.
+- Fixed long lines (such as `Authorization: Bearer <token>`) in `JsonViewer` wrapping or getting visually truncated on narrow screens by disabling soft wrap and improving horizontal scroll boundaries.
+
 ## 2.0.1
 
 ### Fixed

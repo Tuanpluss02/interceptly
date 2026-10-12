@@ -126,6 +126,115 @@ void main() {
     });
 
     testWidgets(
+      'long-press in empty space does not throw assertion error',
+      (tester) async {
+        final data = {
+          'short': 'val',
+        };
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                height: 300,
+                width: 300,
+                child: JsonViewer(data: data),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // 1. Long press in empty space below lines (e.g. at (200, 200))
+        final gesture1 = await tester.startGesture(const Offset(200, 200));
+        await tester.pump(const Duration(milliseconds: 600));
+        await gesture1.moveBy(const Offset(5, 5));
+        await tester.pump();
+        await gesture1.up();
+        await tester.pumpAndSettle();
+
+        // 2. Long press in empty space to the right of short text on line 2 (e.g. at (250, 27))
+        final gesture2 = await tester.startGesture(const Offset(250, 27));
+        await tester.pump(const Duration(milliseconds: 600));
+        await gesture2.moveBy(const Offset(5, 5));
+        await tester.pump();
+        await gesture2.up();
+        await tester.pumpAndSettle();
+      },
+    );
+
+    testWidgets(
+      'long-press on text can still select text in json viewer',
+      (tester) async {
+        final data = {
+          'target_key': 'target_value',
+        };
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                height: 300,
+                width: 300,
+                child: JsonViewer(data: data),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final textFinder = find.textContaining('target_key');
+        expect(textFinder, findsOneWidget);
+
+        // Long press on the text
+        final textCenter = tester.getCenter(textFinder);
+        final gesture = await tester.startGesture(textCenter);
+        await tester.pump(const Duration(milliseconds: 600));
+        await gesture.up();
+        await tester.pumpAndSettle();
+      },
+    );
+
+    testWidgets(
+      'Bearer token lines do not wrap and can be scrolled horizontally',
+      (tester) async {
+        const token =
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
+        final data = {
+          'Authorization': 'Bearer $token',
+        };
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                height: 300,
+                width: 320,
+                child: JsonViewer(data: data),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final authRichTextFinder = find.byWidgetPredicate(
+          (w) =>
+              w is RichText && w.text.toPlainText().contains('Authorization'),
+        );
+        expect(authRichTextFinder, findsOneWidget);
+
+        final richTextWidget = tester.widget<RichText>(authRichTextFinder);
+        expect(richTextWidget.softWrap, isFalse);
+
+        // Verify the entire text contains the full token
+        final plainText = richTextWidget.text.toPlainText();
+        expect(plainText, contains('Authorization'));
+        expect(plainText, contains('Bearer '));
+        expect(plainText, contains(token));
+      },
+    );
+
+    testWidgets(
         'fold indicators scroll vertically with the lines they represent',
         (tester) async {
       final data = {
