@@ -445,8 +445,7 @@ void main() {
         // Replace route
         navKey.currentState!.pushReplacement(
           MaterialPageRoute(
-            builder: (_) =>
-                const Scaffold(body: Text('Replacement Page')),
+            builder: (_) => const Scaffold(body: Text('Replacement Page')),
           ),
         );
         await tester.pumpAndSettle();
@@ -600,5 +599,3 @@ void main() {
     );
   });
 }
-
-

@@ -3,7 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/src/ui/overlay/draggable_fab.dart';
 
 void main() {
-  testWidgets('DraggableFab restores position from positionNotifier on remount', (tester) async {
+  testWidgets('DraggableFab restores position from positionNotifier on remount',
+      (tester) async {
     final positionNotifier = ValueNotifier<Offset?>(const Offset(50, 100));
 
     // First mount with positionNotifier
@@ -28,7 +29,8 @@ void main() {
     expect(tester.getTopLeft(fabFinder).dy, 100);
 
     // Unmount widget
-    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: SizedBox())));
+    await tester
+        .pumpWidget(const MaterialApp(home: Scaffold(body: SizedBox())));
     await tester.pumpAndSettle();
 
     // Remount with same positionNotifier

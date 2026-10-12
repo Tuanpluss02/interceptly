@@ -9,7 +9,8 @@ void main() {
     FloatingOverlayManager.instance.detach();
   });
 
-  testWidgets('FloatingOverlayManager attaches overlay entry without timers', (tester) async {
+  testWidgets('FloatingOverlayManager attaches overlay entry without timers',
+      (tester) async {
     final navKey = GlobalKey<NavigatorState>();
 
     await tester.pumpWidget(
@@ -31,7 +32,9 @@ void main() {
     expect(FloatingOverlayManager.instance.isAttached, isTrue);
   });
 
-  testWidgets('FloatingOverlayManager brings FAB to top on route push and replacement', (tester) async {
+  testWidgets(
+      'FloatingOverlayManager brings FAB to top on route push and replacement',
+      (tester) async {
     final navKey = GlobalKey<NavigatorState>();
 
     await tester.pumpWidget(
@@ -70,7 +73,8 @@ void main() {
     expect(tapped, isTrue);
   });
 
-  testWidgets('FloatingOverlayManager detach removes overlay and resets state', (tester) async {
+  testWidgets('FloatingOverlayManager detach removes overlay and resets state',
+      (tester) async {
     final navKey = GlobalKey<NavigatorState>();
 
     await tester.pumpWidget(
