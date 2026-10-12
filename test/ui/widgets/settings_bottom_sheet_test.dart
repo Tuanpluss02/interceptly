@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
+import 'package:interceptly/src/ui/overlay/floating_overlay_manager.dart';
 import 'package:interceptly/src/ui/settings/settings_bottom_sheet.dart';
 
 void main() {
@@ -58,6 +59,40 @@ void main() {
           InterceptlyTheme.colors.actionSecondary,
         );
       }
+    },
+  );
+
+  testWidgets(
+    'SettingsBottomSheet toggles hide for session in FloatingOverlayManager',
+    (tester) async {
+      final session = InspectorSession();
+      FloatingOverlayManager.instance.setHiddenForSession(false);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SettingsBottomSheet(session: session),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Hide for This Session'), findsOneWidget);
+      expect(
+          find.text('Hides bug button until next app launch'), findsOneWidget);
+      expect(FloatingOverlayManager.instance.isHiddenForSession, isFalse);
+
+      // Tap the tile to hide
+      await tester.tap(find.text('Hide for This Session'));
+      await tester.pumpAndSettle();
+
+      expect(FloatingOverlayManager.instance.isHiddenForSession, isTrue);
+
+      // Tap again to restore
+      await tester.tap(find.text('Hide for This Session'));
+      await tester.pumpAndSettle();
+
+      expect(FloatingOverlayManager.instance.isHiddenForSession, isFalse);
     },
   );
 }

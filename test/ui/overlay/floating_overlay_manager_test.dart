@@ -99,4 +99,54 @@ void main() {
     expect(find.byIcon(Icons.bug_report), findsNothing);
     expect(FloatingOverlayManager.instance.isAttached, isFalse);
   });
+
+  testWidgets(
+      'FloatingOverlayManager hides FAB for session and restores on restart',
+      (tester) async {
+    final navKey = GlobalKey<NavigatorState>();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorKey: navKey,
+        home: const Scaffold(body: Text('Home')),
+      ),
+    );
+
+    FloatingOverlayManager.instance.attach(
+      navigatorKey: navKey,
+      showFloatingButton: true,
+      onFabTap: () {},
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.bug_report), findsOneWidget);
+    expect(FloatingOverlayManager.instance.isHiddenForSession, isFalse);
+
+    // Hide for this session
+    FloatingOverlayManager.instance.setHiddenForSession(true);
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.bug_report), findsNothing);
+    expect(FloatingOverlayManager.instance.isHiddenForSession, isTrue);
+
+    // Push new page should NOT show FAB while hidden for session
+    navKey.currentState!.push(
+      MaterialPageRoute(
+        builder: (_) => const Scaffold(body: Text('Page 2')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.bug_report), findsNothing);
+
+    // Simulating app restart / re-attach restores FAB for new session
+    FloatingOverlayManager.instance.attach(
+      navigatorKey: navKey,
+      showFloatingButton: true,
+      onFabTap: () {},
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.bug_report), findsOneWidget);
+    expect(FloatingOverlayManager.instance.isHiddenForSession, isFalse);
+  });
 }

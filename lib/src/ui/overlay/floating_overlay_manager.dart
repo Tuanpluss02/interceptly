@@ -31,6 +31,7 @@ class _FloatingOverlayNavigatorObserver extends NavigatorObserver {
   void _scheduleBringToTop() {
     if (_manager.isAttached &&
         !_manager._inspectorIsOpen &&
+        !_manager._hiddenForSession &&
         _manager._showFloatingButton) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _manager.bringToTop();
@@ -78,6 +79,7 @@ class FloatingOverlayManager {
   bool _inspectorIsOpen = false;
   bool _isAttached = false;
   bool _observerRegistered = false;
+  bool _hiddenForSession = false;
 
   late final _FloatingOverlayNavigatorObserver _navigatorObserver =
       _FloatingOverlayNavigatorObserver(this);
@@ -85,7 +87,24 @@ class FloatingOverlayManager {
       _FloatingOverlayLifecycleObserver(this);
 
   bool get isAttached => _isAttached;
+  bool get isHiddenForSession => _hiddenForSession;
+  bool get showFloatingButton => _showFloatingButton;
   NavigatorObserver get navigatorObserver => _navigatorObserver;
+
+  void setHiddenForSession(bool hidden) {
+    if (_hiddenForSession == hidden) return;
+    _hiddenForSession = hidden;
+    if (hidden) {
+      try {
+        _fabEntry?.remove();
+      } catch (_) {}
+      _fabEntry = null;
+    } else {
+      if (_isAttached && !_inspectorIsOpen && _showFloatingButton) {
+        _tryInsertOverlays();
+      }
+    }
+  }
 
   void attach({
     required GlobalKey<NavigatorState> navigatorKey,
@@ -102,6 +121,7 @@ class FloatingOverlayManager {
     _fabChild = fabChild;
     _onFabTap = onFabTap;
     _isAttached = true;
+    _hiddenForSession = false;
 
     if (!_observerRegistered) {
       WidgetsBinding.instance.addObserver(_lifecycleObserver);
@@ -109,19 +129,24 @@ class FloatingOverlayManager {
     }
 
     if (_showFloatingButton) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!_isAttached) return;
+      final overlay = _navigatorKey?.currentState?.overlay;
+      if (overlay != null && overlay.mounted) {
         _tryInsertOverlays();
-      });
+      } else {
+        WidgetsBinding.instance.ensureVisualUpdate();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!_isAttached) return;
+          _tryInsertOverlays();
+        });
+      }
     }
   }
 
   void _tryInsertOverlays() {
-    if (!_isAttached || !_showFloatingButton) return;
+    if (!_isAttached || !_showFloatingButton || _hiddenForSession) return;
 
     final overlay = _navigatorKey?.currentState?.overlay;
     if (overlay == null || !overlay.mounted) {
-      // Frame-based retry: wait for next post-frame without arbitrary timers.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!_isAttached || !_showFloatingButton) return;
         final nextOverlay = _navigatorKey?.currentState?.overlay;
@@ -154,7 +179,12 @@ class FloatingOverlayManager {
   }
 
   void bringToTop() {
-    if (!_isAttached || _inspectorIsOpen || !_showFloatingButton) return;
+    if (!_isAttached ||
+        _inspectorIsOpen ||
+        !_showFloatingButton ||
+        _hiddenForSession) {
+      return;
+    }
 
     final overlay = _navigatorKey?.currentState?.overlay;
     if (overlay == null || !overlay.mounted) return;
@@ -228,9 +258,7 @@ class FloatingOverlayManager {
       if (!observers.contains(_navigatorObserver)) {
         observers.add(_navigatorObserver);
       }
-    } catch (_) {
-      // Observers list may be unmodifiable (e.g. const <NavigatorObserver>[])
-    }
+    } catch (_) {}
   }
 
   void onInspectorOpened() {
@@ -258,6 +286,7 @@ class FloatingOverlayManager {
     _fabChild = null;
     _inspectorIsOpen = false;
     _isAttached = false;
+    _hiddenForSession = false;
     persistentPosition.value = null;
   }
 }

@@ -3,6 +3,7 @@ import 'package:interceptly/src/ui/interceptly_theme.dart';
 
 import '../../model/network_simulation.dart';
 import '../../session/inspector_session_view.dart';
+import '../overlay/floating_overlay_manager.dart';
 
 /// Bottom-sheet UI for inspector runtime settings.
 class SettingsBottomSheet extends StatefulWidget {
@@ -28,6 +29,7 @@ class SettingsBottomSheet extends StatefulWidget {
 
 class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
   bool _urlDecodeEnabled = true;
+  bool _hideFloatingButtonForSession = false;
   late NetworkSimulationProfile _networkSimulation;
   ThemeMode _themeMode = ThemeMode.system;
 
@@ -53,6 +55,8 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
     _urlDecodeEnabled = widget.session.preferences.urlDecodeEnabled;
     _networkSimulation = widget.session.networkSimulation;
     _themeMode = widget.session.preferences.themeMode;
+    _hideFloatingButtonForSession =
+        FloatingOverlayManager.instance.isHiddenForSession;
   }
 
   @override
@@ -161,12 +165,37 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                     _SettingsTile(
                       icon: Icons.link,
                       title: 'URL Decoding',
+                      onTap: () {
+                        final next = !_urlDecodeEnabled;
+                        setState(() => _urlDecodeEnabled = next);
+                        widget.session.preferences.setUrlDecodeEnabled(next);
+                      },
                       trailing: _CustomSwitch(
                         value: _urlDecodeEnabled,
                         activeColor: _colors.actionPrimary,
                         onChanged: (val) {
                           setState(() => _urlDecodeEnabled = val);
                           widget.session.preferences.setUrlDecodeEnabled(val);
+                        },
+                      ),
+                    ),
+                    _SettingsTile(
+                      icon: Icons.visibility_off_outlined,
+                      title: 'Hide for This Session',
+                      subtitle: 'Hides bug button until next app launch',
+                      onTap: () {
+                        final next = !_hideFloatingButtonForSession;
+                        setState(() => _hideFloatingButtonForSession = next);
+                        FloatingOverlayManager.instance
+                            .setHiddenForSession(next);
+                      },
+                      trailing: _CustomSwitch(
+                        value: _hideFloatingButtonForSession,
+                        activeColor: _colors.actionPrimary,
+                        onChanged: (val) {
+                          setState(() => _hideFloatingButtonForSession = val);
+                          FloatingOverlayManager.instance
+                              .setHiddenForSession(val);
                         },
                       ),
                     ),
@@ -388,12 +417,16 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
 class _SettingsTile extends StatelessWidget {
   final IconData icon;
   final String title;
+  final String? subtitle;
   final Widget trailing;
+  final VoidCallback? onTap;
 
   const _SettingsTile({
     required this.icon,
     required this.title,
+    this.subtitle,
     required this.trailing,
+    this.onTap,
   });
 
   @override
@@ -402,6 +435,7 @@ class _SettingsTile extends StatelessWidget {
     final typography = InterceptlyTheme.typography;
 
     return InkWell(
+      onTap: onTap,
       hoverColor: InterceptlyTheme.hoverOverlay,
       child: Padding(
         padding: const EdgeInsets.all(12.0),
@@ -420,6 +454,16 @@ class _SettingsTile extends StatelessWidget {
                       color: colors.textPrimary,
                     ),
                   ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle!,
+                      style: typography.bodySmallRegular.copyWith(
+                        fontSize: 11,
+                        color: colors.textTertiary,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

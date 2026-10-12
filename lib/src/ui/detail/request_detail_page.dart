@@ -426,7 +426,10 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                         unselectedLabelColor: InterceptlyTheme.textQuaternary,
                         dividerColor: InterceptlyGlobalColor.transparent,
                         tabs: isWs
-                            ? const [Tab(text: 'Overview'), Tab(text: 'Messages')]
+                            ? const [
+                                Tab(text: 'Overview'),
+                                Tab(text: 'Messages')
+                              ]
                             : const [
                                 Tab(text: 'Overview'),
                                 Tab(text: 'Request'),

@@ -28,10 +28,6 @@ class Interceptly extends ChangeNotifier {
 
   final InspectorSession _session;
 
-  // ---------------------------------------------------------------------------
-  // init / detach
-  // ---------------------------------------------------------------------------
-
   /// Single entrypoint to initialize Interceptly: attaches the UI to [navigatorKey]
   /// and applies all desired configuration options in one clean call.
   ///
@@ -73,9 +69,18 @@ class Interceptly extends ChangeNotifier {
   /// Removes all overlay entries and cancels all trigger subscriptions.
   static void detach() => _detach();
 
-  // ---------------------------------------------------------------------------
-  // Navigation
-  // ---------------------------------------------------------------------------
+  /// Hides the floating button for the remainder of this session.
+  /// It will reappear when the app restarts.
+  static void hideFloatingButtonForSession() =>
+      FloatingOverlayManager.instance.setHiddenForSession(true);
+
+  /// Restores the floating button if it was hidden for this session.
+  static void showFloatingButtonForSession() =>
+      FloatingOverlayManager.instance.setHiddenForSession(false);
+
+  /// Whether the floating button is currently hidden for this session.
+  static bool get isFloatingButtonHiddenForSession =>
+      FloatingOverlayManager.instance.isHiddenForSession;
 
   /// Opens the inspector screen.
   ///
@@ -93,10 +98,6 @@ class Interceptly extends ChangeNotifier {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Passthrough getters
-  // ---------------------------------------------------------------------------
-
   InspectorSessionView get session => _session;
   InterceptlySettings get settings => _session.settings;
   List<RequestSummary> get calls => _session.entries;
@@ -104,10 +105,6 @@ class Interceptly extends ChangeNotifier {
   int get droppedEvents => _session.droppedCount;
   bool get isEnabled => _session.isEnabled;
   NetworkSimulationProfile get networkSimulation => _session.networkSimulation;
-
-  // ---------------------------------------------------------------------------
-  // Capture control
-  // ---------------------------------------------------------------------------
 
   void enable() => _session.enable();
   void disable() => _session.disable();
@@ -130,10 +127,6 @@ class Interceptly extends ChangeNotifier {
     super.dispose();
   }
 }
-
-// ---------------------------------------------------------------------------
-// UI State & Overlay Wiring (Delegated to FloatingOverlayManager)
-// ---------------------------------------------------------------------------
 
 GlobalKey<NavigatorState>? _activeNavigatorKey;
 InspectorSession? _activeSession;
