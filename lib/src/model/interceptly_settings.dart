@@ -9,12 +9,7 @@ class InterceptlySettings {
     this.maxEntries = 5000,
     this.urlDecodeEnabled = true,
     this.pendingTimeout = const Duration(seconds: 45),
-    this.redactedHeaders = const {
-      'authorization',
-      'cookie',
-      'set-cookie',
-      'x-api-key',
-    },
+    this.redactedHeaders = const {},
     this.shouldCapture,
   });
 

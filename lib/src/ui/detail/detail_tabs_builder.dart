@@ -15,6 +15,7 @@ class DetailTabsBuilder {
   final bool urlDecodeEnabled;
   final dynamic Function(String?) tryParseJson;
   final Map<DetailSection, GlobalKey>? sectionKeys;
+  final int? scrollTrigger;
 
   DetailTabsBuilder({
     required this.record,
@@ -24,6 +25,7 @@ class DetailTabsBuilder {
     required this.urlDecodeEnabled,
     required this.tryParseJson,
     this.sectionKeys,
+    this.scrollTrigger,
   });
 
   Widget buildOverviewTab() {
@@ -653,6 +655,7 @@ class DetailTabsBuilder {
         searchQuery: query.isEmpty ? null : query,
         matchOffset: matchOffset,
         activeGlobalIndex: activeGlobalIndex,
+        scrollTrigger: scrollTrigger,
       ),
     );
   }

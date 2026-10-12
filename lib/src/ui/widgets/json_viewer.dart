@@ -25,6 +25,10 @@ class JsonViewer extends StatefulWidget {
   /// Active global match index currently selected by parent UI.
   final int? activeGlobalIndex;
 
+  /// Epoch/generation counter to explicitly re-trigger scrolling to the active match
+  /// (e.g. when pressing goto / Next / Prev match or switching back across tabs).
+  final int? scrollTrigger;
+
   /// Optional flag to control scrollbar thumb visibility.
   /// If null, follows standard platform behavior (shows while scrolling or hovering).
   final bool? thumbVisibility;
@@ -36,6 +40,7 @@ class JsonViewer extends StatefulWidget {
     this.searchQuery,
     this.matchOffset = 0,
     this.activeGlobalIndex,
+    this.scrollTrigger,
     this.thumbVisibility,
   });
 
@@ -235,6 +240,7 @@ class _JsonViewerState extends State<JsonViewer> {
 
   int? _lastScrolledGlobalIndex;
   String? _lastScrolledQuery;
+  int? _lastScrollTrigger;
 
   void _checkScrollToActive({
     required int activeLineIndex,
@@ -245,7 +251,8 @@ class _JsonViewerState extends State<JsonViewer> {
     required TextStyle contentStyle,
   }) {
     if (_lastScrolledGlobalIndex == widget.activeGlobalIndex &&
-        _lastScrolledQuery == widget.searchQuery) {
+        _lastScrolledQuery == widget.searchQuery &&
+        _lastScrollTrigger == widget.scrollTrigger) {
       return;
     }
 
@@ -274,6 +281,7 @@ class _JsonViewerState extends State<JsonViewer> {
 
         _lastScrolledGlobalIndex = widget.activeGlobalIndex;
         _lastScrolledQuery = widget.searchQuery;
+        _lastScrollTrigger = widget.scrollTrigger;
 
         if (maxScroll > 0) {
           final targetOffset =
@@ -668,7 +676,6 @@ class _JsonViewerState extends State<JsonViewer> {
                             controller: _gutterScrollController,
                             itemExtent: lineHeight,
                             itemCount: lines.length,
-                            cacheExtent: 1000.0,
                             addAutomaticKeepAlives: false,
                             physics: const ClampingScrollPhysics(),
                             itemBuilder: (context, index) {
@@ -731,7 +738,6 @@ class _JsonViewerState extends State<JsonViewer> {
                                         controller: _contentScrollController,
                                         itemExtent: lineHeight,
                                         itemCount: lines.length,
-                                        cacheExtent: 1000.0,
                                         addAutomaticKeepAlives: false,
                                         physics: const ClampingScrollPhysics(),
                                         itemBuilder: (context, index) {

@@ -871,7 +871,8 @@ void main() {
       expect(captured.statusCode, equals(200));
       expect(captured.method, equals('GET'));
       expect(captured.url, contains('/api/items'));
-      expect(captured.requestHeaders['Authorization'], equals('[REDACTED]'));
+      expect(captured.requestHeaders['Authorization'],
+          equals('Bearer secret_user_token'));
 
       session.dispose();
     });

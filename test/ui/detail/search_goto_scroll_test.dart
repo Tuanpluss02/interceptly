@@ -523,5 +523,324 @@ void main() {
       // Floating capsule match counter should be visible showing matches
       expect(find.textContaining('/'), findsWidgets);
     });
+
+    testWidgets(
+        'search match -> scroll away -> switch tab -> goto returns and scrolls to match',
+        (tester) async {
+      tester.view.physicalSize = const Size(400, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final entry = _createEntry('req_repro');
+      // Create many fields so the payload requires scrolling in JsonViewer
+      final payload = <String, dynamic>{
+        for (int i = 0; i < 40; i++) 'key_$i': 'value_$i',
+        'target_secret': 'found_me_here',
+        for (int i = 41; i < 60; i++) 'key_$i': 'value_$i',
+      };
+      final bodyJson = jsonEncode(payload);
+
+      final record = RequestRecord(
+        id: entry.id,
+        method: entry.method,
+        url: entry.url,
+        statusCode: entry.statusCode,
+        timestamp: entry.timestamp,
+        durationMs: entry.durationMs,
+        requestSizeBytes: entry.requestSizeBytes,
+        responseSizeBytes: bodyJson.length,
+        requestHeaders: const {},
+        responseHeaders: const {'content-type': 'application/json'},
+        responseContentType: 'application/json',
+        responseBodyPreview: bodyJson,
+      );
+
+      final session = _MockDetailSession(record: record, entry: entry);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: RequestDetailPage(entry: entry, session: session),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Search for target_secret
+      final searchField = find.byType(TextField);
+      await tester.enterText(searchField, 'found_me_here');
+      tester.widget<TextField>(searchField).onSubmitted?.call('found_me_here');
+
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 350));
+      });
+      await tester.pumpAndSettle();
+
+      // It automatically navigated to Response tab (Tab 2)
+      final jsonViewerFinder = find.byType(JsonViewer).last;
+      expect(jsonViewerFinder, findsOneWidget);
+      final jvState = tester.state(jsonViewerFinder) as dynamic;
+      final contentScroll =
+          jvState.contentScrollControllerForTest as ScrollController;
+
+      // It should have scrolled down to the match line (~line 40)
+      final matchOffset = contentScroll.offset;
+      expect(matchOffset, greaterThan(0.0));
+
+      // 1. Scroll away from match (e.g. scroll to top)
+      contentScroll.jumpTo(0.0);
+      await tester.pumpAndSettle();
+      expect(contentScroll.offset, 0.0);
+
+      // 2. Switch to another tab (e.g. Overview tab)
+      await tester.tap(find.text('Overview'));
+      await tester.pumpAndSettle();
+
+      // 3. Press "goto" (Next match button)
+      final nextButton = find.byTooltip('Next match');
+      await tester.tap(nextButton);
+      await tester.pumpAndSettle();
+
+      // Tab should be back to Response tab
+      // AND scroll position should be back to matchOffset!
+      expect(contentScroll.offset, closeTo(matchOffset, 5.0));
+    });
+
+    testWidgets(
+        'outer ListView: search match in bottom section -> scroll away -> switch tab -> goto returns and scrolls to section',
+        (tester) async {
+      tester.view.physicalSize = const Size(400, 500);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final entry = _createEntry('req_outer');
+      final headers = <String, String>{
+        for (int i = 0; i < 30; i++) 'header-$i': 'value-$i',
+      };
+      final record = RequestRecord(
+        id: entry.id,
+        method: entry.method,
+        url: entry.url,
+        statusCode: entry.statusCode,
+        timestamp: entry.timestamp,
+        durationMs: entry.durationMs,
+        requestSizeBytes: entry.requestSizeBytes,
+        responseSizeBytes: 100,
+        requestHeaders: headers,
+        responseHeaders: const {},
+        requestContentType: 'application/json',
+        requestBodyPreview: '{"needle": "find_in_request_body"}',
+      );
+
+      final session = _MockDetailSession(record: record, entry: entry);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: RequestDetailPage(entry: entry, session: session),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final searchField = find.byType(TextField);
+      await tester.enterText(searchField, 'find_in_request_body');
+      tester
+          .widget<TextField>(searchField)
+          .onSubmitted
+          ?.call('find_in_request_body');
+
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 350));
+      });
+      await tester.pumpAndSettle();
+
+      // Find the outer ListView for Request tab
+      final listViewFinder = find.ancestor(
+        of: find.text('REQUEST BODY'),
+        matching: find.byType(ListView),
+      );
+      expect(listViewFinder, findsOneWidget);
+      final scrollableState = tester.state<ScrollableState>(
+        find.ancestor(
+          of: find.text('REQUEST BODY'),
+          matching: find.byType(Scrollable),
+        ),
+      );
+      final initialOffset = scrollableState.position.pixels;
+      expect(initialOffset, greaterThan(0.0));
+
+      // Scroll away: scroll the Request tab back to top (0.0)
+      scrollableState.position.jumpTo(0.0);
+      await tester.pumpAndSettle();
+      expect(scrollableState.position.pixels, 0.0);
+
+      // Tap Overview tab
+      await tester.tap(find.text('Overview'));
+      await tester.pumpAndSettle();
+
+      // Press next match
+      final nextButton = find.byTooltip('Next match');
+      await tester.tap(nextButton);
+      await tester.pumpAndSettle();
+
+      // Verify it scrolled back down to Request Body!
+      expect(scrollableState.position.pixels, greaterThan(0.0));
+      expect(find.text('REQUEST BODY'), findsOneWidget);
+    });
+
+    testWidgets(
+        'tap match counter capsule on another tab returns and scrolls to match',
+        (tester) async {
+      tester.view.physicalSize = const Size(400, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final entry = _createEntry('req_pill_tap');
+      final payload = <String, dynamic>{
+        for (int i = 0; i < 40; i++) 'key_$i': 'value_$i',
+        'target_secret': 'pill_target_value',
+        for (int i = 41; i < 60; i++) 'key_$i': 'value_$i',
+      };
+      final bodyJson = jsonEncode(payload);
+
+      final record = RequestRecord(
+        id: entry.id,
+        method: entry.method,
+        url: entry.url,
+        statusCode: entry.statusCode,
+        timestamp: entry.timestamp,
+        durationMs: entry.durationMs,
+        requestSizeBytes: entry.requestSizeBytes,
+        responseSizeBytes: bodyJson.length,
+        requestHeaders: const {},
+        responseHeaders: const {'content-type': 'application/json'},
+        responseContentType: 'application/json',
+        responseBodyPreview: bodyJson,
+      );
+
+      final session = _MockDetailSession(record: record, entry: entry);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: RequestDetailPage(entry: entry, session: session),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final searchField = find.byType(TextField);
+      await tester.enterText(searchField, 'pill_target_value');
+      tester
+          .widget<TextField>(searchField)
+          .onSubmitted
+          ?.call('pill_target_value');
+
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 350));
+      });
+      await tester.pumpAndSettle();
+
+      final jsonViewerFinder = find.byType(JsonViewer).last;
+      final jvState = tester.state(jsonViewerFinder) as dynamic;
+      final contentScroll =
+          jvState.contentScrollControllerForTest as ScrollController;
+
+      final matchOffset = contentScroll.offset;
+      expect(matchOffset, greaterThan(0.0));
+
+      // Scroll away
+      contentScroll.jumpTo(0.0);
+      await tester.pumpAndSettle();
+
+      // Switch to Overview tab
+      await tester.tap(find.text('Overview'));
+      await tester.pumpAndSettle();
+
+      // Tap the counter pill directly
+      final pillFinder = find.byTooltip('Go to current match');
+      expect(pillFinder, findsOneWidget);
+      await tester.tap(pillFinder);
+      await tester.pumpAndSettle();
+
+      // Should be back on Response tab and scrolled to match
+      expect(contentScroll.offset, closeTo(matchOffset, 5.0));
+    });
+
+    testWidgets(
+        'same tab: scroll away inside JsonViewer -> tap next match scrolls back to match',
+        (tester) async {
+      tester.view.physicalSize = const Size(400, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final entry = _createEntry('req_same_tab');
+      final payload = <String, dynamic>{
+        for (int i = 0; i < 40; i++) 'key_$i': 'value_$i',
+        'target_secret': 'same_tab_target',
+        for (int i = 41; i < 60; i++) 'key_$i': 'value_$i',
+      };
+      final bodyJson = jsonEncode(payload);
+
+      final record = RequestRecord(
+        id: entry.id,
+        method: entry.method,
+        url: entry.url,
+        statusCode: entry.statusCode,
+        timestamp: entry.timestamp,
+        durationMs: entry.durationMs,
+        requestSizeBytes: entry.requestSizeBytes,
+        responseSizeBytes: bodyJson.length,
+        requestHeaders: const {},
+        responseHeaders: const {'content-type': 'application/json'},
+        responseContentType: 'application/json',
+        responseBodyPreview: bodyJson,
+      );
+
+      final session = _MockDetailSession(record: record, entry: entry);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: RequestDetailPage(entry: entry, session: session),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final searchField = find.byType(TextField);
+      await tester.enterText(searchField, 'same_tab_target');
+      tester
+          .widget<TextField>(searchField)
+          .onSubmitted
+          ?.call('same_tab_target');
+
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 350));
+      });
+      await tester.pumpAndSettle();
+
+      final jsonViewerFinder = find.byType(JsonViewer).last;
+      final jvState = tester.state(jsonViewerFinder) as dynamic;
+      final contentScroll =
+          jvState.contentScrollControllerForTest as ScrollController;
+
+      final matchOffset = contentScroll.offset;
+      expect(matchOffset, greaterThan(0.0));
+
+      // Scroll away on the same tab
+      contentScroll.jumpTo(0.0);
+      await tester.pumpAndSettle();
+      expect(contentScroll.offset, 0.0);
+
+      // Press Next match
+      final nextButton = find.byTooltip('Next match');
+      await tester.tap(nextButton);
+      await tester.pumpAndSettle();
+
+      // Should scroll back to match
+      expect(contentScroll.offset, closeTo(matchOffset, 5.0));
+    });
   });
 }

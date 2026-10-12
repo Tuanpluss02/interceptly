@@ -1,3 +1,16 @@
+## 2.0.1
+
+### Fixed
+- Fixed an issue where navigating search matches (Next / Previous match or tab switch) only switched the active tab without scrolling to the matched position in `RequestDetailPage` and `JsonViewer`.
+- Fixed match scroll position desynchronization when scrolling away from a match and returning via match navigation.
+- Removed deprecated `cacheExtent` usage in `JsonViewer` to avoid analyzer warnings on Flutter 3.47+ / pana score.
+
+### Changed
+- `InterceptlySettings.redactedHeaders` now defaults to empty (`const {}`) so headers are captured raw by default unless explicitly configured.
+
+### Added
+- Tap the search match counter capsule (`X / Y`) to directly jump/scroll to the currently active match.
+
 ## 2.0.0
 
 ### Breaking

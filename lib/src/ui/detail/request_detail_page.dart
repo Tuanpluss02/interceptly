@@ -179,8 +179,12 @@ class _RequestDetailPageState extends State<RequestDetailPage>
 
   void _scrollToActiveMatch(DetailMatch activeMatch) {
     final gen = ++_scrollNavGeneration;
+    if (!_visitedTabs.contains(activeMatch.tabIndex)) {
+      _visitedTabs.add(activeMatch.tabIndex);
+    }
+    setState(() {});
 
-    void executeOuterScroll() {
+    void executeOuterScroll([int retries = 2]) {
       if (!mounted || gen != _scrollNavGeneration) return;
       final key = _sectionKeys[activeMatch.section];
       final targetContext = key?.currentContext;
@@ -191,16 +195,15 @@ class _RequestDetailPageState extends State<RequestDetailPage>
           curve: Curves.easeInOut,
           alignment: 0.05,
         );
+      } else if (retries > 0) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          executeOuterScroll(retries - 1);
+        });
       }
     }
 
     if (_tabController.index != activeMatch.tabIndex) {
       if (_tabController.length > activeMatch.tabIndex) {
-        if (!_visitedTabs.contains(activeMatch.tabIndex)) {
-          setState(() {
-            _visitedTabs.add(activeMatch.tabIndex);
-          });
-        }
         _tabController.animateTo(activeMatch.tabIndex);
         Future.delayed(const Duration(milliseconds: 320), () {
           if (mounted && gen == _scrollNavGeneration) {
@@ -483,6 +486,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                               urlDecodeEnabled: urlDecodeEnabled,
                               tryParseJson: _tryParseJson,
                               sectionKeys: _sectionKeys,
+                              scrollTrigger: _scrollNavGeneration,
                             );
                             return IndexedStack(
                               index: tabIndex,
@@ -677,24 +681,47 @@ class _RequestDetailPageState extends State<RequestDetailPage>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(
-              Icons.search,
-              size: 15,
-              color: totalMatches == 0
-                  ? InterceptlyTheme.textQuaternary
-                  : InterceptlyTheme.indigo500,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              totalMatches == 0
-                  ? '0 / 0'
-                  : '${effectiveIndex + 1} / $totalMatches',
-              style: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: totalMatches == 0
-                    ? InterceptlyTheme.textQuaternary
-                    : InterceptlyTheme.textPrimary,
+            Tooltip(
+              message: 'Go to current match',
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16.0),
+                onTap: totalMatches == 0
+                    ? null
+                    : () {
+                        _scrollToActiveMatch(matches[effectiveIndex]);
+                      },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4.0,
+                    vertical: 2.0,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.search,
+                        size: 15,
+                        color: totalMatches == 0
+                            ? InterceptlyTheme.textQuaternary
+                            : InterceptlyTheme.indigo500,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        totalMatches == 0
+                            ? '0 / 0'
+                            : '${effectiveIndex + 1} / $totalMatches',
+                        style: InterceptlyTheme.typography.bodyMediumRegular
+                            .copyWith(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: totalMatches == 0
+                              ? InterceptlyTheme.textQuaternary
+                              : InterceptlyTheme.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: 6),
