@@ -10,6 +10,7 @@ import 'package:interceptly/src/export/curl_generator.dart';
 import 'package:interceptly/src/export/har_exporter.dart';
 import 'package:interceptly/src/export/postman_exporter.dart';
 import 'package:interceptly/src/model/body_location.dart';
+import 'package:interceptly/src/model/body_truncation.dart';
 import 'package:interceptly/src/model/domain_group.dart';
 import 'package:interceptly/src/model/index_entry.dart';
 import 'package:interceptly/src/model/interceptly_settings.dart';
@@ -399,7 +400,7 @@ void main() {
       final entry =
           session.entries.firstWhere((e) => e.id == 'cap_3mb') as IndexEntry;
       expect(entry.bodyLocation, equals(BodyLocation.file));
-      expect(entry.isBodyTruncated, isFalse);
+      expect(entry.isTruncated, isFalse);
 
       final record = await session.loadDetail(entry);
 
@@ -412,7 +413,7 @@ void main() {
           .sublist(record.responseBodyBytes!.length - 40));
       expect(decodedTail, contains('REACHED_END_OF_3MB'));
 
-      expect(record.isUiTruncated, isTrue);
+      expect(record.responseTruncation.isPreviewOnly, isTrue);
       expect(record.responseBodyPreview, isNotNull);
       expect(record.responseBodyPreview!.length,
           lessThanOrEqualTo(2 * 1024 * 1024 + 10));
@@ -422,7 +423,7 @@ void main() {
     });
 
     test(
-        'storage ceiling: when maxBodyBytes = 4MB, a 6MB payload is truncated at 4MB with isBodyTruncated = true',
+        'storage ceiling: when maxBodyBytes = 4MB, a 6MB payload is truncated at 4MB reported as preview-truncated',
         () async {
       final session = InspectorSession(
         settings: const InterceptlySettings(
@@ -458,12 +459,17 @@ void main() {
 
       final entry =
           session.entries.firstWhere((e) => e.id == 'cap_6mb') as IndexEntry;
-      expect(entry.isBodyTruncated, isTrue);
+      expect(entry.responseTruncation.hasDataLoss, isTrue);
 
       final record = await session.loadDetail(entry);
       expect(record.responseBodyBytes!.length, equals(4 * 1024 * 1024));
-      expect(record.isBodyTruncated, isTrue);
-      expect(record.isUiTruncated, isTrue);
+      expect(record.responseTruncation.hasDataLoss, isTrue);
+      expect(
+        record.responseTruncation.stage,
+        TruncationStage.storageAndPreview,
+        reason: 'storage capped at 4MB and the preview shows even less',
+      );
+      expect(record.responseTruncation.retainedBytes, 2 * 1024 * 1024);
 
       await session.dispose();
     });
@@ -505,11 +511,16 @@ void main() {
 
       final entry = session.entries.firstWhere((e) => e.id == 'cap_unlimited')
           as IndexEntry;
-      expect(entry.isBodyTruncated, isFalse);
+      expect(entry.responseTruncation.stage, TruncationStage.none);
 
       final record = await session.loadDetail(entry);
       expect(record.responseBodyBytes!.length, equals(5 * 1024 * 1024));
-      expect(record.isBodyTruncated, isFalse);
+      expect(record.hasDataLoss, isFalse);
+      expect(
+        record.responseTruncation.stage,
+        TruncationStage.preview,
+        reason: 'unlimited storage still shows a capped preview',
+      );
 
       await session.dispose();
     });
@@ -552,20 +563,23 @@ void main() {
           '{"full_3mb_data":"${'X' * (2 * 1024 * 1024 - 40)}';
 
       final record = RequestRecord(
-        id: 'rec_curl_3mb',
-        method: 'POST',
-        url: 'https://api.example.com/heavy',
-        statusCode: 200,
-        timestamp: DateTime.now(),
-        durationMs: 45,
-        requestHeaders: {'content-type': 'application/json'},
-        responseHeaders: {},
-        requestBodyPreview: truncatedPreview,
-        requestBodyBytes: Uint8List.fromList(utf8.encode(intact3Mb)),
-        requestSizeBytes: intact3Mb.length,
-        responseSizeBytes: 0,
-        isUiTruncated: true,
-      );
+          id: 'rec_curl_3mb',
+          method: 'POST',
+          url: 'https://api.example.com/heavy',
+          statusCode: 200,
+          timestamp: DateTime.now(),
+          durationMs: 45,
+          requestHeaders: {'content-type': 'application/json'},
+          responseHeaders: {},
+          requestBodyPreview: truncatedPreview,
+          requestBodyBytes: Uint8List.fromList(utf8.encode(intact3Mb)),
+          requestSizeBytes: intact3Mb.length,
+          responseSizeBytes: 0,
+          responseTruncation: const BodyTruncation(
+            originalBytes: 7000000,
+            retainedBytes: 2000000,
+            stage: TruncationStage.preview,
+          ));
 
       final curl = CurlGenerator.fromRecord(record);
       expect(curl, contains('intact_end'));
@@ -580,22 +594,25 @@ void main() {
           '{"export_payload":"${'Y' * (2 * 1024 * 1024 - 40)}';
 
       final record = RequestRecord(
-        id: 'rec_export_3mb',
-        method: 'POST',
-        url: 'https://api.example.com/export_test',
-        statusCode: 200,
-        timestamp: DateTime.now(),
-        durationMs: 50,
-        requestHeaders: {'content-type': 'application/json'},
-        responseHeaders: {'content-type': 'application/json'},
-        requestBodyPreview: truncatedPreview,
-        responseBodyPreview: truncatedPreview,
-        requestBodyBytes: Uint8List.fromList(utf8.encode(intact3Mb)),
-        responseBodyBytes: Uint8List.fromList(utf8.encode(intact3Mb)),
-        requestSizeBytes: intact3Mb.length,
-        responseSizeBytes: intact3Mb.length,
-        isUiTruncated: true,
-      );
+          id: 'rec_export_3mb',
+          method: 'POST',
+          url: 'https://api.example.com/export_test',
+          statusCode: 200,
+          timestamp: DateTime.now(),
+          durationMs: 50,
+          requestHeaders: {'content-type': 'application/json'},
+          responseHeaders: {'content-type': 'application/json'},
+          requestBodyPreview: truncatedPreview,
+          responseBodyPreview: truncatedPreview,
+          requestBodyBytes: Uint8List.fromList(utf8.encode(intact3Mb)),
+          responseBodyBytes: Uint8List.fromList(utf8.encode(intact3Mb)),
+          requestSizeBytes: intact3Mb.length,
+          responseSizeBytes: intact3Mb.length,
+          responseTruncation: const BodyTruncation(
+            originalBytes: 7000000,
+            retainedBytes: 2000000,
+            stage: TruncationStage.preview,
+          ));
 
       final harJson = HarExporter.toJson([record]);
       expect(harJson, contains('end_marker'));
@@ -614,20 +631,23 @@ void main() {
       final intactBytes = Uint8List.fromList(utf8.encode(intact3Mb));
 
       final record = RequestRecord(
-        id: 'rec_replay_3mb',
-        method: 'POST',
-        url: 'https://api.example.com/replay_heavy',
-        statusCode: 200,
-        timestamp: DateTime.now(),
-        durationMs: 30,
-        requestHeaders: {'content-type': 'application/json'},
-        responseHeaders: {},
-        requestBodyPreview: truncatedPreview,
-        requestBodyBytes: intactBytes,
-        requestSizeBytes: intactBytes.length,
-        responseSizeBytes: 0,
-        isUiTruncated: true,
-      );
+          id: 'rec_replay_3mb',
+          method: 'POST',
+          url: 'https://api.example.com/replay_heavy',
+          statusCode: 200,
+          timestamp: DateTime.now(),
+          durationMs: 30,
+          requestHeaders: {'content-type': 'application/json'},
+          responseHeaders: {},
+          requestBodyPreview: truncatedPreview,
+          requestBodyBytes: intactBytes,
+          requestSizeBytes: intactBytes.length,
+          responseSizeBytes: 0,
+          responseTruncation: const BodyTruncation(
+            originalBytes: 7000000,
+            retainedBytes: 2000000,
+            stage: TruncationStage.preview,
+          ));
 
       http.Request? capturedRequest;
       final mockClient = MockClient((request) async {
@@ -660,43 +680,32 @@ void main() {
       final decodedBody = utf8.decode(capturedRequest!.bodyBytes);
       expect(decodedBody, contains('"final":true'));
     });
-
-    test(
-        'ShareHandler exportResponseBodyFile writes complete binary payload file to disk',
-        () async {
-      final intactBytes = Uint8List.fromList(
-          utf8.encode('{"complete_file_payload": true, "size": 3145728}'));
-      final fileName = 'response_rec_share_full_test.json';
-      final file = File('${replayTempDir.path}/$fileName');
-      await file.writeAsBytes(intactBytes);
-
-      expect(file.existsSync(), isTrue);
-      final readBack = await file.readAsBytes();
-      expect(readBack, equals(intactBytes));
-    });
   });
 
   group('Empirical Challenge 4: UI Truncation Clean Rendering', () {
     testWidgets(
-        'Response tab renders response cleanly without warning banner when isUiTruncated is true',
+        'Response tab renders response cleanly without warning banner when the response body was preview-truncated',
         (tester) async {
       final largeBytes = Uint8List(4 * 1024 * 1024);
       final record = RequestRecord(
-        id: 'rec_ui_banner_check',
-        method: 'GET',
-        url: 'https://api.example.com/download_data',
-        statusCode: 200,
-        timestamp: DateTime.now(),
-        durationMs: 80,
-        requestHeaders: {},
-        responseHeaders: {'content-type': 'application/json'},
-        responseContentType: 'application/json',
-        responseBodyPreview: '{"preview_content": "first 2MB"}',
-        responseBodyBytes: largeBytes,
-        requestSizeBytes: 0,
-        responseSizeBytes: largeBytes.length,
-        isUiTruncated: true,
-      );
+          id: 'rec_ui_banner_check',
+          method: 'GET',
+          url: 'https://api.example.com/download_data',
+          statusCode: 200,
+          timestamp: DateTime.now(),
+          durationMs: 80,
+          requestHeaders: {},
+          responseHeaders: {'content-type': 'application/json'},
+          responseContentType: 'application/json',
+          responseBodyPreview: '{"preview_content": "first 2MB"}',
+          responseBodyBytes: largeBytes,
+          requestSizeBytes: 0,
+          responseSizeBytes: largeBytes.length,
+          responseTruncation: const BodyTruncation(
+            originalBytes: 7000000,
+            retainedBytes: 2000000,
+            stage: TruncationStage.preview,
+          ));
       final entry = IndexEntry(
         id: record.id,
         method: record.method,
@@ -707,7 +716,8 @@ void main() {
         responseSizeBytes: record.responseSizeBytes,
         timestamp: record.timestamp,
         hasError: false,
-        isBodyTruncated: false,
+        requestTruncation: const BodyTruncation.complete(0),
+        responseTruncation: const BodyTruncation.complete(0),
         bodyLocation: BodyLocation.memory,
       );
       final session = _MockSessionView(record: record, entry: entry);

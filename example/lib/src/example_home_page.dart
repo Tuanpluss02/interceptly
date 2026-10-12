@@ -6,6 +6,7 @@ import 'package:interceptly/interceptly.dart';
 
 import 'example_local_server.dart';
 import 'example_request_runner.dart';
+import 'example_truncation_presets.dart';
 
 class ExampleHomePage extends StatefulWidget {
   const ExampleHomePage({
@@ -29,8 +30,12 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
   String _status = 'Select any test case below to generate network traffic.';
   ExampleRequestResult? _lastResult;
   bool _isLoading = false;
+  String _presetId = truncationPresets.first.id;
 
   late final ExampleRequestRunner _runner;
+
+  TruncationPreset get _preset =>
+      truncationPresets.firstWhere((p) => p.id == _presetId);
 
   @override
   void initState() {
@@ -41,6 +46,13 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
       httpClient: widget.httpClient,
       chopperClient: widget.chopperClient,
     );
+    _applyPreset(truncationPresets.first);
+  }
+
+  /// Size caps only affect captures recorded after they are applied, so the
+  /// preset has to be chosen before firing the request under test.
+  void _applyPreset(TruncationPreset preset) {
+    InspectorSession.instance.configureSession(preset.toSettings());
   }
 
   Future<void> _runRequest(
@@ -325,6 +337,8 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                   'Test JsonViewer virtualization, deep nesting, and memory truncation.',
               color: Colors.deepOrange,
             ),
+            _buildPresetSelector(),
+            const SizedBox(height: 12),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -439,6 +453,92 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
         ),
       ),
     );
+  }
+
+  /// Lets a tester switch the size caps before firing a request, so every
+  /// truncation stage can be observed without restarting the app.
+  Widget _buildPresetSelector() {
+    final theme = Theme.of(context);
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.tune, size: 16, color: Colors.deepOrange),
+                const SizedBox(width: 6),
+                Text(
+                  'Size limits preset',
+                  style: theme.textTheme.labelLarge,
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Caps apply to requests captured after you pick them. Choose a '
+              'preset, then fire "Extreme List (>6MB Truncate)".',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final preset in truncationPresets)
+                  ChoiceChip(
+                    label: Text(preset.label),
+                    selected: preset.id == _presetId,
+                    onSelected: (_) {
+                      setState(() => _presetId = preset.id);
+                      _applyPreset(preset);
+                      setState(() {
+                        _status =
+                            'Preset "${preset.label}" applied — maxBodyBytes '
+                            '${_formatMb(preset.maxBodyBytes)}, '
+                            'maxUiPreviewBytes ${_formatMb(preset.maxUiPreviewBytes)}';
+                      });
+                    },
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Expected notice',
+                    style: theme.textTheme.labelMedium,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _preset.description,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _formatMb(int bytes) {
+    if (bytes <= 0) return 'unlimited';
+    if (bytes >= 1024 * 1024) {
+      return '${bytes ~/ (1024 * 1024)} MB';
+    }
+    return '${bytes ~/ 1024} KB';
   }
 
   Widget _buildSectionHeader({

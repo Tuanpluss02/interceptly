@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/src/model/body_location.dart';
+import 'package:interceptly/src/model/body_truncation.dart';
 import 'package:interceptly/src/model/index_entry.dart';
 import 'package:interceptly/src/model/search_match_scope.dart';
 import 'package:interceptly/src/session/body_store.dart';
@@ -60,7 +61,7 @@ IndexEntry _buildEntry({
   int requestSizeBytes = 128,
   int responseSizeBytes = 256,
   bool hasError = false,
-  bool isBodyTruncated = false,
+  BodyTruncation responseTruncation = const BodyTruncation.complete(0),
   Map<String, String> requestHeaders = const {},
   Map<String, String> responseHeaders = const {},
   String? requestContentType = 'application/json',
@@ -82,7 +83,8 @@ IndexEntry _buildEntry({
     responseSizeBytes: responseSizeBytes,
     timestamp: DateTime(2026, 3, 15, 10, 0, 0),
     hasError: hasError,
-    isBodyTruncated: isBodyTruncated,
+    requestTruncation: const BodyTruncation.complete(0),
+    responseTruncation: responseTruncation,
     requestHeaders: requestHeaders,
     responseHeaders: responseHeaders,
     requestContentType: requestContentType,

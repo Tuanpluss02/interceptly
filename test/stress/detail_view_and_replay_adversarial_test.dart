@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:interceptly/src/model/body_truncation.dart';
 import 'package:interceptly/src/model/request_record.dart';
 import 'package:interceptly/src/session/inspector_session.dart';
 import 'package:interceptly/src/ui/detail/custom_request_page.dart';
@@ -279,7 +280,8 @@ void main() {
         requestSizeBytes: 0,
         responseBodyPreview: '\x00[binary: 10737418240 bytes]',
         responseSizeBytes: 10737418240,
-        isBodyTruncated: false,
+        requestTruncation: const BodyTruncation.complete(0),
+        responseTruncation: const BodyTruncation.complete(0),
       );
 
       final builder = DetailTabsBuilder(
@@ -319,7 +321,8 @@ void main() {
         requestBodyPreview: '\x00[binary: 0 bytes]',
         requestSizeBytes: 0,
         responseSizeBytes: 0,
-        isBodyTruncated: false,
+        requestTruncation: const BodyTruncation.complete(0),
+        responseTruncation: const BodyTruncation.complete(0),
       );
 
       final builder = DetailTabsBuilder(
@@ -367,7 +370,8 @@ void main() {
           requestBodyPreview: preview,
           requestSizeBytes: 10,
           responseSizeBytes: 0,
-          isBodyTruncated: false,
+          requestTruncation: const BodyTruncation.complete(0),
+          responseTruncation: const BodyTruncation.complete(0),
         );
 
         final builder = DetailTabsBuilder(
@@ -417,7 +421,8 @@ void main() {
           requestSizeBytes: 0,
           responseBodyPreview: '\x00[binary: 128 bytes]',
           responseSizeBytes: 128,
-          isBodyTruncated: false,
+          requestTruncation: const BodyTruncation.complete(0),
+          responseTruncation: const BodyTruncation.complete(0),
         );
 
         final builder = DetailTabsBuilder(
@@ -457,7 +462,8 @@ void main() {
         requestBodyPreview: '\x00[body unavailable]',
         requestSizeBytes: 0,
         responseSizeBytes: 0,
-        isBodyTruncated: false,
+        requestTruncation: const BodyTruncation.complete(0),
+        responseTruncation: const BodyTruncation.complete(0),
       );
 
       final builder = DetailTabsBuilder(
@@ -504,7 +510,8 @@ void main() {
         requestBodyPreview: null,
         requestSizeBytes: 0,
         responseSizeBytes: 0,
-        isBodyTruncated: false,
+        requestTruncation: const BodyTruncation.complete(0),
+        responseTruncation: const BodyTruncation.complete(0),
       );
 
       late BuildContext savedContext;
@@ -550,7 +557,8 @@ void main() {
         requestBodyPreview: '',
         requestSizeBytes: 0,
         responseSizeBytes: 0,
-        isBodyTruncated: false,
+        requestTruncation: const BodyTruncation.complete(0),
+        responseTruncation: const BodyTruncation.complete(0),
       );
 
       late BuildContext savedContext;
@@ -598,7 +606,8 @@ void main() {
         requestBodyPreview: arrayJson,
         requestSizeBytes: arrayJson.length,
         responseSizeBytes: 0,
-        isBodyTruncated: false,
+        requestTruncation: const BodyTruncation.complete(0),
+        responseTruncation: const BodyTruncation.complete(0),
       );
 
       late BuildContext savedContext;
@@ -647,7 +656,8 @@ void main() {
         requestBodyPreview: textBody,
         requestSizeBytes: textBody.length,
         responseSizeBytes: 0,
-        isBodyTruncated: false,
+        requestTruncation: const BodyTruncation.complete(0),
+        responseTruncation: const BodyTruncation.complete(0),
       );
 
       late BuildContext savedContext;
@@ -712,7 +722,12 @@ void main() {
           requestBodyPreview: placeholder,
           requestSizeBytes: 50,
           responseSizeBytes: 0,
-          isBodyTruncated: true,
+          requestTruncation: const BodyTruncation.complete(0),
+          responseTruncation: const BodyTruncation(
+            originalBytes: 7000000,
+            retainedBytes: 5000000,
+            stage: TruncationStage.storage,
+          ),
         );
 
         await tester.runAsync(() async {
@@ -764,7 +779,8 @@ void main() {
           requestBodyPreview: bodyPreview,
           requestSizeBytes: bodyPreview?.length ?? 0,
           responseSizeBytes: 0,
-          isBodyTruncated: false,
+          requestTruncation: const BodyTruncation.complete(0),
+          responseTruncation: const BodyTruncation.complete(0),
         );
 
         await tester.pumpWidget(

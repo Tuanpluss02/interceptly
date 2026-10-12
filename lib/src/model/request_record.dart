@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'body_truncation.dart';
+
 /// Full detail model — loaded on demand when user opens a request.
 ///
 /// Built by [InspectorSession.loadDetail] from a [RequestSummary].
@@ -21,8 +23,8 @@ class RequestRecord {
     this.responseBodyPreview,
     this.requestBodyBytes,
     this.responseBodyBytes,
-    this.isBodyTruncated = false,
-    this.isUiTruncated = false,
+    this.requestTruncation = const BodyTruncation.complete(0),
+    this.responseTruncation = const BodyTruncation.complete(0),
     this.errorType,
     this.errorMessage,
   });
@@ -50,14 +52,22 @@ class RequestRecord {
   /// Complete un-truncated raw response bytes, if available.
   final Uint8List? responseBodyBytes;
 
-  /// True if the body exceeded [InterceptlySettings.maxBodyBytes] and was cut before storage.
-  final bool isBodyTruncated;
+  /// What survived of the request body, and where it was cut.
+  final BodyTruncation requestTruncation;
 
-  /// True if UI preview was truncated to avoid lag while storage has full bytes.
-  final bool isUiTruncated;
+  /// What survived of the response body, and where it was cut.
+  final BodyTruncation responseTruncation;
 
   final String? errorType;
   final String? errorMessage;
 
   bool get hasError => errorType != null;
+
+  /// True when either body lost bytes that cannot be reproduced.
+  bool get hasDataLoss =>
+      requestTruncation.hasDataLoss || responseTruncation.hasDataLoss;
+
+  /// True when either body is shorter than what the network actually sent.
+  bool get isTruncated =>
+      requestTruncation.isTruncated || responseTruncation.isTruncated;
 }

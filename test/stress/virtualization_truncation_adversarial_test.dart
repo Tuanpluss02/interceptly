@@ -11,6 +11,7 @@ import 'package:interceptly/src/model/interceptly_settings.dart';
 import 'package:interceptly/src/model/request_record.dart';
 
 import 'package:interceptly/src/model/body_location.dart';
+import 'package:interceptly/src/model/body_truncation.dart';
 import 'package:interceptly/src/model/domain_group.dart';
 import 'package:interceptly/src/model/index_entry.dart';
 import 'package:interceptly/src/model/network_simulation.dart';
@@ -98,8 +99,7 @@ RequestRecord _createRecord({
   String? responseBodyPreview,
   Uint8List? requestBodyBytes,
   Uint8List? responseBodyBytes,
-  bool isBodyTruncated = false,
-  bool isUiTruncated = false,
+  BodyTruncation responseTruncation = const BodyTruncation.complete(0),
 }) {
   return RequestRecord(
     id: id,
@@ -118,8 +118,8 @@ RequestRecord _createRecord({
     responseBodyPreview: responseBodyPreview,
     requestBodyBytes: requestBodyBytes,
     responseBodyBytes: responseBodyBytes,
-    isBodyTruncated: isBodyTruncated,
-    isUiTruncated: isUiTruncated,
+    requestTruncation: const BodyTruncation.complete(0),
+    responseTruncation: responseTruncation,
   );
 }
 
@@ -134,7 +134,8 @@ IndexEntry _createIndexEntry(RequestRecord r) {
     responseSizeBytes: r.responseSizeBytes,
     timestamp: r.timestamp,
     hasError: r.hasError,
-    isBodyTruncated: r.isBodyTruncated,
+    requestTruncation: r.requestTruncation,
+    responseTruncation: r.responseTruncation,
     bodyLocation: BodyLocation.memory,
   );
 }
@@ -163,16 +164,19 @@ void main() {
       final resBytes = Uint8List.fromList(utf8.encode('{"status":"ok"}'));
 
       final record = _createRecord(
-        id: 'rec_m2_1',
-        method: 'POST',
-        requestBodyBytes: reqBytes,
-        responseBodyBytes: resBytes,
-        isUiTruncated: true,
-      );
+          id: 'rec_m2_1',
+          method: 'POST',
+          requestBodyBytes: reqBytes,
+          responseBodyBytes: resBytes,
+          responseTruncation: const BodyTruncation(
+            originalBytes: 7000000,
+            retainedBytes: 2000000,
+            stage: TruncationStage.preview,
+          ));
 
       expect(record.requestBodyBytes, equals(reqBytes));
       expect(record.responseBodyBytes, equals(resBytes));
-      expect(record.isUiTruncated, isTrue);
+      expect(record.responseTruncation.isPreviewOnly, isTrue);
     });
   });
 
@@ -377,20 +381,23 @@ void main() {
 
   group('Milestone 2: UI Truncation Clean Rendering', () {
     testWidgets(
-        'renders response content without warning banner when isUiTruncated is true',
+        'renders response content without warning banner when the response body was preview-truncated',
         (tester) async {
       final largeBytes = Uint8List(5 * 1024 * 1024);
       final record = _createRecord(
-        id: 'rec_trunc_banner_1',
-        method: 'GET',
-        url: 'https://api.example.com/huge_response',
-        responseHeaders: {'content-type': 'application/json'},
-        responseContentType: 'application/json',
-        responseBodyPreview: '{"preview":"first 2MB"}',
-        responseSizeBytes: largeBytes.length,
-        responseBodyBytes: largeBytes,
-        isUiTruncated: true,
-      );
+          id: 'rec_trunc_banner_1',
+          method: 'GET',
+          url: 'https://api.example.com/huge_response',
+          responseHeaders: {'content-type': 'application/json'},
+          responseContentType: 'application/json',
+          responseBodyPreview: '{"preview":"first 2MB"}',
+          responseSizeBytes: largeBytes.length,
+          responseBodyBytes: largeBytes,
+          responseTruncation: const BodyTruncation(
+            originalBytes: 7000000,
+            retainedBytes: 2000000,
+            stage: TruncationStage.preview,
+          ));
       final entry = _createIndexEntry(record);
       final session = _FakeSession(record: record, entry: entry);
 
@@ -412,17 +419,17 @@ void main() {
       expect(find.textContaining('first 2MB'), findsOneWidget);
     });
 
-    testWidgets('does not render warning banner when isUiTruncated is false',
+    testWidgets(
+        'does not render warning banner when the response body is complete',
         (tester) async {
       final record = _createRecord(
-        id: 'rec_not_trunc_1',
-        method: 'GET',
-        url: 'https://api.example.com/small_response',
-        responseHeaders: {'content-type': 'application/json'},
-        responseContentType: 'application/json',
-        responseBodyPreview: '{"status":"ok"}',
-        isUiTruncated: false,
-      );
+          id: 'rec_not_trunc_1',
+          method: 'GET',
+          url: 'https://api.example.com/small_response',
+          responseHeaders: {'content-type': 'application/json'},
+          responseContentType: 'application/json',
+          responseBodyPreview: '{"status":"ok"}',
+          responseTruncation: const BodyTruncation.complete(0));
       final entry = _createIndexEntry(record);
       final session = _FakeSession(record: record, entry: entry);
 

@@ -3,6 +3,7 @@ import 'dart:isolate';
 import 'dart:typed_data';
 
 import '../model/body_location.dart';
+import '../model/body_truncation.dart';
 import '../model/index_entry.dart';
 import '../model/interceptly_settings.dart';
 import '../model/raw_capture.dart';
@@ -251,9 +252,35 @@ IndexEntry _fallbackEntry(RawCapture capture) {
     responseContentType: capture.responseContentType,
     errorType: capture.errorType,
     errorMessage: capture.errorMessage,
-    isBodyTruncated: false,
+    requestTruncation: const BodyTruncation.complete(0),
+    responseTruncation: const BodyTruncation.complete(0),
     fileOffset: null,
     fileLength: null,
+  );
+}
+
+/// Outcome of packing both bodies for the on-disk record.
+///
+/// The trailing flag byte keeps the packed format byte-compatible with
+/// earlier sessions; the per-side booleans are derived from the same limits
+/// when the entry is built, so they are not carried here.
+typedef _PackedBodies = ({Uint8List bytes});
+
+/// Builds the [BodyTruncation] for one body given how many bytes storage kept.
+///
+/// `maxBody <= 0` means unlimited, matching [InterceptlySettings.maxBodyBytes].
+BodyTruncation _storageTruncation(
+  int originalBytes,
+  int maxBody,
+  int keptBytes,
+) {
+  if (maxBody <= 0 || originalBytes <= keptBytes) {
+    return BodyTruncation.complete(originalBytes);
+  }
+  return BodyTruncation(
+    originalBytes: originalBytes,
+    retainedBytes: keptBytes,
+    stage: TruncationStage.storage,
   );
 }
 
@@ -276,13 +303,11 @@ Future<IndexEntry> _processCapture(
   Uint8List? inlineRes;
   int? fileOffset;
   int? fileLength;
-  bool isTruncated = false;
 
   if (useFile) {
     try {
-      final (packedBytes, truncated) = _packBodies(reqRaw, resRaw, maxBody);
-      isTruncated = truncated;
-      final result = await bodyStore.append(packedBytes);
+      final packed = _packBodies(reqRaw, resRaw, maxBody);
+      final result = await bodyStore.append(packed.bytes);
       fileOffset = result.$1;
       fileLength = result.$2;
     } catch (_) {
@@ -293,9 +318,6 @@ Future<IndexEntry> _processCapture(
   if (!useFile) {
     inlineReq = _maybeTruncate(reqRaw, maxBody);
     inlineRes = _maybeTruncate(resRaw, maxBody);
-    isTruncated = maxBody > 0 &&
-        ((reqRaw != null && reqRaw.length > maxBody) ||
-            (resRaw != null && resRaw.length > maxBody));
   }
 
   return IndexEntry(
@@ -317,7 +339,16 @@ Future<IndexEntry> _processCapture(
     responseContentType: capture.responseContentType,
     errorType: capture.errorType,
     errorMessage: capture.errorMessage,
-    isBodyTruncated: isTruncated,
+    requestTruncation: _storageTruncation(
+      reqSize,
+      maxBody,
+      _keptBytes(reqSize, maxBody),
+    ),
+    responseTruncation: _storageTruncation(
+      resSize,
+      maxBody,
+      _keptBytes(resSize, maxBody),
+    ),
     fileOffset: fileOffset,
     fileLength: fileLength,
   );
@@ -329,18 +360,21 @@ Uint8List? _maybeTruncate(Uint8List? bytes, int maxBytes) {
   return bytes.sublist(0, maxBytes);
 }
 
-(Uint8List, bool) _packBodies(
+int _keptBytes(int originalBytes, int maxBody) =>
+    maxBody > 0 && originalBytes > maxBody ? maxBody : originalBytes;
+
+_PackedBodies _packBodies(
   Uint8List? req,
   Uint8List? res,
   int maxBody,
 ) {
-  var truncated = false;
-
   Uint8List? truncate(Uint8List bytes) {
     if (maxBody <= 0 || bytes.length <= maxBody) return bytes;
-    truncated = true;
     return bytes.sublist(0, maxBody);
   }
+
+  final reqTruncated = maxBody > 0 && req != null && req.length > maxBody;
+  final resTruncated = maxBody > 0 && res != null && res.length > maxBody;
 
   final reqData = req != null && req.isNotEmpty ? truncate(req) : null;
   final resData = res != null && res.isNotEmpty ? truncate(res) : null;
@@ -364,7 +398,7 @@ Uint8List? _maybeTruncate(Uint8List? bytes, int maxBytes) {
 
   writePart(reqData);
   writePart(resData);
-  out[offset] = truncated ? 1 : 0;
+  out[offset] = (reqTruncated || resTruncated) ? 1 : 0;
 
-  return (out, truncated);
+  return (bytes: out);
 }

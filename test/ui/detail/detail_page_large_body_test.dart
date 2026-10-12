@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/src/model/body_location.dart';
+import 'package:interceptly/src/model/body_truncation.dart';
 import 'package:interceptly/src/model/domain_group.dart';
 import 'package:interceptly/src/model/index_entry.dart';
 import 'package:interceptly/src/model/interceptly_settings.dart';
@@ -96,7 +97,8 @@ void main() {
       responseSizeBytes: bigJson.length,
       timestamp: DateTime.now(),
       hasError: false,
-      isBodyTruncated: false,
+      requestTruncation: const BodyTruncation.complete(0),
+      responseTruncation: const BodyTruncation.complete(0),
       bodyLocation: BodyLocation.memory,
     );
     final record = RequestRecord(
@@ -147,7 +149,8 @@ void main() {
       responseSizeBytes: smallJson.length,
       timestamp: DateTime.now(),
       hasError: false,
-      isBodyTruncated: false,
+      requestTruncation: const BodyTruncation.complete(0),
+      responseTruncation: const BodyTruncation.complete(0),
       bodyLocation: BodyLocation.memory,
     );
     final record = RequestRecord(

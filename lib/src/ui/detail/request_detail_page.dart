@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
 import 'package:interceptly/src/ui/widgets/interceptly_text_field.dart';
 
+import '../../model/body_truncation.dart';
 import '../../model/index_entry.dart';
 import '../../model/request_record.dart';
 import '../../model/request_summary.dart';
@@ -215,15 +216,27 @@ class _RequestDetailPageState extends State<RequestDetailPage>
   }
 
   Future<void> _parseBodiesAsync(RequestRecord record) async {
-    Future<dynamic> parseOne(String? preview, Uint8List? bytes) async {
-      if (bytes != null && bytes.isNotEmpty) {
-        if (bytes.length > 50 * 1024) {
-          return compute(_decodeBytesToJson, bytes);
+    /// Decodes whatever the detail view is allowed to show.
+    ///
+    /// Raw [bytes] are preferred because they avoid a lossy text round-trip,
+    /// but only when the body was not preview-truncated. Otherwise the full
+    /// buffer would be decoded and rendered, defeating
+    /// [InterceptlySettings.maxUiPreviewBytes] and contradicting the notice
+    /// shown above the body.
+    Future<dynamic> parseOne(
+      String? preview,
+      Uint8List? bytes, {
+      required bool previewTruncated,
+    }) async {
+      if (!previewTruncated && bytes != null && bytes.isNotEmpty) {
+        final buf = bytes;
+        if (buf.length > 50 * 1024) {
+          return compute(_decodeBytesToJson, buf);
         }
         try {
-          return jsonDecode(utf8.decode(bytes));
+          return jsonDecode(utf8.decode(buf));
         } catch (_) {
-          return _decodeBytesToJson(bytes);
+          return _decodeBytesToJson(buf);
         }
       }
 
@@ -234,10 +247,18 @@ class _RequestDetailPageState extends State<RequestDetailPage>
       return jsonDecodeSafe(preview);
     }
 
-    final reqFuture =
-        parseOne(record.requestBodyPreview, record.requestBodyBytes);
-    final resFuture =
-        parseOne(record.responseBodyPreview, record.responseBodyBytes);
+    final reqFuture = parseOne(
+      record.requestBodyPreview,
+      record.requestBodyBytes,
+      previewTruncated: record.requestTruncation.isPreviewOnly ||
+          record.requestTruncation.stage == TruncationStage.storageAndPreview,
+    );
+    final resFuture = parseOne(
+      record.responseBodyPreview,
+      record.responseBodyBytes,
+      previewTruncated: record.responseTruncation.isPreviewOnly ||
+          record.responseTruncation.stage == TruncationStage.storageAndPreview,
+    );
     final reqParsed = await reqFuture;
     final resParsed = await resFuture;
 

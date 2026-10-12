@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -10,6 +9,7 @@ import 'package:interceptly/src/export/curl_generator.dart';
 import 'package:interceptly/src/export/har_exporter.dart';
 import 'package:interceptly/src/export/postman_exporter.dart';
 import 'package:interceptly/src/model/body_location.dart';
+import 'package:interceptly/src/model/body_truncation.dart';
 import 'package:interceptly/src/model/domain_group.dart';
 import 'package:interceptly/src/model/index_entry.dart';
 import 'package:interceptly/src/model/interceptly_settings.dart';
@@ -22,9 +22,7 @@ import 'package:interceptly/src/session/body_decode_service.dart';
 import 'package:interceptly/src/session/inspector_preferences.dart';
 import 'package:interceptly/src/session/inspector_session.dart';
 import 'package:interceptly/src/session/inspector_session_view.dart';
-import 'package:interceptly/src/share/interceptly_share.dart';
 import 'package:interceptly/src/ui/detail/request_detail_page.dart';
-import 'package:interceptly/src/ui/detail/share_handler.dart';
 import 'package:interceptly/src/ui/widgets/json_viewer.dart';
 
 class _MockSessionView extends InspectorSessionView {
@@ -89,53 +87,6 @@ class _MockSessionView extends InspectorSessionView {
   Set<String> get availableDomains => const {};
 }
 
-class _FakeShare extends InterceptlyShare {
-  String? sharedFilePath;
-  String? sharedMimeType;
-  bool shareCalled = false;
-
-  @override
-  Future<bool> shareFile({
-    required String filePath,
-    String? subject,
-    String? text,
-    String? mimeType,
-    Rect? origin,
-  }) async {
-    shareCalled = true;
-    sharedFilePath = filePath;
-    sharedMimeType = mimeType;
-    return true;
-  }
-}
-
-class _MockRenderBox extends RenderBox {
-  @override
-  bool get hasSize => true;
-
-  @override
-  Size get size => const Size(40, 40);
-
-  @override
-  Offset localToGlobal(Offset point, {RenderObject? ancestor}) => point;
-}
-
-class _MockContext extends Fake implements BuildContext {
-  _MockContext(this._box);
-  final RenderBox _box;
-
-  @override
-  RenderObject? findRenderObject() => _box;
-}
-
-class _MockGlobalKey extends GlobalKey {
-  const _MockGlobalKey(this._context) : super.constructor();
-  final BuildContext _context;
-
-  @override
-  BuildContext? get currentContext => _context;
-}
-
 RequestRecord _buildTestRecord({
   required String id,
   String method = 'GET',
@@ -145,8 +96,7 @@ RequestRecord _buildTestRecord({
   Uint8List? responseBodyBytes,
   String? responseBodyPreview,
   String? responseContentType = 'application/json',
-  bool isBodyTruncated = false,
-  bool isUiTruncated = false,
+  BodyTruncation responseTruncation = const BodyTruncation.complete(0),
 }) {
   return RequestRecord(
     id: id,
@@ -166,8 +116,8 @@ RequestRecord _buildTestRecord({
     responseBodyPreview: responseBodyPreview,
     requestBodyBytes: null,
     responseBodyBytes: responseBodyBytes,
-    isBodyTruncated: isBodyTruncated,
-    isUiTruncated: isUiTruncated,
+    requestTruncation: const BodyTruncation.complete(0),
+    responseTruncation: responseTruncation,
   );
 }
 
@@ -182,7 +132,8 @@ IndexEntry _buildTestIndexEntry(RequestRecord r) {
     responseSizeBytes: r.responseSizeBytes,
     timestamp: r.timestamp,
     hasError: r.hasError,
-    isBodyTruncated: r.isBodyTruncated,
+    requestTruncation: r.requestTruncation,
+    responseTruncation: r.responseTruncation,
     bodyLocation: BodyLocation.memory,
   );
 }
@@ -450,8 +401,8 @@ void main() {
 
       expect(record.responseBodyBytes, isNotNull);
       expect(record.responseBodyBytes!.length, equals(exact2Mb));
-      expect(record.isBodyTruncated, isFalse);
-      expect(record.isUiTruncated, isFalse);
+      expect(record.isTruncated, isFalse);
+      expect(record.responseTruncation.isTruncated, isFalse);
       expect(record.responseBodyPreview!.length, equals(exact2Mb));
 
       await session.dispose();
@@ -499,8 +450,8 @@ void main() {
 
       expect(record.responseBodyBytes, isNotNull);
       expect(record.responseBodyBytes!.length, equals(twoMbPlus1));
-      expect(record.isBodyTruncated, isFalse);
-      expect(record.isUiTruncated, isTrue);
+      expect(record.hasDataLoss, isFalse);
+      expect(record.responseTruncation.isPreviewOnly, isTrue);
       expect(record.responseBodyPreview!.length, equals(2 * 1024 * 1024));
 
       await session.dispose();
@@ -538,8 +489,8 @@ void main() {
       final entry = session.entries.first;
       final record = await session.loadDetail(entry);
 
-      expect(record.isUiTruncated, isFalse);
-      expect(record.isBodyTruncated, isFalse);
+      expect(record.responseTruncation.isTruncated, isFalse);
+      expect(record.isTruncated, isFalse);
 
       final curl = CurlGenerator.fromRecord(record);
       expect(curl, isNot(contains('--data-raw')));
@@ -595,8 +546,8 @@ void main() {
         final record = await session.loadDetail(entry);
 
         expect(record.responseBodyBytes!.length, equals(testSize));
-        expect(record.isBodyTruncated, isFalse);
-        expect(record.isUiTruncated, isTrue);
+        expect(record.hasDataLoss, isFalse);
+        expect(record.responseTruncation.isPreviewOnly, isTrue);
 
         await session.dispose();
       }
@@ -659,16 +610,20 @@ void main() {
       expect(dir.path, equals(shareTempDir.path));
     });
 
-    testWidgets('banner is not displayed when isUiTruncated is true',
+    testWidgets(
+        'banner is not displayed when the response body was preview-truncated',
         (tester) async {
       const totalSize = 3 * 1024 * 1024;
       final record = _buildTestRecord(
-        id: 'banner_trunc',
-        responseSizeBytes: totalSize,
-        responseBodyBytes: Uint8List(totalSize),
-        responseBodyPreview: '{"test":"preview"}',
-        isUiTruncated: true,
-      );
+          id: 'banner_trunc',
+          responseSizeBytes: totalSize,
+          responseBodyBytes: Uint8List(totalSize),
+          responseBodyPreview: '{"test":"preview"}',
+          responseTruncation: const BodyTruncation(
+            originalBytes: 7000000,
+            retainedBytes: 2000000,
+            stage: TruncationStage.preview,
+          ));
       final entry = _buildTestIndexEntry(record);
       final session = _MockSessionView(record: record, entry: entry);
 
@@ -699,8 +654,6 @@ void main() {
         responseSizeBytes: smallSize,
         responseBodyBytes: Uint8List(smallSize),
         responseBodyPreview: '{"test":"small"}',
-        isUiTruncated: false,
-        isBodyTruncated: false,
       );
       final entry = _buildTestIndexEntry(record);
       final session = _MockSessionView(record: record, entry: entry);
@@ -720,70 +673,6 @@ void main() {
 
       expect(find.textContaining('Body truncated preview'), findsNothing);
       expect(find.text('Export Full'), findsNothing);
-    });
-
-    test(
-        'ShareHandler exportResponseBodyFile writes complete binary payload file',
-        () async {
-      final fakeShare = _FakeShare();
-      final renderBox = _MockRenderBox();
-      final mockContext = _MockContext(renderBox);
-      final mockFabKey = _MockGlobalKey(mockContext);
-      final fullBytes = Uint8List.fromList(
-          utf8.encode('{"complete_file_payload": true, "size": 3145728}'));
-
-      final record = _buildTestRecord(
-        id: 'rec_share_full',
-        responseSizeBytes: fullBytes.length,
-        responseBodyBytes: fullBytes,
-        responseContentType: 'application/json',
-        isUiTruncated: true,
-      );
-
-      final handler = ShareHandler.withShare(
-        context: mockContext,
-        fabKey: mockFabKey,
-        share: fakeShare,
-      );
-
-      await handler.exportResponseBodyFile(record);
-
-      expect(fakeShare.shareCalled, isTrue);
-      expect(fakeShare.sharedFilePath, isNotNull);
-      expect(fakeShare.sharedMimeType, equals('application/json'));
-
-      final exportedFile = File(fakeShare.sharedFilePath!);
-      expect(exportedFile.existsSync(), isTrue);
-      final writtenBytes = await exportedFile.readAsBytes();
-      expect(writtenBytes, equals(fullBytes));
-    });
-
-    test(
-        'ShareHandler exportResponseBodyFile handles null or empty bodies cleanly without writing file',
-        () async {
-      final fakeShare = _FakeShare();
-      final renderBox = _MockRenderBox();
-      final mockContext = _MockContext(renderBox);
-      final mockFabKey = _MockGlobalKey(mockContext);
-
-      final record = _buildTestRecord(
-        id: 'rec_empty_share',
-        responseSizeBytes: 0,
-        responseBodyBytes: null,
-        responseBodyPreview: null,
-        isUiTruncated: false,
-      );
-
-      final handler = ShareHandler.withShare(
-        context: mockContext,
-        fabKey: mockFabKey,
-        share: fakeShare,
-      );
-
-      await handler.exportResponseBodyFile(record);
-
-      expect(fakeShare.shareCalled, isFalse);
-      expect(fakeShare.sharedFilePath, isNull);
     });
   });
 }

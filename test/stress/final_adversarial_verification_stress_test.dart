@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/src/capture/capture_guard.dart';
 import 'package:interceptly/src/export/curl_generator.dart';
 import 'package:interceptly/src/model/body_location.dart';
+import 'package:interceptly/src/model/body_truncation.dart';
 import 'package:interceptly/src/model/index_entry.dart';
 import 'package:interceptly/src/model/interceptly_settings.dart';
 import 'package:interceptly/src/model/request_record.dart';
@@ -78,7 +79,8 @@ IndexEntry _makeEntry({
     responseSizeBytes: 240,
     timestamp: DateTime(2026, 1, 1),
     hasError: errorMessage != null,
-    isBodyTruncated: false,
+    requestTruncation: const BodyTruncation.complete(0),
+    responseTruncation: const BodyTruncation.complete(0),
     requestHeaders: requestHeaders,
     responseHeaders: responseHeaders,
     requestContentType: 'application/json',
@@ -240,14 +242,18 @@ void main() {
         requestBodyPreview: 'A' * 2048,
         responseBodyBytes: largeBytes,
         responseBodyPreview: 'Preview truncated',
-        isBodyTruncated: false,
-        isUiTruncated: true,
+        requestTruncation: const BodyTruncation.complete(0),
+        responseTruncation: const BodyTruncation(
+          originalBytes: 7000000,
+          retainedBytes: 2000000,
+          stage: TruncationStage.preview,
+        ),
       );
 
       expect(record.requestBodyBytes?.length, 3 * 1024 * 1024);
       expect(record.responseBodyBytes?.length, 3 * 1024 * 1024);
-      expect(record.isBodyTruncated, isFalse);
-      expect(record.isUiTruncated, isTrue);
+      expect(record.hasDataLoss, isFalse);
+      expect(record.responseTruncation.isPreviewOnly, isTrue);
 
       final curl = CurlGenerator.fromRecord(record);
       expect(curl, contains('curl'));

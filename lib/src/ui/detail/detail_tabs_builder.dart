@@ -3,6 +3,7 @@ import 'package:interceptly/src/ui/interceptly_theme.dart';
 import 'package:interceptly/src/ui/widgets/error_summary.dart';
 import 'package:interceptly/src/ui/widgets/json_viewer.dart';
 
+import '../../model/body_truncation.dart';
 import '../../model/request_record.dart';
 import 'detail_search.dart';
 
@@ -101,18 +102,6 @@ class DetailTabsBuilder {
           record.timestamp.toIso8601String(),
           DetailSection.overviewTime,
         ),
-        if (record.isBodyTruncated) ...[
-          const SizedBox(height: 16),
-          _buildOverviewRow(
-            'Note',
-            'Body truncated — exceeded maxBodyBytes limit.',
-            DetailSection.overviewNote,
-            valueStyle: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
-              color: InterceptlyTheme.yellow400,
-              fontSize: 12,
-            ),
-          ),
-        ],
       ],
     );
   }
@@ -144,6 +133,7 @@ class DetailTabsBuilder {
           contentType: record.requestContentType,
           headers: record.requestHeaders,
           bodyPreview: record.requestBodyPreview,
+          truncation: record.requestTruncation,
           section: DetailSection.requestBody,
         ),
       ],
@@ -213,6 +203,7 @@ class DetailTabsBuilder {
           contentType: record.responseContentType,
           headers: record.responseHeaders,
           bodyPreview: record.responseBodyPreview,
+          truncation: record.responseTruncation,
           section: DetailSection.responseBody,
         ),
       ],
@@ -432,6 +423,7 @@ class DetailTabsBuilder {
     required String? contentType,
     required Map<String, String> headers,
     required String? bodyPreview,
+    required BodyTruncation truncation,
     required DetailSection section,
   }) {
     final encodingLabel = _buildEncodingLabel(headers);
@@ -440,6 +432,8 @@ class DetailTabsBuilder {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        _buildTruncationNotice(truncation),
+        if (truncation.isTruncated) const SizedBox(height: 8),
         _buildBodyMetaChips(
           contentType: contentType,
           encodingLabel: encodingLabel,
@@ -460,6 +454,62 @@ class DetailTabsBuilder {
                 section,
               ),
       ],
+    );
+  }
+
+  /// Explains, in place, that this body is shorter than what crossed the wire.
+  ///
+  /// The wording distinguishes a preview-only cut (nothing is lost — exports
+  /// and replay still carry the whole payload) from a storage cut (bytes are
+  /// gone for good). Reporting both separately keeps the two failure modes from
+  /// reading as one vague warning.
+  Widget _buildTruncationNotice(BodyTruncation truncation) {
+    if (!truncation.isTruncated) return const SizedBox.shrink();
+
+    final notices = bodyTruncationNotices(truncation);
+    if (notices.isEmpty) return const SizedBox.shrink();
+    final message = notices.first;
+
+    final isLoss = truncation.hasDataLoss;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: isLoss
+            ? InterceptlyTheme.yellow400.withValues(alpha: 0.10)
+            : InterceptlyTheme.controlMuted.withValues(alpha: 0.20),
+        border: Border.all(
+          color: isLoss
+              ? InterceptlyTheme.yellow400.withValues(alpha: 0.35)
+              : InterceptlyTheme.dividerSubtle,
+        ),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            isLoss ? Icons.warning_amber_rounded : Icons.info_outline,
+            size: 15,
+            color: isLoss
+                ? InterceptlyTheme.yellow400
+                : InterceptlyTheme.textMuted,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
+                fontSize: 11.5,
+                height: 1.35,
+                color: isLoss
+                    ? InterceptlyTheme.yellow400
+                    : InterceptlyTheme.textSecondary,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

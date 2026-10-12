@@ -118,7 +118,8 @@ IndexEntry _createIndexEntry(
     responseSizeBytes: 512,
     timestamp: DateTime(2026, 1, 1),
     hasError: hasError || statusCode >= 400 || statusCode == 0,
-    isBodyTruncated: false,
+    requestTruncation: const BodyTruncation.complete(0),
+    responseTruncation: const BodyTruncation.complete(0),
     bodyLocation: BodyLocation.memory,
   );
 }

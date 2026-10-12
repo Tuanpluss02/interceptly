@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../../capture/http/interceptly_http_client.dart';
+import '../../model/body_truncation.dart';
 import '../../model/request_record.dart';
 import '../../session/body_decode_service.dart';
 import '../../session/inspector_session.dart';
@@ -96,7 +97,7 @@ class ReplayHandler {
       headers: Map<String, String>.from(record.requestHeaders),
       body: record.requestBodyPreview,
       bodyBytes: record.requestBodyBytes,
-      isBodyTruncated: record.isBodyTruncated,
+      truncation: record.requestTruncation,
     );
   }
 
@@ -147,7 +148,7 @@ class ReplayHandler {
       headers: result.headers,
       body: result.body,
       bodyBytes: utf8.encode(result.body),
-      isBodyTruncated: false,
+      truncation: BodyTruncation.complete(utf8.encode(result.body).length),
     );
   }
 
@@ -157,7 +158,7 @@ class ReplayHandler {
     required Map<String, String> headers,
     required String? body,
     Uint8List? bodyBytes,
-    required bool isBodyTruncated,
+    required BodyTruncation truncation,
   }) async {
     final uri = Uri.tryParse(url);
     if (uri == null) {
@@ -177,12 +178,13 @@ class ReplayHandler {
     final isPlaceholder = _isPlaceholder(body);
 
     if (bodyBytes == null &&
-        isBodyTruncated &&
+        truncation.isPreviewOnly &&
         body != null &&
         body.isNotEmpty &&
         !isPlaceholder) {
       ToastNotification.show(
-        'Warning: body may be truncated',
+        'Replaying the preview only — the stored body is complete but too '
+        'large to send here.',
         contextHint: context,
       );
     }

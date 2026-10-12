@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../model/body_location.dart';
+import '../model/body_truncation.dart';
 import '../model/domain_group.dart';
 import '../model/index_entry.dart';
 import '../model/interceptly_settings.dart';
@@ -407,8 +408,11 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       settings.maxBodyBytes,
       settings.previewTruncationBytes,
     );
-    final isTruncated = requestBodyBytes != null &&
-        requestBodyBytes.length > settings.maxBodyBytes;
+    final requestSize = requestBodyBytes?.length ?? 0;
+    final requestTruncation = _pendingRequestTruncation(
+      originalBytes: requestSize,
+      inlineBytes: inlineRequestBody?.length ?? 0,
+    );
 
     _memoryIndex.add(
       IndexEntry(
@@ -417,7 +421,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
         url: url,
         statusCode: 0,
         durationMs: 0,
-        requestSizeBytes: requestBodyBytes?.length ?? 0,
+        requestSizeBytes: requestSize,
         responseSizeBytes: 0,
         timestamp: timestamp,
         hasError: false,
@@ -430,7 +434,8 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
         responseContentType: null,
         errorType: null,
         errorMessage: null,
-        isBodyTruncated: isTruncated,
+        requestTruncation: requestTruncation,
+        responseTruncation: const BodyTruncation.complete(0),
         fileOffset: null,
         fileLength: null,
       ),
@@ -438,6 +443,26 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     _schedulePendingTimeout(id);
     _invalidateGroupedCache();
     notifyListeners();
+  }
+
+  /// Describes a pending row's request body.
+  ///
+  /// A pending row is trimmed to [InterceptlySettings.previewTruncationBytes]
+  /// only when the body already exceeded `maxBodyBytes`, so shrinking is a
+  /// preview-stage cut; storage itself is still intact and the real capture
+  /// will upsert over this row with the full body.
+  static BodyTruncation _pendingRequestTruncation({
+    required int originalBytes,
+    required int inlineBytes,
+  }) {
+    if (inlineBytes >= originalBytes) {
+      return BodyTruncation.complete(originalBytes);
+    }
+    return BodyTruncation(
+      originalBytes: originalBytes,
+      retainedBytes: inlineBytes,
+      stage: TruncationStage.preview,
+    );
   }
 
   void _schedulePendingTimeout(String id) {
@@ -470,7 +495,8 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
           errorType: 'TimeoutException',
           errorMessage:
               'Request timed out while waiting for response or terminal error.',
-          isBodyTruncated: current.isBodyTruncated,
+          requestTruncation: current.requestTruncation,
+          responseTruncation: current.responseTruncation,
           fileOffset: current.fileOffset,
           fileLength: current.fileLength,
         ),
@@ -539,7 +565,8 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     String? resPreview;
     Uint8List? reqBytes;
     Uint8List? resBytes;
-    bool isTruncated = entry.isBodyTruncated;
+    var reqStorage = entry.requestTruncation;
+    var resStorage = entry.responseTruncation;
 
     if (entry.bodyLocation == BodyLocation.memory) {
       reqBytes = entry.inlineRequestBody;
@@ -557,7 +584,10 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
               : BodyDecodeService.unpackToBytes(raw);
           reqBytes = decoded.$1;
           resBytes = decoded.$2;
-          isTruncated = isTruncated || decoded.$3;
+          if (decoded.$3) {
+            reqStorage = _markStorageCut(reqStorage, reqBytes?.length ?? 0);
+            resStorage = _markStorageCut(resStorage, resBytes?.length ?? 0);
+          }
         } catch (_) {
           reqPreview = BodyDecodeService.unavailablePlaceholder;
           resPreview = BodyDecodeService.unavailablePlaceholder;
@@ -566,14 +596,11 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     }
 
     final maxUi = _settings.maxUiPreviewBytes;
-    final isUiTruncated =
-        (reqBytes != null && maxUi > 0 && reqBytes.length > maxUi) ||
-            (resBytes != null && maxUi > 0 && resBytes.length > maxUi);
 
     if (reqPreview == null && reqBytes != null) {
-      final reqSlice = (maxUi > 0 && reqBytes.length > maxUi)
-          ? reqBytes.sublist(0, maxUi)
-          : reqBytes;
+      final reqSlice = _limitForPreview(reqBytes, maxUi);
+      reqStorage =
+          _applyPreviewStage(reqStorage, reqBytes.length, reqSlice.length);
       reqPreview = await BodyDecodeService.decodeAsync(
         reqSlice,
         entry.requestContentType,
@@ -581,9 +608,9 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     }
 
     if (resPreview == null && resBytes != null) {
-      final resSlice = (maxUi > 0 && resBytes.length > maxUi)
-          ? resBytes.sublist(0, maxUi)
-          : resBytes;
+      final resSlice = _limitForPreview(resBytes, maxUi);
+      resStorage =
+          _applyPreviewStage(resStorage, resBytes.length, resSlice.length);
       resPreview = await BodyDecodeService.decodeAsync(
         resSlice,
         entry.responseContentType,
@@ -607,10 +634,48 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       responseBodyPreview: resPreview,
       requestBodyBytes: reqBytes,
       responseBodyBytes: resBytes,
-      isBodyTruncated: isTruncated,
-      isUiTruncated: isUiTruncated,
+      requestTruncation: reqStorage,
+      responseTruncation: resStorage,
       errorType: entry.errorType,
       errorMessage: entry.errorMessage,
+    );
+  }
+
+  Uint8List _limitForPreview(Uint8List bytes, int maxUi) =>
+      maxUi > 0 && bytes.length > maxUi ? bytes.sublist(0, maxUi) : bytes;
+
+  /// Marks [truncation] as storage-cut, preserving the original size the
+  /// network reported even when only the recovered slice is known here.
+  static BodyTruncation _markStorageCut(BodyTruncation truncation, int kept) {
+    return BodyTruncation(
+      originalBytes: truncation.originalBytes,
+      retainedBytes: kept,
+      stage: TruncationStage.storage,
+    );
+  }
+
+  /// Combines the storage verdict with what preview trimming just did.
+  ///
+  /// A body can lose bytes at both stages, so the two verdicts merge instead
+  /// of overwriting: preview loss on top of an existing storage cut yields
+  /// [TruncationStage.storageAndPreview].
+  static BodyTruncation _applyPreviewStage(
+    BodyTruncation truncation,
+    int availableBytes,
+    int previewBytes,
+  ) {
+    final previewCut = previewBytes < availableBytes;
+    final storageCut = truncation.stage == TruncationStage.storage ||
+        truncation.stage == TruncationStage.storageAndPreview;
+    if (!previewCut) {
+      return truncation;
+    }
+    return BodyTruncation(
+      originalBytes: truncation.originalBytes,
+      retainedBytes: previewBytes,
+      stage: storageCut
+          ? TruncationStage.storageAndPreview
+          : TruncationStage.preview,
     );
   }
 

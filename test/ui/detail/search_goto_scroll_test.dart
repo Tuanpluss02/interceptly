@@ -19,7 +19,7 @@ IndexEntry _createEntry(
   int durationMs = 25,
   int requestSizeBytes = 100,
   int responseSizeBytes = 200,
-  bool isBodyTruncated = false,
+  BodyTruncation responseTruncation = const BodyTruncation.complete(0),
   DateTime? timestamp,
 }) {
   return IndexEntry(
@@ -32,7 +32,8 @@ IndexEntry _createEntry(
     responseSizeBytes: responseSizeBytes,
     timestamp: timestamp ?? DateTime(2026, 1, 1),
     hasError: statusCode >= 400 || statusCode == 0,
-    isBodyTruncated: isBodyTruncated,
+    requestTruncation: const BodyTruncation.complete(0),
+    responseTruncation: responseTruncation,
     bodyLocation: BodyLocation.memory,
   );
 }
@@ -160,7 +161,12 @@ void main() {
         responseBodyPreview: '{"result":"findme"}',
         errorType: 'CrashError',
         errorMessage: 'Fatal findme',
-        isBodyTruncated: true,
+        requestTruncation: const BodyTruncation.complete(0),
+        responseTruncation: const BodyTruncation(
+          originalBytes: 7000000,
+          retainedBytes: 5000000,
+          stage: TruncationStage.storage,
+        ),
       );
 
       final matches =

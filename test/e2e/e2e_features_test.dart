@@ -157,7 +157,7 @@ IndexEntry _createIndexEntry(
   int requestSizeBytes = 100,
   int responseSizeBytes = 200,
   bool hasError = false,
-  bool isBodyTruncated = false,
+  BodyTruncation responseTruncation = const BodyTruncation.complete(0),
   Map<String, String> requestHeaders = const {},
   Map<String, String> responseHeaders = const {},
   String? requestContentType = 'application/json',
@@ -179,7 +179,8 @@ IndexEntry _createIndexEntry(
     responseSizeBytes: responseSizeBytes,
     timestamp: DateTime(2026, 4, 1, 12, 0, 0),
     hasError: hasError,
-    isBodyTruncated: isBodyTruncated,
+    requestTruncation: const BodyTruncation.complete(0),
+    responseTruncation: responseTruncation,
     requestHeaders: requestHeaders,
     responseHeaders: responseHeaders,
     requestContentType: requestContentType,
@@ -202,7 +203,7 @@ RequestRecord _createRequestRecord({
   int durationMs = 45,
   int requestSizeBytes = 120,
   int responseSizeBytes = 450,
-  bool isBodyTruncated = false,
+  BodyTruncation responseTruncation = const BodyTruncation.complete(0),
   Map<String, String> requestHeaders = const {
     'content-type': 'application/json'
   },
@@ -223,7 +224,8 @@ RequestRecord _createRequestRecord({
     requestSizeBytes: requestSizeBytes,
     responseSizeBytes: responseSizeBytes,
     timestamp: DateTime(2026, 4, 1, 12, 0, 0),
-    isBodyTruncated: isBodyTruncated,
+    requestTruncation: const BodyTruncation.complete(0),
+    responseTruncation: responseTruncation,
     requestHeaders: requestHeaders,
     responseHeaders: responseHeaders,
     requestBodyPreview: requestBodyPreview,
@@ -436,12 +438,20 @@ void main() {
     });
 
     testWidgets(
-        '[F8] Detail page displays truncation note when body is truncated',
+        '[F8] Detail page shows an in-place notice when body is truncated',
         (tester) async {
-      final entry = _createIndexEntry('truncated-entry', isBodyTruncated: true);
+      const truncated = BodyTruncation(
+        originalBytes: 7 * 1024 * 1024,
+        retainedBytes: 5 * 1024 * 1024,
+        stage: TruncationStage.storage,
+      );
+      final entry = _createIndexEntry(
+        'truncated-entry',
+        responseTruncation: truncated,
+      );
       final record = _createRequestRecord(
         id: 'truncated-entry',
-        isBodyTruncated: true,
+        responseTruncation: truncated,
         responseBodyPreview: '{"items": [1, 2, 3]}',
       );
       final session = _E2EFakeSession(record: record, entry: entry);
@@ -456,7 +466,15 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('Body truncated'), findsWidgets);
+      await tester.tap(find.text('Response'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('maxBodyBytes'),
+        findsOneWidget,
+        reason: 'notice must sit on the response body, not repeat per section',
+      );
+      expect(find.textContaining('discarded'), findsOneWidget);
     });
 
     test('[F9] Exporters cURL, HAR, Postman export complete requests', () {

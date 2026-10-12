@@ -82,7 +82,8 @@ IndexEntry _buildEntry(String id, {int statusCode = 200, int durationMs = 10}) {
     responseSizeBytes: 256,
     timestamp: DateTime(2026, 1, 1),
     hasError: statusCode >= 400 || statusCode == 0,
-    isBodyTruncated: false,
+    requestTruncation: const BodyTruncation.complete(0),
+    responseTruncation: const BodyTruncation.complete(0),
     bodyLocation: BodyLocation.memory,
   );
 }

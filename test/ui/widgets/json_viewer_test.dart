@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:interceptly/src/model/body_truncation.dart';
 import 'package:interceptly/src/model/request_record.dart';
 import 'package:interceptly/src/session/inspector_session.dart';
 import 'package:interceptly/src/ui/detail/detail_tabs_builder.dart';
@@ -187,7 +188,8 @@ void main() {
         responseBodyPreview: '\x00[binary: 4096 bytes]',
         requestSizeBytes: 2048,
         responseSizeBytes: 4096,
-        isBodyTruncated: false,
+        requestTruncation: const BodyTruncation.complete(0),
+        responseTruncation: const BodyTruncation.complete(0),
       );
 
       final builder = DetailTabsBuilder(
@@ -237,7 +239,8 @@ void main() {
         requestBodyPreview: '[binary: 1024 bytes]',
         requestSizeBytes: 1024,
         responseSizeBytes: 0,
-        isBodyTruncated: false,
+        requestTruncation: const BodyTruncation.complete(0),
+        responseTruncation: const BodyTruncation.complete(0),
       );
 
       final builder = DetailTabsBuilder(
@@ -310,7 +313,8 @@ void main() {
           requestBodyPreview: '\x00[binary: 512 bytes]',
           requestSizeBytes: 512,
           responseSizeBytes: 0,
-          isBodyTruncated: false,
+          requestTruncation: const BodyTruncation.complete(0),
+          responseTruncation: const BodyTruncation.complete(0),
         );
 
         late BuildContext savedContext;
@@ -361,7 +365,8 @@ void main() {
         requestBodyPreview: validJsonBody,
         requestSizeBytes: validJsonBody.length,
         responseSizeBytes: 18,
-        isBodyTruncated: false,
+        requestTruncation: const BodyTruncation.complete(0),
+        responseTruncation: const BodyTruncation.complete(0),
       );
 
       late BuildContext savedContext;

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/src/model/body_location.dart';
+import 'package:interceptly/src/model/body_truncation.dart';
 import 'package:interceptly/src/model/domain_group.dart';
 import 'package:interceptly/src/model/index_entry.dart';
 import 'package:interceptly/src/model/interceptly_settings.dart';
@@ -228,7 +229,12 @@ void main() {
         responseSizeBytes: record.responseSizeBytes,
         timestamp: record.timestamp,
         hasError: false,
-        isBodyTruncated: true,
+        requestTruncation: const BodyTruncation.complete(0),
+        responseTruncation: const BodyTruncation(
+          originalBytes: 7000000,
+          retainedBytes: 5000000,
+          stage: TruncationStage.storage,
+        ),
         bodyLocation: BodyLocation.memory,
       );
       final session = _FakeSession(record: record, entry: entry);

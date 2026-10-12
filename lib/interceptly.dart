@@ -16,6 +16,7 @@ export 'src/model/network_simulation.dart'
     show NetworkSimulationProfile, SimulatedNetworkException;
 export 'src/model/request_filter.dart' show RequestFilter;
 export 'src/model/request_record.dart' show RequestRecord;
+export 'src/model/body_truncation.dart' show BodyTruncation, TruncationStage;
 export 'src/model/request_summary.dart' show RequestSummary;
 export 'src/model/search_match_scope.dart' show SearchMatchScope;
 export 'src/session/inspector_session.dart' show InspectorSession;

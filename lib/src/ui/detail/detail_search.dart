@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:interceptly/src/ui/widgets/json_viewer.dart';
 
+import '../../model/body_truncation.dart';
 import '../../model/request_record.dart';
 import '../../session/body_decode_service.dart';
 import '../widgets/error_summary.dart';
@@ -212,12 +213,11 @@ List<DetailMatch> computeMatches(
     0,
     DetailSection.overviewTime,
   );
-  if (record.isBodyTruncated) {
-    addMatches(
-      countOccurrences('Body truncated — exceeded maxBodyBytes limit.'),
-      0,
-      DetailSection.overviewNote,
-    );
+  for (final notice in [
+    ...bodyTruncationNotices(record.requestTruncation),
+    ...bodyTruncationNotices(record.responseTruncation),
+  ]) {
+    addMatches(countOccurrences(notice), 0, DetailSection.requestBody);
   }
 
   if (!isWs) {
@@ -287,6 +287,38 @@ List<DetailMatch> computeMatches(
   return matches;
 }
 
+/// Single source of truth for the truncation notice wording.
+///
+/// Both the on-screen banner and the in-detail search matcher read this, so a
+/// query can never match text the user cannot actually see.
+List<String> bodyTruncationNotices(BodyTruncation truncation) {
+  if (!truncation.isTruncated) return const [];
+  final retained = formatTruncationBytes(truncation.retainedBytes);
+  final original = formatTruncationBytes(truncation.originalBytes);
+  return switch (truncation.stage) {
+    TruncationStage.none => const [],
+    TruncationStage.preview => [
+        'Showing the first $retained of $original here. Nothing is lost — '
+            'exports and replay still carry the full body.'
+      ],
+    TruncationStage.storage => [
+        'Stored only the first $retained of $original (maxBodyBytes). The rest '
+            'was discarded before it could be saved.'
+      ],
+    TruncationStage.storageAndPreview => [
+        'Body exceeded maxBodyBytes, so only $retained of $original survived — '
+            'and this view shows less than that. The discarded part is '
+            'unrecoverable.'
+      ],
+  };
+}
+
+String formatTruncationBytes(int bytes) {
+  if (bytes < 1024) return '$bytes B';
+  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+  return '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
+}
+
 /// Snapshot model passed into [compute] — `RequestRecord` contains `Map`s of
 /// only primitive types so a JSON snapshot is safe and cheap.
 RequestRecordSnapshot snapshotRecord(RequestRecord r) => RequestRecordSnapshot(
@@ -298,7 +330,8 @@ RequestRecordSnapshot snapshotRecord(RequestRecord r) => RequestRecordSnapshot(
       requestSizeBytes: r.requestSizeBytes,
       responseSizeBytes: r.responseSizeBytes,
       timestampIso: r.timestamp.toIso8601String(),
-      isBodyTruncated: r.isBodyTruncated,
+      requestTruncation: r.requestTruncation,
+      responseTruncation: r.responseTruncation,
       requestHeaders: r.requestHeaders,
       responseHeaders: r.responseHeaders,
       requestContentType: r.requestContentType,
@@ -407,12 +440,11 @@ List<DetailMatch> _computeMatchesIsolate(_IsolateArgs args) {
     addMatches(countOccurrences(shortErr), 0, DetailSection.overviewError);
   }
   addMatches(countOccurrences(r.timestampIso), 0, DetailSection.overviewTime);
-  if (r.isBodyTruncated) {
-    addMatches(
-      countOccurrences('Body truncated — exceeded maxBodyBytes limit.'),
-      0,
-      DetailSection.overviewNote,
-    );
+  for (final notice in [
+    ...bodyTruncationNotices(r.requestTruncation),
+    ...bodyTruncationNotices(r.responseTruncation),
+  ]) {
+    addMatches(countOccurrences(notice), 0, DetailSection.requestBody);
   }
 
   if (!args.isWs) {
@@ -489,7 +521,8 @@ class RequestRecordSnapshot {
   final int requestSizeBytes;
   final int responseSizeBytes;
   final String timestampIso;
-  final bool isBodyTruncated;
+  final BodyTruncation requestTruncation;
+  final BodyTruncation responseTruncation;
   final Map<String, String> requestHeaders;
   final Map<String, String> responseHeaders;
   final String? requestContentType;
@@ -508,7 +541,8 @@ class RequestRecordSnapshot {
     required this.requestSizeBytes,
     required this.responseSizeBytes,
     required this.timestampIso,
-    required this.isBodyTruncated,
+    required this.requestTruncation,
+    required this.responseTruncation,
     required this.requestHeaders,
     required this.responseHeaders,
     required this.requestContentType,
