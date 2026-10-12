@@ -592,7 +592,7 @@ class DetailTabsBuilder {
     return Container(
       key: sectionKeys?[section],
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(12.0, 12.0, 12.0, 4.0),
+      padding: const EdgeInsets.fromLTRB(0, 12.0, 12.0, 4.0),
       decoration: BoxDecoration(
         color: InterceptlyTheme.surfaceContainer,
         border: Border.all(color: InterceptlyTheme.dividerSubtle),

@@ -379,161 +379,121 @@ class _RequestDetailPageState extends State<RequestDetailPage>
               final activeGlobalIndex =
                   totalMatches == 0 ? null : effectiveIndex;
 
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+              return Stack(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16.0,
-                      vertical: 12.0,
-                    ),
-                    decoration: BoxDecoration(
-                      color: InterceptlyTheme.surface,
-                      border: Border(
-                        bottom: BorderSide(
-                          color: InterceptlyTheme.dividerSubtle,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16.0,
+                          vertical: 10.0,
                         ),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: InterceptlySearchField(
-                            controller: _searchController,
-                            hintText: 'Search in details...',
-                            textInputAction: TextInputAction.search,
-                            onChanged: (value) {
-                              if (value.trim().isEmpty && _query.isNotEmpty) {
-                                setState(() {
-                                  _query = '';
-                                  _currentMatchIndex = 0;
-                                });
-                              }
-                            },
-                            onSubmitted: (value) {
+                        decoration: BoxDecoration(
+                          color: InterceptlyTheme.surface,
+                          border: Border(
+                            bottom: BorderSide(
+                              color: InterceptlyTheme.dividerSubtle,
+                            ),
+                          ),
+                        ),
+                        child: InterceptlySearchField(
+                          controller: _searchController,
+                          hintText: 'Search in details...',
+                          textInputAction: TextInputAction.search,
+                          onChanged: (value) {
+                            if (value.trim().isEmpty && _query.isNotEmpty) {
                               setState(() {
-                                _query = value.trim();
+                                _query = '';
                                 _currentMatchIndex = 0;
                               });
                               _recomputeMatchesAsync();
-                            },
-                          ),
+                            }
+                          },
+                          onSubmitted: (value) {
+                            setState(() {
+                              _query = value.trim();
+                              _currentMatchIndex = 0;
+                            });
+                            _recomputeMatchesAsync();
+                          },
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          totalMatches == 0
-                              ? '0 / 0'
-                              : '${effectiveIndex + 1} / $totalMatches',
-                          style: InterceptlyTheme.typography.bodyMediumRegular
-                              .copyWith(
-                            fontSize: 12,
-                            color: InterceptlyTheme.textMuted,
-                          ),
+                      ),
+                      TabBar(
+                        controller: _tabController,
+                        indicatorColor: InterceptlyTheme.indigo500,
+                        labelColor: InterceptlyTheme.indigo400,
+                        unselectedLabelColor: InterceptlyTheme.textQuaternary,
+                        dividerColor: InterceptlyGlobalColor.transparent,
+                        tabs: isWs
+                            ? const [Tab(text: 'Overview'), Tab(text: 'Messages')]
+                            : const [
+                                Tab(text: 'Overview'),
+                                Tab(text: 'Request'),
+                                Tab(text: 'Response'),
+                                Tab(text: 'Error'),
+                              ],
+                      ),
+                      Expanded(
+                        child: AnimatedBuilder(
+                          animation: _tabController,
+                          builder: (context, _) {
+                            final tabIndex = _tabController.index;
+                            if (!_visitedTabs.contains(tabIndex)) {
+                              _visitedTabs.add(tabIndex);
+                            }
+                            final tabsBuilder = DetailTabsBuilder(
+                              record: record,
+                              matches: matches,
+                              activeGlobalIndex: activeGlobalIndex,
+                              query: _query,
+                              urlDecodeEnabled: urlDecodeEnabled,
+                              tryParseJson: _tryParseJson,
+                              sectionKeys: _sectionKeys,
+                            );
+                            return IndexedStack(
+                              index: tabIndex,
+                              children: isWs
+                                  ? [
+                                      _visitedTabs.contains(0)
+                                          ? tabsBuilder.buildOverviewTab()
+                                          : const SizedBox.shrink(),
+                                      _visitedTabs.contains(1)
+                                          ? tabsBuilder.buildMessagesTab()
+                                          : const SizedBox.shrink(),
+                                    ]
+                                  : [
+                                      _visitedTabs.contains(0)
+                                          ? tabsBuilder.buildOverviewTab()
+                                          : const SizedBox.shrink(),
+                                      _visitedTabs.contains(1)
+                                          ? tabsBuilder.buildRequestTab()
+                                          : const SizedBox.shrink(),
+                                      _visitedTabs.contains(2)
+                                          ? tabsBuilder.buildResponseTab()
+                                          : const SizedBox.shrink(),
+                                      _visitedTabs.contains(3)
+                                          ? tabsBuilder.buildErrorTab()
+                                          : const SizedBox.shrink(),
+                                    ],
+                            );
+                          },
                         ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.keyboard_arrow_up,
-                            size: 20,
-                            color: InterceptlyTheme.textMuted,
-                          ),
-                          tooltip: 'Previous match',
-                          onPressed: totalMatches == 0
-                              ? null
-                              : () {
-                                  final newIndex =
-                                      (_currentMatchIndex - 1) % totalMatches;
-                                  final normalized =
-                                      (newIndex + totalMatches) % totalMatches;
-                                  setState(() {
-                                    _currentMatchIndex = normalized;
-                                  });
-                                  _scrollToActiveMatch(matches[normalized]);
-                                },
-                        ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.keyboard_arrow_down,
-                            size: 20,
-                            color: InterceptlyTheme.textMuted,
-                          ),
-                          tooltip: 'Next match',
-                          onPressed: totalMatches == 0
-                              ? null
-                              : () {
-                                  final newIndex =
-                                      (_currentMatchIndex + 1) % totalMatches;
-                                  final normalized =
-                                      (newIndex + totalMatches) % totalMatches;
-                                  setState(() {
-                                    _currentMatchIndex = normalized;
-                                  });
-                                  _scrollToActiveMatch(matches[normalized]);
-                                },
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                  TabBar(
-                    controller: _tabController,
-                    indicatorColor: InterceptlyTheme.indigo500,
-                    labelColor: InterceptlyTheme.indigo400,
-                    unselectedLabelColor: InterceptlyTheme.textQuaternary,
-                    dividerColor: InterceptlyGlobalColor.transparent,
-                    tabs: isWs
-                        ? const [Tab(text: 'Overview'), Tab(text: 'Messages')]
-                        : const [
-                            Tab(text: 'Overview'),
-                            Tab(text: 'Request'),
-                            Tab(text: 'Response'),
-                            Tab(text: 'Error'),
-                          ],
-                  ),
-                  Expanded(
-                    child: AnimatedBuilder(
-                      animation: _tabController,
-                      builder: (context, _) {
-                        final tabIndex = _tabController.index;
-                        if (!_visitedTabs.contains(tabIndex)) {
-                          _visitedTabs.add(tabIndex);
-                        }
-                        final tabsBuilder = DetailTabsBuilder(
-                          record: record,
+                  if (_query.isNotEmpty)
+                    Positioned(
+                      left: 16.0,
+                      bottom: 16.0,
+                      child: SafeArea(
+                        child: _buildSearchNavigationCapsule(
                           matches: matches,
-                          activeGlobalIndex: activeGlobalIndex,
-                          query: _query,
-                          urlDecodeEnabled: urlDecodeEnabled,
-                          tryParseJson: _tryParseJson,
-                          sectionKeys: _sectionKeys,
-                        );
-                        return IndexedStack(
-                          index: tabIndex,
-                          children: isWs
-                              ? [
-                                  _visitedTabs.contains(0)
-                                      ? tabsBuilder.buildOverviewTab()
-                                      : const SizedBox.shrink(),
-                                  _visitedTabs.contains(1)
-                                      ? tabsBuilder.buildMessagesTab()
-                                      : const SizedBox.shrink(),
-                                ]
-                              : [
-                                  _visitedTabs.contains(0)
-                                      ? tabsBuilder.buildOverviewTab()
-                                      : const SizedBox.shrink(),
-                                  _visitedTabs.contains(1)
-                                      ? tabsBuilder.buildRequestTab()
-                                      : const SizedBox.shrink(),
-                                  _visitedTabs.contains(2)
-                                      ? tabsBuilder.buildResponseTab()
-                                      : const SizedBox.shrink(),
-                                  _visitedTabs.contains(3)
-                                      ? tabsBuilder.buildErrorTab()
-                                      : const SizedBox.shrink(),
-                                ],
-                        );
-                      },
+                          totalMatches: totalMatches,
+                          effectiveIndex: effectiveIndex,
+                        ),
+                      ),
                     ),
-                  ),
                 ],
               );
             },
@@ -659,5 +619,129 @@ class _RequestDetailPageState extends State<RequestDetailPage>
       session: widget.session as InspectorSession,
     );
     replayHandler.showReplayMenu(record);
+  }
+
+  Widget _buildSearchNavigationCapsule({
+    required List<DetailMatch> matches,
+    required int totalMatches,
+    required int effectiveIndex,
+  }) {
+    return Material(
+      color: InterceptlyTheme.surface,
+      elevation: 6.0,
+      shadowColor: Colors.black.withValues(alpha: 0.25),
+      borderRadius: BorderRadius.circular(24.0),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24.0),
+          border: Border.all(
+            color: InterceptlyTheme.dividerSubtle,
+            width: 1.0,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.search,
+              size: 15,
+              color: totalMatches == 0
+                  ? InterceptlyTheme.textQuaternary
+                  : InterceptlyTheme.indigo500,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              totalMatches == 0
+                  ? '0 / 0'
+                  : '${effectiveIndex + 1} / $totalMatches',
+              style: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: totalMatches == 0
+                    ? InterceptlyTheme.textQuaternary
+                    : InterceptlyTheme.textPrimary,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Container(
+              height: 14,
+              width: 1,
+              color: InterceptlyTheme.dividerSubtle,
+            ),
+            const SizedBox(width: 2),
+            IconButton(
+              icon: Icon(
+                Icons.keyboard_arrow_up,
+                size: 18,
+                color: totalMatches == 0
+                    ? InterceptlyTheme.textQuaternary
+                    : InterceptlyTheme.textSecondary,
+              ),
+              tooltip: 'Previous match',
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(),
+              splashRadius: 16,
+              onPressed: totalMatches == 0
+                  ? null
+                  : () {
+                      final newIndex = (_currentMatchIndex - 1) % totalMatches;
+                      final normalized =
+                          (newIndex + totalMatches) % totalMatches;
+                      setState(() {
+                        _currentMatchIndex = normalized;
+                      });
+                      _scrollToActiveMatch(matches[normalized]);
+                    },
+            ),
+            IconButton(
+              icon: Icon(
+                Icons.keyboard_arrow_down,
+                size: 18,
+                color: totalMatches == 0
+                    ? InterceptlyTheme.textQuaternary
+                    : InterceptlyTheme.textSecondary,
+              ),
+              tooltip: 'Next match',
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(),
+              splashRadius: 16,
+              onPressed: totalMatches == 0
+                  ? null
+                  : () {
+                      final newIndex = (_currentMatchIndex + 1) % totalMatches;
+                      final normalized =
+                          (newIndex + totalMatches) % totalMatches;
+                      setState(() {
+                        _currentMatchIndex = normalized;
+                      });
+                      _scrollToActiveMatch(matches[normalized]);
+                    },
+            ),
+            const SizedBox(width: 2),
+            IconButton(
+              icon: const Icon(
+                Icons.close,
+                size: 15,
+                color: InterceptlyTheme.textMuted,
+              ),
+              tooltip: 'Close search',
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(),
+              splashRadius: 16,
+              onPressed: () {
+                _searchController.clear();
+                setState(() {
+                  _query = '';
+                  _currentMatchIndex = 0;
+                });
+                _recomputeMatchesAsync();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
