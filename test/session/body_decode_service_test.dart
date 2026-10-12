@@ -27,13 +27,15 @@ void main() {
     test('returns binary placeholder for image content type', () {
       final bytes = Uint8List.fromList([0xFF, 0xD8, 0xFF]);
       final result = BodyDecodeService.decode(bytes, 'image/jpeg');
-      expect(result, '[binary: 3 bytes]');
+      // Binary placeholder uses null byte prefix to distinguish from JSON arrays
+      expect(result, '\x00[binary: 3 bytes]');
     });
 
     test('returns binary placeholder when bytes fail UTF-8 decode', () {
       final bytes = Uint8List.fromList([0xFF, 0xFE]); // invalid UTF-8
       final result = BodyDecodeService.decode(bytes, 'text/plain');
-      expect(result, startsWith('[binary:'));
+      // Binary placeholder uses null byte prefix
+      expect(result, startsWith('\x00[binary:'));
     });
   });
 
@@ -119,7 +121,8 @@ void main() {
 
     test('returns binary placeholder for invalid UTF-8', () {
       final bytes = Uint8List.fromList([0xFF, 0xFE]);
-      expect(BodyDecodeService.tryUtf8(bytes), '[binary: 2 bytes]');
+      // Binary placeholder uses null byte prefix
+      expect(BodyDecodeService.tryUtf8(bytes), '\x00[binary: 2 bytes]');
     });
   });
 
@@ -185,12 +188,7 @@ void main() {
 
 /// Builds a packed body record in the format that BodyDecodeService expects.
 Uint8List _packBodies(String req, String res, {bool truncated = false}) {
-  final json = jsonEncode({
-    'req': base64.encode(utf8.encode(req)),
-    'res': base64.encode(utf8.encode(res)),
-    'truncated': truncated,
-  });
-  return Uint8List.fromList(utf8.encode(json));
+  return _packRaw(utf8.encode(req), utf8.encode(res), truncated: truncated);
 }
 
 Uint8List _packBodiesPartial({
@@ -198,8 +196,35 @@ Uint8List _packBodiesPartial({
   String? res,
   bool truncated = false,
 }) {
-  final map = <String, dynamic>{'truncated': truncated};
-  if (req != null) map['req'] = base64.encode(utf8.encode(req));
-  if (res != null) map['res'] = base64.encode(utf8.encode(res));
-  return Uint8List.fromList(utf8.encode(jsonEncode(map)));
+  return _packRaw(
+    req == null ? null : utf8.encode(req),
+    res == null ? null : utf8.encode(res),
+    truncated: truncated,
+  );
+}
+
+Uint8List _packRaw(List<int>? req, List<int>? res, {bool truncated = false}) {
+  final reqBytes = req == null ? null : Uint8List.fromList(req);
+  final resBytes = res == null ? null : Uint8List.fromList(res);
+  final total = 4 + (reqBytes?.length ?? 0) + 4 + (resBytes?.length ?? 0) + 1;
+  final out = Uint8List(total);
+  final data = ByteData.sublistView(out);
+  var offset = 0;
+
+  void writePart(Uint8List? part) {
+    if (part == null) {
+      data.setUint32(offset, 0xFFFFFFFF, Endian.big);
+      offset += 4;
+      return;
+    }
+    data.setUint32(offset, part.length, Endian.big);
+    offset += 4;
+    out.setRange(offset, offset + part.length, part);
+    offset += part.length;
+  }
+
+  writePart(reqBytes);
+  writePart(resBytes);
+  out[offset] = truncated ? 1 : 0;
+  return out;
 }

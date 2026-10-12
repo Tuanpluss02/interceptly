@@ -1,3 +1,5 @@
+import 'body_truncation.dart';
+
 /// Public-facing summary of a captured request, safe to expose on the
 /// app-developer API.
 ///
@@ -14,7 +16,8 @@ class RequestSummary {
     required this.responseSizeBytes,
     required this.timestamp,
     required this.hasError,
-    required this.isBodyTruncated,
+    required this.requestTruncation,
+    required this.responseTruncation,
     this.requestHeaders = const {},
     this.responseHeaders = const {},
     this.requestContentType,
@@ -35,8 +38,19 @@ class RequestSummary {
   final DateTime timestamp;
   final bool hasError;
 
-  /// True if any body was truncated due to exceeding the size limit.
-  final bool isBodyTruncated;
+  /// What survived of the request body, and where it was cut.
+  final BodyTruncation requestTruncation;
+
+  /// What survived of the response body, and where it was cut.
+  final BodyTruncation responseTruncation;
+
+  /// True when either body lost bytes that cannot be reproduced.
+  bool get hasDataLoss =>
+      requestTruncation.hasDataLoss || responseTruncation.hasDataLoss;
+
+  /// True when either body is shorter than what the network actually sent.
+  bool get isTruncated =>
+      requestTruncation.isTruncated || responseTruncation.isTruncated;
 
   final Map<String, String> requestHeaders;
   final Map<String, String> responseHeaders;

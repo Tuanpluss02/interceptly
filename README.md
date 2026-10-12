@@ -23,7 +23,10 @@ Interceptly is a high-performance network inspector for Flutter. It provides rea
 - **Postman-like Replay**: Built-in request editor to modify headers/body and re-send requests.
 - **Network Simulation**: Global profiles for Offline, 3G, 4G, or custom latency/bandwidth.
 - **Advanced Formatters**: Specialized views for GraphQL, Multipart, cURL, and Binary data.
-- **Flexible Triggers**: Support for Shake, Long Press, Floating Button, or Custom Streams.
+- **Master Search**: One query across URLs, headers, bodies, and errors with match navigation.
+- **Safe by Default**: Sensitive headers are redacted before storage; `shouldCapture` filters URLs.
+- **Export**: Share or export records as HAR, cURL, or Postman collections.
+- **Flexible Triggers**: Floating bug button or custom streams.
 
 ---
 
@@ -53,7 +56,7 @@ void main() {
   runApp(MaterialApp(navigatorKey: _navKey, home: MyApp(dio: _dio)));
 
   if (kDebugMode || kProfileMode) {
-    Interceptly.attach(navigatorKey: _navKey);
+    Interceptly.init(navigatorKey: _navKey);
   }
 }
 ```
@@ -102,26 +105,49 @@ Interceptly.instance.setNetworkSimulation(
 
 ## Configuration
 
-### InterceptlySettings
+All capture behavior is configured through a single `InterceptlySettings` object. Pass it to `Interceptly.init` once at startup:
 
-| Parameter              | Default | Description                              |
-| :--------------------- | :------ | :--------------------------------------- |
-| `bodyOffloadThreshold` | `50 KB` | Threshold to move body to temp file      |
-| `maxEntries`           | `5000`  | Maximum requests kept in history         |
-| `maxBodyBytes`         | `2 MB`  | Hard cap for body size before truncation |
-
-### UI Triggers
 ```dart
-Interceptly.attach(
+Interceptly.init(
   navigatorKey: _navKey,
-  config: InterceptlyConfig(
-    triggers: {
-      InspectorTrigger.floatingButton,
-      InspectorTrigger.shake,
-      InspectorTrigger.longPress,
-    },
+  settings: const InterceptlySettings(
+    // Security & Filtering
+    redactedHeaders: {'authorization', 'cookie', 'set-cookie', 'x-api-key'},
+    shouldCapture: _skipAnalytics,
+    // Storage & Retention
+    maxBodyBytes: 1024 * 1024, // 1 MB
+    maxEntries: 1000,
   ),
+  showFloatingButton: true, // false to hide FAB
+  customTrigger: myTriggerStream, // optional custom stream trigger
 );
+
+bool _skipAnalytics(String url) => !url.contains('/analytics');
+```
+
+### InterceptlySettings Reference
+
+| Parameter                 | Default        | Description                                                     |
+| :------------------------ | :------------- | :-------------------------------------------------------------- |
+| `bodyOffloadThreshold`    | `50 KB`        | Body size above which payloads move to a temp file               |
+| `previewTruncationBytes`  | `16 KB`        | Inline byte budget for pending request rows awaiting a response  |
+| `maxBodyBytes`            | `5 MB`         | Hard cap before body truncation; `<= 0` means unlimited          |
+| `maxUiPreviewBytes`       | `2 MB`         | Max bytes decoded for the detail preview; `<= 0` means unlimited |
+| `maxQueuedEvents`         | `500`          | Pending capture events buffered before the isolate is ready      |
+| `maxEntries`              | `5000`         | Maximum requests kept in history                                 |
+| `pendingTimeout`          | `45 s`         | Marks an unfinished pending request as timed out                  |
+| `urlDecodeEnabled`        | `true`         | Decode URL encodings in the UI                                   |
+| `redactedHeaders`         | 4 auth headers | Header names replaced with `[REDACTED]` (case-insensitive)       |
+| `shouldCapture`           | `null`         | `bool Function(String url)` predicate; return `false` to skip    |
+
+`shouldCapture` holds a closure and is evaluated on the main isolate, so it never crosses an isolate boundary.
+
+### FAB Session Control
+
+```dart
+Interceptly.hideFloatingButtonForSession(); // stays hidden until app restart
+Interceptly.showFloatingButtonForSession();
+Interceptly.isFloatingButtonHiddenForSession;
 ```
 
 ---
@@ -137,7 +163,7 @@ GoRouter(navigatorKey: _navKey, routes: [...]);
 
 // After runApp:
 if (kDebugMode || kProfileMode) {
-  Interceptly.attach(navigatorKey: _navKey);
+  Interceptly.init(navigatorKey: _navKey);
 }
 ```
 
@@ -148,6 +174,7 @@ if (kDebugMode || kProfileMode) {
 - **Small Payloads**: Kept in memory for instant access.
 - **Large Payloads**: Written to temporary files via background isolates.
 - **Lazy Loading**: Data is only read from disk when a record is selected.
+- **Three-tier size limits**: `previewTruncationBytes` caps pending rows in RAM, `maxBodyBytes` caps what is stored, and `maxUiPreviewBytes` caps what gets decoded for the detail view.
 
 ---
 

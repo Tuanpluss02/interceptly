@@ -7,6 +7,7 @@ class InterceptlySearchField extends StatefulWidget {
     super.key,
     this.controller,
     this.hintText,
+    this.hintMaxLines = 1,
     this.onChanged,
     this.onSubmitted,
     this.textInputAction,
@@ -14,6 +15,7 @@ class InterceptlySearchField extends StatefulWidget {
 
   final TextEditingController? controller;
   final String? hintText;
+  final int hintMaxLines;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
   final TextInputAction? textInputAction;
@@ -80,7 +82,7 @@ class _InterceptlySearchFieldState extends State<InterceptlySearchField> {
       onSubmitted: widget.onSubmitted,
       decoration: InputDecoration(
         hintText: widget.hintText,
-        hintMaxLines: 2,
+        hintMaxLines: widget.hintMaxLines,
         hintStyle: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
           color: InterceptlyTheme.textMuted,
         ),

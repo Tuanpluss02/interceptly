@@ -3,14 +3,36 @@ import 'package:interceptly/interceptly.dart';
 
 import 'src/example.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final clients = ExampleClients.create();
+
+  final server = ExampleLocalServer();
+  final baseUrl = await server.start();
+
+  final clients = ExampleClients.create(baseUrl: baseUrl);
   final appNavigatorKey = GlobalKey<NavigatorState>();
 
   runApp(
-    InterceptlyExampleApp(clients: clients, navigatorKey: appNavigatorKey),
+    InterceptlyExampleApp(
+      clients: clients,
+      navigatorKey: appNavigatorKey,
+      server: server,
+    ),
   );
 
-  Interceptly.attach(navigatorKey: appNavigatorKey);
+  Interceptly.init(
+    navigatorKey: appNavigatorKey,
+    settings: InterceptlySettings(
+      maxBodyBytes: 50 * 1024 * 1024,
+      maxUiPreviewBytes: 50 * 1024 * 1024,
+      shouldCapture: (url) => !url.contains('/analytics'),
+      redactedHeaders: const {
+        'authorization',
+        'cookie',
+        'set-cookie',
+        'x-api-key',
+        'token',
+      },
+    ),
+  );
 }

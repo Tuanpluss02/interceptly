@@ -1,10 +1,13 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../../capture/http/interceptly_http_client.dart';
+import '../../model/body_truncation.dart';
 import '../../model/request_record.dart';
+import '../../session/body_decode_service.dart';
 import '../../session/inspector_session.dart';
 import '../interceptly_theme.dart';
 import '../widgets/toast_notification.dart';
@@ -23,54 +26,57 @@ class ReplayHandler {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: InterceptlyTheme.controlMuted,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            ListTile(
-              leading: const Icon(
-                Icons.refresh,
-                color: InterceptlyTheme.indigo500,
-              ),
-              title: Text(
-                'Retry Request',
-                style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
-                  color: InterceptlyTheme.textPrimary,
+      builder: (context) => Theme(
+        data: InterceptlyTheme.themeData(context: context),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: InterceptlyTheme.controlMuted,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              onTap: () {
-                Navigator.pop(context);
-                retry(record);
-              },
-            ),
-            Divider(color: InterceptlyTheme.dividerSubtle, height: 1),
-            ListTile(
-              leading: const Icon(
-                Icons.edit_note,
-                color: InterceptlyTheme.indigo500,
-              ),
-              title: Text(
-                'Duplicate & Edit',
-                style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
-                  color: InterceptlyTheme.textPrimary,
+              ListTile(
+                leading: const Icon(
+                  Icons.refresh,
+                  color: InterceptlyTheme.indigo500,
                 ),
+                title: Text(
+                  'Retry Request',
+                  style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
+                    color: InterceptlyTheme.textPrimary,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  retry(record);
+                },
               ),
-              onTap: () {
-                Navigator.pop(context);
-                duplicateAndEdit(record);
-              },
-            ),
-          ],
+              Divider(color: InterceptlyTheme.dividerSubtle, height: 1),
+              ListTile(
+                leading: const Icon(
+                  Icons.edit_note,
+                  color: InterceptlyTheme.indigo500,
+                ),
+                title: Text(
+                  'Duplicate & Edit',
+                  style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
+                    color: InterceptlyTheme.textPrimary,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  duplicateAndEdit(record);
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -90,7 +96,8 @@ class ReplayHandler {
       url: record.url,
       headers: Map<String, String>.from(record.requestHeaders),
       body: record.requestBodyPreview,
-      isBodyTruncated: record.isBodyTruncated,
+      bodyBytes: record.requestBodyBytes,
+      truncation: record.requestTruncation,
     );
   }
 
@@ -105,6 +112,22 @@ class ReplayHandler {
 
     final (baseUrl, queryParams) = _splitUrlForEditing(record.url);
 
+    String initialBodyText = '';
+    if (record.requestBodyBytes != null &&
+        record.requestBodyBytes!.isNotEmpty) {
+      try {
+        initialBodyText = utf8.decode(record.requestBodyBytes!);
+      } catch (_) {
+        final rawBody = record.requestBodyPreview;
+        initialBodyText =
+            (rawBody != null && !_isPlaceholder(rawBody)) ? rawBody : '';
+      }
+    } else {
+      final rawBody = record.requestBodyPreview;
+      initialBodyText =
+          (rawBody != null && !_isPlaceholder(rawBody)) ? rawBody : '';
+    }
+
     final result = await Navigator.of(context).push<CustomRequestDraft>(
       MaterialPageRoute(
         builder: (context) => CustomRequestPage(
@@ -112,7 +135,7 @@ class ReplayHandler {
           initialBaseUrl: baseUrl,
           initialQueryText: _queryParamsToText(queryParams),
           initialHeadersText: _headersToText(record.requestHeaders),
-          initialBodyText: record.requestBodyPreview ?? '',
+          initialBodyText: initialBodyText,
         ),
       ),
     );
@@ -124,7 +147,8 @@ class ReplayHandler {
       url: result.url,
       headers: result.headers,
       body: result.body,
-      isBodyTruncated: record.isBodyTruncated,
+      bodyBytes: utf8.encode(result.body),
+      truncation: BodyTruncation.complete(utf8.encode(result.body).length),
     );
   }
 
@@ -133,7 +157,8 @@ class ReplayHandler {
     required String url,
     required Map<String, String> headers,
     required String? body,
-    required bool isBodyTruncated,
+    Uint8List? bodyBytes,
+    required BodyTruncation truncation,
   }) async {
     final uri = Uri.tryParse(url);
     if (uri == null) {
@@ -150,10 +175,16 @@ class ReplayHandler {
     }
 
     final cleanedHeaders = _sanitizeReplayHeaders(headers);
+    final isPlaceholder = _isPlaceholder(body);
 
-    if (isBodyTruncated && body != null && body.isNotEmpty) {
+    if (bodyBytes == null &&
+        truncation.isPreviewOnly &&
+        body != null &&
+        body.isNotEmpty &&
+        !isPlaceholder) {
       ToastNotification.show(
-        'Warning: body may be truncated',
+        'Replaying the preview only — the stored body is complete but too '
+        'large to send here.',
         contextHint: context,
       );
     }
@@ -165,12 +196,20 @@ class ReplayHandler {
     final allowBody =
         upperMethod != 'GET' && upperMethod != 'HEAD' && upperMethod != 'TRACE';
 
-    if (allowBody && body != null && body.isNotEmpty) {
-      request.bodyBytes = utf8.encode(body);
-      request.headers.putIfAbsent(
-        'content-type',
-        () => 'application/json; charset=utf-8',
-      );
+    if (allowBody) {
+      if (bodyBytes != null && bodyBytes.isNotEmpty) {
+        request.bodyBytes = bodyBytes;
+        request.headers.putIfAbsent(
+          'content-type',
+          () => 'application/json; charset=utf-8',
+        );
+      } else if (body != null && body.isNotEmpty && !isPlaceholder) {
+        request.bodyBytes = utf8.encode(body);
+        request.headers.putIfAbsent(
+          'content-type',
+          () => 'application/json; charset=utf-8',
+        );
+      }
     }
 
     final client = InterceptlyHttpClient.wrap(http.Client(), session);
@@ -195,6 +234,13 @@ class ReplayHandler {
   bool _isUnsupportedMethod(String method) {
     final m = method.toUpperCase();
     return m == 'WS';
+  }
+
+  bool _isPlaceholder(String? body) {
+    if (body == null) return false;
+    return BodyDecodeService.isPlaceholder(body) ||
+        body.startsWith('\x00') ||
+        body.startsWith('[binary:');
   }
 
   Map<String, String> _sanitizeReplayHeaders(Map<String, String> headers) {

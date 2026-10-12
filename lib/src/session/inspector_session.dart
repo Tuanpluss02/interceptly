@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../model/body_location.dart';
+import '../model/body_truncation.dart';
 import '../model/domain_group.dart';
 import '../model/index_entry.dart';
 import '../model/interceptly_settings.dart';
@@ -12,6 +13,7 @@ import '../model/raw_capture.dart';
 import '../model/request_filter.dart';
 import '../model/request_record.dart';
 import '../model/request_summary.dart';
+import '../model/search_match_scope.dart';
 import '../session/bounded_event_queue.dart';
 import '../simulation/network_simulation_service.dart';
 import 'body_decode_service.dart';
@@ -22,6 +24,7 @@ import 'inspector_session_view.dart';
 import 'master_search_controller.dart';
 import 'memory_index.dart';
 import 'writer_isolate.dart';
+import '../capture/capture_guard.dart';
 
 /// Central lifecycle manager for the Interceptly session.
 ///
@@ -31,23 +34,59 @@ import 'writer_isolate.dart';
 /// All public methods are safe to call from the main isolate.
 class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   InspectorSession({InterceptlySettings? settings})
-      : settings = settings ?? const InterceptlySettings() {
-    _memoryIndex = MemoryIndex(maxEntries: this.settings.maxEntries);
-    _writerIsolate = WriterIsolate(this.settings);
-    _preInitQueue = BoundedEventQueue(maxSize: this.settings.maxQueuedEvents);
+      : _settings = settings ?? _defaultSettings,
+        sessionId = _generateSessionId() {
+    _normalizedRedactedHeaders = _settings.normalizedRedactedHeaders;
+    _memoryIndex = MemoryIndex(maxEntries: _settings.maxEntries);
+    _writerIsolate = WriterIsolate(_settings);
+    _preInitQueue = BoundedEventQueue(maxSize: _settings.maxQueuedEvents);
     _search.addListener(_onSearchChanged);
-    _grouping.addListener(notifyListeners);
+    _grouping.addListener(_onGroupingChanged);
     _preferences.addListener(notifyListeners);
+  }
+
+  static InterceptlySettings _defaultSettings = const InterceptlySettings();
+  static int _sessionCounter = 0;
+  static String _generateSessionId() {
+    final seq = ++_sessionCounter;
+    final time = DateTime.now().microsecondsSinceEpoch;
+    return '${time}_$seq';
+  }
+
+  /// Global configure helper for the shared singleton before or after first access.
+  static void configure(InterceptlySettings settings) {
+    _defaultSettings = settings;
+    _instance?._applySettings(settings);
   }
 
   static InspectorSession? _instance;
 
   static InspectorSession get instance {
-    return _instance ??= InspectorSession();
+    return _instance ??= InspectorSession(settings: _defaultSettings);
   }
 
+  /// Unique ID for this session instance to isolate temporary files.
+  final String sessionId;
+
+  InterceptlySettings _settings;
+  late Set<String> _normalizedRedactedHeaders;
+
   @override
-  final InterceptlySettings settings;
+  InterceptlySettings get settings => _settings;
+
+  void _applySettings(InterceptlySettings newSettings) {
+    _settings = newSettings;
+    _normalizedRedactedHeaders = newSettings.normalizedRedactedHeaders;
+    _writerIsolate.updateSettings(newSettings);
+    _memoryIndex.updateMaxEntries(newSettings.maxEntries);
+    _preInitQueue.updateMaxSize(newSettings.maxQueuedEvents);
+    _preferences.setUrlDecodeEnabled(newSettings.urlDecodeEnabled);
+    notifyListeners();
+  }
+
+  /// Configures settings for this specific session instance.
+  void configureSession(InterceptlySettings newSettings) =>
+      _applySettings(newSettings);
   late final MemoryIndex _memoryIndex;
   late final WriterIsolate _writerIsolate;
   late final BoundedEventQueue<RawCapture> _preInitQueue;
@@ -56,11 +95,10 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   Future<void>? _initFuture;
   bool _initialized = false;
   bool _enabled = true;
-  bool _clearing = false;
+  Future<void>? _clearFuture;
   final InspectorPreferences _preferences = InspectorPreferences();
   NetworkSimulationProfile _networkSimulation = NetworkSimulationProfile.none;
   final Map<String, Timer> _pendingTimers = {};
-  static const Duration _pendingTimeout = Duration(seconds: 45);
 
   /// Captures sent to the isolate but not yet returned as [IndexEntry].
   int _inFlight = 0;
@@ -110,15 +148,24 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   @override
   bool get isScanningFiles => _search.isScanningFiles;
 
+  @override
+  Set<SearchMatchScope> getSearchScopes(String id) => _search.getScopes(id);
+
   // Grouping getters
   @override
   bool get groupingEnabled => _grouping.enabled;
 
+  Set<String>? _cachedAvailableDomains;
+
   @override
   Set<String> get availableDomains {
-    return _memoryIndex.entries
+    return _cachedAvailableDomains ??= _memoryIndex.entries
         .map((entry) => RequestFilter.extractDomain(entry.url))
         .toSet();
+  }
+
+  void _invalidateAvailableDomainsCache() {
+    _cachedAvailableDomains = null;
   }
 
   // ---------------------------------------------------------------------------
@@ -132,25 +179,38 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
 
   void _onSearchChanged() => notifyListeners();
 
+  void _onGroupingChanged() {
+    _invalidateGroupedCache();
+    notifyListeners();
+  }
+
   Future<void> _performInit() async {
     if (_initialized) return;
 
-    // Resolve the temp directory HERE on the main isolate — never inside
-    // the background isolate where platform channels are unavailable.
-    final dir = await getTemporaryDirectory();
-    _tempFilePath = '${dir.path}/${BodyStore.kFileName}';
+    try {
+      final dir = await getTemporaryDirectory();
+      final fileName = 'interceptly_${sessionId}_session.tmp';
+      _tempFilePath = '${dir.path}/$fileName';
 
-    await _writerIsolate.start(tempDirPath: dir.path);
-    _resultSub = _writerIsolate.results.listen(_onEntryReady);
-    _initialized = true;
+      await BodyStore.purgeOrphanedTempFiles(
+        dir.path,
+        currentFileName: fileName,
+      );
 
-    // Flush captures buffered before the isolate was ready.
-    // Runs synchronously (no awaits) so no new record() call can interleave.
-    _droppedCount += _preInitQueue.droppedCount;
-    _preferences.setUrlDecodeEnabled(settings.urlDecodeEnabled);
-    RawCapture? pending;
-    while ((pending = _preInitQueue.removeFirstOrNull()) != null) {
-      _sendCapture(pending!);
+      await _writerIsolate.start(tempDirPath: dir.path, fileName: fileName);
+      _resultSub = _writerIsolate.results.listen(_onEntryReady);
+      _initialized = true;
+
+      _droppedCount += _preInitQueue.droppedCount;
+      _preferences.setUrlDecodeEnabled(settings.urlDecodeEnabled);
+      while (true) {
+        final pending = _preInitQueue.removeFirstOrNull();
+        if (pending == null) break;
+        _sendCapture(pending);
+      }
+    } catch (_) {
+      _initFuture = null;
+      rethrow;
     }
   }
 
@@ -158,6 +218,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     _inFlight--;
     _cancelPendingTimeout(entry.id);
     _memoryIndex.add(entry);
+    _invalidateGroupedCache();
     notifyListeners();
   }
 
@@ -168,14 +229,18 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   /// Enables capture. Capture is enabled by default.
   @override
   void enable() {
+    if (_enabled) return;
     _enabled = true;
+    notifyListeners();
   }
 
   /// Disables capture. The interceptor still runs but all [record] calls are
   /// silently dropped. Useful for hiding sensitive screens (e.g. payment flows).
   @override
   void disable() {
+    if (!_enabled) return;
     _enabled = false;
+    notifyListeners();
   }
 
   @override
@@ -196,20 +261,41 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   // ---------------------------------------------------------------------------
 
   @override
-  void toggleGrouping(bool enabled) => _grouping.setEnabled(enabled);
+  void toggleGrouping(bool enabled) {
+    _grouping.setEnabled(enabled);
+    _invalidateGroupedCache();
+  }
 
   @override
-  void toggleDomainExpanded(String domain) =>
-      _grouping.toggleDomainExpanded(domain);
+  void toggleDomainExpanded(String domain) {
+    _grouping.toggleDomainExpanded(domain);
+    _invalidateGroupedCache();
+  }
+
+  List<DomainGroup>? _cachedGroupedRecords;
+  int _cacheVersion = 0;
+  int _lastComputedCacheVersion = -1;
+
+  void _invalidateGroupedCache() {
+    _cachedGroupedRecords = null;
+    _cacheVersion++;
+    _invalidateAvailableDomainsCache();
+  }
 
   @override
   List<DomainGroup> getGroupedRecords() {
+    if (_cachedGroupedRecords != null &&
+        _lastComputedCacheVersion == _cacheVersion) {
+      return _cachedGroupedRecords!;
+    }
+
+    final currentEntries = entries;
     final grouped = <String, List<RequestSummary>>{};
-    for (final entry in entries) {
+    for (final entry in currentEntries) {
       final domain = RequestFilter.extractDomain(entry.url);
       grouped.putIfAbsent(domain, () => []).add(entry);
     }
-    return grouped.entries
+    _cachedGroupedRecords = grouped.entries
         .map(
           (e) => DomainGroup(
             domain: e.key,
@@ -218,6 +304,8 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
           ),
         )
         .toList();
+    _lastComputedCacheVersion = _cacheVersion;
+    return _cachedGroupedRecords!;
   }
 
   Future<void> applyNetworkSimulationBeforeRequest({
@@ -247,13 +335,42 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   /// No-op when [isEnabled] is false or the queue is full.
   void record(RawCapture capture) {
     if (!_enabled) return;
-    if (!_initialized) {
-      // Buffer until the isolate is ready; bounded by maxQueuedEvents.
-      _preInitQueue.add(capture);
-      initialize();
+    if (settings.shouldCapture != null &&
+        !settings.shouldCapture!(capture.url)) {
       return;
     }
-    _sendCapture(capture);
+
+    final sanitizedCapture = RawCapture(
+      id: capture.id,
+      method: capture.method,
+      url: capture.url,
+      requestHeaders:
+          redactHeaders(capture.requestHeaders, _normalizedRedactedHeaders),
+      responseHeaders:
+          redactHeaders(capture.responseHeaders, _normalizedRedactedHeaders),
+      statusCode: capture.statusCode,
+      durationMs: capture.durationMs,
+      timestamp: capture.timestamp,
+      requestBodyBytes: capture.requestBodyBytes,
+      responseBodyBytes: capture.responseBodyBytes,
+      requestContentType: capture.requestContentType,
+      responseContentType: capture.responseContentType,
+      errorType: capture.errorType,
+      errorMessage: capture.errorMessage,
+    );
+
+    if (!_initialized) {
+      // Buffer until the isolate is ready; bounded by maxQueuedEvents.
+      _preInitQueue.add(sanitizedCapture);
+      initialize().catchError((Object error, StackTrace stackTrace) {
+        if (kDebugMode) {
+          debugPrint(
+              '[Interceptly] background init failed: $error\n$stackTrace');
+        }
+      });
+      return;
+    }
+    _sendCapture(sanitizedCapture);
   }
 
   void _sendCapture(RawCapture capture) {
@@ -280,14 +397,22 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     String? requestContentType,
   }) {
     if (!_enabled) return;
+    if (settings.shouldCapture != null && !settings.shouldCapture!(url)) {
+      return;
+    }
 
+    final sanitizedHeaders =
+        redactHeaders(requestHeaders, _normalizedRedactedHeaders);
     final inlineRequestBody = BodyDecodeService.truncate(
       requestBodyBytes,
       settings.maxBodyBytes,
       settings.previewTruncationBytes,
     );
-    final isTruncated = requestBodyBytes != null &&
-        requestBodyBytes.length > settings.maxBodyBytes;
+    final requestSize = requestBodyBytes?.length ?? 0;
+    final requestTruncation = _pendingRequestTruncation(
+      originalBytes: requestSize,
+      inlineBytes: inlineRequestBody?.length ?? 0,
+    );
 
     _memoryIndex.add(
       IndexEntry(
@@ -296,41 +421,56 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
         url: url,
         statusCode: 0,
         durationMs: 0,
-        requestSizeBytes: requestBodyBytes?.length ?? 0,
+        requestSizeBytes: requestSize,
         responseSizeBytes: 0,
         timestamp: timestamp,
         hasError: false,
         bodyLocation: BodyLocation.memory,
         inlineRequestBody: inlineRequestBody,
         inlineResponseBody: null,
-        requestHeaders: requestHeaders,
+        requestHeaders: sanitizedHeaders,
         responseHeaders: const {},
         requestContentType: requestContentType,
         responseContentType: null,
         errorType: null,
         errorMessage: null,
-        isBodyTruncated: isTruncated,
+        requestTruncation: requestTruncation,
+        responseTruncation: const BodyTruncation.complete(0),
         fileOffset: null,
         fileLength: null,
       ),
     );
     _schedulePendingTimeout(id);
+    _invalidateGroupedCache();
     notifyListeners();
+  }
+
+  /// Describes a pending row's request body.
+  ///
+  /// A pending row is trimmed to [InterceptlySettings.previewTruncationBytes]
+  /// only when the body already exceeded `maxBodyBytes`, so shrinking is a
+  /// preview-stage cut; storage itself is still intact and the real capture
+  /// will upsert over this row with the full body.
+  static BodyTruncation _pendingRequestTruncation({
+    required int originalBytes,
+    required int inlineBytes,
+  }) {
+    if (inlineBytes >= originalBytes) {
+      return BodyTruncation.complete(originalBytes);
+    }
+    return BodyTruncation(
+      originalBytes: originalBytes,
+      retainedBytes: inlineBytes,
+      stage: TruncationStage.preview,
+    );
   }
 
   void _schedulePendingTimeout(String id) {
     _cancelPendingTimeout(id);
-    _pendingTimers[id] = Timer(_pendingTimeout, () {
+    _pendingTimers[id] = Timer(settings.pendingTimeout, () {
       _pendingTimers.remove(id);
 
-      IndexEntry? current;
-      for (final entry in _memoryIndex.entries) {
-        if (entry.id == id) {
-          current = entry;
-          break;
-        }
-      }
-
+      final current = _memoryIndex.byId(id);
       if (current == null) return;
       if (current.statusCode != 0 || current.hasError) return;
 
@@ -355,11 +495,13 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
           errorType: 'TimeoutException',
           errorMessage:
               'Request timed out while waiting for response or terminal error.',
-          isBodyTruncated: current.isBodyTruncated,
+          requestTruncation: current.requestTruncation,
+          responseTruncation: current.responseTruncation,
           fileOffset: current.fileOffset,
           fileLength: current.fileLength,
         ),
       );
+      _invalidateGroupedCache();
       notifyListeners();
     });
   }
@@ -376,12 +518,14 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   void applyFilter(RequestFilter filter) {
     if (_filter == filter) return;
     _filter = filter;
+    _invalidateGroupedCache();
     notifyListeners();
   }
 
   @override
   void clearFilter() {
     _filter = RequestFilter();
+    _invalidateGroupedCache();
     notifyListeners();
   }
 
@@ -408,26 +552,25 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   ///   [BodyStore.readBytes] — never recreates or deletes the file.
   @override
   Future<RequestRecord> loadDetail(RequestSummary summary) async {
-    // IndexEntry extends RequestSummary — all session entries are IndexEntry.
-    final entry = summary as IndexEntry;
+    if (summary is! IndexEntry) {
+      throw ArgumentError.value(
+        summary,
+        'summary',
+        'Expected an IndexEntry instance created by Interceptly',
+      );
+    }
+    final entry = summary;
 
     String? reqPreview;
     String? resPreview;
     Uint8List? reqBytes;
     Uint8List? resBytes;
-    bool isTruncated = entry.isBodyTruncated;
+    var reqStorage = entry.requestTruncation;
+    var resStorage = entry.responseTruncation;
 
     if (entry.bodyLocation == BodyLocation.memory) {
       reqBytes = entry.inlineRequestBody;
       resBytes = entry.inlineResponseBody;
-      reqPreview = await BodyDecodeService.decodeAsync(
-        reqBytes,
-        entry.requestContentType,
-      );
-      resPreview = await BodyDecodeService.decodeAsync(
-        resBytes,
-        entry.responseContentType,
-      );
     } else {
       final offset = entry.fileOffset;
       final length = entry.fileLength;
@@ -441,20 +584,37 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
               : BodyDecodeService.unpackToBytes(raw);
           reqBytes = decoded.$1;
           resBytes = decoded.$2;
-          reqPreview = await BodyDecodeService.decodeAsync(
-            reqBytes,
-            entry.requestContentType,
-          );
-          resPreview = await BodyDecodeService.decodeAsync(
-            resBytes,
-            entry.responseContentType,
-          );
-          isTruncated = isTruncated || decoded.$3;
+          if (decoded.$3) {
+            reqStorage = _markStorageCut(reqStorage, reqBytes?.length ?? 0);
+            resStorage = _markStorageCut(resStorage, resBytes?.length ?? 0);
+          }
         } catch (_) {
           reqPreview = BodyDecodeService.unavailablePlaceholder;
           resPreview = BodyDecodeService.unavailablePlaceholder;
         }
       }
+    }
+
+    final maxUi = _settings.maxUiPreviewBytes;
+
+    if (reqPreview == null && reqBytes != null) {
+      final reqSlice = _limitForPreview(reqBytes, maxUi);
+      reqStorage =
+          _applyPreviewStage(reqStorage, reqBytes.length, reqSlice.length);
+      reqPreview = await BodyDecodeService.decodeAsync(
+        reqSlice,
+        entry.requestContentType,
+      );
+    }
+
+    if (resPreview == null && resBytes != null) {
+      final resSlice = _limitForPreview(resBytes, maxUi);
+      resStorage =
+          _applyPreviewStage(resStorage, resBytes.length, resSlice.length);
+      resPreview = await BodyDecodeService.decodeAsync(
+        resSlice,
+        entry.responseContentType,
+      );
     }
 
     return RequestRecord(
@@ -472,9 +632,50 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       responseContentType: entry.responseContentType,
       requestBodyPreview: reqPreview,
       responseBodyPreview: resPreview,
-      isBodyTruncated: isTruncated,
+      requestBodyBytes: reqBytes,
+      responseBodyBytes: resBytes,
+      requestTruncation: reqStorage,
+      responseTruncation: resStorage,
       errorType: entry.errorType,
       errorMessage: entry.errorMessage,
+    );
+  }
+
+  Uint8List _limitForPreview(Uint8List bytes, int maxUi) =>
+      maxUi > 0 && bytes.length > maxUi ? bytes.sublist(0, maxUi) : bytes;
+
+  /// Marks [truncation] as storage-cut, preserving the original size the
+  /// network reported even when only the recovered slice is known here.
+  static BodyTruncation _markStorageCut(BodyTruncation truncation, int kept) {
+    return BodyTruncation(
+      originalBytes: truncation.originalBytes,
+      retainedBytes: kept,
+      stage: TruncationStage.storage,
+    );
+  }
+
+  /// Combines the storage verdict with what preview trimming just did.
+  ///
+  /// A body can lose bytes at both stages, so the two verdicts merge instead
+  /// of overwriting: preview loss on top of an existing storage cut yields
+  /// [TruncationStage.storageAndPreview].
+  static BodyTruncation _applyPreviewStage(
+    BodyTruncation truncation,
+    int availableBytes,
+    int previewBytes,
+  ) {
+    final previewCut = previewBytes < availableBytes;
+    final storageCut = truncation.stage == TruncationStage.storage ||
+        truncation.stage == TruncationStage.storageAndPreview;
+    if (!previewCut) {
+      return truncation;
+    }
+    return BodyTruncation(
+      originalBytes: truncation.originalBytes,
+      retainedBytes: previewBytes,
+      stage: storageCut
+          ? TruncationStage.storageAndPreview
+          : TruncationStage.preview,
     );
   }
 
@@ -484,8 +685,11 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
 
   @override
   Future<void> clear() async {
-    if (_clearing) return;
-    _clearing = true;
+    if (_clearFuture != null) return _clearFuture!;
+    return _clearFuture = _performClear();
+  }
+
+  Future<void> _performClear() async {
     try {
       if (_initialized) {
         // Wait for the isolate to finish all pending writes AND reset the file
@@ -496,6 +700,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       }
       _droppedCount = 0;
       _memoryIndex.clear();
+      _invalidateGroupedCache();
       _filter = RequestFilter();
       _search.reset();
       for (final timer in _pendingTimers.values) {
@@ -504,15 +709,16 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       _pendingTimers.clear();
       notifyListeners();
     } finally {
-      _clearing = false;
+      _clearFuture = null;
     }
   }
 
   @override
   Future<void> dispose() async {
+    _search.cancel();
     _search.removeListener(_onSearchChanged);
     _search.dispose();
-    _grouping.removeListener(notifyListeners);
+    _grouping.removeListener(_onGroupingChanged);
     _grouping.dispose();
     _preferences.removeListener(notifyListeners);
     _preferences.dispose();
@@ -527,6 +733,9 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     _initialized = false;
     _inFlight = 0;
     _initFuture = null;
+    if (identical(_instance, this)) {
+      _instance = null;
+    }
     super.dispose();
   }
 }

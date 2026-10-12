@@ -1,38 +1,44 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:isolate';
 import 'dart:typed_data';
 
 import '../model/body_location.dart';
+import '../model/body_truncation.dart';
 import '../model/index_entry.dart';
 import '../model/interceptly_settings.dart';
 import '../model/raw_capture.dart';
 import 'body_store.dart';
 
-// ---------------------------------------------------------------------------
-// Messages sent between main isolate ↔ writer isolate
-// ---------------------------------------------------------------------------
-
 class _InitMessage {
   const _InitMessage({
     required this.replyPort,
-    required this.settings,
     required this.tempDirPath,
+    this.fileName = BodyStore.kFileName,
   });
 
   final SendPort replyPort;
-  final InterceptlySettings settings;
 
   /// Pre-resolved temp directory path from the main isolate.
   ///
   /// Must NOT call getTemporaryDirectory() inside the isolate — platform
   /// channels are not available in background isolates without additional setup.
   final String tempDirPath;
+  final String fileName;
 }
 
 class _WriteMessage {
-  const _WriteMessage({required this.capture});
+  const _WriteMessage({
+    required this.capture,
+    required this.bodyOffloadThreshold,
+    required this.maxBodyBytes,
+  });
+
   final RawCapture capture;
+
+  /// Storage tunables snapshotted when the capture was recorded, so the
+  /// background isolate stays stateless and always honors current settings.
+  final int bodyOffloadThreshold;
+  final int maxBodyBytes;
 }
 
 class _ClearMessage {
@@ -51,22 +57,30 @@ class _DisposeAck {
   const _DisposeAck();
 }
 
-// ---------------------------------------------------------------------------
-// WriterIsolate
-// ---------------------------------------------------------------------------
-
 /// Manages a dedicated [Isolate] that processes [RawCapture]s one-at-a-time.
 ///
 /// All [BodyStore] appends are serialised through this isolate, preventing
 /// race conditions on file offsets when many requests arrive simultaneously.
+///
+/// The isolate itself is stateless with respect to configuration: every write
+/// message carries the storage tunables in effect when the capture was
+/// recorded, so reconfiguring settings never leaves stale limits behind and
+/// no settings object ever needs to cross isolate boundaries.
 class WriterIsolate {
   WriterIsolate(this._settings);
 
-  final InterceptlySettings _settings;
+  InterceptlySettings _settings;
+
+  /// Refreshes the settings stamped onto subsequently recorded captures.
+  void updateSettings(InterceptlySettings settings) {
+    _settings = settings;
+  }
 
   Isolate? _isolate;
   SendPort? _sendPort;
   ReceivePort? _receivePort;
+  ReceivePort? _errorPort;
+  ReceivePort? _exitPort;
   Completer<void>? _clearCompleter;
   Completer<void>? _disposeCompleter;
 
@@ -79,13 +93,16 @@ class WriterIsolate {
   /// Spawns the background isolate.
   ///
   /// [tempDirPath] must be resolved on the main isolate before calling this.
-  Future<void> start({required String tempDirPath}) async {
+  Future<void> start({
+    required String tempDirPath,
+    String fileName = BodyStore.kFileName,
+  }) async {
     _receivePort = ReceivePort();
+    _errorPort = ReceivePort();
+    _exitPort = ReceivePort();
 
     final completer = Completer<SendPort>();
 
-    // Single listener handles both the initial SendPort handshake and all
-    // subsequent IndexEntry replies — no subscription dance needed.
     _receivePort!.listen((message) {
       if (message is SendPort && !completer.isCompleted) {
         completer.complete(message);
@@ -100,13 +117,32 @@ class WriterIsolate {
       }
     });
 
+    _errorPort!.listen((error) {
+      if (!completer.isCompleted) {
+        completer.completeError(error);
+      }
+      _clearCompleter?.complete();
+      _clearCompleter = null;
+      _disposeCompleter?.complete();
+      _disposeCompleter = null;
+    });
+
+    _exitPort!.listen((_) {
+      _clearCompleter?.complete();
+      _clearCompleter = null;
+      _disposeCompleter?.complete();
+      _disposeCompleter = null;
+    });
+
     _isolate = await Isolate.spawn(
       _isolateEntry,
       _InitMessage(
         replyPort: _receivePort!.sendPort,
-        settings: _settings,
         tempDirPath: tempDirPath,
+        fileName: fileName,
       ),
+      onError: _errorPort!.sendPort,
+      onExit: _exitPort!.sendPort,
     );
 
     _sendPort = await completer.future;
@@ -114,7 +150,11 @@ class WriterIsolate {
 
   /// Fire-and-forget: enqueue a capture for background processing.
   void send(RawCapture capture) {
-    _sendPort?.send(_WriteMessage(capture: capture));
+    _sendPort?.send(_WriteMessage(
+      capture: capture,
+      bodyOffloadThreshold: _settings.bodyOffloadThreshold,
+      maxBodyBytes: _settings.maxBodyBytes,
+    ));
   }
 
   /// Sends a clear request and waits for the isolate to confirm the file has
@@ -128,7 +168,6 @@ class WriterIsolate {
   }
 
   Future<void> dispose() async {
-    // Unblock any in-progress clear so its awaiter doesn't hang.
     if (_clearCompleter != null && !_clearCompleter!.isCompleted) {
       _clearCompleter!.complete();
     }
@@ -137,54 +176,120 @@ class WriterIsolate {
       final completer = Completer<void>();
       _disposeCompleter = completer;
       _sendPort!.send(const _DisposeMessage());
-      await completer.future;
+      try {
+        await completer.future.timeout(const Duration(milliseconds: 500));
+      } catch (_) {}
     }
     _isolate?.kill(priority: Isolate.immediate);
     _isolate = null;
     _receivePort?.close();
     _receivePort = null;
+    _errorPort?.close();
+    _errorPort = null;
+    _exitPort?.close();
+    _exitPort = null;
     await _resultController.close();
   }
 }
-
-// ---------------------------------------------------------------------------
-// Isolate entry point (runs in the background isolate)
-// ---------------------------------------------------------------------------
 
 Future<void> _isolateEntry(_InitMessage init) async {
   final receivePort = ReceivePort();
   init.replyPort.send(receivePort.sendPort);
 
-  final settings = init.settings;
   final bodyStore = BodyStore();
 
-  // Use the pre-resolved path — no platform channel call inside the isolate.
-  await bodyStore.initForWrite(init.tempDirPath);
+  try {
+    await bodyStore.initForWrite(init.tempDirPath, fileName: init.fileName);
+  } catch (_) {}
 
   await for (final message in receivePort) {
-    if (message is _WriteMessage) {
-      final entry = await _processCapture(message.capture, bodyStore, settings);
-      init.replyPort.send(entry);
-    } else if (message is _ClearMessage) {
-      await bodyStore.resetFile(init.tempDirPath);
-      init.replyPort.send(const _ClearAck());
-    } else if (message is _DisposeMessage) {
-      await bodyStore.dispose();
-      init.replyPort.send(const _DisposeAck());
-      break;
+    try {
+      if (message is _WriteMessage) {
+        final entry = await _processCapture(
+          message.capture,
+          bodyStore,
+          message.bodyOffloadThreshold,
+          message.maxBodyBytes,
+        );
+        init.replyPort.send(entry);
+      } else if (message is _ClearMessage) {
+        try {
+          await bodyStore.resetFile(init.tempDirPath, fileName: init.fileName);
+        } catch (_) {}
+        init.replyPort.send(const _ClearAck());
+      } else if (message is _DisposeMessage) {
+        try {
+          await bodyStore.dispose();
+        } catch (_) {}
+        init.replyPort.send(const _DisposeAck());
+        break;
+      }
+    } catch (_) {
+      if (message is _WriteMessage) {
+        init.replyPort.send(_fallbackEntry(message.capture));
+      }
     }
   }
+}
+
+IndexEntry _fallbackEntry(RawCapture capture) {
+  return IndexEntry(
+    id: capture.id,
+    method: capture.method,
+    url: capture.url,
+    statusCode: capture.statusCode,
+    durationMs: capture.durationMs,
+    requestSizeBytes: 0,
+    responseSizeBytes: 0,
+    timestamp: capture.timestamp,
+    hasError: capture.hasError,
+    bodyLocation: BodyLocation.memory,
+    inlineRequestBody: null,
+    inlineResponseBody: null,
+    requestHeaders: capture.requestHeaders,
+    responseHeaders: capture.responseHeaders,
+    requestContentType: capture.requestContentType,
+    responseContentType: capture.responseContentType,
+    errorType: capture.errorType,
+    errorMessage: capture.errorMessage,
+    requestTruncation: const BodyTruncation.complete(0),
+    responseTruncation: const BodyTruncation.complete(0),
+    fileOffset: null,
+    fileLength: null,
+  );
+}
+
+/// Outcome of packing both bodies for the on-disk record.
+///
+/// The trailing flag byte keeps the packed format byte-compatible with
+/// earlier sessions; the per-side booleans are derived from the same limits
+/// when the entry is built, so they are not carried here.
+typedef _PackedBodies = ({Uint8List bytes});
+
+/// Builds the [BodyTruncation] for one body given how many bytes storage kept.
+///
+/// `maxBody <= 0` means unlimited, matching [InterceptlySettings.maxBodyBytes].
+BodyTruncation _storageTruncation(
+  int originalBytes,
+  int maxBody,
+  int keptBytes,
+) {
+  if (maxBody <= 0 || originalBytes <= keptBytes) {
+    return BodyTruncation.complete(originalBytes);
+  }
+  return BodyTruncation(
+    originalBytes: originalBytes,
+    retainedBytes: keptBytes,
+    stage: TruncationStage.storage,
+  );
 }
 
 Future<IndexEntry> _processCapture(
   RawCapture capture,
   BodyStore bodyStore,
-  InterceptlySettings settings,
+  int threshold,
+  int maxBody,
 ) async {
-  final threshold = settings.bodyOffloadThreshold;
-  final maxBody = settings.maxBodyBytes;
-  final previewLen = settings.previewTruncationBytes;
-
   final reqRaw = capture.requestBodyBytes?.materialize().asUint8List();
   final resRaw = capture.responseBodyBytes?.materialize().asUint8List();
 
@@ -192,25 +297,27 @@ Future<IndexEntry> _processCapture(
   final resSize = resRaw?.length ?? 0;
 
   final largestSize = reqSize > resSize ? reqSize : resSize;
-  final useFile = largestSize >= threshold;
+  var useFile = largestSize >= threshold;
 
   Uint8List? inlineReq;
   Uint8List? inlineRes;
   int? fileOffset;
   int? fileLength;
-  bool isTruncated = false;
+
+  if (useFile) {
+    try {
+      final packed = _packBodies(reqRaw, resRaw, maxBody);
+      final result = await bodyStore.append(packed.bytes);
+      fileOffset = result.$1;
+      fileLength = result.$2;
+    } catch (_) {
+      useFile = false;
+    }
+  }
 
   if (!useFile) {
-    inlineReq = _maybeTruncate(reqRaw, maxBody, previewLen);
-    inlineRes = _maybeTruncate(resRaw, maxBody, previewLen);
-    isTruncated = (reqRaw != null && reqRaw.length > maxBody) ||
-        (resRaw != null && resRaw.length > maxBody);
-  } else {
-    final packed = _packBodies(reqRaw, resRaw, maxBody, previewLen);
-    isTruncated = packed.truncated;
-    final result = await bodyStore.append(packed.bytes);
-    fileOffset = result.$1;
-    fileLength = result.$2;
+    inlineReq = _maybeTruncate(reqRaw, maxBody);
+    inlineRes = _maybeTruncate(resRaw, maxBody);
   }
 
   return IndexEntry(
@@ -232,56 +339,66 @@ Future<IndexEntry> _processCapture(
     responseContentType: capture.responseContentType,
     errorType: capture.errorType,
     errorMessage: capture.errorMessage,
-    isBodyTruncated: isTruncated,
+    requestTruncation: _storageTruncation(
+      reqSize,
+      maxBody,
+      _keptBytes(reqSize, maxBody),
+    ),
+    responseTruncation: _storageTruncation(
+      resSize,
+      maxBody,
+      _keptBytes(resSize, maxBody),
+    ),
     fileOffset: fileOffset,
     fileLength: fileLength,
   );
 }
 
-Uint8List? _maybeTruncate(Uint8List? bytes, int maxBytes, int previewLen) {
+Uint8List? _maybeTruncate(Uint8List? bytes, int maxBytes) {
   if (bytes == null || bytes.isEmpty) return null;
-  if (bytes.length <= maxBytes) return bytes;
-  return bytes.sublist(
-    0,
-    previewLen < bytes.length ? previewLen : bytes.length,
-  );
+  if (maxBytes <= 0 || bytes.length <= maxBytes) return bytes;
+  return bytes.sublist(0, maxBytes);
 }
 
-class _PackedBodies {
-  const _PackedBodies({required this.bytes, required this.truncated});
-  final Uint8List bytes;
-  final bool truncated;
-}
+int _keptBytes(int originalBytes, int maxBody) =>
+    maxBody > 0 && originalBytes > maxBody ? maxBody : originalBytes;
 
 _PackedBodies _packBodies(
   Uint8List? req,
   Uint8List? res,
   int maxBody,
-  int previewLen,
 ) {
-  bool truncated = false;
-
-  Uint8List truncate(Uint8List bytes) {
-    if (bytes.length <= maxBody) return bytes;
-    truncated = true;
-    return bytes.sublist(
-      0,
-      previewLen < bytes.length ? previewLen : bytes.length,
-    );
+  Uint8List? truncate(Uint8List bytes) {
+    if (maxBody <= 0 || bytes.length <= maxBody) return bytes;
+    return bytes.sublist(0, maxBody);
   }
+
+  final reqTruncated = maxBody > 0 && req != null && req.length > maxBody;
+  final resTruncated = maxBody > 0 && res != null && res.length > maxBody;
 
   final reqData = req != null && req.isNotEmpty ? truncate(req) : null;
   final resData = res != null && res.isNotEmpty ? truncate(res) : null;
 
-  final map = <String, Object?>{
-    'req': reqData != null ? base64.encode(reqData) : null,
-    'res': resData != null ? base64.encode(resData) : null,
-    'truncated': truncated,
-  };
+  final total = 4 + (reqData?.length ?? 0) + 4 + (resData?.length ?? 0) + 1;
+  final out = Uint8List(total);
+  final data = ByteData.sublistView(out);
+  var offset = 0;
 
-  final encoded = utf8.encode(jsonEncode(map));
-  return _PackedBodies(
-    bytes: Uint8List.fromList(encoded),
-    truncated: truncated,
-  );
+  void writePart(Uint8List? part) {
+    if (part == null) {
+      data.setUint32(offset, 0xFFFFFFFF, Endian.big);
+      offset += 4;
+      return;
+    }
+    data.setUint32(offset, part.length, Endian.big);
+    offset += 4;
+    out.setRange(offset, offset + part.length, part);
+    offset += part.length;
+  }
+
+  writePart(reqData);
+  writePart(resData);
+  out[offset] = (reqTruncated || resTruncated) ? 1 : 0;
+
+  return (bytes: out);
 }

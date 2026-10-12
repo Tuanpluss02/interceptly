@@ -124,6 +124,45 @@ class InterceptlyTheme {
         surface: palette.surfacePrimary,
         onSurface: palette.textPrimary,
       ),
+      sliderTheme: SliderThemeData(
+        activeTrackColor: palette.actionPrimary,
+        inactiveTrackColor: brightness == Brightness.dark
+            ? InterceptlyGlobalColor.white.withValues(alpha: 0.1)
+            : InterceptlyGlobalColor.black.withValues(alpha: 0.12),
+        thumbColor: palette.actionSecondary,
+        overlayColor: palette.actionPrimary.withValues(alpha: 0.2),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: palette.surfacePrimary,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radius.lg),
+        ),
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: palette.surfacePrimary,
+        surfaceTintColor: Colors.transparent,
+      ),
+      cardTheme: CardThemeData(
+        color: palette.surfaceSecondary,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radius.md),
+        ),
+      ),
+      dividerTheme: DividerThemeData(
+        color: brightness == Brightness.dark
+            ? InterceptlyGlobalColor.white.withValues(alpha: 0.06)
+            : InterceptlyGlobalColor.black.withValues(alpha: 0.08),
+        thickness: 1,
+      ),
+      iconTheme: IconThemeData(
+        color: palette.textSecondary,
+      ),
+      listTileTheme: ListTileThemeData(
+        iconColor: palette.textSecondary,
+        textColor: palette.textPrimary,
+      ),
       appBarTheme: AppBarTheme(
         backgroundColor: palette.surfacePrimary,
         elevation: 0,

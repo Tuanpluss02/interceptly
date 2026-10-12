@@ -3,20 +3,29 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../../export/curl_generator.dart';
 import '../../export/har_exporter.dart';
 import '../../export/postman_exporter.dart';
 import '../../model/request_record.dart';
+import '../../share/interceptly_share.dart';
 import '../interceptly_theme.dart';
 import '../widgets/toast_notification.dart';
 
 class ShareHandler {
+  ShareHandler({required this.context, required this.fabKey})
+      : _share = InterceptlyShare();
+
+  @visibleForTesting
+  ShareHandler.withShare({
+    required this.context,
+    required this.fabKey,
+    required InterceptlyShare share,
+  }) : _share = share;
+
   final BuildContext context;
   final GlobalKey fabKey;
-
-  const ShareHandler({required this.context, required this.fabKey});
+  final InterceptlyShare _share;
 
   void showShareMenu(RequestRecord record) {
     showModalBottomSheet(
@@ -25,85 +34,89 @@ class ShareHandler {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: InterceptlyTheme.controlMuted,
-                borderRadius: BorderRadius.circular(2),
+      builder: (context) => Theme(
+        data: InterceptlyTheme.themeData(context: context),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: InterceptlyTheme.controlMuted,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
-              child: Row(
-                children: [
-                  Text(
-                    'Share Request',
-                    style: InterceptlyTheme.typography.bodyMediumBold.copyWith(
-                      color: InterceptlyTheme.textPrimary,
-                      fontSize: 15,
+              Padding(
+                padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
+                child: Row(
+                  children: [
+                    Text(
+                      'Share Request',
+                      style:
+                          InterceptlyTheme.typography.bodyMediumBold.copyWith(
+                        color: InterceptlyTheme.textPrimary,
+                        fontSize: 15,
+                      ),
                     ),
+                  ],
+                ),
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.copy,
+                  color: InterceptlyTheme.indigo500,
+                ),
+                title: Text(
+                  'Copy cURL',
+                  style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
+                    color: InterceptlyTheme.textPrimary,
                   ),
-                ],
-              ),
-            ),
-            ListTile(
-              leading: const Icon(
-                Icons.copy,
-                color: InterceptlyTheme.indigo500,
-              ),
-              title: Text(
-                'Copy cURL',
-                style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
-                  color: InterceptlyTheme.textPrimary,
                 ),
+                onTap: () {
+                  Navigator.pop(context);
+                  shareCurlCommand(record);
+                },
               ),
-              onTap: () {
-                Navigator.pop(context);
-                shareCurlCommand(record);
-              },
-            ),
-            Divider(color: InterceptlyTheme.dividerSubtle, height: 1),
-            ListTile(
-              leading: const Icon(
-                Icons.download,
-                color: InterceptlyTheme.indigo500,
-              ),
-              title: Text(
-                'Export HAR',
-                style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
-                  color: InterceptlyTheme.textPrimary,
+              Divider(color: InterceptlyTheme.dividerSubtle, height: 1),
+              ListTile(
+                leading: const Icon(
+                  Icons.download,
+                  color: InterceptlyTheme.indigo500,
                 ),
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                exportHarFile(record);
-              },
-            ),
-            Divider(color: InterceptlyTheme.dividerSubtle, height: 1),
-            ListTile(
-              leading: const Icon(
-                Icons.upload_file,
-                color: InterceptlyTheme.indigo500,
-              ),
-              title: Text(
-                'Export Postman Collection',
-                style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
-                  color: InterceptlyTheme.textPrimary,
+                title: Text(
+                  'Export HAR',
+                  style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
+                    color: InterceptlyTheme.textPrimary,
+                  ),
                 ),
+                onTap: () {
+                  Navigator.pop(context);
+                  exportHarFile(record);
+                },
               ),
-              onTap: () {
-                Navigator.pop(context);
-                exportPostmanFile(record);
-              },
-            ),
-          ],
+              Divider(color: InterceptlyTheme.dividerSubtle, height: 1),
+              ListTile(
+                leading: const Icon(
+                  Icons.upload_file,
+                  color: InterceptlyTheme.indigo500,
+                ),
+                title: Text(
+                  'Export Postman Collection',
+                  style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
+                    color: InterceptlyTheme.textPrimary,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  exportPostmanFile(record);
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -139,13 +152,11 @@ class ShareHandler {
       await file.writeAsString(collectionJson);
 
       final origin = await _getSharePositionOrigin();
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile(file.path)],
-          subject: 'Postman Collection Export',
-          text: 'Postman Collection export from Interceptly',
-          sharePositionOrigin: origin,
-        ),
+      await _shareFile(
+        file,
+        subject: 'Postman Collection Export',
+        text: 'Postman Collection export from Interceptly',
+        origin: origin,
       );
     } catch (e) {
       ToastNotification.show('Error exporting Postman collection: $e');
@@ -167,16 +178,39 @@ class ShareHandler {
 
       // Share file using system share UI
       final origin = await _getSharePositionOrigin();
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile(file.path)],
-          subject: 'HAR Export',
-          text: 'Network request HAR export',
-          sharePositionOrigin: origin,
-        ),
+      await _shareFile(
+        file,
+        subject: 'HAR Export',
+        text: 'Network request HAR export',
+        origin: origin,
       );
     } catch (e) {
       ToastNotification.show('Error exporting HAR: $e');
+    }
+  }
+
+  Future<void> _shareFile(
+    File file, {
+    String? subject,
+    String? text,
+    String mimeType = 'application/json',
+    Rect? origin,
+  }) async {
+    final presented = await _share.shareFile(
+      filePath: file.path,
+      subject: subject,
+      text: text,
+      mimeType: mimeType,
+      origin: origin,
+    );
+    if (!presented) {
+      await Clipboard.setData(ClipboardData(text: file.path));
+      if (context.mounted) {
+        ToastNotification.show(
+          'Share unavailable — file path copied: ${file.path}',
+          contextHint: context,
+        );
+      }
     }
   }
 

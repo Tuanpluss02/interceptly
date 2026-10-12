@@ -91,33 +91,37 @@ class _ToastNotificationState extends State<ToastNotification>
 
   @override
   Widget build(BuildContext context) {
-    return SlideTransition(
-      position: _slideAnimation,
-      child: FadeTransition(
-        opacity: _opacityAnimation,
-        child: Center(
-          child: Material(
-            color: InterceptlyGlobalColor.transparent,
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 8.0,
-              ),
-              decoration: BoxDecoration(
-                color: InterceptlyGlobalColor.white,
-                borderRadius: BorderRadius.circular(20.0),
-                boxShadow: [
-                  BoxShadow(
-                    color: InterceptlyGlobalColor.black.withValues(alpha: 0.2),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
+    return Theme(
+      data: InterceptlyTheme.themeData(context: context),
+      child: SlideTransition(
+        position: _slideAnimation,
+        child: FadeTransition(
+          opacity: _opacityAnimation,
+          child: Center(
+            child: Material(
+              color: InterceptlyGlobalColor.transparent,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 8.0,
+                ),
+                decoration: BoxDecoration(
+                  color: InterceptlyGlobalColor.white,
+                  borderRadius: BorderRadius.circular(20.0),
+                  boxShadow: [
+                    BoxShadow(
+                      color:
+                          InterceptlyGlobalColor.black.withValues(alpha: 0.2),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  widget.message,
+                  style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
+                    color: InterceptlyGlobalColor.black,
                   ),
-                ],
-              ),
-              child: Text(
-                widget.message,
-                style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
-                  color: InterceptlyGlobalColor.black,
                 ),
               ),
             ),

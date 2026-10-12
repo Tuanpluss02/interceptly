@@ -1,21 +1,23 @@
-export 'src/capture/chopper/interceptly_chopper_interceptor.dart';
-export 'src/capture/dio/interceptly_dio_interceptor.dart';
-export 'src/capture/http/interceptly_http_client.dart';
+/// Flutter network inspector for Dio, HTTP, and Chopper with overlay UI, replay tools, and HAR/cURL export.
+library;
+
+export 'src/capture/chopper/interceptly_chopper_interceptor.dart'
+    show InterceptlyChopperInterceptor;
+export 'src/capture/dio/interceptly_dio_interceptor.dart'
+    show InterceptlyDioInterceptor;
+export 'src/capture/http/interceptly_http_client.dart'
+    show InterceptlyHttpClient;
 export 'src/core/interceptly_controller.dart' show Interceptly;
-export 'src/export/curl_generator.dart';
-export 'src/export/har_exporter.dart';
-export 'src/export/postman_exporter.dart';
-export 'src/model/index_entry.dart';
-export 'src/model/body_location.dart';
-export 'src/model/request_summary.dart';
-export 'src/model/interceptly_settings.dart';
+export 'src/export/curl_generator.dart' show CurlGenerator;
+export 'src/export/har_exporter.dart' show HarExporter;
+export 'src/export/postman_exporter.dart' show PostmanExporter;
+export 'src/model/interceptly_settings.dart' show InterceptlySettings;
 export 'src/model/network_simulation.dart'
     show NetworkSimulationProfile, SimulatedNetworkException;
-export 'src/model/request_filter.dart';
-export 'src/model/request_record.dart';
+export 'src/model/request_filter.dart' show RequestFilter;
+export 'src/model/request_record.dart' show RequestRecord;
+export 'src/model/body_truncation.dart' show BodyTruncation, TruncationStage;
+export 'src/model/request_summary.dart' show RequestSummary;
+export 'src/model/search_match_scope.dart' show SearchMatchScope;
 export 'src/session/inspector_session.dart' show InspectorSession;
 export 'src/session/inspector_session_view.dart' show InspectorSessionView;
-export 'src/session/inspector_preferences.dart' show InspectorPreferences;
-export 'src/ui/interceptly_theme.dart';
-export 'src/ui/trigger/inspector_trigger.dart';
-export 'src/ui/trigger/interceptly_config.dart';

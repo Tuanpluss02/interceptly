@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -24,6 +25,10 @@ class JsonViewer extends StatefulWidget {
   /// Active global match index currently selected by parent UI.
   final int? activeGlobalIndex;
 
+  /// Optional flag to control scrollbar thumb visibility.
+  /// If null, follows standard platform behavior (shows while scrolling or hovering).
+  final bool? thumbVisibility;
+
   /// Creates a JSON viewer for [data] with optional search metadata.
   const JsonViewer({
     super.key,
@@ -31,6 +36,7 @@ class JsonViewer extends StatefulWidget {
     this.searchQuery,
     this.matchOffset = 0,
     this.activeGlobalIndex,
+    this.thumbVisibility,
   });
 
   /// Format any data into a pretty-printed JSON string.
@@ -62,7 +68,7 @@ class JsonViewer extends StatefulWidget {
     if (data is bool) return _countIn(data.toString(), q);
     if (data is num) return _countIn(data.toString(), q);
     if (data is String) {
-      return _countIn(data, q);
+      return _countIn('"$data"', q);
     }
     if (data is List) {
       int total = 0;
@@ -74,7 +80,7 @@ class JsonViewer extends StatefulWidget {
     if (data is Map) {
       int total = 0;
       for (final entry in data.entries) {
-        total += _countIn(entry.key.toString(), q);
+        total += _countIn('"${entry.key}"', q);
         total += countMatches(entry.value, query);
       }
       return total;
@@ -164,7 +170,8 @@ class JsonViewer extends StatefulWidget {
 // ─────────────────────────────────────────────────────────────
 
 class _JsonViewerState extends State<JsonViewer> {
-  // ── Syntax colours ──
+  static const double _foldIconWidth = 16.0;
+
   static const _keyColor = InterceptlyGlobalColor.blue400;
   static const _stringColor = InterceptlyGlobalColor.red400;
   static const _numberColor = InterceptlyGlobalColor.green400;
@@ -175,24 +182,188 @@ class _JsonViewerState extends State<JsonViewer> {
   static const _activeHighlightColor = InterceptlyGlobalColor.orange;
   static const _lineNumberColor = InterceptlyGlobalColor.textMuted;
 
-  static const double _indentWidth = 16.0;
-  static const double _foldIconWidth = 16.0;
+  static const int _largeDocLineThreshold = 1500;
 
-  /// Manual expand / collapse state keyed by JSON path.
   final Map<String, bool> _expandState = {};
 
-  /// Paths auto-expanded to reveal the current active search match.
   final Set<String> _searchAutoExpanded = {};
 
-  /// Paths the **user** explicitly collapsed. Prevents re-auto-expanding
-  /// a node when the active match is still in its subtree.
   final Set<String> _userCollapsedPaths = {};
 
-  /// Key attached to the first line containing the active search match,
-  /// used by [Scrollable.ensureVisible] to scroll to it.
-  GlobalKey? _activeScrollKey;
+  final ScrollController _gutterScrollController = ScrollController();
 
-  // ── Lifecycle ──
+  final ScrollController _contentScrollController = ScrollController();
+
+  final ScrollController _horizontalScrollController = ScrollController();
+
+  bool _isSyncingScroll = false;
+
+  List<_FlatLine>? _memoLines;
+
+  double _memoLineNumberWidth = 0;
+
+  int _memoMaxChars = 0;
+
+  Map<String, int>? _memoMatchCounts;
+
+  Object? _memoData;
+
+  String? _memoQuery;
+
+  int _memoMatchOffset = 0;
+
+  int? _memoActiveGlobalIndex;
+
+  Brightness? _memoBrightness;
+
+  bool _memoForceCollapse = false;
+
+  Expando<int>? _lineCountMemo;
+
+  final FocusNode _selectableFocusNode = FocusNode();
+
+  @visibleForTesting
+  List<_FlatLine>? get memoLinesForTest => _memoLines;
+
+  @visibleForTesting
+  ScrollController get contentScrollControllerForTest =>
+      _contentScrollController;
+
+  @visibleForTesting
+  ScrollController get horizontalScrollControllerForTest =>
+      _horizontalScrollController;
+
+  int? _lastScrolledGlobalIndex;
+  String? _lastScrolledQuery;
+
+  void _checkScrollToActive({
+    required int activeLineIndex,
+    required _FlatLine line,
+    required double viewportHeight,
+    required double viewportWidth,
+    required double lineHeight,
+    required TextStyle contentStyle,
+  }) {
+    if (_lastScrolledGlobalIndex == widget.activeGlobalIndex &&
+        _lastScrolledQuery == widget.searchQuery) {
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_contentScrollController.hasClients) {
+        final maxScroll = _contentScrollController.position.maxScrollExtent;
+        final totalContentHeight = (_memoLines?.length ?? 0) * lineHeight;
+        final needsScroll = totalContentHeight > viewportHeight;
+        if (needsScroll && maxScroll <= 0) {
+          // Layout extent not yet settled (e.g. just mounted from offstage)
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              _checkScrollToActive(
+                activeLineIndex: activeLineIndex,
+                line: line,
+                viewportHeight: viewportHeight,
+                viewportWidth: viewportWidth,
+                lineHeight: lineHeight,
+                contentStyle: contentStyle,
+              );
+            }
+          });
+          return;
+        }
+
+        _lastScrolledGlobalIndex = widget.activeGlobalIndex;
+        _lastScrolledQuery = widget.searchQuery;
+
+        if (maxScroll > 0) {
+          final targetOffset =
+              (activeLineIndex * lineHeight - (viewportHeight - lineHeight) / 2)
+                  .clamp(0.0, maxScroll);
+          if ((_contentScrollController.offset - targetOffset).abs() > 1.0) {
+            _contentScrollController.animateTo(
+              targetOffset,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+            );
+          }
+        }
+
+        if (_horizontalScrollController.hasClients) {
+          final maxHorizontal =
+              _horizontalScrollController.position.maxScrollExtent;
+          if (maxHorizontal > 0) {
+            final textBefore = line.spans
+                .takeWhile(
+                    (s) => s.style?.backgroundColor != _activeHighlightColor)
+                .map((s) => s.text ?? '')
+                .join();
+            final textPainter = TextPainter(
+              text: TextSpan(text: textBefore, style: contentStyle),
+              textDirection: TextDirection.ltr,
+            )..layout();
+            final matchLeft = 4.0 + line.indentLevel * 16.0 + textPainter.width;
+
+            double matchWidth = 0.0;
+            if (widget.searchQuery != null && widget.searchQuery!.isNotEmpty) {
+              final matchPainter = TextPainter(
+                text: TextSpan(text: widget.searchQuery!, style: contentStyle),
+                textDirection: TextDirection.ltr,
+              )..layout();
+              matchWidth = matchPainter.width;
+            }
+
+            final targetHorizontal =
+                (matchLeft - (viewportWidth - matchWidth) / 2)
+                    .clamp(0.0, maxHorizontal);
+
+            if ((_horizontalScrollController.offset - targetHorizontal).abs() >
+                1.0) {
+              _horizontalScrollController.animateTo(
+                targetHorizontal,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOut,
+              );
+            }
+          }
+        }
+      }
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _contentScrollController.addListener(_syncGutter);
+    _gutterScrollController.addListener(_syncContent);
+  }
+
+  void _syncGutter() {
+    if (_isSyncingScroll) return;
+    if (_gutterScrollController.hasClients &&
+        _contentScrollController.hasClients) {
+      if ((_gutterScrollController.offset - _contentScrollController.offset)
+              .abs() >
+          0.01) {
+        _isSyncingScroll = true;
+        _gutterScrollController.jumpTo(_contentScrollController.offset);
+        _isSyncingScroll = false;
+      }
+    }
+  }
+
+  void _syncContent() {
+    if (_isSyncingScroll) return;
+    if (_gutterScrollController.hasClients &&
+        _contentScrollController.hasClients) {
+      if ((_contentScrollController.offset - _gutterScrollController.offset)
+              .abs() >
+          0.01) {
+        _isSyncingScroll = true;
+        _contentScrollController.jumpTo(_gutterScrollController.offset);
+        _isSyncingScroll = false;
+      }
+    }
+  }
 
   @override
   void didUpdateWidget(covariant JsonViewer oldWidget) {
@@ -201,14 +372,37 @@ class _JsonViewerState extends State<JsonViewer> {
         widget.searchQuery != oldWidget.searchQuery) {
       _searchAutoExpanded.clear();
       _userCollapsedPaths.clear();
+      _lastScrolledGlobalIndex = null;
+      _lastScrolledQuery = widget.searchQuery;
+    }
+    if (!identical(widget.data, oldWidget.data)) {
+      _lineCountMemo = null;
+    }
+    if (!identical(widget.data, oldWidget.data) ||
+        widget.searchQuery != oldWidget.searchQuery ||
+        widget.matchOffset != oldWidget.matchOffset ||
+        widget.activeGlobalIndex != oldWidget.activeGlobalIndex) {
+      _memoLines = null;
     }
   }
 
-  // ── Expand / collapse helpers ──
+  @override
+  void dispose() {
+    _contentScrollController.removeListener(_syncGutter);
+    _gutterScrollController.removeListener(_syncContent);
+    _contentScrollController.dispose();
+    _gutterScrollController.dispose();
+    _horizontalScrollController.dispose();
+    _selectableFocusNode.dispose();
+    super.dispose();
+  }
 
   bool _isNodeExpanded(String path, int childCount) {
     if (_searchAutoExpanded.contains(path)) return true;
-    return _expandState[path] ?? (childCount <= 20);
+    final explicit = _expandState[path];
+    if (explicit != null) return explicit;
+    if (_memoForceCollapse) return path == r'$';
+    return childCount <= 20;
   }
 
   void _toggleNode(String path, int childCount) {
@@ -221,7 +415,92 @@ class _JsonViewerState extends State<JsonViewer> {
       } else {
         _userCollapsedPaths.remove(path);
       }
+      _memoLines = null;
     });
+  }
+
+  void _ensureLines() {
+    final query = widget.searchQuery?.toLowerCase().trim();
+    final effectiveQuery = (query != null && query.isNotEmpty) ? query : null;
+    final brightness = InterceptlyTheme.brightness;
+    if (_memoLines != null &&
+        identical(_memoData, widget.data) &&
+        _memoQuery == effectiveQuery &&
+        _memoMatchOffset == widget.matchOffset &&
+        _memoActiveGlobalIndex == widget.activeGlobalIndex &&
+        _memoBrightness == brightness) {
+      return;
+    }
+    _lineCountMemo ??= Expando<int>('json_line_counts');
+    _memoForceCollapse = _countExpandedLines(widget.data, _lineCountMemo) >
+        _largeDocLineThreshold;
+    _memoMatchCounts = effectiveQuery == null
+        ? null
+        : _matchCountsByPath(widget.data, effectiveQuery);
+    final lines = <_FlatLine>[];
+    _flatten(
+      value: widget.data,
+      key: null,
+      isLast: true,
+      indent: 0,
+      path: r'$',
+      query: effectiveQuery,
+      matchOffset: widget.matchOffset,
+      realLine: 1,
+      output: lines,
+    );
+    _memoLines = lines;
+    _memoData = widget.data;
+    _memoQuery = effectiveQuery;
+    _memoMatchOffset = widget.matchOffset;
+    _memoActiveGlobalIndex = widget.activeGlobalIndex;
+    _memoBrightness = brightness;
+    if (lines.isEmpty) {
+      _memoLineNumberWidth = 0;
+      _memoMaxChars = 0;
+    } else {
+      final digits = lines.last.realLineNumber.toString().length;
+      _memoLineNumberWidth = digits * 8.0 + 8.0;
+      int maxLen = 60;
+      final sampleCount = math.min(lines.length, 200);
+      for (int i = 0; i < sampleCount; i++) {
+        final line = lines[i];
+        var len = line.indentLevel * 2;
+        for (final s in line.spans) {
+          len += (s.text?.length ?? 0);
+        }
+        if (len > maxLen) maxLen = len;
+      }
+      _memoMaxChars = maxLen;
+    }
+  }
+
+  static Map<String, int> _matchCountsByPath(dynamic data, String query) {
+    final counts = <String, int>{};
+    int walk(dynamic value, String path) {
+      int total = 0;
+      if (value is List) {
+        for (var i = 0; i < value.length; i++) {
+          total += walk(value[i], '$path[$i]');
+        }
+      } else if (value is Map) {
+        value.forEach((k, v) {
+          total += JsonViewer._countIn('"$k"', query);
+          total += walk(v, '$path.$k');
+        });
+      } else if (value is String) {
+        total += JsonViewer._countIn('"$value"', query);
+      } else if (value != null) {
+        total += JsonViewer._countIn(value.toString(), query);
+      } else {
+        total += JsonViewer._countIn('null', query);
+      }
+      counts[path] = total;
+      return total;
+    }
+
+    walk(data, r'$');
+    return counts;
   }
 
   void _copyToClipboard() {
@@ -249,27 +528,45 @@ class _JsonViewerState extends State<JsonViewer> {
   /// Used to assign correct real line numbers when a collapsible node
   /// is folded — the line numbers skip the hidden range, matching
   /// VSCode behavior.
-  static int _countExpandedLines(dynamic value) {
+  static int _countExpandedLines(
+    dynamic value, [
+    Expando<int>? memo,
+  ]) {
     if (value == null || value is bool || value is num || value is String) {
       return 1;
     }
+    if (memo != null && (value is List || value is Map)) {
+      final cached = memo[value];
+      if (cached != null) return cached;
+    }
+
+    int count = 1;
     if (value is List) {
-      if (value.isEmpty) return 1; // rendered as "[]"
-      int total = 2; // opening '[' + closing ']'
-      for (final item in value) {
-        total += _countExpandedLines(item);
+      if (value.isEmpty) {
+        count = 1;
+      } else {
+        int total = 2;
+        for (final item in value) {
+          total += _countExpandedLines(item, memo);
+        }
+        count = total;
       }
-      return total;
-    }
-    if (value is Map) {
-      if (value.isEmpty) return 1; // rendered as "{}"
-      int total = 2; // opening '{' + closing '}'
-      for (final entry in value.entries) {
-        total += _countExpandedLines(entry.value);
+    } else if (value is Map) {
+      if (value.isEmpty) {
+        count = 1;
+      } else {
+        int total = 2;
+        for (final entry in value.entries) {
+          total += _countExpandedLines(entry.value, memo);
+        }
+        count = total;
       }
-      return total;
     }
-    return 1; // fallback for unknown types
+
+    if (memo != null && (value is List || value is Map)) {
+      memo[value] = count;
+    }
+    return count;
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -291,32 +588,11 @@ class _JsonViewerState extends State<JsonViewer> {
       );
     }
 
-    // Reset scroll key for this build pass.
-    _activeScrollKey = null;
-
-    final query = widget.searchQuery?.toLowerCase().trim();
-    final hasQuery = query != null && query.isNotEmpty;
-
-    // Flatten JSON tree into a sequential line list.
-    final lines = <_FlatLine>[];
-    _flatten(
-      value: widget.data,
-      key: null,
-      isLast: true,
-      indent: 0,
-      path: r'$',
-      query: hasQuery ? query : null,
-      matchOffset: widget.matchOffset,
-      realLine: 1,
-      output: lines,
-    );
-
+    _ensureLines();
+    final lines = _memoLines!;
     if (lines.isEmpty) return const SizedBox.shrink();
 
-    // Gutter sizing based on the highest real line number (last line).
-    final maxRealLine = lines.last.realLineNumber;
-    final digitCount = maxRealLine.toString().length;
-    final lineNumberWidth = (digitCount + 1) * 8.0;
+    final lineNumberWidth = _memoLineNumberWidth;
 
     final contentStyle = _baseTextStyle.copyWith(
       fontFamilyFallback: const ['monospace'],
@@ -325,107 +601,205 @@ class _JsonViewerState extends State<JsonViewer> {
     );
     const lineHeight = 18.0; // fontSize 12 × height 1.5
 
-    // Schedule scroll-to for the active search match.
-    final scrollKey = _activeScrollKey;
-    if (scrollKey != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final ctx = scrollKey.currentContext;
-        if (ctx != null && ctx.mounted) {
-          Scrollable.ensureVisible(
-            ctx,
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeInOut,
-          );
+    final maxChars = _memoMaxChars;
+    int? activeLineIndex;
+    if (widget.activeGlobalIndex != null) {
+      for (int i = 0; i < lines.length; i++) {
+        if (lines[i].hasActiveMatch) {
+          activeLineIndex = i;
+          break;
         }
-      });
+      }
     }
 
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 24),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          DefaultTextStyle(
-            style: contentStyle,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return MediaQuery.removePadding(
+      context: context,
+      removeTop: true,
+      removeBottom: true,
+      removeLeft: true,
+      removeRight: true,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final viewportHeight = constraints.hasBoundedHeight
+              ? constraints.maxHeight
+              : (lines.length * lineHeight).clamp(24.0, 500.0);
+
+          final gutterTotalWidth = lineNumberWidth + _foldIconWidth + 8.0;
+          final minContentWidth = constraints.hasBoundedWidth
+              ? math.max(0.0, constraints.maxWidth - gutterTotalWidth)
+              : 0.0;
+          final contentWidth = math.max(minContentWidth, maxChars * 7.5 + 40.0);
+
+          if (activeLineIndex != null) {
+            _checkScrollToActive(
+              activeLineIndex: activeLineIndex,
+              line: lines[activeLineIndex],
+              viewportHeight: viewportHeight,
+              viewportWidth: minContentWidth,
+              lineHeight: lineHeight,
+              contentStyle: contentStyle,
+            );
+          }
+
+          return SizedBox(
+            height: viewportHeight,
+            child: Stack(
+              clipBehavior: Clip.none,
               children: [
-                // ── Gutter (line numbers + fold icons) ──
-                Container(
-                  padding: const EdgeInsets.only(right: 4.0),
-                  decoration: BoxDecoration(
-                    border: Border(
-                      right: BorderSide(
-                        color: InterceptlyTheme.dividerSubtle,
-                        width: 1.0,
-                      ),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                DefaultTextStyle(
+                  style: contentStyle,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      for (int i = 0; i < lines.length; i++)
-                        _buildGutterCell(
-                          line: lines[i],
-                          lineNumberWidth: lineNumberWidth,
-                          lineHeight: lineHeight,
-                          style: contentStyle,
+                      SizedBox(
+                        width: gutterTotalWidth,
+                        height: viewportHeight,
+                        child: Container(
+                          padding: const EdgeInsets.only(right: 4.0),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              right: BorderSide(
+                                color: InterceptlyTheme.dividerSubtle,
+                                width: 1.0,
+                              ),
+                            ),
+                          ),
+                          child: ListView.builder(
+                            controller: _gutterScrollController,
+                            itemExtent: lineHeight,
+                            itemCount: lines.length,
+                            cacheExtent: 1000.0,
+                            addAutomaticKeepAlives: false,
+                            physics: const ClampingScrollPhysics(),
+                            itemBuilder: (context, index) {
+                              return _buildGutterCell(
+                                line: lines[index],
+                                lineNumberWidth: lineNumberWidth,
+                                lineHeight: lineHeight,
+                                style: contentStyle,
+                              );
+                            },
+                          ),
                         ),
+                      ),
+                      Expanded(
+                        child: ScrollbarTheme(
+                          data: ScrollbarThemeData(
+                            thumbColor:
+                                WidgetStateProperty.resolveWith((states) {
+                              final baseColor =
+                                  InterceptlyTheme.colors.textTertiary;
+                              if (states.contains(WidgetState.dragged)) {
+                                return baseColor.withValues(alpha: 0.6);
+                              }
+                              if (states.contains(WidgetState.hovered)) {
+                                return baseColor.withValues(alpha: 0.5);
+                              }
+                              return baseColor.withValues(alpha: 0.35);
+                            }),
+                            radius: const Radius.circular(4.0),
+                            thickness: const WidgetStatePropertyAll(5.0),
+                            crossAxisMargin: 0.0,
+                            mainAxisMargin: 0.0,
+                            interactive: true,
+                          ),
+                          child: Scrollbar(
+                            controller: _contentScrollController,
+                            notificationPredicate: (notif) =>
+                                notif.metrics.axis == Axis.vertical,
+                            interactive: true,
+                            thumbVisibility: widget.thumbVisibility,
+                            child: Scrollbar(
+                              controller: _horizontalScrollController,
+                              notificationPredicate: (notif) =>
+                                  notif.metrics.axis == Axis.horizontal,
+                              interactive: true,
+                              thumbVisibility: widget.thumbVisibility,
+                              child: SingleChildScrollView(
+                                controller: _horizontalScrollController,
+                                scrollDirection: Axis.horizontal,
+                                child: SizedBox(
+                                  width: contentWidth,
+                                  height: viewportHeight,
+                                  child: SelectableRegion(
+                                    focusNode: _selectableFocusNode,
+                                    selectionControls:
+                                        materialTextSelectionControls,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(left: 4.0),
+                                      child: ListView.builder(
+                                        controller: _contentScrollController,
+                                        itemExtent: lineHeight,
+                                        itemCount: lines.length,
+                                        cacheExtent: 1000.0,
+                                        addAutomaticKeepAlives: false,
+                                        physics: const ClampingScrollPhysics(),
+                                        itemBuilder: (context, index) {
+                                          return _buildLine(
+                                            index,
+                                            lines[index],
+                                            lineHeight,
+                                            contentStyle,
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
-
-                // ── Content (horizontally scrollable) ──
-                Expanded(
-                  child: SelectionArea(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 4.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            for (int i = 0; i < lines.length; i++)
-                              _buildContentLine(
-                                line: lines[i],
-                                lineHeight: lineHeight,
-                                style: contentStyle,
-                              ),
-                          ],
-                        ),
+                Positioned(
+                  top: -10,
+                  right: -10,
+                  child: Material(
+                    color: InterceptlyGlobalColor.transparent,
+                    child: IconButton(
+                      icon: const Icon(
+                        Icons.copy,
+                        size: 16,
+                        color: InterceptlyTheme.textMuted,
                       ),
+                      tooltip: 'Copy JSON',
+                      onPressed: _copyToClipboard,
+                      splashRadius: 16,
+                      constraints: const BoxConstraints.tightFor(
+                        width: 24,
+                        height: 24,
+                      ),
+                      padding: EdgeInsets.zero,
+                      alignment: Alignment.topCenter,
                     ),
                   ),
                 ),
               ],
             ),
-          ),
+          );
+        },
+      ),
+    );
+  }
 
-          // ── Copy button ──
-          Positioned(
-            top: -10,
-            right: -10,
-            child: Material(
-              color: InterceptlyGlobalColor.transparent,
-              child: IconButton(
-                icon: const Icon(
-                  Icons.copy,
-                  size: 16,
-                  color: InterceptlyTheme.textMuted,
-                ),
-                tooltip: 'Copy JSON',
-                onPressed: _copyToClipboard,
-                splashRadius: 16,
-                constraints: const BoxConstraints.tightFor(
-                  width: 24,
-                  height: 24,
-                ),
-                padding: EdgeInsets.zero,
-                alignment: Alignment.topCenter,
-              ),
-            ),
-          ),
-        ],
+  Widget _buildLine(
+    int index,
+    _FlatLine line,
+    double lineHeight,
+    TextStyle style,
+  ) {
+    return Container(
+      height: lineHeight,
+      alignment: Alignment.centerLeft,
+      padding: EdgeInsets.only(left: line.indentLevel * 16.0),
+      child: Text.rich(
+        TextSpan(
+          style: style,
+          children: line.spans,
+        ),
       ),
     );
   }
@@ -448,37 +822,38 @@ class _JsonViewerState extends State<JsonViewer> {
 
     Widget cell = SizedBox(
       height: lineHeight,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Line number (real position in the fully-expanded document)
-          SizedBox(
-            width: lineNumberWidth,
-            child: Text(
-              '${line.realLineNumber}',
-              textAlign: TextAlign.right,
-              style: style.copyWith(color: _lineNumberColor),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: lineNumberWidth,
+              child: Text(
+                '${line.realLineNumber}',
+                textAlign: TextAlign.right,
+                style: style.copyWith(color: _lineNumberColor),
+              ),
             ),
-          ),
-          // Fold icon slot
-          SizedBox(
-            width: _foldIconWidth,
-            height: lineHeight,
-            child: hasFold
-                ? Center(
-                    child: Transform.rotate(
-                      angle: line.collapsible!.isExpanded ? 0 : -1.5708,
-                      child: const Icon(
-                        Icons.arrow_drop_down,
-                        size: 16,
-                        color: InterceptlyTheme.textMuted,
+            SizedBox(
+              width: _foldIconWidth,
+              height: lineHeight,
+              child: hasFold
+                  ? Center(
+                      child: Transform.rotate(
+                        angle: line.collapsible!.isExpanded ? 0 : -1.5708,
+                        child: const Icon(
+                          Icons.arrow_drop_down,
+                          size: 16,
+                          color: InterceptlyTheme.textMuted,
+                        ),
                       ),
-                    ),
-                  )
-                : null,
-          ),
-        ],
+                    )
+                  : null,
+            ),
+          ],
+        ),
       ),
     );
 
@@ -497,37 +872,6 @@ class _JsonViewerState extends State<JsonViewer> {
     }
 
     return cell;
-  }
-
-  /// Builds one content row: indented text spans with optional
-  /// [GlobalKey] for scroll-to-active-match.
-  Widget _buildContentLine({
-    required _FlatLine line,
-    required double lineHeight,
-    required TextStyle style,
-  }) {
-    Widget content = SizedBox(
-      height: lineHeight,
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Padding(
-          padding: EdgeInsets.only(left: line.indentLevel * _indentWidth),
-          child: Text.rich(
-            TextSpan(
-              style: style,
-              children: line.spans,
-            ),
-          ),
-        ),
-      ),
-    );
-
-    if (line.hasActiveMatch) {
-      _activeScrollKey ??= GlobalKey();
-      content = KeyedSubtree(key: _activeScrollKey, child: content);
-    }
-
-    return content;
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -603,6 +947,18 @@ class _JsonViewerState extends State<JsonViewer> {
           currentOffset, query, commaSpan, realLine);
     }
     if (value is String) {
+      if (value.contains('\n') || value.length > 2000) {
+        return _emitChunkedString(
+          output: output,
+          indent: indent,
+          keySpans: keySpans,
+          value: value,
+          commaSpan: commaSpan,
+          currentOffset: currentOffset,
+          query: query,
+          realLine: realLine,
+        );
+      }
       return _emitLeaf(output, indent, keySpans, '"$value"', _stringColor,
           currentOffset, query, commaSpan, realLine);
     }
@@ -738,6 +1094,85 @@ class _JsonViewerState extends State<JsonViewer> {
     return (matchOffset: matchOffset, nextRealLine: realLine + 1);
   }
 
+  ({int matchOffset, int nextRealLine}) _emitChunkedString({
+    required List<_FlatLine> output,
+    required int indent,
+    required List<TextSpan> keySpans,
+    required String value,
+    required TextSpan? commaSpan,
+    required int currentOffset,
+    required String? query,
+    required int realLine,
+  }) {
+    final splitLines = value.split('\n');
+    final rawLines = <String>[];
+    const maxLineLen = 1000;
+    for (final l in splitLines) {
+      if (l.length <= maxLineLen) {
+        rawLines.add(l);
+      } else {
+        for (int i = 0; i < l.length; i += maxLineLen) {
+          rawLines.add(l.substring(i, math.min(i + maxLineLen, l.length)));
+        }
+      }
+    }
+
+    int lineNum = realLine;
+    int offset = currentOffset;
+
+    for (int i = 0; i < rawLines.length; i++) {
+      final lineStr = rawLines[i];
+      final isFirst = i == 0;
+      final isLastLine = i == rawLines.length - 1;
+
+      final chunkSpans = <TextSpan>[
+        if (isFirst) ...keySpans,
+      ];
+
+      final prefix = isFirst ? '"' : '';
+      final suffix = isLastLine ? '"' : '';
+      final displayText = '$prefix$lineStr$suffix';
+
+      bool hasActiveMatch = false;
+      if (query != null) {
+        final highlighted = JsonViewer.buildHighlightedSpans(
+          displayText,
+          query,
+          offset,
+          widget.activeGlobalIndex,
+          _stringColor,
+        );
+        final activeInText = highlighted.any(
+          (s) => s.style?.backgroundColor == _activeHighlightColor,
+        );
+        final activeInKey = isFirst && keySpans.any(_spanHasActiveHighlight);
+        hasActiveMatch = activeInText || activeInKey;
+        chunkSpans.addAll(highlighted);
+        offset += JsonViewer._countIn(displayText, query);
+      } else {
+        chunkSpans.add(TextSpan(
+          text: displayText,
+          style: _baseTextStyle.copyWith(color: _stringColor),
+        ));
+      }
+
+      if (isLastLine && commaSpan != null) {
+        chunkSpans.add(commaSpan);
+      }
+
+      output.add(_FlatLine(
+        indentLevel: isFirst ? indent : indent + 1,
+        realLineNumber: lineNum,
+        spans: chunkSpans,
+        hasActiveMatch: hasActiveMatch,
+      ));
+
+      lineNum++;
+    }
+
+    return (matchOffset: offset, nextRealLine: lineNum);
+  }
+
   /// Emit lines for a collapsible Map or List.
   ///
   /// When expanded: header + children + closing bracket.
@@ -768,7 +1203,7 @@ class _JsonViewerState extends State<JsonViewer> {
     if (query != null &&
         widget.activeGlobalIndex != null &&
         !_userCollapsedPaths.contains(path)) {
-      final totalValueMatches = JsonViewer.countMatches(rawValue, query);
+      final totalValueMatches = _memoMatchCounts?[path] ?? 0;
       if (totalValueMatches > 0 &&
           widget.activeGlobalIndex! >= currentOffset &&
           widget.activeGlobalIndex! < currentOffset + totalValueMatches) {
@@ -831,7 +1266,7 @@ class _JsonViewerState extends State<JsonViewer> {
       // The real line number is the opening bracket line. We advance
       // by the total expanded line count so the next sibling picks up
       // the correct real line number.
-      final expandedLineCount = _countExpandedLines(rawValue);
+      final expandedLineCount = _countExpandedLines(rawValue, _lineCountMemo);
 
       output.add(_FlatLine(
         indentLevel: indent,
@@ -860,12 +1295,7 @@ class _JsonViewerState extends State<JsonViewer> {
       // Advance the match offset past all collapsed children so
       // sibling nodes receive the correct offset.
       if (query != null) {
-        for (final child in children) {
-          if (child.key != null) {
-            currentOffset += JsonViewer._countIn('"${child.key}"', query);
-          }
-          currentOffset += JsonViewer.countMatches(child.value, query);
-        }
+        currentOffset += _memoMatchCounts?[path] ?? 0;
       }
 
       return (

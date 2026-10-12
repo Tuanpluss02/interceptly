@@ -1,7 +1,11 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 
 import '../model/body_location.dart';
 import '../model/index_entry.dart';
+import '../model/search_match_scope.dart';
 import 'body_decode_service.dart';
 import 'body_store.dart';
 
@@ -15,9 +19,12 @@ import 'body_store.dart';
 class MasterSearchController extends ChangeNotifier {
   String? _query;
   List<IndexEntry>? _results;
+  final Map<String, Set<SearchMatchScope>> _matchScopes = {};
   bool _isScanningBodies = false;
   bool _isScanningFiles = false;
   int _generation = 0;
+  Timer? _throttleTimer;
+  bool _isDisposed = false;
 
   String? get query => _query;
   List<IndexEntry>? get results => _results;
@@ -25,21 +32,49 @@ class MasterSearchController extends ChangeNotifier {
   bool get isScanningBodies => _isScanningBodies;
   bool get isScanningFiles => _isScanningFiles;
 
+  Set<SearchMatchScope> getScopes(String id) =>
+      _matchScopes[id] ?? const <SearchMatchScope>{};
+
+  void _notifyThrottled({bool force = false}) {
+    if (_isDisposed) return;
+    if (force) {
+      _throttleTimer?.cancel();
+      _throttleTimer = null;
+      notifyListeners();
+      return;
+    }
+    if (_throttleTimer?.isActive ?? false) return;
+    _throttleTimer = Timer(const Duration(milliseconds: 150), () {
+      _throttleTimer = null;
+      if (!_isDisposed) {
+        notifyListeners();
+      }
+    });
+  }
+
   /// Cancels any in-progress search and clears results.
   void cancel() {
     _generation++;
+    _throttleTimer?.cancel();
+    _throttleTimer = null;
     _query = null;
     _results = null;
+    _matchScopes.clear();
     _isScanningBodies = false;
     _isScanningFiles = false;
-    notifyListeners();
+    if (!_isDisposed) {
+      notifyListeners();
+    }
   }
 
   /// Resets search state without notifying — used during session clear.
   void reset() {
     _generation++;
+    _throttleTimer?.cancel();
+    _throttleTimer = null;
     _query = null;
     _results = null;
+    _matchScopes.clear();
     _isScanningBodies = false;
     _isScanningFiles = false;
   }
@@ -53,6 +88,7 @@ class MasterSearchController extends ChangeNotifier {
     required List<IndexEntry> allEntries,
     required String? filePath,
   }) async {
+    if (_isDisposed) return;
     final trimmed = query.trim();
     if (trimmed.isEmpty) {
       cancel();
@@ -60,29 +96,46 @@ class MasterSearchController extends ChangeNotifier {
     }
 
     final gen = ++_generation;
+    _throttleTimer?.cancel();
+    _throttleTimer = null;
     final q = trimmed.toLowerCase();
+    final entriesSnapshot = List<IndexEntry>.from(allEntries);
 
     _query = trimmed;
     _results = [];
+    _matchScopes.clear();
     _isScanningBodies = false;
     _isScanningFiles = false;
-    notifyListeners();
+    _notifyThrottled(force: true);
 
     final matchedIds = <String>{};
 
-    bool matchesStructured(IndexEntry e) {
-      if (e.url.toLowerCase().contains(q)) return true;
-      if (e.method.toLowerCase().contains(q)) return true;
-      if (e.errorMessage?.toLowerCase().contains(q) ?? false) return true;
+    Set<SearchMatchScope> checkStructuredScopes(IndexEntry e) {
+      final scopes = <SearchMatchScope>{};
+      if (e.url.toLowerCase().contains(q) ||
+          e.method.toLowerCase().contains(q)) {
+        scopes.add(SearchMatchScope.url);
+      }
+      if (e.errorMessage?.toLowerCase().contains(q) ?? false) {
+        scopes.add(SearchMatchScope.error);
+      }
       for (final h in e.requestHeaders.entries) {
-        if (h.key.toLowerCase().contains(q)) return true;
-        if (h.value.toLowerCase().contains(q)) return true;
+        if (h.key.toLowerCase().contains(q) ||
+            h.value.toLowerCase().contains(q)) {
+          scopes.add(SearchMatchScope.headers);
+          break;
+        }
       }
-      for (final h in e.responseHeaders.entries) {
-        if (h.key.toLowerCase().contains(q)) return true;
-        if (h.value.toLowerCase().contains(q)) return true;
+      if (!scopes.contains(SearchMatchScope.headers)) {
+        for (final h in e.responseHeaders.entries) {
+          if (h.key.toLowerCase().contains(q) ||
+              h.value.toLowerCase().contains(q)) {
+            scopes.add(SearchMatchScope.headers);
+            break;
+          }
+        }
       }
-      return false;
+      return scopes;
     }
 
     bool matchesInlineBody(IndexEntry e) {
@@ -98,44 +151,51 @@ class MasterSearchController extends ChangeNotifier {
       return res != null && res.contains(q);
     }
 
-    // Phase 1: structured fields (sync).
-    for (final e in allEntries) {
-      if (matchesStructured(e)) {
+    for (var i = 0; i < entriesSnapshot.length; i++) {
+      if (gen != _generation || _isDisposed) return;
+      final e = entriesSnapshot[i];
+      final scopes = checkStructuredScopes(e);
+      if (scopes.isNotEmpty) {
         matchedIds.add(e.id);
-        _results!.add(e);
+        _results?.add(e);
+        _matchScopes[e.id] = scopes;
       }
-    }
-    if (gen != _generation) return;
-    notifyListeners();
-
-    // Phase 2: in-memory bodies in small async batches.
-    _isScanningBodies = true;
-    notifyListeners();
-    for (var i = 0; i < allEntries.length; i++) {
-      if (gen != _generation) return;
-      final e = allEntries[i];
-      if (e.bodyLocation == BodyLocation.memory &&
-          !matchedIds.contains(e.id) &&
-          matchesInlineBody(e)) {
-        matchedIds.add(e.id);
-        _results!.add(e);
-      }
-      if (i % 20 == 0) {
-        notifyListeners();
+      if (i % 50 == 0) {
         await Future<void>.delayed(Duration.zero);
       }
     }
-    if (gen != _generation) return;
-    _isScanningBodies = false;
-    notifyListeners();
+    if (gen != _generation || _isDisposed) return;
+    _notifyThrottled(force: true);
 
-    // Phase 3: file-backed bodies in parallel batches of 4.
+    _isScanningBodies = true;
+    _notifyThrottled(force: true);
+    for (var i = 0; i < entriesSnapshot.length; i++) {
+      if (gen != _generation || _isDisposed) return;
+      final e = entriesSnapshot[i];
+      if (e.bodyLocation == BodyLocation.memory && matchesInlineBody(e)) {
+        if (!matchedIds.contains(e.id)) {
+          matchedIds.add(e.id);
+          _results?.add(e);
+          _matchScopes[e.id] = {SearchMatchScope.body};
+          _notifyThrottled();
+        } else {
+          _matchScopes[e.id]?.add(SearchMatchScope.body);
+        }
+      }
+      if (i % 20 == 0) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
+    if (gen != _generation || _isDisposed) return;
+    _isScanningBodies = false;
+    _notifyThrottled(force: true);
+
     if (filePath != null) {
       _isScanningFiles = true;
-      notifyListeners();
+      _notifyThrottled(force: true);
 
       final fileEntries = <(IndexEntry, int, int)>[];
-      for (final e in allEntries) {
+      for (final e in entriesSnapshot) {
         if (e.bodyLocation == BodyLocation.file &&
             !matchedIds.contains(e.id) &&
             e.fileOffset != null &&
@@ -144,45 +204,90 @@ class MasterSearchController extends ChangeNotifier {
         }
       }
 
-      const batchSize = 4;
-      for (var start = 0; start < fileEntries.length; start += batchSize) {
-        if (gen != _generation) return;
-        final batch = fileEntries.sublist(
-          start,
-          (start + batchSize).clamp(0, fileEntries.length),
-        );
+      if (fileEntries.isNotEmpty) {
+        RandomAccessFile? raf;
+        try {
+          raf = await BodyStore.openReadHandle(filePath);
+          const batchSize = 4;
+          for (var start = 0; start < fileEntries.length; start += batchSize) {
+            if (gen != _generation || _isDisposed) return;
+            final batch = fileEntries.sublist(
+              start,
+              (start + batchSize).clamp(0, fileEntries.length),
+            );
 
-        final futures = batch.map((item) async {
-          try {
-            final (e, offset, length) = item;
-            final raw = await BodyStore.readBytes(filePath, offset, length);
-            final decoded = raw.length > BodyDecodeService.computeThreshold
-                ? await compute(BodyDecodeService.unpackToText, raw)
-                : BodyDecodeService.unpackToText(raw);
-            final combined =
-                '${decoded.$1 ?? ''}\n${decoded.$2 ?? ''}'.toLowerCase();
-            if (combined.contains(q)) return (true, e);
-          } catch (e) {
-            if (kDebugMode) {
-              debugPrint('[Interceptly] master search file read error: $e');
+            final batchPayloads = <(IndexEntry, Uint8List)?>[];
+            for (final item in batch) {
+              if (gen != _generation || _isDisposed) return;
+              try {
+                final (e, offset, length) = item;
+                final raw = await BodyStore.readWithHandle(raf, offset, length);
+                batchPayloads.add((e, raw));
+              } catch (e) {
+                if (kDebugMode) {
+                  debugPrint('[Interceptly] master search file read error: $e');
+                }
+                batchPayloads.add(null);
+              }
+            }
+
+            final futures = batchPayloads.map((payload) async {
+              if (payload == null) return (false, null);
+              final (e, raw) = payload;
+              try {
+                final decoded = raw.length > BodyDecodeService.computeThreshold
+                    ? await compute(BodyDecodeService.unpackToText, raw)
+                    : BodyDecodeService.unpackToText(raw);
+                final combined =
+                    '${decoded.$1 ?? ''}\n${decoded.$2 ?? ''}'.toLowerCase();
+                if (combined.contains(q)) return (true, e);
+              } catch (e) {
+                if (kDebugMode) {
+                  debugPrint('[Interceptly] master search decode error: $e');
+                }
+              }
+              return (false, null);
+            });
+
+            final results = await Future.wait(futures);
+            if (gen != _generation || _isDisposed) return;
+            var hasNewMatch = false;
+            for (final (matched, e) in results) {
+              if (matched && e != null) {
+                if (!matchedIds.contains(e.id)) {
+                  matchedIds.add(e.id);
+                  _results?.add(e);
+                  hasNewMatch = true;
+                }
+                (_matchScopes[e.id] ??= <SearchMatchScope>{})
+                    .add(SearchMatchScope.body);
+              }
+            }
+            if (hasNewMatch) {
+              _notifyThrottled();
             }
           }
-          return (false, null);
-        });
-
-        final results = await Future.wait(futures);
-        for (final (matched, e) in results) {
-          if (matched && e != null && !matchedIds.contains(e.id)) {
-            matchedIds.add(e.id);
-            _results!.add(e);
-            notifyListeners();
+        } catch (e) {
+          if (kDebugMode) {
+            debugPrint('[Interceptly] master search file read error: $e');
           }
+        } finally {
+          await raf?.close();
         }
       }
 
-      if (gen != _generation) return;
+      if (gen != _generation || _isDisposed) return;
       _isScanningFiles = false;
-      notifyListeners();
+      _notifyThrottled(force: true);
     }
+  }
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    _generation++;
+    _throttleTimer?.cancel();
+    _throttleTimer = null;
+    super.dispose();
   }
 }

@@ -98,10 +98,9 @@ class _NetworkTabState extends State<NetworkTab> {
       final selectedEntries =
           allEntries.where((e) => _selectedIds.contains(e.id)).toList();
 
-      final records = <RequestRecord>[];
-      for (final entry in selectedEntries) {
-        records.add(await widget.session.loadDetail(entry));
-      }
+      final List<RequestRecord> records = await Future.wait(
+        selectedEntries.map((entry) => widget.session.loadDetail(entry)),
+      );
 
       if (!mounted) return;
 
@@ -161,8 +160,8 @@ class _NetworkTabState extends State<NetworkTab> {
 
             // ── Request list ─────────────────────────────────────────────────
             Expanded(
-              child: AnimatedBuilder(
-                animation: widget.session,
+              child: ListenableBuilder(
+                listenable: widget.session,
                 builder: (context, _) => widget.groupingEnabled
                     ? _buildGroupedList(context)
                     : _buildFlatList(context),
@@ -212,8 +211,11 @@ class _NetworkTabState extends State<NetworkTab> {
           entry: req,
           onTapNavigate: () => Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) =>
-                  RequestDetailPage(entry: req, session: widget.session),
+              builder: (_) => RequestDetailPage(
+                entry: req,
+                session: widget.session,
+                initialQuery: widget.session.masterQuery,
+              ),
             ),
           ),
         );
@@ -275,32 +277,30 @@ class _NetworkTabState extends State<NetworkTab> {
             if (group.isExpanded)
               Padding(
                 padding: groupItemsPadding,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ...group.requests.asMap().entries.map((entry) {
-                      final record = entry.value;
-                      final isLast = entry.key == group.requests.length - 1;
-                      return Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _buildRequestItem(
-                            context: context,
-                            entry: record,
-                            onTapNavigate: () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => RequestDetailPage(
-                                  entry: record,
-                                  session: widget.session,
-                                ),
-                              ),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: group.requests.length,
+                  itemBuilder: (context, index) {
+                    final record = group.requests[index];
+                    return Padding(
+                      padding: EdgeInsets.only(
+                          bottom: index < group.requests.length - 1 ? 8.0 : 0),
+                      child: _buildRequestItem(
+                        context: context,
+                        entry: record,
+                        onTapNavigate: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => RequestDetailPage(
+                              entry: record,
+                              session: widget.session,
+                              initialQuery: widget.session.masterQuery,
                             ),
                           ),
-                          if (!isLast) const SizedBox(height: 8),
-                        ],
-                      );
-                    }),
-                  ],
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
             Divider(height: 1, color: InterceptlyTheme.dividerSubtle),
@@ -333,6 +333,11 @@ class _NetworkTabState extends State<NetworkTab> {
       } catch (_) {}
     }
 
+    final activeQuery = widget.session.masterQuery;
+    final scopes = activeQuery != null && activeQuery.isNotEmpty
+        ? widget.session.getSearchScopes(entry.id)
+        : null;
+
     return RequestLogItem(
       method: entry.method,
       url: displayUrl,
@@ -348,6 +353,8 @@ class _NetworkTabState extends State<NetworkTab> {
       responseSizeBytes: entry.responseSizeBytes,
       isSelectionMode: _isSelectionMode,
       isSelected: _selectedIds.contains(entry.id),
+      searchScopes: scopes,
+      highlightQuery: activeQuery,
       onLongPress: () => _enterSelectionMode(entry.id),
       onTap: () {
         if (_isSelectionMode) {

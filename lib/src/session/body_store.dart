@@ -20,8 +20,9 @@ class BodyStore {
   ///
   /// [dirPath] must be resolved on the **main isolate** before the
   /// WriterIsolate is spawned, then passed in via the init message.
-  Future<void> initForWrite(String dirPath) async {
-    _file = File('$dirPath/$kFileName');
+  Future<void> initForWrite(String dirPath,
+      {String fileName = kFileName}) async {
+    _file = File('$dirPath/$fileName');
     if (await _file.exists()) await _file.delete();
     await _file.create(recursive: true);
     _raf = await _file.open(mode: FileMode.writeOnlyAppend);
@@ -35,17 +36,16 @@ class BodyStore {
     final offset = _currentOffset;
     final length = bytes.length;
     await _raf!.writeFrom(bytes);
-    await _raf!.flush();
     _currentOffset += length;
     return (offset, length);
   }
 
   /// Resets the file: deletes and recreates it.
-  Future<void> resetFile(String dirPath) async {
+  Future<void> resetFile(String dirPath, {String fileName = kFileName}) async {
     await _raf?.close();
     _raf = null;
     _currentOffset = 0;
-    _file = File('$dirPath/$kFileName');
+    _file = File('$dirPath/$fileName');
     if (await _file.exists()) await _file.delete();
     await _file.create(recursive: true);
     _raf = await _file.open(mode: FileMode.writeOnlyAppend);
@@ -54,12 +54,25 @@ class BodyStore {
   Future<void> dispose() async {
     await _raf?.close();
     _raf = null;
-    if (await _file.exists()) await _file.delete();
+    try {
+      if (await _file.exists()) await _file.delete();
+    } catch (_) {}
   }
 
-  // ---------------------------------------------------------------------------
-  // Static read helper — called from the MAIN ISOLATE, never modifies the file
-  // ---------------------------------------------------------------------------
+  /// Opens a file for reading and returns an open [RandomAccessFile] handle.
+  static Future<RandomAccessFile> openReadHandle(String filePath) async {
+    return File(filePath).open(mode: FileMode.read);
+  }
+
+  /// Reads [length] bytes starting at [offset] from the open [raf] handle.
+  static Future<Uint8List> readWithHandle(
+    RandomAccessFile raf,
+    int offset,
+    int length,
+  ) async {
+    await raf.setPosition(offset);
+    return raf.read(length);
+  }
 
   /// Reads [length] bytes starting at [offset] from [filePath].
   ///
@@ -70,12 +83,53 @@ class BodyStore {
     int offset,
     int length,
   ) async {
-    final raf = await File(filePath).open(mode: FileMode.read);
+    final raf = await openReadHandle(filePath);
     try {
-      await raf.setPosition(offset);
-      return await raf.read(length);
+      return await readWithHandle(raf, offset, length);
     } finally {
       await raf.close();
     }
+  }
+
+  /// Detects and purges orphaned temporary session files in [dirPath].
+  ///
+  /// Removes files prefixed with `interceptly_` and ending with `.tmp`,
+  /// excluding [currentFileName].
+  /// Gracefully handles [FileSystemException] and returns the count of purged files.
+  static Future<int> purgeOrphanedTempFiles(
+    String dirPath, {
+    String? currentFileName,
+  }) async {
+    var purgedCount = 0;
+    try {
+      final dir = Directory(dirPath);
+      if (!await dir.exists()) return 0;
+
+      final entities = await dir.list().toList();
+      final activeBaseName = currentFileName?.split(RegExp(r'[/\\]')).last;
+
+      for (final entity in entities) {
+        if (entity is File) {
+          final fileName = entity.path.split(RegExp(r'[/\\]')).last;
+          if (fileName.startsWith('interceptly_') &&
+              fileName.endsWith('.tmp') &&
+              (activeBaseName == null || fileName != activeBaseName)) {
+            try {
+              await entity.delete();
+              purgedCount++;
+            } on FileSystemException {
+              continue;
+            } catch (_) {
+              continue;
+            }
+          }
+        }
+      }
+    } on FileSystemException {
+      return purgedCount;
+    } catch (_) {
+      return purgedCount;
+    }
+    return purgedCount;
   }
 }
