@@ -13,12 +13,14 @@ class DraggableFab extends StatefulWidget {
     this.initPosition,
     this.securityBottom = 0,
     this.securityTop = 0,
+    this.positionNotifier,
   });
 
   final Widget child;
   final Offset? initPosition;
   final double securityBottom;
   final double securityTop;
+  final ValueNotifier<Offset?>? positionNotifier;
 
   @override
   State<DraggableFab> createState() => _DraggableFabState();
@@ -41,7 +43,9 @@ class _DraggableFabState extends State<DraggableFab>
   @override
   void initState() {
     super.initState();
-    _positionVN = ValueNotifier(widget.initPosition ?? Offset.zero);
+    _positionVN = ValueNotifier(
+      widget.positionNotifier?.value ?? widget.initPosition ?? Offset.zero,
+    );
     _snapController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 220),
@@ -49,6 +53,7 @@ class _DraggableFabState extends State<DraggableFab>
     _snapController.addListener(() {
       if (_snapAnimation != null) {
         _positionVN.value = _snapAnimation!.value;
+        widget.positionNotifier?.value = _snapAnimation!.value;
       }
     });
   }
@@ -94,6 +99,7 @@ class _DraggableFabState extends State<DraggableFab>
         .clamp(minTop, maxTop);
 
     _positionVN.value = Offset(left, top);
+    widget.positionNotifier?.value = Offset(left, top);
   }
 
   void _snapToEdgeWithAnimation(Size size) {
@@ -149,13 +155,26 @@ class _DraggableFabState extends State<DraggableFab>
         if (!_isInitialized) {
           _isInitialized = true;
           _lastParentSize = parentSize;
-          final target = widget.initPosition ??
+          final savedPos = widget.positionNotifier?.value;
+          final target = savedPos ??
+              widget.initPosition ??
               Offset(parentSize.width, parentSize.height / 2);
-          _isRightEdge = target.dx >= (parentSize.width / 2);
-          _relativeY = parentSize.height > 0
-              ? (target.dy / parentSize.height).clamp(0.0, 1.0)
-              : 0.5;
-          _positionVN.value = _snapToEdge(target, parentSize);
+
+          if (savedPos != null) {
+            _isRightEdge = savedPos.dx >= (parentSize.width / 2);
+            _relativeY = parentSize.height > 0
+                ? ((savedPos.dy + _widgetSize.height / 2) / parentSize.height)
+                    .clamp(0.0, 1.0)
+                : 0.5;
+            _positionVN.value = savedPos;
+          } else {
+            _isRightEdge = target.dx >= (parentSize.width / 2);
+            _relativeY = parentSize.height > 0
+                ? (target.dy / parentSize.height).clamp(0.0, 1.0)
+                : 0.5;
+            _positionVN.value = _snapToEdge(target, parentSize);
+            widget.positionNotifier?.value = _positionVN.value;
+          }
 
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
@@ -196,10 +215,12 @@ class _DraggableFabState extends State<DraggableFab>
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onPanUpdate: (details) {
-                        _positionVN.value = Offset(
+                        final newPos = Offset(
                           _positionVN.value.dx + details.delta.dx,
                           _positionVN.value.dy + details.delta.dy,
                         );
+                        _positionVN.value = newPos;
+                        widget.positionNotifier?.value = newPos;
                       },
                       onPanEnd: (_) {
                         _snapToEdgeWithAnimation(parentSize);

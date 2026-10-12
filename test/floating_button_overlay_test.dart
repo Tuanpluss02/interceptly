@@ -236,5 +236,369 @@ void main() {
 
       expect(find.byIcon(Icons.bug_report), findsNothing);
     });
+
+    testWidgets('Tapping FAB on a pushed page opens inspector', (tester) async {
+      final navKey = GlobalKey<NavigatorState>();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorKey: navKey,
+          home: const Scaffold(
+            backgroundColor: Colors.white,
+            body: Center(child: Text('Home Page')),
+          ),
+        ),
+      );
+
+      await tester.runAsync(() async {
+        await Interceptly.init(
+          navigatorKey: navKey,
+          showFloatingButton: true,
+        );
+      });
+
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.bug_report), findsOneWidget);
+
+      // Push another full-screen page
+      navKey.currentState!.push(
+        MaterialPageRoute(
+          builder: (_) => Scaffold(
+            backgroundColor: Colors.red,
+            body: Center(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {},
+                child: const SizedBox.expand(
+                  child: Text('Detail Page Covering Screen'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Tap the FAB - will it open inspector or is it blocked by the pushed page?
+      await tester.tap(find.byIcon(Icons.bug_report));
+      await tester.pumpAndSettle();
+
+      // If inspector opened, InterceptlyScreen should be in tree
+      expect(find.text('Interceptly'), findsOneWidget);
+
+      Interceptly.detach();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets(
+      'FAB stays on top and tappable after pushReplacement (splash to home)',
+      (tester) async {
+        final navKey = GlobalKey<NavigatorState>();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            navigatorKey: navKey,
+            home: const Scaffold(
+              backgroundColor: Colors.blue,
+              body: Center(child: Text('Splash Screen')),
+            ),
+          ),
+        );
+
+        await tester.runAsync(() async {
+          await Interceptly.init(
+            navigatorKey: navKey,
+            showFloatingButton: true,
+          );
+        });
+
+        await tester.pumpAndSettle();
+        expect(find.byIcon(Icons.bug_report), findsOneWidget);
+
+        // Replace splash with Home page (same as SplashPage.pushReplacement)
+        navKey.currentState!.pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => Scaffold(
+              backgroundColor: Colors.green,
+              body: Center(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {},
+                  child: const SizedBox.expand(
+                    child: Text('Home Screen Replacing Splash'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.pumpAndSettle();
+
+        // FAB must still be visible and tappable above the replacement screen
+        expect(find.byIcon(Icons.bug_report), findsOneWidget);
+
+        await tester.tap(find.byIcon(Icons.bug_report));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Interceptly'), findsOneWidget);
+
+        Interceptly.detach();
+        await tester.pumpAndSettle();
+      },
+    );
+
+    testWidgets('App restart / re-initialization restores FAB cleanly', (
+      tester,
+    ) async {
+      final navKey = GlobalKey<NavigatorState>();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorKey: navKey,
+          home: const Scaffold(
+            body: Center(child: Text('Initial Run')),
+          ),
+        ),
+      );
+
+      await tester.runAsync(() async {
+        await Interceptly.init(
+          navigatorKey: navKey,
+          showFloatingButton: true,
+        );
+      });
+
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.bug_report), findsOneWidget);
+
+      // Simulate app restart / rebuild with new Navigator
+      final restartedNavKey = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorKey: restartedNavKey,
+          home: const Scaffold(
+            body: Center(child: Text('Restarted App')),
+          ),
+        ),
+      );
+
+      // On restart, main() calls Interceptly.init with new navigatorKey
+      await tester.runAsync(() async {
+        await Interceptly.init(
+          navigatorKey: restartedNavKey,
+          showFloatingButton: true,
+        );
+      });
+
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.bug_report), findsOneWidget);
+
+      Interceptly.detach();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets(
+      'FAB retains dragged position across route push and pushReplacement',
+      (tester) async {
+        final navKey = GlobalKey<NavigatorState>();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            navigatorKey: navKey,
+            home: const Scaffold(body: Text('Initial Screen')),
+          ),
+        );
+
+        await tester.runAsync(() async {
+          await Interceptly.init(
+            navigatorKey: navKey,
+            showFloatingButton: true,
+          );
+        });
+        await tester.pumpAndSettle();
+
+        final fabFinder = find.byIcon(Icons.bug_report);
+        expect(fabFinder, findsOneWidget);
+
+        // Drag the FAB vertically
+        await tester.drag(fabFinder, const Offset(0, -150));
+        await tester.pumpAndSettle();
+
+        final draggedTopLeft = tester.getTopLeft(fabFinder);
+
+        // Push new page
+        navKey.currentState!.push(
+          MaterialPageRoute(
+            builder: (_) => const Scaffold(body: Text('New Page')),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Position must match dragged position, NOT default center
+        expect(
+          tester.getTopLeft(find.byIcon(Icons.bug_report)).dy,
+          equals(draggedTopLeft.dy),
+        );
+
+        // Replace route
+        navKey.currentState!.pushReplacement(
+          MaterialPageRoute(
+            builder: (_) =>
+                const Scaffold(body: Text('Replacement Page')),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          tester.getTopLeft(find.byIcon(Icons.bug_report)).dy,
+          equals(draggedTopLeft.dy),
+        );
+
+        Interceptly.detach();
+        await tester.pumpAndSettle();
+      },
+    );
+
+    testWidgets(
+      'AppLifecycleState.resumed ensures FAB is active and on top',
+      (tester) async {
+        final navKey = GlobalKey<NavigatorState>();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            navigatorKey: navKey,
+            home: const Scaffold(body: Text('Lifecycle Test Screen')),
+          ),
+        );
+
+        await tester.runAsync(() async {
+          await Interceptly.init(
+            navigatorKey: navKey,
+            showFloatingButton: true,
+          );
+        });
+        await tester.pumpAndSettle();
+
+        expect(find.byIcon(Icons.bug_report), findsOneWidget);
+
+        // Transition lifecycle to paused then resumed
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.paused,
+        );
+        await tester.pumpAndSettle();
+
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byIcon(Icons.bug_report), findsOneWidget);
+
+        // Tap FAB to ensure it is still interactive
+        await tester.tap(find.byIcon(Icons.bug_report));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Interceptly'), findsOneWidget);
+
+        Interceptly.detach();
+        await tester.pumpAndSettle();
+      },
+    );
+
+    testWidgets(
+      'Inspector open and pop cycle cleanly manages overlay visibility',
+      (tester) async {
+        final navKey = GlobalKey<NavigatorState>();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            navigatorKey: navKey,
+            home: const Scaffold(body: Text('Home Screen')),
+          ),
+        );
+
+        await tester.runAsync(() async {
+          await Interceptly.init(
+            navigatorKey: navKey,
+            showFloatingButton: true,
+          );
+        });
+        await tester.pumpAndSettle();
+
+        expect(find.byIcon(Icons.bug_report), findsOneWidget);
+
+        // Open Inspector
+        Interceptly.showInspector();
+        await tester.pumpAndSettle();
+
+        expect(find.text('Interceptly'), findsOneWidget);
+
+        // Pop Inspector back to Home
+        navKey.currentState!.pop();
+        await tester.pumpAndSettle();
+
+        expect(find.text('Interceptly'), findsNothing);
+        expect(find.byIcon(Icons.bug_report), findsOneWidget);
+
+        Interceptly.detach();
+        await tester.pumpAndSettle();
+      },
+    );
+
+    testWidgets(
+      'Rapid successive pushes and pops maintain FAB visibility on top',
+      (tester) async {
+        final navKey = GlobalKey<NavigatorState>();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            navigatorKey: navKey,
+            home: const Scaffold(body: Text('Base Screen')),
+          ),
+        );
+
+        await tester.runAsync(() async {
+          await Interceptly.init(
+            navigatorKey: navKey,
+            showFloatingButton: true,
+          );
+        });
+        await tester.pumpAndSettle();
+
+        for (var i = 1; i <= 5; i++) {
+          navKey.currentState!.push(
+            MaterialPageRoute(
+              builder: (_) => Scaffold(
+                body: Center(child: Text('Screen $i')),
+              ),
+            ),
+          );
+        }
+        await tester.pumpAndSettle();
+
+        expect(find.text('Screen 5'), findsOneWidget);
+        expect(find.byIcon(Icons.bug_report), findsOneWidget);
+
+        // Pop 3 times
+        navKey.currentState!.pop();
+        navKey.currentState!.pop();
+        navKey.currentState!.pop();
+        await tester.pumpAndSettle();
+
+        expect(find.text('Screen 2'), findsOneWidget);
+        expect(find.byIcon(Icons.bug_report), findsOneWidget);
+
+        await tester.tap(find.byIcon(Icons.bug_report));
+        await tester.pumpAndSettle();
+        expect(find.text('Interceptly'), findsOneWidget);
+
+        Interceptly.detach();
+        await tester.pumpAndSettle();
+      },
+    );
   });
 }
+
+
