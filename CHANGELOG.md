@@ -1,18 +1,23 @@
-## 1.2.0
+## 2.0.0
+
+### Breaking
+- `Interceptly.attach()` renamed to `Interceptly.init()` with flattened params; removed `InterceptlyConfig`, `InspectorTrigger`, and shake / long-press triggers (`sensors_plus` dropped).
+- `lib/interceptly.dart` now uses `show`-only exports; `InspectorPreferences`, `interceptly_theme`, `IndexEntry`, `BodyLocation` are no longer part of the public barrel.
+- `share_plus` replaced by a built-in native share plugin (`android/`, `ios/`); file sharing is mobile-only and returns `false` elsewhere.
+- `InterceptlySettings.maxBodyBytes` default raised from 2 MB to 5 MB.
 
 ### Added
-- Single-entrypoint initialization via `Interceptly.init(navigatorKey: ...)` with flattened, frictionless configuration options (`maxBodyBytes`, `maxEntries`, `redactedHeaders`, `shouldCapture`, `showFloatingButton`, `customTrigger`).
-- Header redaction: automatically redacts sensitive headers (e.g. `authorization`, `cookie`, `x-api-key`) case-insensitively before storing or displaying.
-- URL filtering: added `shouldCapture(url)` predicate to exclude unwanted requests (e.g. analytics, heartbeats).
-- Per-session temporary storage isolation: each `InspectorSession` instance now uses its own isolated temporary file and sessionId to eliminate multi-instance race conditions.
-- Fallback resilience: background storage and isolates gracefully degrade to in-memory entries if file creation or offloading fails.
-- Safe UTF-8 decoding: partial multi-byte UTF-8 streams are safely trimmed to the nearest rune boundary instead of being misidentified as binary.
+- `InterceptlySettings.redactedHeaders` (defaults to `authorization`, `cookie`, `set-cookie`, `x-api-key`, case-insensitive) and `shouldCapture(url)` URL predicate.
+- `InterceptlySettings.maxUiPreviewBytes` (2 MB) and `pendingTimeout` (45 s) with pending-request rows marked as timed out.
+- Per-session temp file isolation via `sessionId`; graceful in-memory fallback when storage or isolates fail.
+- Capture guards (`CaptureGuard`) so inspector errors never break host requests.
+- Safe UTF-8 truncation, binary sniffing, binary body-pack format, and wider binary content-type detection.
+- `FloatingOverlayManager` with `hideFloatingButtonForSession()` / `showFloatingButtonForSession()` and search match navigation in detail pages and JSON viewer.
 
-### Changed
-- Removed redundant `InterceptlyConfig` and `InspectorTrigger` classes.
-- Removed deprecated `Interceptly.attach()` in favor of the canonical `Interceptly.init()`.
-- Unified Core controller and UI overlay wiring into a cohesive `Interceptly` facade.
-- Hardened Dio, Chopper, and Http client capture layers so interceptor exceptions never break host application requests.
+### Migration
+- Replace `Interceptly.attach(navigatorKey: k, config: InterceptlyConfig(triggers: {...}))` with `Interceptly.init(navigatorKey: k, showFloatingButton: ..., settings: const InterceptlySettings(...))`.
+- Replace `InspectorTrigger.shake` / `longPress` with `customTrigger` stream or the floating button.
+- Import removed barrel types (`InspectorPreferences`, `IndexEntry`, `BodyLocation`, theme) from their `src/` paths instead.
 
 ## 1.1.4
 
