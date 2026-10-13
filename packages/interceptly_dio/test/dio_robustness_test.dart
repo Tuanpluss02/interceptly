@@ -1,12 +1,11 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
-import '../lib/src/interceptly_dio_interceptor.dart';
+import 'package:interceptly_dio/interceptly_dio.dart';
 
 const _pathProviderChannel = MethodChannel('plugins.flutter.io/path_provider');
 
