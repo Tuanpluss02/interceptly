@@ -11,7 +11,7 @@ import 'package:interceptly/src/model/request_record.dart';
 import 'package:interceptly/src/session/inspector_session.dart';
 import 'package:interceptly/src/ui/detail/detail_tabs_builder.dart';
 import 'package:interceptly/src/ui/detail/replay_handler.dart';
-import 'package:interceptly/src/ui/widgets/json_viewer.dart';
+import 'package:interceptly/src/ui/widgets/json_viewer/json_viewer.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

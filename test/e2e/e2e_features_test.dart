@@ -19,7 +19,7 @@ import 'package:interceptly/src/session/memory_index.dart';
 import 'package:interceptly/src/share/interceptly_share.dart';
 import 'package:interceptly/src/ui/detail/replay_handler.dart';
 import 'package:interceptly/src/ui/detail/request_detail_page.dart';
-import 'package:interceptly/src/ui/widgets/json_viewer.dart';
+import 'package:interceptly/src/ui/widgets/json_viewer/json_viewer.dart';
 
 /// Test double implementing InspectorSessionView for isolated widget testing.
 class _E2EFakeSession extends InspectorSessionView {

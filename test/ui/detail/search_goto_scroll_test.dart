@@ -9,7 +9,7 @@ import 'package:interceptly/src/model/index_entry.dart';
 import 'package:interceptly/src/session/inspector_preferences.dart';
 import 'package:interceptly/src/ui/detail/detail_search.dart';
 import 'package:interceptly/src/ui/detail/request_detail_page.dart';
-import 'package:interceptly/src/ui/widgets/json_viewer.dart';
+import 'package:interceptly/src/ui/widgets/json_viewer/json_viewer.dart';
 
 IndexEntry _createEntry(
   String id, {

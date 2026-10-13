@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
 import 'package:interceptly/src/ui/widgets/error_summary.dart';
-import 'package:interceptly/src/ui/widgets/json_viewer.dart';
+import 'package:interceptly/src/ui/widgets/json_viewer/json_viewer.dart';
 
 import '../../model/body_truncation.dart';
 import '../../model/request_record.dart';

@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:interceptly/src/ui/widgets/json_viewer.dart';
+import 'package:interceptly/src/ui/widgets/json_viewer/json_viewer.dart';
 
 import '../../model/body_truncation.dart';
 import '../../model/request_record.dart';
