@@ -58,7 +58,7 @@
     - `RealtimeTrafficCollector get collector;`
     - `InspectorSession get session;`
 
-- [ ] **Step 1: Viết test cho `DefaultHttpTrafficCollector` và `DefaultRealtimeTrafficCollector`**
+- [x] **Step 1: Viết test cho `DefaultHttpTrafficCollector` và `DefaultRealtimeTrafficCollector`**
   Viết `packages/interceptly/test/adapter/traffic_collectors_test.dart` kiểm tra:
   - `startRequest` tạo `HttpRequestContext`, lưu pending record vào `InspectorSession`.
   - `completeResponse` tính đúng `durationMs`, áp dụng network simulation và ghi nhận `RawCapture`.
@@ -66,24 +66,24 @@
   - Collector xử lý an toàn khi capture gặp lỗi (không ném exception ra ngoài).
   - `DefaultRealtimeTrafficCollector` ghi nhận connection, frame, và close vào session.
 
-- [ ] **Step 2: Cài đặt `HttpRequestContext` và `NetworkCaptureAdapter` interfaces**
+- [x] **Step 2: Cài đặt `HttpRequestContext` và `NetworkCaptureAdapter` interfaces**
   Tạo `packages/interceptly/lib/src/adapter/http_request_context.dart` và `packages/interceptly/lib/src/adapter/network_capture_adapter.dart`.
 
-- [ ] **Step 3: Cài đặt `HttpTrafficCollector` & `DefaultHttpTrafficCollector`**
+- [x] **Step 3: Cài đặt `HttpTrafficCollector` & `DefaultHttpTrafficCollector`**
   Tạo `packages/interceptly/lib/src/adapter/http_traffic_collector.dart` kế thừa logic từ `InspectorSession` và `guardCapture`.
 
-- [ ] **Step 4: Cài đặt `RealtimeTrafficCollector` & `DefaultRealtimeTrafficCollector`**
+- [x] **Step 4: Cài đặt `RealtimeTrafficCollector` & `DefaultRealtimeTrafficCollector`**
   Tạo `packages/interceptly/lib/src/adapter/realtime_traffic_collector.dart`.
 
-- [ ] **Step 5: Export các SPI ra `packages/interceptly/lib/interceptly.dart`**
+- [x] **Step 5: Export các SPI ra `packages/interceptly/lib/interceptly.dart`**
   Cập nhật file export chính của Core.
 
-- [ ] **Step 6: Chạy test và phân tích tĩnh**
+- [x] **Step 6: Chạy test và phân tích tĩnh**
   Run: `flutter test packages/interceptly/test/adapter/traffic_collectors_test.dart`
   Run: `dart analyze packages/interceptly`
   Expected: PASS và 0 issues.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
   ```bash
   git add packages/interceptly/lib/ packages/interceptly/test/
   git commit -m "feat(core): introduce traffic collector contracts and default implementations"
@@ -102,19 +102,19 @@
 - Consumes: `HttpTrafficCollector`, `DefaultHttpTrafficCollector`, `HttpCaptureAdapter`, `HttpRequestContext`.
 - Produces: `class InterceptlyDioInterceptor extends Interceptor implements HttpCaptureAdapter`.
 
-- [ ] **Step 1: Cập nhật `InterceptlyDioInterceptor` để implement `HttpCaptureAdapter`**
+- [x] **Step 1: Cập nhật `InterceptlyDioInterceptor` để implement `HttpCaptureAdapter`**
   - Khai báo constructor nhận `[InspectorSession? session, HttpTrafficCollector? collector]`.
   - Giữ getter `collector` và `session`.
   - Trong `onRequest`: chuyển sang gọi `collector.startRequest(...)`. Xử lý `SimulatedNetworkException` qua collector.
   - Trong `onResponse`: chuyển sang gọi `collector.completeResponse(...)`.
   - Trong `onError`: chuyển sang gọi `collector.failRequest(...)`.
 
-- [ ] **Step 2: Chạy bộ test của `interceptly_dio`**
+- [x] **Step 2: Chạy bộ test của `interceptly_dio`**
   Run: `flutter test packages/interceptly_dio/test`
   Run: `dart analyze packages/interceptly_dio`
   Expected: 100% tests PASS, 0 issues.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
   ```bash
   git add packages/interceptly_dio/
   git commit -m "refactor(dio): migrate InterceptlyDioInterceptor to HttpTrafficCollector"
@@ -133,16 +133,16 @@
 - Consumes: `HttpTrafficCollector`, `DefaultHttpTrafficCollector`, `HttpCaptureAdapter`, `HttpRequestContext`.
 - Produces: `class InterceptlyHttpClient extends http.BaseClient implements HttpCaptureAdapter`.
 
-- [ ] **Step 1: Cập nhật `InterceptlyHttpClient` để implement `HttpCaptureAdapter`**
+- [x] **Step 1: Cập nhật `InterceptlyHttpClient` để implement `HttpCaptureAdapter`**
   - Constructor nhận `[InspectorSession? session, HttpTrafficCollector? collector]`.
   - Thay thế đoạn code thủ công `recordPending` và `session.record(RawCapture)` bằng các cuộc gọi tương ứng vào `collector.startRequest`, `collector.completeResponse`, `collector.failRequest`.
 
-- [ ] **Step 2: Chạy bộ test của `interceptly_http`**
+- [x] **Step 2: Chạy bộ test của `interceptly_http`**
   Run: `flutter test packages/interceptly_http/test`
   Run: `dart analyze packages/interceptly_http`
   Expected: 100% tests PASS, 0 issues.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
   ```bash
   git add packages/interceptly_http/
   git commit -m "refactor(http): migrate InterceptlyHttpClient to HttpTrafficCollector"
@@ -161,16 +161,16 @@
 - Consumes: `HttpTrafficCollector`, `DefaultHttpTrafficCollector`, `HttpCaptureAdapter`, `HttpRequestContext`.
 - Produces: `class InterceptlyChopperInterceptor implements Interceptor, HttpCaptureAdapter`.
 
-- [ ] **Step 1: Cập nhật `InterceptlyChopperInterceptor` để implement `HttpCaptureAdapter`**
+- [x] **Step 1: Cập nhật `InterceptlyChopperInterceptor` để implement `HttpCaptureAdapter`**
   - Constructor nhận `[InspectorSession? session, HttpTrafficCollector? collector]`.
   - Thay thế logic `session.recordPending` và `session.record(RawCapture)` bằng `collector.startRequest`, `collector.completeResponse`, `collector.failRequest`.
 
-- [ ] **Step 2: Chạy bộ test của `interceptly_chopper`**
+- [x] **Step 2: Chạy bộ test của `interceptly_chopper`**
   Run: `flutter test packages/interceptly_chopper/test`
   Run: `dart analyze packages/interceptly_chopper`
   Expected: 100% tests PASS, 0 issues.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
   ```bash
   git add packages/interceptly_chopper/
   git commit -m "refactor(chopper): migrate InterceptlyChopperInterceptor to HttpTrafficCollector"
@@ -189,16 +189,16 @@
 - Consumes: `RealtimeTrafficCollector`, `DefaultRealtimeTrafficCollector`, `RealtimeCaptureAdapter`.
 - Produces: `class InterceptlyWebSocketChannel extends StreamChannelMixin implements WebSocketChannel, RealtimeCaptureAdapter`.
 
-- [ ] **Step 1: Cập nhật `InterceptlyWebSocketChannel` để implement `RealtimeCaptureAdapter`**
+- [x] **Step 1: Cập nhật `InterceptlyWebSocketChannel` để implement `RealtimeCaptureAdapter`**
   - Constructor nhận `[RealtimeTrafficCollector? collector]`.
   - Thay thế các lệnh gọi trực tiếp `_client.recordRealtimeConnection`, `_client.recordRealtimeFrame`, `_client.closeRealtimeConnection` bằng `collector.recordConnection`, `collector.recordFrame`, `collector.recordClose`.
 
-- [ ] **Step 2: Chạy bộ test của `interceptly_web_socket`**
+- [x] **Step 2: Chạy bộ test của `interceptly_web_socket`**
   Run: `flutter test packages/interceptly_web_socket/test`
   Run: `dart analyze packages/interceptly_web_socket`
   Expected: 100% tests PASS, 0 issues.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
   ```bash
   git add packages/interceptly_web_socket/
   git commit -m "refactor(web_socket): migrate InterceptlyWebSocketChannel to RealtimeTrafficCollector"
@@ -215,15 +215,15 @@
 **Interfaces:**
 - Produces: Toàn bộ monorepo sạch sẽ 100%, tài liệu hướng dẫn viết custom adapter thông qua SPI `HttpTrafficCollector` / `RealtimeTrafficCollector`.
 
-- [ ] **Step 1: Cập nhật tài liệu Core SPI**
+- [x] **Step 1: Cập nhật tài liệu Core SPI**
   Mô tả cách cộng đồng có thể tự viết adapter cho gRPC, GraphQL hoặc custom network client bằng cách sử dụng `HttpTrafficCollector` hoặc `RealtimeTrafficCollector`.
 
-- [ ] **Step 2: Kiểm tra toàn diện Monorepo với Melos**
+- [x] **Step 2: Kiểm tra toàn diện Monorepo với Melos**
   Run: `dart pub global run melos run analyze` -> 0 issues.
   Run: `dart analyze packages/interceptly/example` -> 0 issues.
   Run: `dart pub global run melos run test` -> 100% tests PASS across all 5 packages.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
   ```bash
   git add README.md packages/interceptly/README.md
   git commit -m "docs: document adapter SPI and traffic collector architecture"
