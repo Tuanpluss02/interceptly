@@ -183,6 +183,136 @@ Interceptly.instance.closeRealtimeConnection(
 
 ---
 
+## Extending Interceptly: Traffic Collectors SPI
+
+Interceptly follows the **Bridge / SPI (Service Provider Interface)** pattern. If you use a custom networking library (such as gRPC, GraphQL, Ktor bridge, or Socket.IO), you can easily build your own adapter by implementing the contract interfaces without re-implementing timing, simulation, or storage logic:
+
+### Custom HTTP Adapter (`HttpCaptureAdapter`)
+
+Implement `HttpCaptureAdapter` and delegate lifecycle events to `HttpTrafficCollector`:
+
+```dart
+import 'package:interceptly/interceptly.dart';
+
+class MyCustomHttpInterceptor implements HttpCaptureAdapter {
+  MyCustomHttpInterceptor([
+    InspectorSession? session,
+    HttpTrafficCollector? collector,
+  ])  : session = session ??
+            (collector is DefaultHttpTrafficCollector
+                ? collector.session
+                : InspectorSession.instance),
+        collector = collector ??
+            DefaultHttpTrafficCollector(
+              session ?? InspectorSession.instance,
+            );
+
+  @override
+  final InspectorSession session;
+
+  @override
+  final HttpTrafficCollector collector;
+
+  Future<void> onSend(MyCustomRequest req) async {
+    // 1. Notify start of request (applies pre-request latency/offline simulation)
+    final context = await collector.startRequest(
+      method: req.method,
+      uri: req.uri,
+      headers: req.headers,
+      bodyBytes: req.bodyBytes,
+      contentType: req.contentType,
+    );
+    req.extra['interceptly_context'] = context;
+  }
+
+  Future<void> onReceive(MyCustomResponse res) async {
+    final context = res.request.extra['interceptly_context'] as HttpRequestContext?;
+    if (context == null) return;
+
+    // 2. Notify completed response (applies download throttle and records capture)
+    await collector.completeResponse(
+      context: context,
+      statusCode: res.statusCode,
+      headers: res.headers,
+      bodyBytes: res.bodyBytes,
+      responseContentType: res.contentType,
+    );
+  }
+
+  void onError(MyCustomRequest req, Object error) {
+    final context = req.extra['interceptly_context'] as HttpRequestContext?;
+    if (context == null) return;
+
+    // 3. Notify request failure
+    collector.failRequest(
+      context: context,
+      error: error,
+      errorMessage: error.toString(),
+    );
+  }
+}
+```
+
+### Custom Realtime Adapter (`RealtimeCaptureAdapter`)
+
+For custom WebSockets, SSE streams, or MQTT/Socket.IO connections, implement `RealtimeCaptureAdapter` and delegate to `RealtimeTrafficCollector`:
+
+```dart
+import 'package:interceptly/interceptly.dart';
+
+class MyCustomRealtimeClient implements RealtimeCaptureAdapter {
+  MyCustomRealtimeClient({
+    InspectorSession? session,
+    RealtimeTrafficCollector? collector,
+  })  : session = session ??
+            (collector is DefaultRealtimeTrafficCollector
+                ? collector.session
+                : InspectorSession.instance),
+        collector = collector ??
+            DefaultRealtimeTrafficCollector(
+              session ?? InspectorSession.instance,
+            );
+
+  @override
+  final InspectorSession session;
+
+  @override
+  final RealtimeTrafficCollector collector;
+
+  void onConnect(String sessionId, Uri endpoint) {
+    collector.recordConnection(sessionId: sessionId, uri: endpoint);
+  }
+
+  void onMessageReceived(String sessionId, dynamic rawData) {
+    collector.recordFrame(
+      sessionId: sessionId,
+      direction: FrameDirection.incoming,
+      type: rawData is String ? FrameType.text : FrameType.binary,
+      payload: rawData,
+    );
+  }
+
+  void onMessageSent(String sessionId, dynamic rawData) {
+    collector.recordFrame(
+      sessionId: sessionId,
+      direction: FrameDirection.outgoing,
+      type: rawData is String ? FrameType.text : FrameType.binary,
+      payload: rawData,
+    );
+  }
+
+  void onDisconnect(String sessionId, int? code, String? reason) {
+    collector.recordClose(
+      sessionId: sessionId,
+      closeCode: code,
+      closeReason: reason,
+    );
+  }
+}
+```
+
+---
+
 ## Configuration Reference
 
 All capture parameters and limits are configured via `InterceptlySettings`:

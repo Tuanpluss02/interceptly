@@ -122,6 +122,18 @@ channel.sink.add('Hello Interceptly!');
 
 ---
 
+## Architecture: Bridge Pattern & Traffic Collectors SPI
+
+All satellite adapters in Interceptly follow a unified **Bridge & SPI** pattern, delegating coordination to core collectors:
+
+- **`HttpTrafficCollector` & `DefaultHttpTrafficCollector`**: Handles request lifecycle coordination, timing & duration calculation, network simulation (latency, bandwidth throttling, offline exceptions), request body/response body serialization to isolates, and session persistence.
+- **`RealtimeTrafficCollector` & `DefaultRealtimeTrafficCollector`**: Handles WebSocket/SSE connection tracking, frame type conversion (text vs. binary), payload serialization, and 60fps throttled ring buffer storage.
+- **Marker Contracts**: Satellite adapters implement `HttpCaptureAdapter` or `RealtimeCaptureAdapter` to guarantee access to their underlying collector and session.
+
+This design decouples application networking frameworks from Interceptly's internal storage and simulation engines, making it trivial to create custom adapters for any protocol (gRPC, GraphQL, MQTT, Socket.IO) without duplicating code or leaking exceptions.
+
+---
+
 ## Monorepo Development & Contribution
 
 This repository uses [Melos](https://pub.dev/packages/melos) to manage dependencies and multi-package scripts.
