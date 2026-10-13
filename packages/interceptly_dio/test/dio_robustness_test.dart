@@ -56,7 +56,8 @@ void main() {
   late Directory tempDir;
 
   setUp(() async {
-    tempDir = await Directory.systemTemp.createTemp('interceptly_dio_robustness');
+    tempDir =
+        await Directory.systemTemp.createTemp('interceptly_dio_robustness');
     _mockTempDir(() async => tempDir.path);
   });
 

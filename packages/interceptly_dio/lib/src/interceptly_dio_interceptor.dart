@@ -2,21 +2,31 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-
 import 'package:interceptly/interceptly.dart';
 
 /// A Dio interceptor that captures requests and responses for Interceptly.
-class InterceptlyDioInterceptor extends Interceptor {
-  /// Creates an interceptor backed by [session] or the shared singleton.
-  InterceptlyDioInterceptor([InspectorSession? session])
-      : session = session ?? InspectorSession.instance;
+class InterceptlyDioInterceptor extends Interceptor
+    implements HttpCaptureAdapter {
+  /// Creates an interceptor backed by [session] and [collector].
+  InterceptlyDioInterceptor([
+    InspectorSession? session,
+    HttpTrafficCollector? collector,
+  ])  : session = session ??
+            (collector is DefaultHttpTrafficCollector
+                ? collector.session
+                : InspectorSession.instance),
+        collector = collector ??
+            DefaultHttpTrafficCollector(
+              session ?? InspectorSession.instance,
+            );
 
-  /// Session that stores all captured events.
+  @override
   final InspectorSession session;
 
-  static const String _startedAtKey = 'interceptly_started_at';
-  static const String _requestIdKey = 'interceptly_request_id';
-  static const String _reqBytesKey = 'interceptly_req_bytes';
+  @override
+  final HttpTrafficCollector collector;
+
+  static const String _contextKey = 'interceptly_http_context';
 
   /// Captures a pending request and applies pre-request simulation.
   @override
@@ -24,43 +34,22 @@ class InterceptlyDioInterceptor extends Interceptor {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    final startedAt = DateTime.now();
-    final id = RequestId.generate();
-
-    options.extra[_startedAtKey] = startedAt;
-    options.extra[_requestIdKey] = id;
-
-    Uint8List? reqBytes;
-    if (session.isEnabled) {
-      reqBytes = await guardCaptureAsync<Uint8List?>(
-          () => _toBytesAsync(options.data, options.contentType));
-      options.extra[_reqBytesKey] = reqBytes;
-
-      guardCapture(() {
-        session.recordPending(
-          id: id,
-          method: options.method,
-          url: options.uri.toString(),
-          timestamp: startedAt,
-          requestHeaders: _mapHeaders(options.headers),
-          requestBodyBytes: reqBytes,
-          requestContentType: options.contentType,
-        );
-      });
-    }
+    final reqBytes = await guardCaptureAsync<Uint8List?>(
+      () => _toBytesAsync(options.data, options.contentType),
+    );
 
     try {
-      await session.applyNetworkSimulationBeforeRequest(
-        uploadBytes: reqBytes?.length ?? 0,
+      final context = await collector.startRequest(
+        method: options.method,
+        uri: options.uri,
+        headers: _mapHeaders(options.headers),
+        bodyBytes: reqBytes,
+        contentType: options.contentType,
       );
+      if (context != null) {
+        options.extra[_contextKey] = context;
+      }
     } on SimulatedNetworkException catch (e) {
-      guardCapture(() {
-        _record(
-          options: options,
-          errorType: 'SimulatedNetworkException',
-          errorMessage: e.toString(),
-        );
-      });
       handler.reject(
         DioException(
           requestOptions: options,
@@ -70,6 +59,10 @@ class InterceptlyDioInterceptor extends Interceptor {
         ),
       );
       return;
+    } catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('[Interceptly] startRequest capture failed: $e\n$st');
+      }
     }
 
     handler.next(options);
@@ -81,19 +74,33 @@ class InterceptlyDioInterceptor extends Interceptor {
     Response<dynamic> response,
     ResponseInterceptorHandler handler,
   ) async {
-    await guardCaptureAsync(() async {
-      final resContentType = response.headers.value(Headers.contentTypeHeader);
-      final resBytes = await _toBytesAsync(response.data, resContentType);
-      await session.applyNetworkSimulationAfterResponse(
-        downloadBytes: resBytes?.length ?? 0,
-      );
+    final extraContext =
+        response.requestOptions.extra[_contextKey] as HttpRequestContext?;
+    final context = extraContext ??
+        (session.isEnabled
+            ? HttpRequestContext(
+                id: RequestId.generate(),
+                method: response.requestOptions.method,
+                uri: response.requestOptions.uri,
+                startedAt: DateTime.now(),
+                requestHeaders: _mapHeaders(response.requestOptions.headers),
+              )
+            : null);
 
-      await _recordAsync(
-        options: response.requestOptions,
-        response: response,
-        resBytes: resBytes,
-      );
-    });
+    if (context != null) {
+      await guardCaptureAsync(() async {
+        final resContentType =
+            response.headers.value(Headers.contentTypeHeader);
+        final resBytes = await _toBytesAsync(response.data, resContentType);
+        await collector.completeResponse(
+          context: context,
+          statusCode: response.statusCode ?? 200,
+          headers: _mapHeaders(response.headers.map),
+          bodyBytes: resBytes,
+          responseContentType: resContentType,
+        );
+      });
+    }
 
     handler.next(response);
   }
@@ -101,98 +108,42 @@ class InterceptlyDioInterceptor extends Interceptor {
   /// Captures a Dio failure response or transport error.
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
+    if (err.error is SimulatedNetworkException) {
+      handler.next(err);
+      return;
+    }
+
     guardCapture(() {
-      _record(
-        options: err.requestOptions,
-        response: err.response,
+      final extraContext =
+          err.requestOptions.extra[_contextKey] as HttpRequestContext?;
+      final context = extraContext ??
+          HttpRequestContext(
+            id: RequestId.generate(),
+            method: err.requestOptions.method,
+            uri: err.requestOptions.uri,
+            startedAt: DateTime.now(),
+            requestHeaders: _mapHeaders(err.requestOptions.headers),
+          );
+
+      final response = err.response;
+      final resContentType = response?.headers.value(Headers.contentTypeHeader);
+      final responseBodyBytes =
+          response != null ? _toBytes(response.data, resContentType) : null;
+      final responseHeaders =
+          response != null ? _mapHeaders(response.headers.map) : null;
+
+      collector.failRequest(
+        context: context,
+        error: err.error ?? err,
         errorType: err.type.name,
         errorMessage: err.message ?? err.error?.toString(),
+        statusCode: response?.statusCode,
+        responseHeaders: responseHeaders,
+        responseBodyBytes: responseBodyBytes,
       );
     });
 
     handler.next(err);
-  }
-
-  Future<void> _recordAsync({
-    required RequestOptions options,
-    Response<dynamic>? response,
-    Uint8List? resBytes,
-    String? errorType,
-    String? errorMessage,
-  }) async {
-    if (!session.isEnabled) return;
-
-    final startedAt =
-        options.extra[_startedAtKey] as DateTime? ?? DateTime.now();
-    final id = options.extra[_requestIdKey] as String? ?? RequestId.generate();
-    final durationMs = DateTime.now().difference(startedAt).inMilliseconds;
-
-    final reqBytes = options.extra[_reqBytesKey] as Uint8List? ??
-        await _toBytesAsync(options.data, options.contentType);
-    final resContentType = response?.headers.value(Headers.contentTypeHeader);
-    final finalResBytes =
-        resBytes ?? await _toBytesAsync(response?.data, resContentType);
-
-    final capture = RawCapture(
-      id: id,
-      method: options.method,
-      url: options.uri.toString(),
-      requestHeaders: _mapHeaders(options.headers),
-      responseHeaders:
-          response?.headers.map.map((k, v) => MapEntry(k, v.join(', '))) ??
-              const {},
-      statusCode: response?.statusCode ?? 0,
-      durationMs: durationMs,
-      timestamp: startedAt,
-      requestBodyBytes: RawCapture.wrapBytes(reqBytes),
-      responseBodyBytes: RawCapture.wrapBytes(finalResBytes),
-      requestContentType: options.contentType,
-      responseContentType: resContentType,
-      errorType: errorType,
-      errorMessage: errorMessage,
-    );
-
-    session.record(capture);
-  }
-
-  void _record({
-    required RequestOptions options,
-    Response<dynamic>? response,
-    String? errorType,
-    String? errorMessage,
-  }) {
-    if (!session.isEnabled) return;
-
-    final startedAt =
-        options.extra[_startedAtKey] as DateTime? ?? DateTime.now();
-    final id = options.extra[_requestIdKey] as String? ?? RequestId.generate();
-    final durationMs = DateTime.now().difference(startedAt).inMilliseconds;
-
-    final reqBytes = options.extra[_reqBytesKey] as Uint8List? ??
-        _toBytes(options.data, options.contentType);
-    final resContentType = response?.headers.value(Headers.contentTypeHeader);
-    final resBytes = _toBytes(response?.data, resContentType);
-
-    final capture = RawCapture(
-      id: id,
-      method: options.method,
-      url: options.uri.toString(),
-      requestHeaders: _mapHeaders(options.headers),
-      responseHeaders:
-          response?.headers.map.map((k, v) => MapEntry(k, v.join(', '))) ??
-              const {},
-      statusCode: response?.statusCode ?? 0,
-      durationMs: durationMs,
-      timestamp: startedAt,
-      requestBodyBytes: RawCapture.wrapBytes(reqBytes),
-      responseBodyBytes: RawCapture.wrapBytes(resBytes),
-      requestContentType: options.contentType,
-      responseContentType: resContentType,
-      errorType: errorType,
-      errorMessage: errorMessage,
-    );
-
-    session.record(capture);
   }
 
   static Map<String, String> _mapHeaders(Map<String, dynamic> headers) {
@@ -205,8 +156,10 @@ class InterceptlyDioInterceptor extends Interceptor {
   }
 
   /// Serializes arbitrary data to UTF-8 bytes in an isolate when appropriate.
-  static Future<Uint8List?> _toBytesAsync(Object? data,
-      [String? contentType]) async {
+  static Future<Uint8List?> _toBytesAsync(
+    Object? data, [
+    String? contentType,
+  ]) async {
     if (data == null) return null;
     if (data is Uint8List) return data;
     if (data is List<int>) return Uint8List.fromList(data);
