@@ -2,6 +2,10 @@ import 'package:chopper/chopper.dart' as chopper;
 import 'package:dio/dio.dart';
 import 'package:http/http.dart' as http;
 import 'package:interceptly/interceptly.dart';
+import 'package:interceptly_chopper/interceptly_chopper.dart';
+import 'package:interceptly_dio/interceptly_dio.dart';
+import 'package:interceptly_http/interceptly_http.dart';
+import 'package:interceptly_web_socket/interceptly_web_socket.dart';
 
 class ExampleClients {
   ExampleClients({
@@ -41,4 +45,11 @@ class ExampleClients {
   final Dio dio;
   final http.Client httpClient;
   final chopper.ChopperClient chopperClient;
+
+  /// Connects to a WebSocket endpoint relative to [baseUrl], wrapping the
+  /// channel with [InterceptlyWebSocketChannel] for realtime inspection.
+  InterceptlyWebSocketChannel connectWebSocket(String path) {
+    final wsUri = Uri.parse(baseUrl.replaceFirst('http', 'ws')).resolve(path);
+    return InterceptlyWebSocketChannel.connect(wsUri);
+  }
 }

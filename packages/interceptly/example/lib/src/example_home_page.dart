@@ -294,6 +294,26 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                 ),
               ],
             ),
+            _buildSectionHeader(
+              title: 'Realtime WebSocket Traffic',
+              subtitle:
+                  'Test bidirectional WebSocket connection, live frame streaming (Text & JSON), and connection teardown.',
+              color: Colors.indigo,
+            ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.tonalIcon(
+                  onPressed: _isLoading
+                      ? null
+                      : () => _runRequest(
+                          'WebSocket Echo', _runner.runWebSocketEcho),
+                  icon: const Icon(Icons.sync_alt, size: 18),
+                  label: const Text('WebSocket Echo (Connect & Stream)'),
+                ),
+              ],
+            ),
             const SizedBox(height: 24),
 
             _buildSectionHeader(

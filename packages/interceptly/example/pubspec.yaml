@@ -33,9 +33,18 @@ dependencies:
 
   interceptly:
     path: ../
+  interceptly_dio:
+    path: ../../interceptly_dio
+  interceptly_http:
+    path: ../../interceptly_http
+  interceptly_chopper:
+    path: ../../interceptly_chopper
+  interceptly_web_socket:
+    path: ../../interceptly_web_socket
   dio: ^5.9.2
   http: ^1.5.0
   chopper: ^8.4.0
+  web_socket_channel: ^3.0.0
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.

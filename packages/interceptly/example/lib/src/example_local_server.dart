@@ -17,6 +17,9 @@ class ExampleLocalServer {
   /// Current base URL of the local server (e.g. `http://127.0.0.1:54321`).
   String get baseUrl => _baseUrl ?? '';
 
+  /// Current base WebSocket URL (e.g. `ws://127.0.0.1:54321`).
+  String get wsUrl => _baseUrl?.replaceFirst('http://', 'ws://') ?? '';
+
   /// Whether the server is actively listening.
   bool get isRunning => _server != null;
 
@@ -44,6 +47,25 @@ class ExampleLocalServer {
   }
 
   Future<void> _handleRequest(HttpRequest request) async {
+    final path = request.uri.path;
+
+    if (path == '/ws/echo' && WebSocketTransformer.isUpgradeRequest(request)) {
+      try {
+        final socket = await WebSocketTransformer.upgrade(request);
+        socket.listen(
+          (dynamic message) {
+            socket.add(message);
+          },
+          onError: (Object error) {
+            socket.close(WebSocketStatus.unsupportedData, error.toString());
+          },
+        );
+      } catch (_) {
+        // Upgrade failed
+      }
+      return;
+    }
+
     final response = request.response;
 
     response.headers
@@ -57,8 +79,6 @@ class ExampleLocalServer {
       await response.close();
       return;
     }
-
-    final path = request.uri.path;
 
     try {
       if (path == '/api/users' || path == '/api/users/') {

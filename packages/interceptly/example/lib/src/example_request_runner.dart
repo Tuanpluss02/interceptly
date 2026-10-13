@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:chopper/chopper.dart' as chopper;
 import 'package:dio/dio.dart';
 import 'package:http/http.dart' as http;
+import 'package:interceptly_web_socket/interceptly_web_socket.dart';
 
 class ExampleRequestRunner {
   const ExampleRequestRunner({
@@ -766,6 +768,77 @@ mutation UpdateUserStatus(\$id: ID!, \$status: String!) {
       final preview = e.message ?? e.type.name;
       return ExampleRequestResult(
         statusCode: e.response?.statusCode ?? 0,
+        preview: preview,
+        bytesReceived: utf8.encode(preview).length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    }
+  }
+
+  /// Connects to /ws/echo via InterceptlyWebSocketChannel, sends text and JSON
+  /// frames, receives echoes, and cleanly closes the connection.
+  Future<ExampleRequestResult> runWebSocketEcho() async {
+    final sw = Stopwatch()..start();
+    try {
+      final wsUri = Uri.parse('$baseUrl/ws/echo'.replaceFirst('http', 'ws'));
+      final channel = InterceptlyWebSocketChannel.connect(wsUri);
+
+      final completer = Completer<String>();
+      final receivedMessages = <String>[];
+
+      final sub = channel.stream.listen(
+        (dynamic message) {
+          receivedMessages.add(message.toString());
+          if (receivedMessages.length >= 2 && !completer.isCompleted) {
+            completer.complete('Received 2 echo messages');
+          }
+        },
+        onError: (Object error) {
+          if (!completer.isCompleted) {
+            completer.completeError(error);
+          }
+        },
+      );
+
+      // Send text frame
+      channel.sink.add('Hello Interceptly WebSocket!');
+
+      // Send JSON frame
+      channel.sink.add(
+        jsonEncode({
+          'type': 'ping',
+          'client': 'interceptly_example',
+          'timestamp': DateTime.now().toIso8601String(),
+        }),
+      );
+
+      // Await echo responses (up to 3 seconds)
+      await completer.future.timeout(
+        const Duration(seconds: 3),
+        onTimeout: () => 'Timeout waiting for echoes',
+      );
+
+      await channel.sink.close(1000, 'Normal closure');
+      await sub.cancel();
+      sw.stop();
+
+      final preview =
+          'WebSocket Echo Test Completed:\n'
+          '• Sent: 2 frames (Text & JSON)\n'
+          '• Received: ${receivedMessages.length} frames\n'
+          '• Frames: ${receivedMessages.join(", ")}';
+
+      return ExampleRequestResult(
+        statusCode: 101,
+        preview: preview,
+        bytesReceived: utf8.encode(preview).length,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    } catch (e) {
+      sw.stop();
+      final preview = 'WebSocket error: $e';
+      return ExampleRequestResult(
+        statusCode: 0,
         preview: preview,
         bytesReceived: utf8.encode(preview).length,
         durationMs: sw.elapsedMilliseconds,
