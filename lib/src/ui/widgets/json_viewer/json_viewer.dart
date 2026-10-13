@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
 
@@ -11,7 +10,9 @@ import 'json_gutter.dart';
 import 'json_line.dart';
 import 'json_line_flattener.dart';
 import 'json_line_view.dart';
+import 'json_scroll_coordinator.dart';
 import 'json_search.dart';
+import 'json_selection_delegate.dart';
 import 'json_viewer_style.dart';
 
 export 'json_expansion_state.dart';
@@ -19,7 +20,9 @@ export 'json_gutter.dart';
 export 'json_line.dart';
 export 'json_line_flattener.dart';
 export 'json_line_view.dart';
+export 'json_scroll_coordinator.dart';
 export 'json_search.dart';
+export 'json_selection_delegate.dart';
 export 'json_viewer_style.dart';
 
 /// Collapsible JSON renderer with VSCode-style line numbers, gutter
@@ -98,14 +101,7 @@ class JsonViewer extends StatefulWidget {
 
 class _JsonViewerState extends State<JsonViewer> {
   final JsonExpansionState _expansion = JsonExpansionState();
-
-  final ScrollController _gutterScrollController = ScrollController();
-
-  final ScrollController _contentScrollController = ScrollController();
-
-  final ScrollController _horizontalScrollController = ScrollController();
-
-  bool _isSyncingScroll = false;
+  late final JsonScrollCoordinator _scroll = JsonScrollCoordinator();
 
   List<JsonLine>? _memoLines;
 
@@ -131,9 +127,9 @@ class _JsonViewerState extends State<JsonViewer> {
 
   final GlobalKey _contentViewportKey = GlobalKey();
 
-  late final _JsonViewerSelectionContainerDelegate _selectionContainerDelegate =
-      _JsonViewerSelectionContainerDelegate(
-    horizontalController: _horizontalScrollController,
+  late final JsonViewerSelectionDelegate _selectionContainerDelegate =
+      JsonViewerSelectionDelegate(
+    horizontalController: _scroll.horizontalScrollController,
     viewportKey: _contentViewportKey,
   );
 
@@ -142,146 +138,16 @@ class _JsonViewerState extends State<JsonViewer> {
 
   @visibleForTesting
   ScrollController get contentScrollControllerForTest =>
-      _contentScrollController;
+      _scroll.contentScrollController;
 
   @visibleForTesting
   ScrollController get horizontalScrollControllerForTest =>
-      _horizontalScrollController;
-
-  int? _lastScrolledGlobalIndex;
-  String? _lastScrolledQuery;
-  int? _lastScrollTrigger;
-
-  void _checkScrollToActive({
-    required int activeLineIndex,
-    required JsonLine line,
-    required double viewportHeight,
-    required double viewportWidth,
-    required double lineHeight,
-    required TextStyle contentStyle,
-  }) {
-    if (_lastScrolledGlobalIndex == widget.activeGlobalIndex &&
-        _lastScrolledQuery == widget.searchQuery &&
-        _lastScrollTrigger == widget.scrollTrigger) {
-      return;
-    }
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      if (_contentScrollController.hasClients) {
-        final maxScroll = _contentScrollController.position.maxScrollExtent;
-        final totalContentHeight = (_memoLines?.length ?? 0) * lineHeight;
-        final needsScroll = totalContentHeight > viewportHeight;
-        if (needsScroll && maxScroll <= 0) {
-          // Layout extent not yet settled (e.g. just mounted from offstage)
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              _checkScrollToActive(
-                activeLineIndex: activeLineIndex,
-                line: line,
-                viewportHeight: viewportHeight,
-                viewportWidth: viewportWidth,
-                lineHeight: lineHeight,
-                contentStyle: contentStyle,
-              );
-            }
-          });
-          return;
-        }
-
-        _lastScrolledGlobalIndex = widget.activeGlobalIndex;
-        _lastScrolledQuery = widget.searchQuery;
-        _lastScrollTrigger = widget.scrollTrigger;
-
-        if (maxScroll > 0) {
-          final targetOffset =
-              (activeLineIndex * lineHeight - (viewportHeight - lineHeight) / 2)
-                  .clamp(0.0, maxScroll);
-          if ((_contentScrollController.offset - targetOffset).abs() > 1.0) {
-            _contentScrollController.animateTo(
-              targetOffset,
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeInOut,
-            );
-          }
-        }
-
-        if (_horizontalScrollController.hasClients) {
-          final maxHorizontal =
-              _horizontalScrollController.position.maxScrollExtent;
-          if (maxHorizontal > 0) {
-            final textBefore = line.spans
-                .takeWhile((s) =>
-                    s.style?.backgroundColor !=
-                    JsonViewerColors.activeHighlight)
-                .map((s) => s.text ?? '')
-                .join();
-            final textPainter = TextPainter(
-              text: TextSpan(text: textBefore, style: contentStyle),
-              textDirection: TextDirection.ltr,
-            )..layout();
-            final matchLeft = 4.0 + line.indentLevel * 16.0 + textPainter.width;
-
-            double matchWidth = 0.0;
-            if (widget.searchQuery != null && widget.searchQuery!.isNotEmpty) {
-              final matchPainter = TextPainter(
-                text: TextSpan(text: widget.searchQuery!, style: contentStyle),
-                textDirection: TextDirection.ltr,
-              )..layout();
-              matchWidth = matchPainter.width;
-            }
-
-            final targetHorizontal =
-                (matchLeft - (viewportWidth - matchWidth) / 2)
-                    .clamp(0.0, maxHorizontal);
-
-            if ((_horizontalScrollController.offset - targetHorizontal).abs() >
-                1.0) {
-              _horizontalScrollController.animateTo(
-                targetHorizontal,
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeInOut,
-              );
-            }
-          }
-        }
-      }
-    });
-  }
+      _scroll.horizontalScrollController;
 
   @override
   void initState() {
     super.initState();
-    _contentScrollController.addListener(_syncGutter);
-    _gutterScrollController.addListener(_syncContent);
-  }
-
-  void _syncGutter() {
-    if (_isSyncingScroll) return;
-    if (_gutterScrollController.hasClients &&
-        _contentScrollController.hasClients) {
-      if ((_gutterScrollController.offset - _contentScrollController.offset)
-              .abs() >
-          0.01) {
-        _isSyncingScroll = true;
-        _gutterScrollController.jumpTo(_contentScrollController.offset);
-        _isSyncingScroll = false;
-      }
-    }
-  }
-
-  void _syncContent() {
-    if (_isSyncingScroll) return;
-    if (_gutterScrollController.hasClients &&
-        _contentScrollController.hasClients) {
-      if ((_contentScrollController.offset - _gutterScrollController.offset)
-              .abs() >
-          0.01) {
-        _isSyncingScroll = true;
-        _contentScrollController.jumpTo(_gutterScrollController.offset);
-        _isSyncingScroll = false;
-      }
-    }
+    _scroll.attach();
   }
 
   @override
@@ -290,8 +156,7 @@ class _JsonViewerState extends State<JsonViewer> {
     if (widget.activeGlobalIndex != oldWidget.activeGlobalIndex ||
         widget.searchQuery != oldWidget.searchQuery) {
       _expansion.resetSearch();
-      _lastScrolledGlobalIndex = null;
-      _lastScrolledQuery = widget.searchQuery;
+      _scroll.resetLastScrolled(query: widget.searchQuery);
     }
     if (!identical(widget.data, oldWidget.data)) {
       _lineCountMemo = null;
@@ -307,11 +172,7 @@ class _JsonViewerState extends State<JsonViewer> {
 
   @override
   void dispose() {
-    _contentScrollController.removeListener(_syncGutter);
-    _gutterScrollController.removeListener(_syncContent);
-    _contentScrollController.dispose();
-    _gutterScrollController.dispose();
-    _horizontalScrollController.dispose();
+    _scroll.dispose();
     _selectableFocusNode.dispose();
     _selectionContainerDelegate.dispose();
     super.dispose();
@@ -460,13 +321,18 @@ class _JsonViewerState extends State<JsonViewer> {
           final contentWidth = math.max(minContentWidth, maxChars * 8.5 + 60.0);
 
           if (activeLineIndex != null) {
-            _checkScrollToActive(
+            _scroll.scrollToActive(
               activeLineIndex: activeLineIndex,
               line: lines[activeLineIndex],
               viewportHeight: viewportHeight,
               viewportWidth: minContentWidth,
               lineHeight: lineHeight,
               contentStyle: contentStyle,
+              totalLineCount: lines.length,
+              activeGlobalIndex: widget.activeGlobalIndex,
+              searchQuery: widget.searchQuery,
+              scrollTrigger: widget.scrollTrigger,
+              isMounted: () => mounted,
             );
           }
 
@@ -494,7 +360,7 @@ class _JsonViewerState extends State<JsonViewer> {
                             ),
                           ),
                           child: ListView.builder(
-                            controller: _gutterScrollController,
+                            controller: _scroll.gutterScrollController,
                             itemExtent: lineHeight,
                             itemCount: lines.length,
                             addAutomaticKeepAlives: false,
@@ -579,12 +445,12 @@ class _JsonViewerState extends State<JsonViewer> {
           interactive: true,
         ),
         child: Scrollbar(
-          controller: _contentScrollController,
+          controller: _scroll.contentScrollController,
           notificationPredicate: (notif) => notif.metrics.axis == Axis.vertical,
           interactive: true,
           thumbVisibility: widget.thumbVisibility,
           child: Scrollbar(
-            controller: _horizontalScrollController,
+            controller: _scroll.horizontalScrollController,
             notificationPredicate: (notif) =>
                 notif.metrics.axis == Axis.horizontal,
             interactive: true,
@@ -598,7 +464,7 @@ class _JsonViewerState extends State<JsonViewer> {
                   delegate: _selectionContainerDelegate,
                   child: SelectionContainer.disabled(
                     child: SingleChildScrollView(
-                      controller: _horizontalScrollController,
+                      controller: _scroll.horizontalScrollController,
                       scrollDirection: Axis.horizontal,
                       child: SizedBox(
                         width: contentWidth,
@@ -606,7 +472,7 @@ class _JsonViewerState extends State<JsonViewer> {
                         child: Padding(
                           padding: const EdgeInsets.only(left: 4.0),
                           child: ListView.builder(
-                            controller: _contentScrollController,
+                            controller: _scroll.contentScrollController,
                             itemExtent: lineHeight,
                             itemCount: lines.length,
                             addAutomaticKeepAlives: false,
@@ -634,61 +500,5 @@ class _JsonViewerState extends State<JsonViewer> {
         ),
       ),
     );
-  }
-}
-
-/// A selection container delegate that provides horizontal auto-scrolling
-/// while selecting text across wide JSON lines, without crashing on empty space.
-class _JsonViewerSelectionContainerDelegate
-    extends StaticSelectionContainerDelegate {
-  _JsonViewerSelectionContainerDelegate({
-    required this.horizontalController,
-    required this.viewportKey,
-  });
-
-  final ScrollController horizontalController;
-  final GlobalKey viewportKey;
-
-  static const double _edgeMargin = 40.0;
-
-  @override
-  SelectionResult handleSelectionEdgeUpdate(SelectionEdgeUpdateEvent event) {
-    final result = super.handleSelectionEdgeUpdate(event);
-
-    final renderObject = viewportKey.currentContext?.findRenderObject();
-    if (renderObject is! RenderBox || !renderObject.hasSize) {
-      return result;
-    }
-
-    if (!horizontalController.hasClients) {
-      return result;
-    }
-
-    final localPos = renderObject.globalToLocal(event.globalPosition);
-    final viewportWidth = renderObject.size.width;
-
-    double delta = 0.0;
-    if (localPos.dx > viewportWidth - _edgeMargin) {
-      // Near or past right edge -> scroll right
-      final overscroll =
-          math.max(1.0, localPos.dx - (viewportWidth - _edgeMargin));
-      delta = (overscroll * 0.4).clamp(4.0, 24.0);
-    } else if (localPos.dx < _edgeMargin) {
-      // Near or past left edge -> scroll left
-      final overscroll = math.max(1.0, _edgeMargin - localPos.dx);
-      delta = -(overscroll * 0.4).clamp(4.0, 24.0);
-    }
-
-    if (delta != 0.0) {
-      final currentOffset = horizontalController.offset;
-      final maxScroll = horizontalController.position.maxScrollExtent;
-      final targetOffset = (currentOffset + delta).clamp(0.0, maxScroll);
-      if ((targetOffset - currentOffset).abs() > 0.01) {
-        horizontalController.jumpTo(targetOffset);
-        return SelectionResult.pending;
-      }
-    }
-
-    return result;
   }
 }
