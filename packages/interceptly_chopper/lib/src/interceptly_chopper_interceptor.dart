@@ -1,115 +1,121 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:chopper/chopper.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:interceptly/interceptly.dart';
 
 /// A Chopper interceptor that captures all requests and responses.
-class InterceptlyChopperInterceptor implements Interceptor {
-  InterceptlyChopperInterceptor([InspectorSession? session])
-      : session = session ?? InspectorSession.instance;
+class InterceptlyChopperInterceptor
+    implements Interceptor, HttpCaptureAdapter {
+  /// Creates an interceptor backed by [session] and [collector].
+  InterceptlyChopperInterceptor([
+    InspectorSession? session,
+    HttpTrafficCollector? collector,
+  ])  : session = session ??
+            (collector is DefaultHttpTrafficCollector
+                ? collector.session
+                : InspectorSession.instance),
+        collector = collector ??
+            DefaultHttpTrafficCollector(
+              session ?? InspectorSession.instance,
+            );
 
+  @override
   final InspectorSession session;
+
+  @override
+  final HttpTrafficCollector collector;
 
   @override
   FutureOr<Response<BodyType>> intercept<BodyType>(
     Chain<BodyType> chain,
   ) async {
     final request = chain.request;
-    final startedAt = DateTime.now();
-    final requestId = RequestId.generate();
 
     final reqBody = guardCapture(() => _encodeBody(request.body));
     final reqContentType = headerValue(request.headers, 'content-type');
 
-    guardCapture(
-      () => session.recordPending(
-        id: requestId,
-        method: request.method,
-        url: request.url.toString(),
-        timestamp: startedAt,
-        requestHeaders: request.headers,
-        requestBodyBytes: reqBody,
-        requestContentType: reqContentType,
-      ),
-    );
-
-    void recordFailure(Object error, String errorType) {
-      guardCapture(
-        () => session.record(
-          RawCapture(
-            id: requestId,
-            method: request.method,
-            url: request.url.toString(),
-            requestHeaders: request.headers,
-            responseHeaders: const {},
-            statusCode: 0,
-            durationMs: DateTime.now().difference(startedAt).inMilliseconds,
-            timestamp: startedAt,
-            requestBodyBytes: RawCapture.wrapBytes(reqBody),
-            requestContentType: reqContentType,
-            errorType: errorType,
-            errorMessage: error.toString(),
-          ),
-        ),
-      );
-    }
-
+    HttpRequestContext? context;
     try {
-      await session.applyNetworkSimulationBeforeRequest(
-        uploadBytes: reqBody?.length ?? 0,
+      context = await collector.startRequest(
+        method: request.method,
+        uri: request.url,
+        headers: request.headers,
+        bodyBytes: reqBody,
+        contentType: reqContentType,
       );
-    } on SimulatedNetworkException catch (e) {
-      recordFailure(e, 'SimulatedNetworkException');
+    } on SimulatedNetworkException {
       rethrow;
+    } catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('[Interceptly] startRequest capture failed: $e\n$st');
+      }
     }
 
     final Response<BodyType> response;
     try {
       response = await chain.proceed(request);
     } catch (e) {
-      recordFailure(e, e.runtimeType.toString());
+      if (context != null) {
+        collector.failRequest(
+          context: context,
+          error: e,
+          errorType: e.runtimeType.toString(),
+          errorMessage: e.toString(),
+        );
+      }
       rethrow;
     }
 
-    final durationMs = DateTime.now().difference(startedAt).inMilliseconds;
-
     final resBody = guardCapture(() => response.bodyBytes);
+    final sent = response.base.request;
+    final sentHeaders = sent?.headers ?? request.headers;
+    final sentBody = sent is http.Request ? sent.bodyBytes : reqBody;
 
-    await session.applyNetworkSimulationAfterResponse(
-      downloadBytes: resBody?.length ?? 0,
-    );
+    final effectiveContext = context == null
+        ? null
+        : HttpRequestContext(
+            id: context.id,
+            method: sent?.method ?? context.method,
+            uri: sent?.url ?? context.uri,
+            startedAt: context.startedAt,
+            requestHeaders: sentHeaders,
+            requestBodyBytes: sentBody ?? context.requestBodyBytes,
+            requestContentType:
+                headerValue(sentHeaders, 'content-type') ??
+                context.requestContentType,
+          );
 
-    guardCapture(() {
-      final sent = response.base.request;
-      final sentHeaders = sent?.headers ?? request.headers;
-      final sentBody = sent is http.Request ? sent.bodyBytes : reqBody;
-
-      session.record(
-        RawCapture(
-          id: requestId,
-          method: sent?.method ?? request.method,
-          url: sent?.url.toString() ?? request.url.toString(),
-          requestHeaders: sentHeaders,
-          responseHeaders: response.base.headers,
-          statusCode: response.statusCode,
-          durationMs: durationMs,
-          timestamp: startedAt,
-          requestBodyBytes: RawCapture.wrapBytes(sentBody),
-          responseBodyBytes: RawCapture.wrapBytes(resBody),
-          requestContentType:
-              headerValue(sentHeaders, 'content-type') ?? reqContentType,
-          responseContentType:
-              headerValue(response.base.headers, 'content-type'),
-          errorType: response.isSuccessful ? null : 'ChopperError',
-          errorMessage:
-              response.isSuccessful ? null : response.error?.toString(),
-        ),
-      );
-    });
+    if (effectiveContext != null) {
+      await guardCaptureAsync(() async {
+        if (response.isSuccessful) {
+          await collector.completeResponse(
+            context: effectiveContext,
+            statusCode: response.statusCode,
+            headers: response.base.headers,
+            bodyBytes: resBody,
+            responseContentType:
+                headerValue(response.base.headers, 'content-type'),
+          );
+        } else {
+          await session.applyNetworkSimulationAfterResponse(
+            downloadBytes: resBody?.length ?? 0,
+          );
+          collector.failRequest(
+            context: effectiveContext,
+            error: response.error ?? 'ChopperError',
+            errorType: 'ChopperError',
+            errorMessage: response.error?.toString(),
+            statusCode: response.statusCode,
+            responseHeaders: response.base.headers,
+            responseBodyBytes: resBody,
+          );
+        }
+      });
+    }
 
     return response;
   }
