@@ -81,8 +81,6 @@ class InterceptlyChopperInterceptor implements Interceptor {
 
     final durationMs = DateTime.now().difference(startedAt).inMilliseconds;
 
-    // Raw wire bytes — never re-encode the converted `response.body`, which
-    // may be an arbitrary model object after Chopper's converter runs.
     final resBody = guardCapture(() => response.bodyBytes);
 
     await session.applyNetworkSimulationAfterResponse(
@@ -92,8 +90,6 @@ class InterceptlyChopperInterceptor implements Interceptor {
     guardCapture(() {
       final sent = response.base.request;
       final sentHeaders = sent?.headers ?? request.headers;
-      // Only buffered requests expose their bytes; multipart/streamed
-      // requests fall back to the pre-send snapshot.
       final sentBody = sent is http.Request ? sent.bodyBytes : reqBody;
 
       session.record(

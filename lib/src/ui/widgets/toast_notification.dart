@@ -22,7 +22,6 @@ class ToastNotification extends StatefulWidget {
     }
 
     try {
-      // Try to get root overlay first (more reliable)
       final overlayState = Overlay.of(context, rootOverlay: true);
       final overlayEntry = OverlayEntry(
         builder: (context) => Positioned(
@@ -69,13 +68,12 @@ class _ToastNotificationState extends State<ToastNotification>
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
 
     _slideAnimation = Tween<Offset>(
-      begin: const Offset(0.0, 1.0), // Translate Y by full height
+      begin: const Offset(0.0, 1.0),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
 
     _controller.forward();
 
-    // Reverse animation before removing
     Future.delayed(const Duration(milliseconds: 1700), () {
       if (mounted) {
         _controller.reverse();

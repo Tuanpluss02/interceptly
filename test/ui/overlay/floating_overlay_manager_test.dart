@@ -52,7 +52,6 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Push Page 2 covering the screen
     navKey.currentState!.push(
       MaterialPageRoute(
         builder: (_) => Scaffold(
@@ -66,7 +65,6 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // FAB must be clickable above Page 2
     expect(find.byIcon(Icons.bug_report), findsOneWidget);
     await tester.tap(find.byIcon(Icons.bug_report));
     await tester.pumpAndSettle();
@@ -122,14 +120,12 @@ void main() {
     expect(find.byIcon(Icons.bug_report), findsOneWidget);
     expect(FloatingOverlayManager.instance.isHiddenForSession, isFalse);
 
-    // Hide for this session
     FloatingOverlayManager.instance.setHiddenForSession(true);
     await tester.pumpAndSettle();
 
     expect(find.byIcon(Icons.bug_report), findsNothing);
     expect(FloatingOverlayManager.instance.isHiddenForSession, isTrue);
 
-    // Push new page should NOT show FAB while hidden for session
     navKey.currentState!.push(
       MaterialPageRoute(
         builder: (_) => const Scaffold(body: Text('Page 2')),
@@ -138,7 +134,6 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byIcon(Icons.bug_report), findsNothing);
 
-    // Simulating app restart / re-attach restores FAB for new session
     FloatingOverlayManager.instance.attach(
       navigatorKey: navKey,
       showFloatingButton: true,

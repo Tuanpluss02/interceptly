@@ -60,7 +60,6 @@ void main() {
         var topLeft = tester.getTopLeft(fabFinder);
         expect(topLeft.dx, 800 - 44);
 
-        // Rotate to portrait
         tester.view.physicalSize = const Size(400, 800);
         await tester.pumpAndSettle();
 
@@ -68,7 +67,6 @@ void main() {
         expect(topLeft.dx, 400 - 44);
         expect(topLeft.dy >= 0 && topLeft.dy <= 800 - 44, isTrue);
 
-        // Rotate back to landscape
         tester.view.physicalSize = const Size(800, 400);
         await tester.pumpAndSettle();
 
@@ -215,7 +213,6 @@ void main() {
 
       expect(find.byIcon(Icons.bug_report), findsOneWidget);
 
-      // Push another full-screen page
       navKey.currentState!.push(
         MaterialPageRoute(
           builder: (_) => const Scaffold(
@@ -227,10 +224,8 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // FAB remains mounted and visible
       expect(find.byIcon(Icons.bug_report), findsOneWidget);
 
-      // Detach removes FAB
       Interceptly.detach();
       await tester.pumpAndSettle();
 
@@ -260,7 +255,6 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byIcon(Icons.bug_report), findsOneWidget);
 
-      // Push another full-screen page
       navKey.currentState!.push(
         MaterialPageRoute(
           builder: (_) => Scaffold(
@@ -280,11 +274,9 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // Tap the FAB - will it open inspector or is it blocked by the pushed page?
       await tester.tap(find.byIcon(Icons.bug_report));
       await tester.pumpAndSettle();
 
-      // If inspector opened, InterceptlyScreen should be in tree
       expect(find.text('Interceptly'), findsOneWidget);
 
       Interceptly.detach();
@@ -316,7 +308,6 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.byIcon(Icons.bug_report), findsOneWidget);
 
-        // Replace splash with Home page (same as SplashPage.pushReplacement)
         navKey.currentState!.pushReplacement(
           MaterialPageRoute(
             builder: (_) => Scaffold(
@@ -336,7 +327,6 @@ void main() {
 
         await tester.pumpAndSettle();
 
-        // FAB must still be visible and tappable above the replacement screen
         expect(find.byIcon(Icons.bug_report), findsOneWidget);
 
         await tester.tap(find.byIcon(Icons.bug_report));
@@ -373,7 +363,6 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byIcon(Icons.bug_report), findsOneWidget);
 
-      // Simulate app restart / rebuild with new Navigator
       final restartedNavKey = GlobalKey<NavigatorState>();
       await tester.pumpWidget(
         MaterialApp(
@@ -384,7 +373,6 @@ void main() {
         ),
       );
 
-      // On restart, main() calls Interceptly.init with new navigatorKey
       await tester.runAsync(() async {
         await Interceptly.init(
           navigatorKey: restartedNavKey,
@@ -422,13 +410,11 @@ void main() {
         final fabFinder = find.byIcon(Icons.bug_report);
         expect(fabFinder, findsOneWidget);
 
-        // Drag the FAB vertically
         await tester.drag(fabFinder, const Offset(0, -150));
         await tester.pumpAndSettle();
 
         final draggedTopLeft = tester.getTopLeft(fabFinder);
 
-        // Push new page
         navKey.currentState!.push(
           MaterialPageRoute(
             builder: (_) => const Scaffold(body: Text('New Page')),
@@ -436,13 +422,11 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // Position must match dragged position, NOT default center
         expect(
           tester.getTopLeft(find.byIcon(Icons.bug_report)).dy,
           equals(draggedTopLeft.dy),
         );
 
-        // Replace route
         navKey.currentState!.pushReplacement(
           MaterialPageRoute(
             builder: (_) => const Scaffold(body: Text('Replacement Page')),
@@ -482,7 +466,6 @@ void main() {
 
         expect(find.byIcon(Icons.bug_report), findsOneWidget);
 
-        // Transition lifecycle to paused then resumed
         tester.binding.handleAppLifecycleStateChanged(
           AppLifecycleState.paused,
         );
@@ -495,7 +478,6 @@ void main() {
 
         expect(find.byIcon(Icons.bug_report), findsOneWidget);
 
-        // Tap FAB to ensure it is still interactive
         await tester.tap(find.byIcon(Icons.bug_report));
         await tester.pumpAndSettle();
 
@@ -528,13 +510,11 @@ void main() {
 
         expect(find.byIcon(Icons.bug_report), findsOneWidget);
 
-        // Open Inspector
         Interceptly.showInspector();
         await tester.pumpAndSettle();
 
         expect(find.text('Interceptly'), findsOneWidget);
 
-        // Pop Inspector back to Home
         navKey.currentState!.pop();
         await tester.pumpAndSettle();
 
@@ -580,7 +560,6 @@ void main() {
         expect(find.text('Screen 5'), findsOneWidget);
         expect(find.byIcon(Icons.bug_report), findsOneWidget);
 
-        // Pop 3 times
         navKey.currentState!.pop();
         navKey.currentState!.pop();
         navKey.currentState!.pop();

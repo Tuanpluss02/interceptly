@@ -3,7 +3,6 @@ import 'package:interceptly/src/simulation/network_simulation_service.dart';
 import 'package:interceptly/src/model/network_simulation.dart';
 
 void main() {
-  // ── throughputDelayForChunk ───────────────────────────────────────────────
 
   group('NetworkSimulationService.throughputDelayForChunk', () {
     test('returns zero when kbps is 0 (no throttling)', () {
@@ -23,8 +22,6 @@ void main() {
     });
 
     test('computes correct delay for known bandwidth', () {
-      // 1000 bytes at 1000 kbps:
-      // delay_ms = ceil(1000 * 8 * 1000 / (1000 * 1000)) = ceil(8) = 8 ms
       final profile = const NetworkSimulationProfile(
         name: 'test',
         offline: false,
@@ -39,8 +36,6 @@ void main() {
       expect(delay, const Duration(milliseconds: 8));
     });
   });
-
-  // ── applyBeforeRequest ────────────────────────────────────────────────────
 
   group('NetworkSimulationService.applyBeforeRequest', () {
     test('throws SimulatedNetworkException when offline', () async {
@@ -62,13 +57,10 @@ void main() {
           uploadBytes: 0,
         );
         sw.stop();
-        // No latency, no throttle → should finish nearly instantly
         expect(sw.elapsedMilliseconds, lessThan(50));
       },
     );
   });
-
-  // ── applyAfterResponse ────────────────────────────────────────────────────
 
   group('NetworkSimulationService.applyAfterResponse', () {
     test('completes without delay when downloadKbps is 0', () async {
@@ -91,8 +83,6 @@ void main() {
       expect(sw.elapsedMilliseconds, lessThan(50));
     });
   });
-
-  // ── NetworkSimulationProfile helpers ─────────────────────────────────────
 
   group('NetworkSimulationProfile', () {
     test('isNoThrottling is true for none profile', () {

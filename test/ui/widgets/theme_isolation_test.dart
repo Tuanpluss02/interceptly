@@ -167,7 +167,6 @@ void main() {
       expect(theme.colorScheme.primary, InterceptlyTheme.colors.actionPrimary);
       expect(theme.colorScheme.primary, isNot(hostPrimaryColor));
 
-      // Advance timer to let ToastNotification complete its reverse animation and timer
       await tester.pump(const Duration(seconds: 3));
     });
   });

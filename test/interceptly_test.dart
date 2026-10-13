@@ -1,5 +1,3 @@
-// ignore: unused_import
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
 import 'package:interceptly/src/model/body_location.dart';
@@ -19,7 +17,6 @@ void main() {
     index.add(e3);
 
     expect(index.length, 2);
-    // Newest entries are kept (newest-first order).
     expect(index.entries.first.id, '3');
     expect(index.entries.last.id, '2');
   });
@@ -69,8 +66,6 @@ void main() {
   });
 
   test('Interceptly.init uses shared session by default', () {
-    // init() requires a Flutter environment so we verify the session
-    // instance equality through the session singleton directly.
     final a = InspectorSession.instance;
     final b = InspectorSession.instance;
     expect(identical(a, b), isTrue);
@@ -88,10 +83,8 @@ void main() {
       index.add(reqB);
       expect(index.length, 2);
 
-      // Response for reqA completes while reqB is still pending
       index.add(reqACompleted);
 
-      // Must not duplicate rows
       expect(index.length, 2);
       expect(index.entries.where((e) => e.id == 'reqA').length, 1);
       expect(index.entries.firstWhere((e) => e.id == 'reqA').statusCode, 200);
@@ -99,7 +92,6 @@ void main() {
       expect(index.entries[1].id, 'reqA');
       expect(index.entries[1].statusCode, 200);
 
-      // Now reqB completes as well
       final reqBCompleted = _buildEntry('reqB', statusCode: 404);
       index.add(reqBCompleted);
       expect(index.length, 2);
@@ -120,22 +112,18 @@ void main() {
       }
       expect(index.length, 5);
 
-      // Complete middle request first (req2)
       index.add(_buildEntry('req2', statusCode: 200));
       expect(index.length, 5);
       expect(index.entries.firstWhere((e) => e.id == 'req2').statusCode, 200);
 
-      // Complete oldest request (req0)
       index.add(_buildEntry('req0', statusCode: 500));
       expect(index.length, 5);
       expect(index.entries.firstWhere((e) => e.id == 'req0').statusCode, 500);
 
-      // Complete newest request (req4)
       index.add(_buildEntry('req4', statusCode: 204));
       expect(index.length, 5);
       expect(index.entries.firstWhere((e) => e.id == 'req4').statusCode, 204);
 
-      // Check all IDs are unique and no duplicates exist
       final ids = index.entries.map((e) => e.id).toSet();
       expect(ids.length, 5);
     },

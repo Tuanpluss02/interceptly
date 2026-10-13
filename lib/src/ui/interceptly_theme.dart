@@ -196,7 +196,6 @@ class InterceptlyTheme {
     );
   }
 
-  // Helper styles matching ui.html
   static MethodStyle getMethodStyle(String method) {
     final palette = colors;
     switch (method.toUpperCase()) {
@@ -332,17 +331,14 @@ class InterceptlyGlobalColor {
 class InterceptlyTypography {
   const InterceptlyTypography();
 
-  // Display styles
   TextStyle get displayLarge => _base(32, FontWeight.w700);
   TextStyle get displayMedium => _base(28, FontWeight.w700);
   TextStyle get displaySmall => _base(24, FontWeight.w700);
 
-  // Headline styles
   TextStyle get headlineLarge => _base(22, FontWeight.w700);
   TextStyle get headlineMedium => _base(20, FontWeight.w700);
   TextStyle get headlineSmall => _base(18, FontWeight.w700);
 
-  // Title styles
   TextStyle get titleLargeRegular => _base(20, FontWeight.w400);
   TextStyle get titleLargeMedium => _base(20, FontWeight.w500);
   TextStyle get titleLargeBold => _base(20, FontWeight.w700);
@@ -355,7 +351,6 @@ class InterceptlyTypography {
   TextStyle get titleSmallMedium => _base(18, FontWeight.w500);
   TextStyle get titleSmallBold => _base(20, FontWeight.w700);
 
-  // Body styles
   TextStyle get bodyLargeRegular => _base(16, FontWeight.w400);
   TextStyle get bodyLargeMedium => _base(16, FontWeight.w500);
   TextStyle get bodyLargeBold => _base(16, FontWeight.w700);
@@ -368,7 +363,6 @@ class InterceptlyTypography {
   TextStyle get bodySmallMedium => _base(12, FontWeight.w500);
   TextStyle get bodySmallBold => _base(12, FontWeight.w700);
 
-  // Label styles
   TextStyle get labelLargeRegular => _base(12, FontWeight.w400);
   TextStyle get labelLargeMedium => _base(12, FontWeight.w500);
   TextStyle get labelLargeBold => _base(12, FontWeight.w700);

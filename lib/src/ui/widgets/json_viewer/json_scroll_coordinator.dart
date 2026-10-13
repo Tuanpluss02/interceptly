@@ -97,7 +97,6 @@ class JsonScrollCoordinator {
         final totalContentHeight = totalLineCount * lineHeight;
         final needsScroll = totalContentHeight > viewportHeight;
         if (needsScroll && maxScroll <= 0) {
-          // Layout extent not yet settled (e.g. just mounted from offstage)
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (isMounted()) {
               scrollToActive(

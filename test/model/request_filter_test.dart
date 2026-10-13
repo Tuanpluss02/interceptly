@@ -5,7 +5,6 @@ import 'package:interceptly/src/model/body_location.dart';
 import 'package:interceptly/src/model/body_truncation.dart';
 
 void main() {
-  // ── isEmpty ──────────────────────────────────────────────────────────────
 
   group('RequestFilter.isEmpty', () {
     test('default constructor is empty', () {
@@ -44,8 +43,6 @@ void main() {
     });
   });
 
-  // ── isActive / activeFilterCount ─────────────────────────────────────────
-
   group('RequestFilter.activeFilterCount', () {
     test('zero for default filter', () {
       expect(RequestFilter().activeFilterCount, 0);
@@ -73,7 +70,7 @@ void main() {
       expect(
         f.activeFilterCount,
         5,
-      ); // methods + status + domains + host + query
+      );
     });
 
     test('all five groups active', () {
@@ -87,8 +84,6 @@ void main() {
       expect(f.activeFilterCount, 5);
     });
   });
-
-  // ── matches — method ─────────────────────────────────────────────────────
 
   group('RequestFilter.matches — method', () {
     test('empty methods set passes all methods', () {
@@ -109,8 +104,6 @@ void main() {
       expect(f.matches(_entry(method: 'POST')), isTrue);
     });
   });
-
-  // ── matches — status code ─────────────────────────────────────────────────
 
   group('RequestFilter.matches — status code', () {
     test('statusCode 0 skips range check', () {
@@ -145,8 +138,6 @@ void main() {
     });
   });
 
-  // ── matches — domain ──────────────────────────────────────────────────────
-
   group('RequestFilter.matches — domain', () {
     test('empty domains set passes all entries', () {
       expect(RequestFilter().matches(_entry()), isTrue);
@@ -162,8 +153,6 @@ void main() {
       expect(f.matches(_entry(url: 'https://other.com/api')), isFalse);
     });
   });
-
-  // ── matches — host ────────────────────────────────────────────────────────
 
   group('RequestFilter.matches — host', () {
     test('host substring match is case-insensitive', () {
@@ -181,8 +170,6 @@ void main() {
       expect(f.matches(_entry(url: 'https://api.example.com/v1')), isTrue);
     });
   });
-
-  // ── matches — query ───────────────────────────────────────────────────────
 
   group('RequestFilter.matches — query', () {
     test('query matches URL substring', () {
@@ -214,8 +201,6 @@ void main() {
     });
   });
 
-  // ── copyWith ──────────────────────────────────────────────────────────────
-
   group('RequestFilter.copyWith', () {
     test('preserves unchanged fields', () {
       final original = RequestFilter(methods: {'GET'}, include4xx: false);
@@ -237,8 +222,6 @@ void main() {
       expect(copy.query, isNull);
     });
   });
-
-  // ── equality & hashCode ───────────────────────────────────────────────────
 
   group('RequestFilter equality', () {
     test('two default filters are equal', () {
@@ -271,8 +254,6 @@ void main() {
     });
   });
 
-  // ── unmodifiable sets ─────────────────────────────────────────────────────
-
   group('RequestFilter unmodifiable sets', () {
     test('methods set is unmodifiable', () {
       final f = RequestFilter(methods: {'GET'});
@@ -287,8 +268,6 @@ void main() {
       );
     });
   });
-
-  // ── extractDomain ─────────────────────────────────────────────────────────
 
   group('RequestFilter.extractDomain', () {
     test('returns host from valid URL', () {

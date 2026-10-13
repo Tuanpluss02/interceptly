@@ -135,7 +135,6 @@ class _NetworkTabState extends State<NetworkTab> {
       child: Scaffold(
         body: Column(
           children: [
-            // ── Top bar ──────────────────────────────────────────────────────
             if (_isSelectionMode)
               _SelectionTopBar(
                 selectedCount: _selectedIds.length,
@@ -158,7 +157,6 @@ class _NetworkTabState extends State<NetworkTab> {
 
             Divider(height: 1, color: InterceptlyTheme.dividerSubtle),
 
-            // ── Request list ─────────────────────────────────────────────────
             Expanded(
               child: ListenableBuilder(
                 listenable: widget.session,
@@ -168,7 +166,6 @@ class _NetworkTabState extends State<NetworkTab> {
               ),
             ),
 
-            // ── Bottom export bar (selection mode only) ──────────────────────
             if (_isSelectionMode)
               _ExportBar(
                 selectedCount: _selectedIds.length,
@@ -181,8 +178,6 @@ class _NetworkTabState extends State<NetworkTab> {
       ),
     );
   }
-
-  // ── Flat list ───────────────────────────────────────────────────────────────
 
   Widget _buildFlatList(BuildContext context) {
     final entries = widget.session.entries;
@@ -222,8 +217,6 @@ class _NetworkTabState extends State<NetworkTab> {
       },
     );
   }
-
-  // ── Grouped list ────────────────────────────────────────────────────────────
 
   Widget _buildGroupedList(BuildContext context) {
     final groups = widget.session.getGroupedRecords();
@@ -309,8 +302,6 @@ class _NetworkTabState extends State<NetworkTab> {
       },
     );
   }
-
-  // ── Request row ─────────────────────────────────────────────────────────────
 
   Widget _buildRequestItem({
     required BuildContext context,

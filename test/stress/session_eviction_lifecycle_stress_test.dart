@@ -62,27 +62,23 @@ void main() {
       final index = MemoryIndex(maxEntries: 1);
       expect(index.length, 0);
 
-      // Add P1 pending
       final p1 = _makeEntry('p1', statusCode: 0);
       index.add(p1);
       expect(index.length, 1);
       expect(index.entries.first.id, 'p1');
       expect(index.entries.first.statusCode, 0);
 
-      // Update P1 completed in-place
       final c1 = _makeEntry('p1', statusCode: 200);
       index.add(c1);
       expect(index.length, 1);
       expect(index.entries.first.id, 'p1');
       expect(index.entries.first.statusCode, 200);
 
-      // Add P2: must evict P1
       final p2 = _makeEntry('p2', statusCode: 0);
       index.add(p2);
       expect(index.length, 1);
       expect(index.entries.first.id, 'p2');
 
-      // Now P1 arrives again (late completion after eviction)
       final c1Late = _makeEntry('p1', statusCode: 200);
       index.add(c1Late);
       expect(index.length, 1);
@@ -104,12 +100,10 @@ void main() {
       const maxEntries = 5;
       final index = MemoryIndex(maxEntries: maxEntries);
 
-      // Add 10 pending requests
       for (var i = 0; i < 10; i++) {
         index.add(_makeEntry('req_$i', statusCode: 0));
       }
 
-      // MemoryIndex should be capped at maxEntries (newest first: req_9 to req_5)
       expect(index.length, maxEntries);
       expect(index.entries.map((e) => e.id).toList(), [
         'req_9',
@@ -119,7 +113,6 @@ void main() {
         'req_5',
       ]);
 
-      // Complete req_7 (still present in memory index) -> should update in-place at index 2
       final c7 = _makeEntry('req_7', statusCode: 200);
       index.add(c7);
       expect(index.length, maxEntries);
@@ -133,21 +126,18 @@ void main() {
         'req_5',
       ]);
 
-      // Complete req_9 (newest entry, index 0) -> update in-place at index 0
       final c9 = _makeEntry('req_9', statusCode: 201);
       index.add(c9);
       expect(index.length, maxEntries);
       expect(index.entries[0].id, 'req_9');
       expect(index.entries[0].statusCode, 201);
 
-      // Complete req_5 (oldest entry, index 4) -> update in-place at index 4
       final c5 = _makeEntry('req_5', statusCode: 204);
       index.add(c5);
       expect(index.length, maxEntries);
       expect(index.entries[4].id, 'req_5');
       expect(index.entries[4].statusCode, 204);
 
-      // Now complete req_2 (which was previously evicted while pending!)
       final c2 = _makeEntry('req_2', statusCode: 200);
       index.add(c2);
       expect(index.length, maxEntries);
@@ -160,7 +150,6 @@ void main() {
         'req_6',
       ]);
 
-      // Now update req_2 again -> in place at index 0
       final c2Updated = _makeEntry('req_2', statusCode: 200, durationMs: 99);
       index.add(c2Updated);
       expect(index.length, maxEntries);
@@ -189,7 +178,6 @@ void main() {
 
         expect(index.length, lessThanOrEqualTo(maxEntries));
 
-        // Invariant: no duplicate IDs in entries
         final ids = index.entries.map((e) => e.id).toList();
         final uniqueIds = ids.toSet();
         expect(ids.length, uniqueIds.length,
@@ -251,7 +239,6 @@ void main() {
             reason: 'Domain ${g.domain} should initially be expanded');
       }
 
-      // Collapse beta.org only
       session.toggleDomainExpanded('beta.org');
       groups = session.getGroupedRecords();
       for (final g in groups) {
@@ -262,7 +249,6 @@ void main() {
         }
       }
 
-      // Collapse delta.io as well
       session.toggleDomainExpanded('delta.io');
       groups = session.getGroupedRecords();
       for (final g in groups) {
@@ -273,7 +259,6 @@ void main() {
         }
       }
 
-      // Re-expand beta.org
       session.toggleDomainExpanded('beta.org');
       groups = session.getGroupedRecords();
       for (final g in groups) {
@@ -308,7 +293,6 @@ void main() {
         isExpandedSeenInListener = match.isExpanded;
       });
 
-      // Toggle service.com to collapsed
       session.toggleDomainExpanded('service.com');
 
       expect(notificationCount, 1,
@@ -316,7 +300,6 @@ void main() {
       expect(isExpandedSeenInListener, isFalse,
           reason: 'Listener should immediately see collapsed state');
 
-      // Toggle service.com back to expanded
       session.toggleDomainExpanded('service.com');
       expect(notificationCount, 2);
       expect(isExpandedSeenInListener, isTrue,

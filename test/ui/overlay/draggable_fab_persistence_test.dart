@@ -7,7 +7,6 @@ void main() {
       (tester) async {
     final positionNotifier = ValueNotifier<Offset?>(const Offset(50, 100));
 
-    // First mount with positionNotifier
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -28,12 +27,10 @@ void main() {
     final fabFinder = find.byKey(const ValueKey('fab_content'));
     expect(tester.getTopLeft(fabFinder).dy, 100);
 
-    // Unmount widget
     await tester
         .pumpWidget(const MaterialApp(home: Scaffold(body: SizedBox())));
     await tester.pumpAndSettle();
 
-    // Remount with same positionNotifier
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(

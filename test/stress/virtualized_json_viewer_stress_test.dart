@@ -137,11 +137,9 @@ void main() {
 
       expect(stopwatch.elapsedMilliseconds, lessThan(1500));
 
-      // Virtualization verification: row 1 is rendered, row 15000 is offscreen and unmounted
       expect(find.textContaining('"row_1":'), findsOneWidget);
       expect(find.textContaining('"row_15000":'), findsNothing);
 
-      // Verify dual ListView.builder itemExtent
       final listViews = find.byType(ListView);
       expect(listViews, findsNWidgets(2));
       for (final lv in listViews.evaluate()) {
@@ -181,7 +179,6 @@ void main() {
         find.descendant(of: contentList, matching: find.byType(Scrollable)),
       );
 
-      // Scroll content down by 1800 px (100 lines)
       contentScrollState.position.jumpTo(1800.0);
       await tester.pumpAndSettle();
 
@@ -191,7 +188,6 @@ void main() {
         lessThan(0.01),
       );
 
-      // Scroll gutter down further by 3600 px (another 200 lines)
       gutterScrollState.position.jumpTo(5400.0);
       await tester.pumpAndSettle();
 
@@ -272,7 +268,6 @@ void main() {
               : 'filler_$i',
       };
 
-      // Jump to match 0 (around line 100)
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -298,7 +293,6 @@ void main() {
       final offsetMatch0 = scrollState.position.pixels;
       expect(offsetMatch0, lessThan(3000.0));
 
-      // Jump to match 1 (around line 1500)
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -323,7 +317,6 @@ void main() {
       expect(offsetMatch1, greaterThan(24000.0));
       expect(offsetMatch1, greaterThan(offsetMatch0));
 
-      // Jump to match 2 (around line 2800)
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(

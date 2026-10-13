@@ -10,7 +10,6 @@ void main() {
     'SettingsBottomSheet slider uses InterceptlyTheme sliderTheme and ignores host SliderTheme',
     (tester) async {
       final session = InspectorSession();
-      // Set to custom so throttling sliders are rendered
       session.setNetworkSimulation(
         const NetworkSimulationProfile(
           name: 'Custom',
@@ -45,11 +44,9 @@ void main() {
 
       expect(sliderThemes, isNotEmpty);
       for (final sliderTheme in sliderThemes) {
-        // Must NOT match host app colors
         expect(sliderTheme.data.activeTrackColor, isNot(hostActiveColor));
         expect(sliderTheme.data.thumbColor, isNot(hostThumbColor));
 
-        // Must match InterceptlyTheme colors
         expect(
           sliderTheme.data.activeTrackColor,
           InterceptlyTheme.colors.actionPrimary,
@@ -82,13 +79,11 @@ void main() {
           find.text('Hides bug button until next app launch'), findsOneWidget);
       expect(FloatingOverlayManager.instance.isHiddenForSession, isFalse);
 
-      // Tap the tile to hide
       await tester.tap(find.text('Hide for This Session'));
       await tester.pumpAndSettle();
 
       expect(FloatingOverlayManager.instance.isHiddenForSession, isTrue);
 
-      // Tap again to restore
       await tester.tap(find.text('Hide for This Session'));
       await tester.pumpAndSettle();
 

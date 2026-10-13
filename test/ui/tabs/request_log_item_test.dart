@@ -97,12 +97,10 @@ void main() {
         ),
       );
 
-      // Verify RichText widget contains text spans
       final richTextWidgets =
           tester.widgetList<RichText>(find.byType(RichText));
       expect(richTextWidgets, isNotEmpty);
 
-      // Verify at least one RichText has highlighted styling
       final hasHighlight = richTextWidgets.any((rt) {
         final span = rt.text as TextSpan;
         bool found = false;

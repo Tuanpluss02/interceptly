@@ -132,7 +132,6 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            // ── Server Status Banner ──────────────────────────────────
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
@@ -159,7 +158,6 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
             ),
             const SizedBox(height: 16),
 
-            // ── Section 1: RESTful Methods & Status Codes ─────────────
             _buildSectionHeader(
               title: 'RESTful Methods & Status Codes',
               subtitle:
@@ -249,7 +247,6 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
             ),
             const SizedBox(height: 24),
 
-            // ── Section 2: Specialized Viewers (GraphQL, Multipart, Image) ──
             _buildSectionHeader(
               title: 'Specialized Formats & Viewers',
               subtitle:
@@ -299,7 +296,6 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
             ),
             const SizedBox(height: 24),
 
-            // ── Section 3: Security & Filtering ───────────────────────
             _buildSectionHeader(
               title: 'Security & Filtering',
               subtitle:
@@ -330,7 +326,6 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
             ),
             const SizedBox(height: 24),
 
-            // ── Section 4: Stress Test & Heavy JSON ───────────────────
             _buildSectionHeader(
               title: 'Stress Test & Heavy Payloads',
               subtitle:
@@ -392,7 +387,6 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
             ),
             const SizedBox(height: 24),
 
-            // ── Request Status & Results Card ─────────────────────────
             if (_isLoading) ...[
               const LinearProgressIndicator(),
               const SizedBox(height: 8),

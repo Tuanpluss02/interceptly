@@ -43,9 +43,6 @@ void main() {
         'Foo': 'bar',
         'items': ['FOO', 123, false, null],
       };
-      // 'foo' appears in:
-      // - key "Foo" -> 1
-      // - item "FOO" -> 1
       expect(JsonSearch.countMatches(data, 'foo'), 2);
     });
 
@@ -102,21 +99,14 @@ void main() {
 
     test('highlights matches and marks activeGlobalIndex with activeHighlight',
         () {
-      // "foo and foo" with query "foo":
-      // match 0: at offset 0
-      // match 1: at offset 8
       final spans = JsonSearch.buildHighlightedSpans(
         'foo and foo',
         'foo',
-        5, // matchOffset starts at 5 -> match 0 is index 5, match 1 is index 6
-        6, // activeGlobalIndex is 6 -> second "foo" is active
+        5,
+        6,
         baseColor,
       );
 
-      // Expected spans:
-      // 1. "foo" (match 5) -> normal highlight
-      // 2. " and " -> plain
-      // 3. "foo" (match 6) -> active highlight
       expect(spans.length, 3);
       expect(spans[0].text, 'foo');
       expect(spans[0].style?.backgroundColor, JsonViewerColors.highlight);

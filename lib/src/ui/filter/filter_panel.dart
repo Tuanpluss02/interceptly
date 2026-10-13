@@ -146,7 +146,6 @@ class _FilterPanelState extends State<FilterPanel> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // ── Drag handle ─────────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.only(top: 12, bottom: 4),
               child: Container(
@@ -159,7 +158,6 @@ class _FilterPanelState extends State<FilterPanel> {
               ),
             ),
 
-            // ── Title row ─────────────────────────────────────────────────────
             Padding(
               padding:
                   EdgeInsets.fromLTRB(spacing.lg, spacing.sm, spacing.lg, 0),
@@ -210,7 +208,6 @@ class _FilterPanelState extends State<FilterPanel> {
               ),
             ),
 
-            // ── Scrollable sections ────────────────────────────────────────────
             Flexible(
               child: SingleChildScrollView(
                 padding: EdgeInsets.fromLTRB(
@@ -222,7 +219,6 @@ class _FilterPanelState extends State<FilterPanel> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ── HTTP Methods ────────────────────────────────────────────
                     _SectionHeader(label: 'HTTP Methods'),
                     SizedBox(height: spacing.sm),
                     _MethodChips(
@@ -237,7 +233,6 @@ class _FilterPanelState extends State<FilterPanel> {
                     ),
                     SizedBox(height: spacing.xl),
 
-                    // ── Status Codes ────────────────────────────────────────────
                     _SectionHeader(label: 'Status Codes'),
                     SizedBox(height: spacing.sm),
                     _StatusRow(
@@ -264,7 +259,6 @@ class _FilterPanelState extends State<FilterPanel> {
                     ),
                     SizedBox(height: spacing.xl),
 
-                    // ── Domains ────────────────────────────────────────────────
                     if (widget.availableDomains.isNotEmpty) ...[
                       _SectionHeader(
                         label: 'Domains',
@@ -292,7 +286,6 @@ class _FilterPanelState extends State<FilterPanel> {
               ),
             ),
 
-            // ── Apply button ───────────────────────────────────────────────────
             Container(
               padding: EdgeInsets.fromLTRB(
                 spacing.lg,
@@ -333,8 +326,6 @@ class _FilterPanelState extends State<FilterPanel> {
   }
 }
 
-// ── Section Header ─────────────────────────────────────────────────────────────
-
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({required this.label, this.subtitle});
 
@@ -370,8 +361,6 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-// ── Method Chips ──────────────────────────────────────────────────────────────
-
 class _MethodChips extends StatelessWidget {
   const _MethodChips({required this.selected, required this.onToggle});
 
@@ -399,8 +388,6 @@ class _MethodChips extends StatelessWidget {
     );
   }
 }
-
-// ── Status Row ────────────────────────────────────────────────────────────────
 
 class _StatusRow extends StatelessWidget {
   const _StatusRow({
@@ -517,8 +504,6 @@ class _StatusToggle extends StatelessWidget {
   }
 }
 
-// ── Domain List ───────────────────────────────────────────────────────────────
-
 class _DomainList extends StatelessWidget {
   const _DomainList({
     required this.domains,
@@ -542,7 +527,6 @@ class _DomainList extends StatelessWidget {
 
     return Column(
       children: [
-        // Select All row
         GestureDetector(
           onTap: onSelectAll,
           child: Container(
@@ -601,7 +585,6 @@ class _DomainList extends StatelessWidget {
           ),
         ),
 
-        // Domain items
         if (!allSelected && sorted.isNotEmpty) ...[
           const SizedBox(height: 8),
           Container(
@@ -687,8 +670,6 @@ class _DomainList extends StatelessWidget {
     );
   }
 }
-
-// ── Reusable Chip ─────────────────────────────────────────────────────────────
 
 class _Chip extends StatelessWidget {
   const _Chip({

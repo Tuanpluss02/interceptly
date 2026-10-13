@@ -95,10 +95,6 @@ class JsonViewer extends StatefulWidget {
   State<JsonViewer> createState() => _JsonViewerState();
 }
 
-// ─────────────────────────────────────────────────────────────
-// State
-// ─────────────────────────────────────────────────────────────
-
 class _JsonViewerState extends State<JsonViewer> {
   final JsonExpansionState _expansion = JsonExpansionState();
   late final JsonScrollCoordinator _scroll = JsonScrollCoordinator();
@@ -258,10 +254,6 @@ class _JsonViewerState extends State<JsonViewer> {
 
   TextStyle get _baseTextStyle => InterceptlyTheme.typography.bodyMediumRegular;
 
-  // ─────────────────────────────────────────────────────────────
-  // Build
-  // ─────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
     if (widget.data == null) {
@@ -288,7 +280,7 @@ class _JsonViewerState extends State<JsonViewer> {
       fontSize: 12,
       height: 1.5,
     );
-    const lineHeight = 18.0; // fontSize 12 × height 1.5
+    const lineHeight = 18.0;
 
     final maxChars = _memoMaxChars;
     int? activeLineIndex;

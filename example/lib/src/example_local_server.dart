@@ -30,7 +30,6 @@ class ExampleLocalServer {
     _server!.listen(
       _handleRequest,
       onError: (Object error) {
-        // Silently ignore or log internal socket errors during shutdown.
       },
     );
 
@@ -47,7 +46,6 @@ class ExampleLocalServer {
   Future<void> _handleRequest(HttpRequest request) async {
     final response = request.response;
 
-    // CORS and default headers
     response.headers
       ..set('Access-Control-Allow-Origin', '*')
       ..set('Access-Control-Allow-Methods',
@@ -124,8 +122,6 @@ class ExampleLocalServer {
     }
   }
 
-  // ── RESTful Users API (GET 200, POST 201, PUT 200, PATCH 200, DELETE 204) ──
-
   Future<void> _handleUsersRoot(
       HttpRequest request, HttpResponse response) async {
     response.headers.contentType = ContentType.json;
@@ -187,7 +183,7 @@ class ExampleLocalServer {
         body = {'raw': content};
       }
 
-      response.statusCode = HttpStatus.created; // 201 Created
+      response.statusCode = HttpStatus.created;
       response.write(
         jsonEncode({
           'id': '101',
@@ -239,14 +235,12 @@ class ExampleLocalServer {
     }
 
     if (request.method == 'DELETE') {
-      response.statusCode = HttpStatus.noContent; // 204 No Content
+      response.statusCode = HttpStatus.noContent;
       return;
     }
 
     response.statusCode = HttpStatus.methodNotAllowed;
   }
-
-  // ── Specialized Formats: GraphQL ────────────────────────────────────
 
   Future<void> _handleGraphQL(
       HttpRequest request, HttpResponse response) async {
@@ -288,7 +282,6 @@ class ExampleLocalServer {
       return;
     }
 
-    // Default GraphQL mutation / generic query response
     response.statusCode = HttpStatus.ok;
     response.write(
       jsonEncode({
@@ -305,13 +298,10 @@ class ExampleLocalServer {
     );
   }
 
-  // ── Specialized Formats: Multipart Upload ───────────────────────────
-
   Future<void> _handleUpload(HttpRequest request, HttpResponse response) async {
     response.headers.contentType = ContentType.json;
     final contentType = request.headers.contentType?.toString() ?? 'unknown';
 
-    // Read full bytes to consume the request stream
     final bytes = await request
         .fold<List<int>>([], (prev, element) => prev..addAll(element));
 
@@ -327,8 +317,6 @@ class ExampleLocalServer {
       }),
     );
   }
-
-  // ── Specialized Formats: Binary & Image Preview ─────────────────────
 
   void _handleImagePng(HttpResponse response) {
     response.headers.contentType = ContentType('image', 'png');
@@ -347,8 +335,6 @@ class ExampleLocalServer {
 </svg>
 ''');
   }
-
-  // ── Security & Redacted Headers Test ────────────────────────────────
 
   void _handleSecureProfile(HttpRequest request, HttpResponse response) {
     response.headers.contentType = ContentType.json;
@@ -370,8 +356,6 @@ class ExampleLocalServer {
     );
   }
 
-  // ── URL Blacklist (shouldCapture) Test ──────────────────────────────
-
   void _handleAnalytics(HttpRequest request, HttpResponse response) {
     response.headers.contentType = ContentType.json;
     response.statusCode = HttpStatus.ok;
@@ -386,11 +370,9 @@ class ExampleLocalServer {
     );
   }
 
-  // ── HTTP Status Codes: 400, 401, 404, 503 ────────────────────────────
-
   void _handleUnauthorized(HttpResponse response) {
     response.headers.contentType = ContentType.json;
-    response.statusCode = HttpStatus.unauthorized; // 401
+    response.statusCode = HttpStatus.unauthorized;
     response.write(
       jsonEncode({
         'error': 'Unauthorized',
@@ -402,7 +384,7 @@ class ExampleLocalServer {
 
   void _handleNotFound(HttpResponse response) {
     response.headers.contentType = ContentType.json;
-    response.statusCode = HttpStatus.notFound; // 404
+    response.statusCode = HttpStatus.notFound;
     response.write(
       jsonEncode({
         'error': 'Resource Not Found',
@@ -415,7 +397,7 @@ class ExampleLocalServer {
   Future<void> _handleBadRequest(
       HttpRequest request, HttpResponse response) async {
     response.headers.contentType = ContentType.json;
-    response.statusCode = HttpStatus.badRequest; // 400
+    response.statusCode = HttpStatus.badRequest;
     response.write(
       jsonEncode({
         'error': 'Validation Failed',
@@ -445,8 +427,6 @@ class ExampleLocalServer {
     );
   }
 
-  // ── Stress Test & Heavy JSON Endpoints ──────────────────────────────
-
   void _handleHeavyList(HttpRequest request, HttpResponse response) {
     response.headers.contentType = ContentType.json;
     final count =
@@ -458,7 +438,6 @@ class ExampleLocalServer {
 
   void _handleExtremeList(HttpRequest request, HttpResponse response) {
     response.headers.contentType = ContentType.json;
-    // 20,000 items is ~6 MB, safely exceeding Interceptly's 2MB maxUiPreviewBytes limit
     final count =
         int.tryParse(request.uri.queryParameters['count'] ?? '') ?? 20000;
     response.statusCode = HttpStatus.ok;
@@ -577,17 +556,17 @@ class ExampleLocalServer {
 
   /// 8x8 transparent/blue pixel valid PNG byte array
   static final Uint8List _samplePngBytes = Uint8List.fromList([
-    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG header
-    0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, // IHDR chunk
-    0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x08, // 8x8 pixels
-    0x08, 0x02, 0x00, 0x00, 0x00, 0x4B, 0x6D, 0x29, // bit depth 8, truecolor
-    0xDC, 0x00, 0x00, 0x00, 0x24, 0x49, 0x44, 0x41, // IDAT chunk
+    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+    0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+    0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x08,
+    0x08, 0x02, 0x00, 0x00, 0x00, 0x4B, 0x6D, 0x29,
+    0xDC, 0x00, 0x00, 0x00, 0x24, 0x49, 0x44, 0x41,
     0x54, 0x78, 0x9C, 0x63, 0x64, 0xF8, 0xCF, 0xC0,
     0x40, 0x10, 0xE7, 0x7F, 0x06, 0x33, 0xA1, 0x8D,
     0x6C, 0x64, 0x48, 0x62, 0x08, 0x82, 0x10, 0x23,
     0x46, 0x8C, 0x18, 0x31, 0x62, 0xC4, 0x88, 0x11,
     0x23, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x03, 0x00,
-    0x5A, 0x91, 0x0A, 0x13, 0x00, 0x00, 0x00, 0x00, // IEND chunk
+    0x5A, 0x91, 0x0A, 0x13, 0x00, 0x00, 0x00, 0x00,
     0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
   ]);
 }

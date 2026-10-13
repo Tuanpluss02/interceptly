@@ -106,8 +106,6 @@ void main() {
   testWidgets(
       'preview-truncated body renders the preview instead of the full bytes',
       (tester) async {
-    // The preview is a cut-down payload carrying a unique marker; the full
-    // byte buffer carries a different one. Only one of them may reach the UI.
     final previewText = jsonEncode({
       'items': [1, 2, 3],
       'marker': 'ZZPREVIEWZZ'

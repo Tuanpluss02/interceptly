@@ -12,10 +12,6 @@ import 'package:interceptly/interceptly.dart';
 import 'package:interceptly/src/model/raw_capture.dart';
 import 'package:interceptly/src/session/body_decode_service.dart';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 const _pathProviderChannel = MethodChannel('plugins.flutter.io/path_provider');
 
 void _mockTempDir(Future<Object?> Function() handler) {
@@ -92,10 +88,6 @@ class _FixedAdapter implements HttpClientAdapter {
   @override
   void close({bool force = false}) {}
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -293,7 +285,6 @@ void main() {
   group('BodyDecodeService', () {
     test('decodes text truncated in the middle of a multi-byte char', () async {
       final full = utf8.encode('{"msg":"Xin chào thế giới 🌍"}');
-      // Cut inside the 4-byte emoji.
       final cut = Uint8List.fromList(full.sublist(0, full.length - 4));
 
       final text = await BodyDecodeService.decodeAsync(cut, 'application/json');

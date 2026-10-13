@@ -87,9 +87,6 @@ class InterceptlyHttpClient extends http.BaseClient {
       response.headers.entries.map((e) => MapEntry(e.key, e.value)),
     );
 
-    // Tee the response stream: forward every chunk to the caller immediately
-    // while accumulating up to maxBodyBytes for the inspector.
-    // This preserves true streaming behaviour and prevents OOM on large files.
     return http.StreamedResponse(
       _teeResponseStream(
         source: response.stream,

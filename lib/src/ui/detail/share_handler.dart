@@ -167,7 +167,6 @@ class ShareHandler {
     try {
       final harJson = HarExporter.toJson([record]);
 
-      // Save to temp directory (system will auto-clean)
       final directory = await getTemporaryDirectory();
       final sanitizedMethod = _sanitizeFilename(record.method);
       final fileName =
@@ -176,7 +175,6 @@ class ShareHandler {
 
       await file.writeAsString(harJson);
 
-      // Share file using system share UI
       final origin = await _getSharePositionOrigin();
       await _shareFile(
         file,
@@ -223,9 +221,8 @@ class ShareHandler {
         return Rect.fromLTWH(offset.dx, offset.dy, size.width, size.height);
       }
     } catch (e) {
-      // Ignore, will use default
+      debugPrint('Error getting share position origin: $e');
     }
-    // Fallback: center of screen
     return Rect.fromCenter(
       center: Offset(
         MediaQuery.of(context).size.width / 2,

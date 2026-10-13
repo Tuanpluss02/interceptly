@@ -41,7 +41,6 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // 1. Initial positions: line number '1' and content '[' must be aligned
         final line1Finder = find.text('1');
         final contentLine1Finder = find.textContaining('[');
         expect(line1Finder, findsOneWidget);
@@ -51,21 +50,18 @@ void main() {
         final initialContentY = tester.getTopLeft(contentLine1Finder.first).dy;
         expect(initialLine1Y, equals(initialContentY));
 
-        // 2. Perform vertical scroll by dragging SingleChildScrollView
         await tester.drag(
           find.byType(SingleChildScrollView).first,
           const Offset(0, -25),
         );
         await tester.pumpAndSettle();
 
-        // 3. Verify that line 1 has scrolled up and gutter moved in sync
         final scrolledLine1Y = tester.getTopLeft(line1Finder).dy;
         final scrolledContentY = tester.getTopLeft(contentLine1Finder.first).dy;
 
         expect(scrolledLine1Y, lessThan(initialLine1Y));
         expect(scrolledLine1Y, equals(scrolledContentY));
 
-        // 4. Check another line (e.g. line 12) to verify continued gutter and content alignment
         final line12Finder = find.text('12');
         expect(line12Finder, findsOneWidget);
         final line12Y = tester.getTopLeft(line12Finder).dy;
@@ -107,7 +103,6 @@ void main() {
       expect(textFinder, findsOneWidget);
       final initialTextX = tester.getTopLeft(textFinder).dx;
 
-      // Jump horizontal scroll position by 50px
       final horizontalScrollable = tester.state<ScrollableState>(
         find.byWidgetPredicate(
           (w) => w is Scrollable && w.axisDirection == AxisDirection.right,
@@ -119,9 +114,7 @@ void main() {
       final scrolledGutterX = tester.getTopLeft(line1Finder).dx;
       final scrolledTextX = tester.getTopLeft(textFinder).dx;
 
-      // Gutter must remain pinned/docked horizontally
       expect(scrolledGutterX, equals(initialGutterX));
-      // Content text must have scrolled to the left
       expect(scrolledTextX, equals(initialTextX - 50.0));
     });
 
@@ -145,7 +138,6 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // 1. Long press in empty space below lines (e.g. at (200, 200))
         final gesture1 = await tester.startGesture(const Offset(200, 200));
         await tester.pump(const Duration(milliseconds: 600));
         await gesture1.moveBy(const Offset(5, 5));
@@ -153,7 +145,6 @@ void main() {
         await gesture1.up();
         await tester.pumpAndSettle();
 
-        // 2. Long press in empty space to the right of short text on line 2 (e.g. at (250, 27))
         final gesture2 = await tester.startGesture(const Offset(250, 27));
         await tester.pump(const Duration(milliseconds: 600));
         await gesture2.moveBy(const Offset(5, 5));
@@ -186,7 +177,6 @@ void main() {
         final textFinder = find.textContaining('target_key');
         expect(textFinder, findsOneWidget);
 
-        // Long press on the text
         final textCenter = tester.getCenter(textFinder);
         final gesture = await tester.startGesture(textCenter);
         await tester.pump(const Duration(milliseconds: 600));
@@ -226,7 +216,6 @@ void main() {
         final richTextWidget = tester.widget<RichText>(authRichTextFinder);
         expect(richTextWidget.softWrap, isFalse);
 
-        // Verify the entire text contains the full token
         final plainText = richTextWidget.text.toPlainText();
         expect(plainText, contains('Authorization'));
         expect(plainText, contains('Bearer '));
@@ -263,11 +252,9 @@ void main() {
         );
         expect(horizontalScrollable.position.pixels, equals(0.0));
 
-        // Start long press on text at (60, 27) and drag towards right edge (290, 27)
         final gesture = await tester.startGesture(const Offset(60, 27));
         await tester.pump(const Duration(milliseconds: 600));
 
-        // Move to near the right edge (290 is within 40px of 300)
         await gesture.moveTo(const Offset(290, 27));
         await tester.pump(const Duration(milliseconds: 100));
         await tester.pump(const Duration(milliseconds: 100));
@@ -303,7 +290,6 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Line 2 has 'nested_obj_1' which is an object with fold arrow
       final line2Finder = find.text('2');
       final contentLine2Finder = find.textContaining('"nested_obj_1"');
       expect(line2Finder, findsOneWidget);
@@ -311,7 +297,6 @@ void main() {
       final initialLine2Y = tester.getTopLeft(line2Finder).dy;
       expect(initialLine2Y, equals(tester.getTopLeft(contentLine2Finder).dy));
 
-      // Drag up by 50px using vertical SingleChildScrollView
       await tester.drag(
         find.byType(SingleChildScrollView).first,
         const Offset(0, -50),
@@ -321,7 +306,6 @@ void main() {
       final scrolledLine2Y = tester.getTopLeft(line2Finder).dy;
       final scrolledContent2Y = tester.getTopLeft(contentLine2Finder).dy;
 
-      // Both gutter and content for line 2 must move up together
       expect(scrolledLine2Y, lessThan(initialLine2Y));
       expect(scrolledLine2Y, equals(scrolledContent2Y));
     });
@@ -371,11 +355,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Structured binary metadata rendered
       expect(find.textContaining('"kind"'), findsOneWidget);
       expect(find.textContaining('"binary"'), findsOneWidget);
       expect(find.textContaining('2048'), findsOneWidget);
-      // Raw corrupted placeholder string should NOT be displayed as body text
       expect(find.text('\x00[binary: 2048 bytes]'), findsNothing);
     });
 

@@ -18,8 +18,6 @@ class ExampleRequestRunner {
   final http.Client httpClient;
   final chopper.ChopperClient chopperClient;
 
-  // ── 1. Basic Traffic (GET 200) ────────────────────────────────────────
-
   Future<ExampleRequestResult> runDioGet() async {
     final sw = Stopwatch()..start();
     try {
@@ -96,8 +94,6 @@ class ExampleRequestRunner {
       );
     }
   }
-
-  // ── 2. Full RESTful Methods & Status Codes ───────────────────────────
 
   /// POST /api/users -> 201 Created
   Future<ExampleRequestResult> runPostUser() async {
@@ -321,8 +317,6 @@ class ExampleRequestRunner {
     }
   }
 
-  // ── 3. Specialized Formats (GraphQL, Multipart, Image) ───────────────
-
   /// POST /api/graphql (Query with variables)
   Future<ExampleRequestResult> runGraphQLQuery() async {
     final sw = Stopwatch()..start();
@@ -529,8 +523,6 @@ mutation UpdateUserStatus(\$id: ID!, \$status: String!) {
     }
   }
 
-  // ── 4. Security & URL Filtering ─────────────────────────────────────
-
   /// GET /api/secure-profile -> Sends Bearer token, Cookie, and API Key
   Future<ExampleRequestResult> runSecureRequestWithTokens() async {
     final sw = Stopwatch()..start();
@@ -599,8 +591,6 @@ mutation UpdateUserStatus(\$id: ID!, \$status: String!) {
       );
     }
   }
-
-  // ── 5. Stress Test & Heavy JSON Endpoints ────────────────────────────
 
   /// Heavy JSON (~1MB, ~3,000 items, ~25k lines)
   Future<ExampleRequestResult> runHeavyListGet({int count = 3000}) async {

@@ -145,7 +145,6 @@ void main() {
       expect(controller.results!.length, equals(30));
       expect(controller.isScanningFiles, isFalse);
 
-      // Verify file handle was closed by successfully resetting/deleting file
       await bodyStore.resetFile(tempDir.path, fileName: 'stress.tmp');
       expect(File(tempFilePath).existsSync(), isTrue);
     });
@@ -193,7 +192,6 @@ void main() {
         notifyTimes.add(stopwatch.elapsedMilliseconds);
       });
 
-      // 40 in-memory items, each matched during Phase 2
       final entries = <IndexEntry>[];
       for (var i = 0; i < 40; i++) {
         final body = Uint8List.fromList(utf8.encode('{"match_key": "val_$i"}'));
@@ -213,9 +211,7 @@ void main() {
         filePath: null,
       );
 
-      // 40 matches must NOT cause 40 notifications
       expect(notifyCount, lessThan(40));
-      // But search completed, so final notification was forced
       expect(controller.results!.length, equals(40));
       expect(notifyCount, greaterThanOrEqualTo(2));
     });
@@ -247,7 +243,6 @@ void main() {
       await future;
       final recordedCount = notificationsAfterDispose;
 
-      // Wait beyond the 150ms throttle duration
       await Future<void>.delayed(const Duration(milliseconds: 200));
 
       expect(notificationsAfterDispose, equals(recordedCount));
@@ -260,7 +255,6 @@ void main() {
     test(
         'Phase 1 yielding cancellation: cancel() during Phase 1 does not crash',
         () async {
-      // 120 entries triggers Phase 1 yield at i = 50 and i = 100
       final entries = List.generate(
         120,
         (i) => _makeEntry(
@@ -275,10 +269,8 @@ void main() {
         filePath: null,
       );
 
-      // Yield event loop to allow start() to begin and hit delayed(zero)
       await Future<void>.delayed(Duration.zero);
 
-      // Cancel while Phase 1 is running
       controller.cancel();
 
       await future;
@@ -292,7 +284,6 @@ void main() {
         () async {
       final entries = <IndexEntry>[];
       for (var i = 0; i < 4; i++) {
-        // Large payload > 100KB so compute() isolate runs
         final longString = 'x' * (120 * 1024);
         final packed = _packBody(
           requestBody: '{"data": "$longString", "token": "cancel_token_$i"}',
@@ -316,10 +307,8 @@ void main() {
         filePath: tempFilePath,
       );
 
-      // Yield event loop to allow start() to enter compute()
       await Future<void>.delayed(Duration.zero);
 
-      // Cancel while compute isolate is processing
       controller.cancel();
 
       await searchFuture;
@@ -332,7 +321,6 @@ void main() {
     test(
         'Rapid consecutive queries: query 2 supersedes query 1 without result contamination in Phase 1',
         () async {
-      // 100 entries: 50 with 'alpha' in URL, 50 with 'beta' in URL
       final entries = <IndexEntry>[];
       for (var i = 0; i < 50; i++) {
         entries.add(
@@ -343,14 +331,12 @@ void main() {
             .add(_makeEntry(id: 'beta_$i', url: 'https://example.com/beta_$i'));
       }
 
-      // Start search for 'alpha'
       final search1 = controller.start(
         query: 'alpha',
         allEntries: entries,
         filePath: null,
       );
 
-      // Immediately start search for 'beta' synchronously (simulating rapid keystroke)
       final search2 = controller.start(
         query: 'beta',
         allEntries: entries,
@@ -361,7 +347,6 @@ void main() {
 
       expect(controller.query, equals('beta'));
       expect(controller.results, isNotNull);
-      // Results MUST only contain 'beta', not 'alpha'
       final containsAlpha =
           controller.results!.any((e) => e.url.contains('alpha'));
       expect(containsAlpha, isFalse,
@@ -411,7 +396,6 @@ void main() {
         filePath: tempFilePath,
       );
 
-      // Yield once to let search1 enter Phase 3 batches
       await Future<void>.delayed(Duration.zero);
 
       final search2 = controller.start(
@@ -463,7 +447,6 @@ void main() {
 
       await future;
 
-      // Handle must be closed, file can be deleted
       await bodyStore.dispose();
       expect(File(tempFilePath).existsSync(), isFalse);
     });

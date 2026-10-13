@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/src/session/body_decode_service.dart';
 
 void main() {
-  // ── decode ────────────────────────────────────────────────────────────────
 
   group('BodyDecodeService.decode', () {
     test('returns null for null bytes', () {
@@ -27,19 +26,15 @@ void main() {
     test('returns binary placeholder for image content type', () {
       final bytes = Uint8List.fromList([0xFF, 0xD8, 0xFF]);
       final result = BodyDecodeService.decode(bytes, 'image/jpeg');
-      // Binary placeholder uses null byte prefix to distinguish from JSON arrays
       expect(result, '\x00[binary: 3 bytes]');
     });
 
     test('returns binary placeholder when bytes fail UTF-8 decode', () {
-      final bytes = Uint8List.fromList([0xFF, 0xFE]); // invalid UTF-8
+      final bytes = Uint8List.fromList([0xFF, 0xFE]);
       final result = BodyDecodeService.decode(bytes, 'text/plain');
-      // Binary placeholder uses null byte prefix
       expect(result, startsWith('\x00[binary:'));
     });
   });
-
-  // ── isBinary ──────────────────────────────────────────────────────────────
 
   group('BodyDecodeService.isBinary', () {
     test('returns false for null content type', () {
@@ -80,8 +75,6 @@ void main() {
     });
   });
 
-  // ── truncate ──────────────────────────────────────────────────────────────
-
   group('BodyDecodeService.truncate', () {
     test('returns null for null bytes', () {
       expect(BodyDecodeService.truncate(null, 1000, 500), isNull);
@@ -107,11 +100,9 @@ void main() {
     test('does not exceed available bytes when previewLen > length', () {
       final bytes = Uint8List.fromList([1, 2, 3]);
       final result = BodyDecodeService.truncate(bytes, 2, 100)!;
-      expect(result.length, 3); // min(previewLen, bytes.length) = 3
+      expect(result.length, 3);
     });
   });
-
-  // ── tryUtf8 ───────────────────────────────────────────────────────────────
 
   group('BodyDecodeService.tryUtf8', () {
     test('decodes valid UTF-8', () {
@@ -121,12 +112,9 @@ void main() {
 
     test('returns binary placeholder for invalid UTF-8', () {
       final bytes = Uint8List.fromList([0xFF, 0xFE]);
-      // Binary placeholder uses null byte prefix
       expect(BodyDecodeService.tryUtf8(bytes), '\x00[binary: 2 bytes]');
     });
   });
-
-  // ── unpackToText ──────────────────────────────────────────────────────────
 
   group('BodyDecodeService.unpackToText', () {
     test('decodes packed req/res bodies to text', () {
@@ -159,8 +147,6 @@ void main() {
       expect(truncated, isFalse);
     });
   });
-
-  // ── unpackToBytes ─────────────────────────────────────────────────────────
 
   group('BodyDecodeService.unpackToBytes', () {
     test('decodes packed req/res bodies to bytes', () {

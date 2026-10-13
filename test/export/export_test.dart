@@ -9,7 +9,6 @@ import 'package:interceptly/src/model/request_record.dart';
 import 'package:interceptly/src/session/body_store.dart';
 
 void main() {
-  // ── CurlGenerator ────────────────────────────────────────────────────────
 
   group('CurlGenerator', () {
     test('generates basic GET command', () {
@@ -46,7 +45,6 @@ void main() {
     });
 
     test('skips body when body starts with [  (binary placeholder)', () {
-      // Binary placeholders use null byte prefix to distinguish from JSON arrays
       final cmd = CurlGenerator.fromRecord(
         _record(requestBodyPreview: '\x00[binary: 100 bytes]'),
       );
@@ -80,8 +78,6 @@ void main() {
     });
   });
 
-  // ── HarExporter ──────────────────────────────────────────────────────────
-
   group('HarExporter', () {
     test('produces valid HAR root structure', () {
       final har = HarExporter.fromRecords([_record()]);
@@ -111,7 +107,6 @@ void main() {
     });
 
     test('response content.text is empty for binary placeholder', () {
-      // Binary placeholders use null byte prefix to distinguish from JSON arrays
       final har = HarExporter.fromRecords([
         _record(responseBodyPreview: '\x00[binary: 512 bytes]'),
       ]);
@@ -147,8 +142,6 @@ void main() {
       expect(entries, isEmpty);
     });
   });
-
-  // ── PostmanExporter ───────────────────────────────────────────────────────
 
   group('PostmanExporter', () {
     test('produces valid Postman collection root structure', () {

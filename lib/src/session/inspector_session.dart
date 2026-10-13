@@ -151,7 +151,6 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   @override
   Set<SearchMatchScope> getSearchScopes(String id) => _search.getScopes(id);
 
-  // Grouping getters
   @override
   bool get groupingEnabled => _grouping.enabled;
 
@@ -167,10 +166,6 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   void _invalidateAvailableDomainsCache() {
     _cachedAvailableDomains = null;
   }
-
-  // ---------------------------------------------------------------------------
-  // Lifecycle
-  // ---------------------------------------------------------------------------
 
   Future<void> initialize() async {
     _initFuture ??= _performInit();
@@ -222,10 +217,6 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     notifyListeners();
   }
 
-  // ---------------------------------------------------------------------------
-  // Capture control
-  // ---------------------------------------------------------------------------
-
   /// Enables capture. Capture is enabled by default.
   @override
   void enable() {
@@ -255,10 +246,6 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     _networkSimulation = NetworkSimulationProfile.none;
     notifyListeners();
   }
-
-  // ---------------------------------------------------------------------------
-  // Grouping
-  // ---------------------------------------------------------------------------
 
   @override
   void toggleGrouping(bool enabled) {
@@ -360,7 +347,6 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     );
 
     if (!_initialized) {
-      // Buffer until the isolate is ready; bounded by maxQueuedEvents.
       _preInitQueue.add(sanitizedCapture);
       initialize().catchError((Object error, StackTrace stackTrace) {
         if (kDebugMode) {
@@ -510,10 +496,6 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     _pendingTimers.remove(id)?.cancel();
   }
 
-  // ---------------------------------------------------------------------------
-  // Filter
-  // ---------------------------------------------------------------------------
-
   @override
   void applyFilter(RequestFilter filter) {
     if (_filter == filter) return;
@@ -540,10 +522,6 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
         allEntries: _memoryIndex.entries,
         filePath: _tempFilePath,
       );
-
-  // ---------------------------------------------------------------------------
-  // Detail loading
-  // ---------------------------------------------------------------------------
 
   /// Load the full [RequestRecord] for [summary].
   ///
@@ -679,10 +657,6 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Clear / Dispose
-  // ---------------------------------------------------------------------------
-
   @override
   Future<void> clear() async {
     if (_clearFuture != null) return _clearFuture!;
@@ -692,8 +666,6 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   Future<void> _performClear() async {
     try {
       if (_initialized) {
-        // Wait for the isolate to finish all pending writes AND reset the file
-        // before clearing the in-memory index, so offsets never go stale.
         await _writerIsolate.clear();
       } else {
         _preInitQueue.clear();

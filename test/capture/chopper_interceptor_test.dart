@@ -81,7 +81,6 @@ void main() {
 
         final response = await interceptor.intercept(chain);
 
-        // 1. Verify outbound request.parameters was NOT altered
         expect(chain.proceededRequest, isNotNull);
         expect(chain.proceededRequest!.parameters, equals(originalParams));
         expect(
@@ -97,11 +96,9 @@ void main() {
           isFalse,
         );
 
-        // 2. Response returned cleanly
         expect(response.statusCode, 200);
         expect(response.body, '{"items":[]}');
 
-        // Wait for session writer isolate to complete entry processing
         final end = DateTime.now().add(const Duration(seconds: 3));
         while (
             session.entries.isEmpty || session.entries.first.statusCode == 0) {
@@ -109,7 +106,6 @@ void main() {
           await Future.delayed(const Duration(milliseconds: 50));
         }
 
-        // 3. Verify entry recorded in session with correct metadata
         expect(session.entries.length, 1);
         final entry = session.entries.first;
         expect(entry.url, contains('https://api.example.com/items'));

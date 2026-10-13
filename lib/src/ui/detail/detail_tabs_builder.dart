@@ -248,7 +248,6 @@ class DetailTabsBuilder {
   }
 
   Widget buildMessagesTab() {
-    // Note: If WebSockets messages are not captured by RequestRecord, this will simply say no messages
     final messages = <Map<String, dynamic>>[];
 
     if (messages.isEmpty) {

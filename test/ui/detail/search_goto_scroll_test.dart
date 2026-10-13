@@ -173,7 +173,6 @@ void main() {
           computeMatches(record, 'findme', false, (s) => jsonDecode(s!));
       expect(matches, isNotEmpty);
 
-      // Verify sections are mapped to appropriate tabIndex
       for (final m in matches) {
         switch (m.section) {
           case DetailSection.overviewUrl:
@@ -278,10 +277,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Starts on Overview tab
       expect(find.text('URL'), findsOneWidget);
 
-      // Perform search for match located in Response Body
       final searchField = find.byType(TextField);
       expect(searchField, findsOneWidget);
 
@@ -296,18 +293,15 @@ void main() {
       });
       await tester.pumpAndSettle();
 
-      // Should automatically navigate to Response tab (Tab 2)
       expect(find.text('1 / 1'), findsOneWidget);
       expect(find.text('RESPONSE BODY'), findsOneWidget);
 
-      // Next match button
       final nextButton = find.byTooltip('Next match');
       expect(nextButton, findsOneWidget);
       await tester.tap(nextButton);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 350));
 
-      // Previous match button
       final prevButton = find.byTooltip('Previous match');
       expect(prevButton, findsOneWidget);
       await tester.tap(prevButton);
@@ -353,7 +347,6 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
 
-      // Create a line with 500 'a' characters, then target match, then 500 'b' characters
       final prefix = 'a' * 500;
       final wideData = <String, dynamic>{
         'wideField': '$prefix TARGET_MATCH ${"b" * 500}',
@@ -383,7 +376,6 @@ void main() {
       final hController =
           jvState.horizontalScrollControllerForTest as ScrollController;
 
-      // The match is ~500 chars to the right, so horizontal scroll offset must be > 0
       expect(hController.offset, greaterThan(0.0));
       expect(tester.takeException(), isNull);
     });
@@ -396,7 +388,7 @@ void main() {
       addTearDown(() => tester.view.resetPhysicalSize());
 
       const sample = 'The quick brown fox jumps over the lazy dog. 1234567890 ';
-      final bigText = sample * 50; // ~2800 characters
+      final bigText = sample * 50;
 
       final bodyJson = jsonEncode({
         'title': 'Wide Text Payload',
@@ -454,17 +446,14 @@ void main() {
       final nextButton = find.byTooltip('Next match');
       final prevButton = find.byTooltip('Previous match');
 
-      // Navigate Next match several times
       for (int i = 0; i < 3; i++) {
         await tester.tap(nextButton);
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 250));
       }
 
-      // Horizontal offset should be tracking matches across wide content
       expect(hController.hasClients, isTrue);
 
-      // Navigate Prev match
       await tester.tap(prevButton);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 250));
@@ -508,19 +497,16 @@ void main() {
         ),
       );
 
-      // Let record load and matches compute
       await tester.runAsync(() async {
         await Future<void>.delayed(const Duration(milliseconds: 350));
       });
       await tester.pumpAndSettle();
 
-      // Search field should be pre-populated
       final searchField = find.byType(TextField);
       expect(searchField, findsOneWidget);
       expect(tester.widget<TextField>(searchField).controller?.text,
           'initial_target');
 
-      // Floating capsule match counter should be visible showing matches
       expect(find.textContaining('/'), findsWidgets);
     });
 
@@ -532,7 +518,6 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
 
       final entry = _createEntry('req_repro');
-      // Create many fields so the payload requires scrolling in JsonViewer
       final payload = <String, dynamic>{
         for (int i = 0; i < 40; i++) 'key_$i': 'value_$i',
         'target_secret': 'found_me_here',
@@ -566,7 +551,6 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Search for target_secret
       final searchField = find.byType(TextField);
       await tester.enterText(searchField, 'found_me_here');
       tester.widget<TextField>(searchField).onSubmitted?.call('found_me_here');
@@ -576,33 +560,26 @@ void main() {
       });
       await tester.pumpAndSettle();
 
-      // It automatically navigated to Response tab (Tab 2)
       final jsonViewerFinder = find.byType(JsonViewer).last;
       expect(jsonViewerFinder, findsOneWidget);
       final jvState = tester.state(jsonViewerFinder) as dynamic;
       final contentScroll =
           jvState.contentScrollControllerForTest as ScrollController;
 
-      // It should have scrolled down to the match line (~line 40)
       final matchOffset = contentScroll.offset;
       expect(matchOffset, greaterThan(0.0));
 
-      // 1. Scroll away from match (e.g. scroll to top)
       contentScroll.jumpTo(0.0);
       await tester.pumpAndSettle();
       expect(contentScroll.offset, 0.0);
 
-      // 2. Switch to another tab (e.g. Overview tab)
       await tester.tap(find.text('Overview'));
       await tester.pumpAndSettle();
 
-      // 3. Press "goto" (Next match button)
       final nextButton = find.byTooltip('Next match');
       await tester.tap(nextButton);
       await tester.pumpAndSettle();
 
-      // Tab should be back to Response tab
-      // AND scroll position should be back to matchOffset!
       expect(contentScroll.offset, closeTo(matchOffset, 5.0));
     });
 
@@ -655,7 +632,6 @@ void main() {
       });
       await tester.pumpAndSettle();
 
-      // Find the outer ListView for Request tab
       final listViewFinder = find.ancestor(
         of: find.text('REQUEST BODY'),
         matching: find.byType(ListView),
@@ -670,21 +646,17 @@ void main() {
       final initialOffset = scrollableState.position.pixels;
       expect(initialOffset, greaterThan(0.0));
 
-      // Scroll away: scroll the Request tab back to top (0.0)
       scrollableState.position.jumpTo(0.0);
       await tester.pumpAndSettle();
       expect(scrollableState.position.pixels, 0.0);
 
-      // Tap Overview tab
       await tester.tap(find.text('Overview'));
       await tester.pumpAndSettle();
 
-      // Press next match
       final nextButton = find.byTooltip('Next match');
       await tester.tap(nextButton);
       await tester.pumpAndSettle();
 
-      // Verify it scrolled back down to Request Body!
       expect(scrollableState.position.pixels, greaterThan(0.0));
       expect(find.text('REQUEST BODY'), findsOneWidget);
     });
@@ -750,21 +722,17 @@ void main() {
       final matchOffset = contentScroll.offset;
       expect(matchOffset, greaterThan(0.0));
 
-      // Scroll away
       contentScroll.jumpTo(0.0);
       await tester.pumpAndSettle();
 
-      // Switch to Overview tab
       await tester.tap(find.text('Overview'));
       await tester.pumpAndSettle();
 
-      // Tap the counter pill directly
       final pillFinder = find.byTooltip('Go to current match');
       expect(pillFinder, findsOneWidget);
       await tester.tap(pillFinder);
       await tester.pumpAndSettle();
 
-      // Should be back on Response tab and scrolled to match
       expect(contentScroll.offset, closeTo(matchOffset, 5.0));
     });
 
@@ -829,17 +797,14 @@ void main() {
       final matchOffset = contentScroll.offset;
       expect(matchOffset, greaterThan(0.0));
 
-      // Scroll away on the same tab
       contentScroll.jumpTo(0.0);
       await tester.pumpAndSettle();
       expect(contentScroll.offset, 0.0);
 
-      // Press Next match
       final nextButton = find.byTooltip('Next match');
       await tester.tap(nextButton);
       await tester.pumpAndSettle();
 
-      // Should scroll back to match
       expect(contentScroll.offset, closeTo(matchOffset, 5.0));
     });
   });

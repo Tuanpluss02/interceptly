@@ -221,7 +221,6 @@ class RequestLogItem extends StatelessWidget {
                 const SizedBox(width: 12),
               ],
 
-              // Method chip (HTTP verb, not response status)
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 9,

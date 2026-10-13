@@ -159,7 +159,6 @@ void main() {
       final scrolledLine1Y = tester.getTopLeft(line1Finder).dy;
       expect(scrolledLine1Y, lessThan(initialLine1Y));
 
-      // Line 15 corresponds to level_14 in 25-deep nesting (line 1 is '{', line 2 is level_1 ... line 15 is level_14)
       final line15 = find.text('15');
       if (line15.evaluate().isNotEmpty) {
         final content14 = find.textContaining('"level_14"');
@@ -196,7 +195,6 @@ void main() {
       final initialGutterX = tester.getTopLeft(line1Finder).dx;
       final initialGutterY = tester.getTopLeft(line1Finder).dy;
 
-      // Scroll horizontally
       final horizontalScrollable = tester.state<ScrollableState>(
         find.byWidgetPredicate(
           (w) => w is Scrollable && w.axisDirection == AxisDirection.right,
@@ -205,10 +203,8 @@ void main() {
       horizontalScrollable.position.jumpTo(100.0);
       await tester.pumpAndSettle();
 
-      // Gutter X must not change
       expect(tester.getTopLeft(line1Finder).dx, equals(initialGutterX));
 
-      // Drag vertically
       await tester.drag(
         find.byType(SingleChildScrollView).first,
         const Offset(0, -25),
@@ -244,17 +240,14 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Tap on line 2 gutter fold icon to collapse section_a
       final line2 = find.text('2');
       expect(line2, findsOneWidget);
       await tester.tap(line2);
       await tester.pumpAndSettle();
 
-      // After collapse, section_b should be visible earlier
       final lineSectionB = find.textContaining('"section_b"');
       expect(lineSectionB, findsOneWidget);
 
-      // Now scroll vertically and check alignment
       await tester.drag(
         find.byType(SingleChildScrollView).first,
         const Offset(0, -40),
@@ -680,7 +673,6 @@ void main() {
 
       expect(capturedRequest, isNotNull);
       expect(capturedRequest!.body, equals(textBody));
-      // Preserves original text/plain content-type
       expect(capturedRequest!.headers['content-type'], equals('text/plain'));
     });
 

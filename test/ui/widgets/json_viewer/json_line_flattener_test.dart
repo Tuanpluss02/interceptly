@@ -25,16 +25,6 @@ void main() {
         'a': [1, 2],
         'b': {'c': 3},
       };
-      // { : 1
-      //   "a": [ : 1
-      //     1, : 1
-      //     2  : 1
-      //   ],   : 1
-      //   "b": { : 1
-      //     "c": 3 : 1
-      //   }    : 1
-      // }      : 1
-      // total = 9 lines
       expect(JsonLineFlattener.countExpandedLines(data), 9);
     });
   });
@@ -84,10 +74,6 @@ void main() {
       );
 
       final lines = flattener.flatten(data);
-      // Line 1: {
-      // Line 2: "folded": [ … ], (represents 5 expanded lines: header + 3 items + bracket)
-      // Line 7: "next": "hello"
-      // Line 8: }
       expect(lines.length, 4);
       expect(lines[0].realLineNumber, 1);
       expect(lines[1].realLineNumber, 2);
@@ -100,14 +86,13 @@ void main() {
       final data = {
         'items': List.generate(25, (i) => 'item_$i'),
       };
-      // 25 items -> defaults collapsed
       final expansion = JsonExpansionState();
       const query = 'item_10';
       final matchCounts = JsonSearch.matchCountsByPath(data, query);
 
       final flattener = JsonLineFlattener(
         expansion: expansion,
-        activeGlobalIndex: 0, // match is at index 0
+        activeGlobalIndex: 0,
         matchCounts: matchCounts,
         lineCountMemo: null,
         baseTextStyle: baseStyle,
@@ -142,7 +127,7 @@ void main() {
 
       final lines = flattener.flatten(data, query: query);
       expect(expansion.isExpanded(r'$.items', 2), isFalse);
-      expect(lines.length, 3); // {, "items": [ … ], }
+      expect(lines.length, 3);
     });
 
     test('splits multiline string into separate JsonLines', () {
@@ -157,7 +142,7 @@ void main() {
       );
 
       final lines = flattener.flatten(data);
-      expect(lines.length, 5); // {, line1, line2, line3, }
+      expect(lines.length, 5);
     });
   });
 }

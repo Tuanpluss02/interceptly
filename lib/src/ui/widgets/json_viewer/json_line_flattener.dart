@@ -113,7 +113,6 @@ class JsonLineFlattener {
   }) {
     int currentOffset = matchOffset;
 
-    // ── Build key spans ──
     final keySpans = <TextSpan>[];
     if (key != null) {
       final keyText = '"$key"';
@@ -147,7 +146,6 @@ class JsonLineFlattener {
             style: baseTextStyle.copyWith(color: JsonViewerColors.punctuation),
           );
 
-    // ── Scalars ──
     if (value == null) {
       return _emitLeaf(
           output,
@@ -185,7 +183,6 @@ class JsonLineFlattener {
           JsonViewerColors.string, currentOffset, query, commaSpan, realLine);
     }
 
-    // ── List ──
     if (value is List) {
       if (value.isEmpty) {
         output.add(JsonLine(
@@ -223,7 +220,6 @@ class JsonLineFlattener {
       );
     }
 
-    // ── Map ──
     if (value is Map) {
       if (value.isEmpty) {
         output.add(JsonLine(
@@ -262,7 +258,6 @@ class JsonLineFlattener {
       );
     }
 
-    // ── Fallback ──
     return _emitLeaf(
         output,
         indent,
@@ -429,8 +424,6 @@ class JsonLineFlattener {
   }) {
     int currentOffset = matchOffset;
 
-    // Auto-expand when the active search match falls inside this subtree
-    // and the user hasn't manually collapsed it.
     if (query != null &&
         activeGlobalIndex != null &&
         !expansion.isUserCollapsed(path)) {
@@ -448,7 +441,6 @@ class JsonLineFlattener {
     final activeInKey = keySpans.any(JsonSearch.spanHasActiveHighlight);
 
     if (expanded) {
-      // Header: "key": {
       output.add(JsonLine(
         indentLevel: indent,
         realLineNumber: realLine,
@@ -463,7 +455,6 @@ class JsonLineFlattener {
 
       int nextLine = realLine + 1;
 
-      // Children
       for (final child in children) {
         final result = _flatten(
           value: child.value,
@@ -480,7 +471,6 @@ class JsonLineFlattener {
         nextLine = result.nextRealLine;
       }
 
-      // Closing bracket
       output.add(JsonLine(
         indentLevel: indent,
         realLineNumber: nextLine,
@@ -492,11 +482,6 @@ class JsonLineFlattener {
 
       return (matchOffset: currentOffset, nextRealLine: nextLine + 1);
     } else {
-      // Collapsed: "key": { … },
-      //
-      // The real line number is the opening bracket line. We advance
-      // by the total expanded line count so the next sibling picks up
-      // the correct real line number.
       final expandedLineCount = countExpandedLines(rawValue, lineCountMemo);
 
       output.add(JsonLine(
@@ -523,8 +508,6 @@ class JsonLineFlattener {
         hasActiveMatch: activeInKey,
       ));
 
-      // Advance the match offset past all collapsed children so
-      // sibling nodes receive the correct offset.
       if (query != null) {
         currentOffset += matchCounts?[path] ?? 0;
       }

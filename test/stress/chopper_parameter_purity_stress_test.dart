@@ -128,7 +128,6 @@ void main() {
 
         final response = await interceptor.intercept(chain);
 
-        // 1. Verify outbound request parameters are completely unmodified
         expect(chain.proceededRequest, isNotNull);
         expect(chain.proceededRequest!.parameters, equals(complexParams));
         expect(
@@ -147,7 +146,6 @@ void main() {
         );
         expect(response.statusCode, 200);
 
-        // Verify session entry
         await waitForSessionEntry(id: session.entries.first.id);
         final entry = session.entries.first;
         expect(entry.hasError, isFalse);
@@ -228,7 +226,6 @@ void main() {
 
         await interceptor.intercept(chain);
 
-        // Must NOT overwrite or drop the user's custom parameters
         expect(
           chain.proceededRequest!.parameters['interceptly_started_at'],
           'custom_user_timestamp_123',
@@ -289,7 +286,6 @@ void main() {
         );
       }
 
-      // Wait for session entries
       final end = DateTime.now().add(const Duration(seconds: 4));
       while (session.entries.length < 50) {
         if (DateTime.now().isAfter(end)) break;
@@ -297,7 +293,6 @@ void main() {
       }
       expect(session.entries.length, 50);
 
-      // Verify all session IDs are unique
       final idSet = session.entries.map((e) => e.id).toSet();
       expect(idSet.length, 50);
     });
@@ -322,7 +317,6 @@ void main() {
         throwsA(isA<SocketException>()),
       );
 
-      // Ensure chain received unmodified parameters before throwing
       expect(chain.proceededRequest!.parameters, equals({'test': 'socket'}));
 
       final end = DateTime.now().add(const Duration(seconds: 3));
@@ -353,17 +347,14 @@ void main() {
             'GET', Uri.parse('https://api.example.com/immediate-cancel')),
       );
 
-      // Initial pending entry exists
       expect(session.entries.length, 1);
       final pendingEntry = session.entries.first;
       expect(pendingEntry.statusCode, 0);
 
-      // Cancel stream subscription immediately without sending chunks
       final sub = response.stream.listen((_) {});
       await sub.cancel();
       await streamCtrl.close();
 
-      // Verify prompt cancellation (< 500ms, well under 3 seconds)
       final end = DateTime.now().add(const Duration(seconds: 3));
       while (!session.entries.first.hasError) {
         if (DateTime.now().isAfter(end)) {
@@ -373,7 +364,6 @@ void main() {
       }
       stopwatch.stop();
 
-      // Must complete prompt, orders of magnitude faster than 45s pending timeout
       expect(stopwatch.elapsedMilliseconds, lessThan(1000));
 
       final entry = session.entries.first;
@@ -407,13 +397,11 @@ void main() {
         },
       );
 
-      // Push 4 chunks into the stream
       streamCtrl.add([1, 2, 3]);
       streamCtrl.add([4, 5, 6]);
 
       await cancelCompleter.future;
 
-      // Verify prompt recording
       final end = DateTime.now().add(const Duration(seconds: 3));
       while (!session.entries.first.hasError) {
         if (DateTime.now().isAfter(end)) {
@@ -430,7 +418,6 @@ void main() {
 
     test('Stream cancellation under active network simulation throttling',
         () async {
-      // Configure network simulation with slow profile (delay per chunk)
       session.setNetworkSimulation(NetworkSimulationProfile.slow3G);
 
       final streamCtrl = StreamController<List<int>>();
@@ -443,10 +430,8 @@ void main() {
       );
 
       final sub = response.stream.listen((_) {});
-      // Emit a 500-byte chunk which triggers throughput delay
       streamCtrl.add(List.generate(500, (i) => i % 256));
 
-      // Cancel mid-delay
       await Future<void>.delayed(const Duration(milliseconds: 30));
       await sub.cancel();
       await streamCtrl.close();
@@ -463,7 +448,6 @@ void main() {
       expect(entry.hasError, isTrue);
       expect(entry.errorType, 'CancellationException');
 
-      // Reset simulation
       session.clearNetworkSimulation();
     });
 
@@ -484,7 +468,6 @@ void main() {
       sub.resume();
       expect(streamCtrl.isPaused, isFalse);
 
-      // Call cancel multiple times
       await sub.cancel();
       await sub.cancel();
       await streamCtrl.close();
@@ -553,7 +536,6 @@ void main() {
 
       await Future.wait(futures);
 
-      // Wait for all 30 entries to be processed into terminal states
       final end = DateTime.now().add(const Duration(seconds: 4));
       while (
           session.entries.where((e) => e.statusCode != 0 || e.hasError).length <
@@ -586,8 +568,6 @@ void main() {
       );
 
       final entryId = session.entries.first.id;
-      // Pending timer was scheduled for this request
-      // Now cancel the stream
       final sub = response.stream.listen((_) {});
       await sub.cancel();
       await streamCtrl.close();

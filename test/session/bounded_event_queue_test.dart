@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/src/session/bounded_event_queue.dart';
 
 void main() {
-  // ── basic operations ──────────────────────────────────────────────────────
 
   group('BoundedEventQueue basic operations', () {
     test('starts empty', () {
@@ -33,14 +32,12 @@ void main() {
     });
   });
 
-  // ── overflow / drop ───────────────────────────────────────────────────────
-
   group('BoundedEventQueue overflow', () {
     test('drops oldest entry when maxSize is exceeded', () {
       final q = BoundedEventQueue<int>(maxSize: 2);
       q.add(1);
       q.add(2);
-      q.add(3); // should drop 1
+      q.add(3);
 
       expect(q.length, 2);
       expect(q.removeFirstOrNull(), 2);
@@ -62,8 +59,6 @@ void main() {
     });
   });
 
-  // ── clear ─────────────────────────────────────────────────────────────────
-
   group('BoundedEventQueue.clear', () {
     test('empties the queue', () {
       final q = BoundedEventQueue<int>(maxSize: 5);
@@ -78,15 +73,13 @@ void main() {
     test('resets droppedCount', () {
       final q = BoundedEventQueue<int>(maxSize: 1);
       q.add(1);
-      q.add(2); // drops 1
+      q.add(2);
       expect(q.droppedCount, 1);
 
       q.clear();
       expect(q.droppedCount, 0);
     });
   });
-
-  // ── assert ────────────────────────────────────────────────────────────────
 
   test('asserts maxSize > 0', () {
     expect(

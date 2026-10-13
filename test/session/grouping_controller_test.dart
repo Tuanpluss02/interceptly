@@ -7,8 +7,6 @@ void main() {
   setUp(() => controller = GroupingController());
   tearDown(() => controller.dispose());
 
-  // ── initial state ─────────────────────────────────────────────────────────
-
   test('enabled defaults to false', () {
     expect(controller.enabled, isFalse);
   });
@@ -16,8 +14,6 @@ void main() {
   test('isExpanded defaults to true for unknown domain', () {
     expect(controller.isExpanded('example.com'), isTrue);
   });
-
-  // ── setEnabled ────────────────────────────────────────────────────────────
 
   group('GroupingController.setEnabled', () {
     test('toggles enabled state', () {
@@ -40,12 +36,10 @@ void main() {
       int notifyCount = 0;
       controller.addListener(() => notifyCount++);
 
-      controller.setEnabled(false); // already false
+      controller.setEnabled(false);
       expect(notifyCount, 0);
     });
   });
-
-  // ── toggleDomainExpanded ──────────────────────────────────────────────────
 
   group('GroupingController.toggleDomainExpanded', () {
     test('first toggle collapses a domain (default was expanded)', () {
@@ -74,11 +68,9 @@ void main() {
     });
   });
 
-  // ── reset ─────────────────────────────────────────────────────────────────
-
   group('GroupingController.reset', () {
     test('clears collapsed domains, restoring defaults', () {
-      controller.toggleDomainExpanded('example.com'); // collapse it
+      controller.toggleDomainExpanded('example.com');
       expect(controller.isExpanded('example.com'), isFalse);
 
       controller.reset();

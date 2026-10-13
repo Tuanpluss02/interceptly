@@ -50,8 +50,6 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
   @override
   void initState() {
     super.initState();
-    // Assuming you want to read actual settings for other fields eventually,
-    // right now just initialize URL decoding correctly.
     _urlDecodeEnabled = widget.session.preferences.urlDecodeEnabled;
     _networkSimulation = widget.session.networkSimulation;
     _themeMode = widget.session.preferences.themeMode;
@@ -79,7 +77,6 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
         ),
         child: Column(
           children: [
-            // Handle & Header
             Container(
               padding: const EdgeInsets.only(top: 12.0, bottom: 12.0),
               decoration: BoxDecoration(
@@ -120,7 +117,6 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
               ),
             ),
 
-            // Content
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.all(16.0),
@@ -310,7 +306,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                     ),
                   ],
 
-                  const SizedBox(height: 48), // Padding bottom
+                  const SizedBox(height: 48),
                 ],
               ),
             ),
@@ -397,7 +393,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
           Divider(
             height: 1,
             color: InterceptlyTheme.dividerSubtle,
-            indent: 16, // Optional indent
+            indent: 16,
           ),
         );
       }

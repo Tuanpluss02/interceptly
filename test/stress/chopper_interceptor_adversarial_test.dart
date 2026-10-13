@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:chopper/chopper.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -123,7 +124,6 @@ void main() {
         final chain = _CapturingChain<dynamic>(
           req,
           (r) async {
-            // Minimal async yield to simulate network micro-delay
             if (idx % 5 == 0) {
               await Future<void>.delayed(const Duration(milliseconds: 5));
             }
@@ -148,7 +148,6 @@ void main() {
 
       await Future.wait(futures);
 
-      // Verify outbound parameter purity for ALL 100 requests
       expect(proceededParams.length, 100);
       for (var i = 0; i < 100; i++) {
         final params = proceededParams[i]!;
@@ -159,7 +158,6 @@ void main() {
             reason: 'Leaked interceptly_request_id in request $i');
       }
 
-      // Wait for all 100 requests to be processed in InspectorSession
       final deadline = DateTime.now().add(const Duration(seconds: 5));
       while (session.entries.where((e) => e.statusCode != 0).length < 100) {
         if (DateTime.now().isAfter(deadline)) break;
@@ -246,7 +244,6 @@ void main() {
           isFalse,
         );
 
-        // Find session entry for this test case
         final url = tc['url'] as String;
         final deadline = DateTime.now().add(const Duration(seconds: 3));
         IndexEntry? matched;
@@ -260,8 +257,7 @@ void main() {
         }
 
         if (matched == null) {
-          // ignore: avoid_print
-          print(
+          debugPrint(
               'DEBUG tc url: $url, session entries: ${session.entries.map((e) => 'id:${e.id} url:${e.url} err:${e.hasError} type:${e.errorType} status:${e.statusCode}').toList()}');
         }
 
@@ -304,7 +300,6 @@ void main() {
         expect(response.isSuccessful, isFalse);
         expect(chain.proceededRequest!.parameters, equals({'code': '$code'}));
 
-        // Wait for session entry
         final urlPart = '/status/$code';
         final deadline = DateTime.now().add(const Duration(seconds: 3));
         IndexEntry? entry;
@@ -354,22 +349,18 @@ void main() {
         http.Request('GET', Uri.parse('https://api.example.com/zero-bytes')),
       );
 
-      // Verify pending entry created
       expect(session.entries.length, 1);
       final entryId = session.entries.first.id;
       expect(session.entries.first.statusCode, 0);
 
-      // Listen and CANCEL immediately without source emitting anything
       final sub = response.stream.listen((chunk) {
         fail('No chunk should be emitted on zero-byte cancellation');
       });
       await sub.cancel();
 
-      // Ensure source was cancelled
       expect(sourceCancelled, isTrue,
           reason: 'Source stream controller onCancel was not called');
 
-      // Verify session entry is updated promptly to CancellationException
       final terminalEntry = await waitForTerminalEntry(entryId);
       expect(terminalEntry, isNotNull);
       expect(terminalEntry!.hasError, isTrue);
@@ -413,25 +404,21 @@ void main() {
         (chunk) async {
           receivedChunks.add(chunk);
           if (receivedChunks.length == 3) {
-            // Cancel on 3rd chunk
             await sub.cancel();
             cancelCompleter.complete();
           }
         },
       );
 
-      // Emit 6 chunks
       sourceController.add([1, 2, 3]);
       sourceController.add([4, 5, 6]);
       sourceController.add([7, 8, 9]);
 
       await cancelCompleter.future;
 
-      // Source should be cancelled
       expect(sourceCancelled, isTrue);
       expect(receivedChunks.length, 3);
 
-      // Even if more chunks are added to source controller, consumer must receive none
       sourceController.add([10, 11, 12]);
       sourceController.add([13, 14, 15]);
 
@@ -440,7 +427,6 @@ void main() {
       expect(terminalEntry!.hasError, isTrue);
       expect(terminalEntry.errorType, 'CancellationException');
 
-      // Partial body must reflect the 3 chunks captured (9 bytes)
       expect(terminalEntry.responseSizeBytes, 9);
 
       await sourceController.close();
@@ -476,7 +462,6 @@ void main() {
       sub = response.stream.listen((chunk) async {
         chunks.add(chunk);
         if (chunks.length == 2) {
-          // Chunk 2 is the final chunk; client cancels before source close()
           await sub.cancel();
           cancelCompleter.complete();
         }
@@ -488,7 +473,6 @@ void main() {
       await cancelCompleter.future;
       expect(sourceCancelled, isTrue);
 
-      // Source now closes
       await sourceController.close();
 
       final terminalEntry = await waitForTerminalEntry(entryId);
@@ -541,19 +525,16 @@ void main() {
             },
           );
 
-          // Emit chunks concurrently with an asynchronous cancel trigger
           final cancelFuture = Future<void>.delayed(
             Duration(milliseconds: 5 + (idx % 15)),
             () async {
               if (idx % 2 == 0) {
-                // Half the streams are cancelled concurrently while reading
                 await sub.cancel();
                 if (!doneCompleter.isCompleted) doneCompleter.complete();
               }
             },
           );
 
-          // Emit bursts
           for (var c = 0; c < 5; c++) {
             if (!ctrl.isClosed) {
               ctrl.add([c, c + 1, c + 2]);
@@ -572,7 +553,6 @@ void main() {
 
       await Future.wait(futures);
 
-      // Verify all 20 entries reached terminal states cleanly
       final deadline = DateTime.now().add(const Duration(seconds: 5));
       while (
           session.entries.where((e) => e.statusCode != 0 || e.hasError).length <
@@ -587,14 +567,12 @@ void main() {
       final completedEntries =
           session.entries.where((e) => !e.hasError && e.statusCode == 200);
 
-      // All 20 entries must be in a clean terminal state
       expect(cancelledEntries.length + completedEntries.length, 20);
     });
 
     test(
         'Slow server stream cancellation: client cancels while chunk delay is pending during network simulation throttling',
         () async {
-      // Set high download throttling so each chunk incurs significant delay
       session.setNetworkSimulation(NetworkSimulationProfile.slow3G);
 
       var sourceCancelled = false;
@@ -621,16 +599,13 @@ void main() {
 
       final sub = response.stream.listen((chunk) {});
 
-      // Add a chunk of 300 bytes: this triggers session.throughputDelayForChunk(300) > 0
       sourceController.add(List.generate(300, (i) => i % 256));
 
-      // Cancel while the throttle Future.delayed is active
       await Future<void>.delayed(const Duration(milliseconds: 20));
       await sub.cancel();
 
       expect(sourceCancelled, isTrue);
 
-      // Verify that cancellation resolves promptly (< 1s) and does not hang
       final stopwatch = Stopwatch()..start();
       final terminalEntry = await waitForTerminalEntry(entryId);
       stopwatch.stop();
@@ -641,7 +616,6 @@ void main() {
       expect(stopwatch.elapsedMilliseconds, lessThan(1500));
 
       await sourceController.close();
-      // Restore simulation profile
       session.clearNetworkSimulation();
     });
 
@@ -669,7 +643,6 @@ void main() {
       sub = response.stream.listen(
         (_) {},
         onError: (e) async {
-          // Consumer receives the error, then calls sub.cancel()
           await sub.cancel();
           errorCompleter.complete();
         },
@@ -682,7 +655,6 @@ void main() {
       final terminalEntry = await waitForTerminalEntry(entryId);
       expect(terminalEntry, isNotNull);
       expect(terminalEntry!.hasError, isTrue);
-      // Must preserve the real error (SocketException), NOT overwrite it with CancellationException!
       expect(terminalEntry.errorType, contains('SocketException'));
       expect(terminalEntry.errorMessage, contains('Remote host closed'));
     });
@@ -724,7 +696,6 @@ void main() {
       sub.pause();
       expect(sourceController.isPaused, isTrue);
 
-      // Cancel while paused
       await sub.cancel();
       expect(sourceCancelled, isTrue);
 
@@ -753,18 +724,15 @@ void main() {
 
       final entryId = session.entries.first.id;
 
-      // Emit multiple chunks in background
       scheduleMicrotask(() {
         sourceController.add([10, 20]);
         sourceController.add([30, 40]);
         sourceController.add([50, 60]);
       });
 
-      // stream.first consumes the first element and cancels the stream
       final firstChunk = await response.stream.first;
       expect(firstChunk, [10, 20]);
 
-      // CancellationException recorded cleanly
       final terminalEntry = await waitForTerminalEntry(entryId);
       expect(terminalEntry, isNotNull);
       expect(terminalEntry!.hasError, isTrue);
@@ -779,7 +747,6 @@ void main() {
       late StreamController<List<int>> sourceController;
       sourceController = StreamController<List<int>>(
         onCancel: () {
-          // Downstream transport socket stubbornly emits a trailing packet
           sourceController.add([99, 100]);
         },
       );
@@ -800,10 +767,8 @@ void main() {
       final entryId = session.entries.first.id;
       final sub = response.stream.listen((_) {});
 
-      // Consumer cancels
       await sub.cancel();
 
-      // No unhandled exceptions thrown; session entry remains CancellationException
       final terminalEntry = await waitForTerminalEntry(entryId);
       expect(terminalEntry, isNotNull);
       expect(terminalEntry!.hasError, isTrue);
@@ -831,7 +796,6 @@ void main() {
       final entryId = session.entries.first.id;
       final maxBytes = session.settings.maxBodyBytes;
 
-      // Stream exceeds maxBodyBytes
       final totalStreamSize = maxBytes + 5000;
       final chunkSize = 1000;
       var totalReceived = 0;

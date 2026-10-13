@@ -174,7 +174,6 @@ List<DetailMatch> computeMatches(
     }
   }
 
-  // Overview
   addMatches(countOccurrences(record.url), 0, DetailSection.overviewUrl);
   addMatches(countOccurrences(record.method), 0, DetailSection.overviewMethod);
   addMatches(

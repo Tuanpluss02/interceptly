@@ -30,7 +30,6 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Should find 2 Scrollbars: 1 vertical, 1 horizontal
       final scrollbars = find.byType(Scrollbar);
       expect(scrollbars, findsNWidgets(2));
 
@@ -53,7 +52,6 @@ void main() {
       expect(verticalBar.interactive, isTrue);
       expect(horizontalBar.interactive, isTrue);
 
-      // Verify notification predicates filter by respective axes
       expect(
         verticalBar.notificationPredicate!(
           ScrollUpdateNotification(
@@ -111,7 +109,6 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
 
-      // Create JSON with <= 20 items so it auto-expands, but tall and wide enough to scroll
       final widePayload = <String, dynamic>{
         for (int i = 0; i < 18; i++)
           'long_field_name_$i':
@@ -142,7 +139,6 @@ void main() {
       expect(vCtrl.position.maxScrollExtent, greaterThan(0));
       expect(hCtrl.position.maxScrollExtent, greaterThan(0));
 
-      // Drag vertical scrollbar thumb below copy button (x ~ 296, y ~ 45)
       await tester.dragFrom(
         const Offset(296, 45),
         const Offset(0, 80),
@@ -151,7 +147,6 @@ void main() {
       await tester.pumpAndSettle();
       expect(vCtrl.offset, greaterThan(0));
 
-      // Drag horizontal scrollbar thumb near bottom edge (x ~ 60, y ~ 296)
       await tester.dragFrom(
         const Offset(60, 296),
         const Offset(80, 0),

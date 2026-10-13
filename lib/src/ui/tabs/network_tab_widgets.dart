@@ -1,7 +1,5 @@
 part of 'network_tab.dart';
 
-// ── Top bar widgets ───────────────────────────────────────────────────────────
-
 class _SelectionTopBar extends StatelessWidget {
   const _SelectionTopBar({
     required this.selectedCount,
@@ -80,8 +78,6 @@ class _SearchFilterBar extends StatelessWidget {
   }
 }
 
-// ── Export bar ────────────────────────────────────────────────────────────────
-
 class _ExportBar extends StatelessWidget {
   const _ExportBar({
     required this.selectedCount,
@@ -141,8 +137,6 @@ class _ExportBar extends StatelessWidget {
     );
   }
 }
-
-// ── Selectable group header ───────────────────────────────────────────────────
 
 class _SelectableGroupHeader extends StatelessWidget {
   const _SelectableGroupHeader({

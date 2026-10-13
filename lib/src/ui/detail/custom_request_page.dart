@@ -210,7 +210,6 @@ class _CustomRequestPageState extends State<CustomRequestPage>
                                         .typography.bodyMediumRegular
                                         .copyWith(
                                       color: InterceptlyTheme.textPrimary,
-                                      // fontSize: 13,
                                     ),
                                   ),
                                 ),

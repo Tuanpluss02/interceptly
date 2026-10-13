@@ -34,12 +34,10 @@ class JsonViewerSelectionDelegate extends StaticSelectionContainerDelegate {
 
     double delta = 0.0;
     if (localPos.dx > viewportWidth - _edgeMargin) {
-      // Near or past right edge -> scroll right
       final overscroll =
           math.max(1.0, localPos.dx - (viewportWidth - _edgeMargin));
       delta = (overscroll * 0.4).clamp(4.0, 24.0);
     } else if (localPos.dx < _edgeMargin) {
-      // Near or past left edge -> scroll left
       final overscroll = math.max(1.0, _edgeMargin - localPos.dx);
       delta = -(overscroll * 0.4).clamp(4.0, 24.0);
     }

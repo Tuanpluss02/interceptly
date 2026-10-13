@@ -67,19 +67,15 @@ void main() {
           http.Request('GET', Uri.parse('https://api.example.com/stream')),
         );
 
-        // Pending entry exists immediately in session
         expect(session.entries.length, 1);
         expect(session.entries.first.statusCode, 0);
         expect(session.entries.first.hasError, isFalse);
 
-        // Receive one chunk, then cancel the stream subscription
         streamCtrl.add([1, 2, 3, 4]);
         final sub = response.stream.listen((chunk) {});
         await sub.cancel();
         await streamCtrl.close();
 
-        // Terminal cancellation must be recorded promptly (< 3 seconds)
-        // rather than hanging until the 45-second timeout.
         final end = DateTime.now().add(const Duration(seconds: 3));
         while (!session.entries.first.hasError) {
           if (DateTime.now().isAfter(end)) {

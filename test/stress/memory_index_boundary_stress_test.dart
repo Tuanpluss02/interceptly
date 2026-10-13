@@ -166,12 +166,10 @@ void main() {
       expect(index.get('missing'), isNull);
       expect(index.filtered(RequestFilter()), isEmpty);
 
-      // clear() should safely succeed without crashing
       expect(() => index.clear(), returnsNormally);
       expect(index.length, 0);
       expect(index.entries, isEmpty);
 
-      // add() must throw RangeError
       expect(
         () => index.add(_createEntry('e1')),
         throwsA(isA<RangeError>()),
@@ -223,14 +221,12 @@ void main() {
         expect(index.entries[0].statusCode, 0);
         expect(index.byId(id)?.statusCode, 0);
 
-        // Previous item should be evicted
         if (i > 0) {
           final prevId = 'req_${i - 1}';
           expect(index.byId(prevId), isNull);
           expect(index.get(prevId), isNull);
         }
 
-        // In-place update of the single item
         final updated = _createEntry(id, statusCode: 200, durationMs: i);
         index.add(updated);
 
@@ -272,7 +268,6 @@ void main() {
       expect(index.length, 0);
       expect(index.entries, isEmpty);
 
-      // The previous view retained its count (2), but backing buffer was cleared to null
       expect(view.length, 2);
       expect(() => view[0], throwsA(isA<TypeError>()));
     });
@@ -308,17 +303,14 @@ void main() {
         expect(index.length, expectedCount);
         expect(index.entries.length, expectedCount);
 
-        // Invariant: newest is at index 0
         expect(index.entries.first.id, id);
 
-        // Invariant: entries must be in reverse sequential order
         for (var k = 0; k < expectedCount; k++) {
           final expectedId = 'item_${n - k}';
           expect(index.entries[k].id, expectedId);
           expect(index.byId(expectedId)?.id, expectedId);
         }
 
-        // Verify that evicted items return null
         if (n > capacity) {
           final evictedId = 'item_${n - capacity}';
           expect(index.byId(evictedId), isNull);
@@ -333,7 +325,6 @@ void main() {
       const capacity = 5;
       final index = MemoryIndex(maxEntries: capacity);
 
-      // Fill buffer completely: [item_1, item_2, item_3, item_4, item_5]
       for (var i = 1; i <= 5; i++) {
         index.add(_createEntry('item_$i', statusCode: 0));
       }
@@ -345,8 +336,6 @@ void main() {
         'item_1',
       ]);
 
-      // Cause 3 evictions: add item_6, item_7, item_8
-      // Head wraps around! Active: [item_8, item_7, item_6, item_5, item_4]
       index.add(_createEntry('item_6', statusCode: 0));
       index.add(_createEntry('item_7', statusCode: 0));
       index.add(_createEntry('item_8', statusCode: 0));
@@ -359,7 +348,6 @@ void main() {
         'item_4',
       ]);
 
-      // 1. Update oldest entry (item_4, index 4 in entries, physical slot inside buffer)
       final updated4 = _createEntry('item_4', statusCode: 200, durationMs: 444);
       index.add(updated4);
       expect(index.length, capacity);
@@ -367,7 +355,6 @@ void main() {
       expect(index.entries[4].statusCode, 200);
       expect(index.entries[4].durationMs, 444);
       expect(index.byId('item_4')?.durationMs, 444);
-      // Relative ordering unchanged
       expect(index.entries.map((e) => e.id).toList(), [
         'item_8',
         'item_7',
@@ -376,21 +363,18 @@ void main() {
         'item_4',
       ]);
 
-      // 2. Update newest entry (item_8, index 0 in entries)
       final updated8 = _createEntry('item_8', statusCode: 201, durationMs: 888);
       index.add(updated8);
       expect(index.entries[0].id, 'item_8');
       expect(index.entries[0].statusCode, 201);
       expect(index.byId('item_8')?.durationMs, 888);
 
-      // 3. Update middle entry (item_6, index 2 in entries)
       final updated6 = _createEntry('item_6', statusCode: 304, durationMs: 666);
       index.add(updated6);
       expect(index.entries[2].id, 'item_6');
       expect(index.entries[2].statusCode, 304);
       expect(index.byId('item_6')?.durationMs, 666);
 
-      // 4. Now add item_9: must evict the oldest (item_4) despite its recent in-place update
       index.add(_createEntry('item_9', statusCode: 0));
       expect(index.length, capacity);
       expect(index.byId('item_4'), isNull);
@@ -417,7 +401,6 @@ void main() {
         ));
       }
 
-      // MemoryIndex holds req_19 down to req_10 (10 entries)
       expect(index.length, capacity);
 
       final errorFilter = RequestFilter(
@@ -467,7 +450,6 @@ void main() {
 
       final futures = <Future<void>>[];
 
-      // Task 1: Continuous producer of new entries
       futures.add(Future(() async {
         for (var i = 0; i < 600; i++) {
           final id = 'flow_${i % 150}';
@@ -479,7 +461,6 @@ void main() {
         }
       }));
 
-      // Task 2: Continuous updater of random IDs
       futures.add(Future(() async {
         for (var i = 0; i < 600; i++) {
           final targetId = 'flow_${random.nextInt(150)}';
@@ -493,7 +474,6 @@ void main() {
         }
       }));
 
-      // Task 3: Continuous lookup worker checking ID integrity
       futures.add(Future(() async {
         for (var i = 0; i < 1000; i++) {
           final queryId = 'flow_${random.nextInt(150)}';
@@ -501,7 +481,6 @@ void main() {
           lookupCount++;
           if (result != null) {
             lookupHits++;
-            // Invariant: ID must match queried ID! Never a mismatch!
             expect(result.id, queryId);
           } else {
             lookupMisses++;
@@ -512,7 +491,6 @@ void main() {
         }
       }));
 
-      // Task 4: Continuous index integrity auditor
       futures.add(Future(() async {
         for (var i = 0; i < 200; i++) {
           final len = index.length;
@@ -521,13 +499,11 @@ void main() {
           final snapshot = index.entries;
           expect(snapshot.length, len);
 
-          // Invariant: unique IDs in entries list
           final ids = snapshot.map((e) => e.id).toList();
           final uniqueIds = ids.toSet();
           expect(ids.length, uniqueIds.length,
               reason: 'Found duplicate IDs in entries');
 
-          // Invariant: byId must find every entry present in snapshot
           for (final item in snapshot) {
             final found = index.byId(item.id);
             expect(found, isNotNull);
@@ -590,15 +566,12 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // Initially: on Overview tab (Tab 0)
         expect(find.text('URL'), findsOneWidget);
-        // Request (Tab 1), Response (Tab 2), Error (Tab 3) MUST NOT be mounted
         expect(find.text('REQUEST HEADERS', skipOffstage: false), findsNothing);
         expect(
             find.text('RESPONSE HEADERS', skipOffstage: false), findsNothing);
         expect(find.text('ERROR SUMMARY', skipOffstage: false), findsNothing);
 
-        // Perform search for keyword only present in Response body: 'unique_target_word'
         final searchField = find.byType(TextField);
         expect(searchField, findsOneWidget);
         await tester.enterText(searchField, 'unique_target_word');
@@ -611,16 +584,12 @@ void main() {
         });
         await tester.pumpAndSettle();
 
-        // Auto-jump should have navigated to Tab 2 (Response)
         expect(find.text('1 / 1'), findsOneWidget);
         expect(find.text('RESPONSE HEADERS'), findsOneWidget);
 
-        // CRUCIAL LAZY LOADING CHECK:
-        // Tab 1 (Request) and Tab 3 (Error) MUST STILL BE COMPLETELY UNMOUNTED!
         expect(find.text('REQUEST HEADERS', skipOffstage: false), findsNothing);
         expect(find.text('ERROR SUMMARY', skipOffstage: false), findsNothing);
 
-        // Now search for keyword in Error tab: 'critical_failure_token'
         await tester.enterText(searchField, 'critical_failure_token');
         tester
             .widget<TextField>(searchField)
@@ -635,9 +604,7 @@ void main() {
         expect(find.text('1 / 1'), findsOneWidget);
         expect(find.text('ERROR SUMMARY', skipOffstage: false), findsOneWidget);
 
-        // Tab 1 (Request) MUST STILL NOT BE MOUNTED AT ALL!
         expect(find.text('REQUEST HEADERS', skipOffstage: false), findsNothing);
-        // Tab 2 (Response) remains mounted offstage in IndexedStack
         expect(
             find.text('RESPONSE HEADERS', skipOffstage: false), findsOneWidget);
       },
@@ -675,7 +642,6 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // Rapid switching sequence without waiting for animation to finish
         final tabOverview = find.text('Overview');
         final tabRequest = find.text('Request');
         final tabResponse = find.text('Response');
@@ -694,9 +660,7 @@ void main() {
 
         await tester.pumpAndSettle();
 
-        // Must settle cleanly on Overview
         expect(find.text('URL'), findsOneWidget);
-        // All tabs should now have been visited and mounted
         expect(
             find.text('REQUEST HEADERS', skipOffstage: false), findsOneWidget);
         expect(
@@ -748,14 +712,12 @@ void main() {
         expect(nextMatchButton, findsOneWidget);
         expect(prevMatchButton, findsOneWidget);
 
-        // Rapid next match clicks cycling through multiple tabs
         for (var i = 0; i < 15; i++) {
           await tester.tap(nextMatchButton);
           await tester.pump(const Duration(milliseconds: 30));
         }
         await tester.pumpAndSettle();
 
-        // Rapid prev match clicks cycling in reverse
         for (var i = 0; i < 15; i++) {
           await tester.tap(prevMatchButton);
           await tester.pump(const Duration(milliseconds: 30));
@@ -800,7 +762,6 @@ void main() {
         expect(find.text('Response'), findsNothing);
         expect(find.text('Error'), findsNothing);
 
-        // Switch to Messages
         await tester.tap(find.text('Messages'));
         await tester.pumpAndSettle();
 
