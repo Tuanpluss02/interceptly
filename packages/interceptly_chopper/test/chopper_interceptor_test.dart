@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:interceptly/interceptly.dart';
+import 'package:interceptly_chopper/interceptly_chopper.dart';
 
 class _FakeChain<BodyType> implements Chain<BodyType> {
   _FakeChain(this.request, this.responseHandler);
@@ -50,6 +51,11 @@ void main() {
   });
 
   group('InterceptlyChopperInterceptor', () {
+    test('uses shared session by default', () {
+      final interceptor = InterceptlyChopperInterceptor();
+      expect(interceptor.session, same(InspectorSession.instance));
+    });
+
     test(
       'InterceptlyChopperInterceptor does not alter outbound request.parameters',
       () async {

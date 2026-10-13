@@ -5,11 +5,7 @@ import 'dart:typed_data';
 import 'package:chopper/chopper.dart';
 import 'package:http/http.dart' as http;
 
-import '../../session/request_id.dart';
-import '../../model/network_simulation.dart';
-import '../../model/raw_capture.dart';
-import '../../session/inspector_session.dart';
-import '../capture_guard.dart';
+import 'package:interceptly/interceptly.dart';
 
 /// A Chopper interceptor that captures all requests and responses.
 class InterceptlyChopperInterceptor implements Interceptor {
