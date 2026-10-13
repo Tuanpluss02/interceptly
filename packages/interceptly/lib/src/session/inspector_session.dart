@@ -106,6 +106,16 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   Future<void>? _initFuture;
   bool _initialized = false;
   bool _enabled = true;
+  bool _isDisposed = false;
+
+  /// Whether this session has been disposed.
+  bool get isDisposed => _isDisposed;
+
+  @override
+  void notifyListeners() {
+    if (_isDisposed) return;
+    super.notifyListeners();
+  }
   Future<void>? _clearFuture;
   final InspectorPreferences _preferences = InspectorPreferences();
   NetworkSimulationProfile _networkSimulation = NetworkSimulationProfile.none;
@@ -445,7 +455,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   /// Records a captured [RealtimeFrame] into the session buffer and schedules
   /// a throttled notification (~100ms interval) to avoid UI message storm thrashing.
   void recordRealtimeFrame(RealtimeFrame frame) {
-    if (!_enabled) return;
+    if (!_enabled || _isDisposed) return;
 
     final buffer = _realtimeFramesBySession.putIfAbsent(
       frame.sessionId,
@@ -457,10 +467,11 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   }
 
   void _scheduleRealtimeNotification() {
+    if (_isDisposed) return;
     _hasPendingRealtimeFrameNotification = true;
     _realtimeThrottleTimer ??= Timer(const Duration(milliseconds: 100), () {
       _realtimeThrottleTimer = null;
-      if (_hasPendingRealtimeFrameNotification) {
+      if (_hasPendingRealtimeFrameNotification && !_isDisposed) {
         _hasPendingRealtimeFrameNotification = false;
         notifyListeners();
       }
@@ -469,6 +480,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
 
   @override
   List<RealtimeFrame> getRealtimeFrames(String sessionId) {
+    if (_isDisposed) return const <RealtimeFrame>[];
     final buffer = _realtimeFramesBySession[sessionId];
     if (buffer == null || buffer.isEmpty) {
       return const <RealtimeFrame>[];
@@ -487,7 +499,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     Map<String, String> headers = const {},
     DateTime? timestamp,
   }) {
-    if (!_enabled) return;
+    if (!_enabled || _isDisposed) return;
     recordPending(
       id: id,
       method: 'WS',
@@ -503,6 +515,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     int closeCode = 1000,
     String? closeReason,
   }) {
+    if (_isDisposed) return;
     _cancelPendingTimeout(id);
     final current = _memoryIndex.byId(id);
     if (current != null) {
@@ -790,7 +803,9 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       _realtimeThrottleTimer = null;
       _hasPendingRealtimeFrameNotification = false;
       _realtimeFramesBySession.clear();
-      notifyListeners();
+      if (!_isDisposed) {
+        notifyListeners();
+      }
     } finally {
       _clearFuture = null;
     }
@@ -798,6 +813,8 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
 
   @override
   Future<void> dispose() async {
+    _isDisposed = true;
+    _enabled = false;
     _realtimeThrottleTimer?.cancel();
     _realtimeThrottleTimer = null;
     _hasPendingRealtimeFrameNotification = false;
