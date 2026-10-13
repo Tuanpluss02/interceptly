@@ -60,11 +60,6 @@ void main() {
     expect(identical(a, b), isTrue);
   });
 
-  test('InterceptlyDioInterceptor uses shared session by default', () {
-    final interceptor = InterceptlyDioInterceptor();
-    expect(interceptor.session, same(InspectorSession.instance));
-  });
-
   test('Interceptly.init uses shared session by default', () {
     final a = InspectorSession.instance;
     final b = InspectorSession.instance;

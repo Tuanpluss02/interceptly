@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'dart:io';
 
-import '../../capture/http/interceptly_http_client.dart';
+import 'package:flutter/material.dart';
+
+import '../../model/raw_capture.dart';
 import '../../model/body_truncation.dart';
 import '../../model/request_record.dart';
 import '../../session/body_decode_service.dart';
@@ -189,38 +190,75 @@ class ReplayHandler {
       );
     }
 
-    final request = http.Request(method, uri);
-    request.headers.addAll(cleanedHeaders);
-
     final upperMethod = method.toUpperCase();
     final allowBody =
         upperMethod != 'GET' && upperMethod != 'HEAD' && upperMethod != 'TRACE';
 
+    Uint8List? bodyBytesToSend;
     if (allowBody) {
       if (bodyBytes != null && bodyBytes.isNotEmpty) {
-        request.bodyBytes = bodyBytes;
-        request.headers.putIfAbsent(
-          'content-type',
-          () => 'application/json; charset=utf-8',
-        );
+        bodyBytesToSend = bodyBytes;
       } else if (body != null && body.isNotEmpty && !isPlaceholder) {
-        request.bodyBytes = utf8.encode(body);
-        request.headers.putIfAbsent(
-          'content-type',
-          () => 'application/json; charset=utf-8',
-        );
+        bodyBytesToSend = Uint8List.fromList(utf8.encode(body));
       }
     }
 
-    final client = InterceptlyHttpClient.wrap(http.Client(), session);
+    final headersToSend = Map<String, String>.from(cleanedHeaders);
+    if (allowBody && bodyBytesToSend != null && bodyBytesToSend.isNotEmpty) {
+      headersToSend.putIfAbsent(
+        'content-type',
+        () => 'application/json; charset=utf-8',
+      );
+    }
+
+    final client = HttpClient();
+    final stopwatch = Stopwatch()..start();
+    final start = DateTime.now();
 
     try {
       ToastNotification.show('Sending request...', contextHint: context);
-      final streamed = await client.send(request);
-      await streamed.stream.drain<void>();
+      final request = await client.openUrl(upperMethod, uri);
+      headersToSend.forEach((key, value) {
+        request.headers.set(key, value);
+      });
+      if (allowBody && bodyBytesToSend != null && bodyBytesToSend.isNotEmpty) {
+        request.add(bodyBytesToSend);
+      }
+
+      final response = await request.close();
+      final responseBody = await response.fold<List<int>>(
+        <int>[],
+        (previous, element) => previous..addAll(element),
+      );
+      stopwatch.stop();
+
+      final responseHeaders = <String, String>{};
+      response.headers.forEach((name, values) {
+        responseHeaders[name] = values.join(', ');
+      });
+
+      session.record(
+        RawCapture(
+          id: 'r_replay_${DateTime.now().microsecondsSinceEpoch}',
+          method: upperMethod,
+          url: url,
+          requestHeaders: headersToSend,
+          responseHeaders: responseHeaders,
+          statusCode: response.statusCode,
+          durationMs: stopwatch.elapsedMilliseconds,
+          timestamp: start,
+          requestBodyBytes: bodyBytesToSend != null
+              ? RawCapture.wrapBytes(bodyBytesToSend)
+              : null,
+          responseBodyBytes:
+              RawCapture.wrapBytes(Uint8List.fromList(responseBody)),
+          responseContentType: response.headers.contentType?.mimeType,
+        ),
+      );
+
       if (!context.mounted) return;
       ToastNotification.show(
-        'Replay sent (${streamed.statusCode})',
+        'Replay sent (${response.statusCode})',
         contextHint: context,
       );
     } catch (e) {
