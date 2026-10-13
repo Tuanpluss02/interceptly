@@ -1,3 +1,12 @@
+## 2.0.3
+
+### Fixed
+- Fixed text selection auto-scrolling horizontally in `JsonViewer` when dragging selection beyond screen edges on long JSON lines.
+- Fixed an infinite loop hang in `JsonViewer.countMatches` and `JsonSearch.countIn` when searching with an empty query.
+
+### Changed
+- Internal architecture refactoring for `JsonViewer`: split monolithic widget (~1484 lines) into modular components (`json_line`, `json_search`, `json_line_flattener`, `json_scroll_coordinator`, `json_selection_delegate`, `json_gutter`, `json_line_view`) for improved maintainability without changing public APIs.
+
 ## 2.0.2
 
 ### Fixed
