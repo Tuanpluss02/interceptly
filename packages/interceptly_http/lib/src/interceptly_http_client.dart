@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:interceptly/interceptly.dart';
@@ -14,69 +15,73 @@ import 'package:interceptly/interceptly.dart';
 /// // or
 /// final client = InterceptlyHttpClient.wrap(http.Client());
 /// ```
-class InterceptlyHttpClient extends http.BaseClient {
-  InterceptlyHttpClient(this._inner, [InspectorSession? session])
-      : session = session ?? InspectorSession.instance;
+class InterceptlyHttpClient extends http.BaseClient
+    implements HttpCaptureAdapter {
+  InterceptlyHttpClient(
+    this._inner, [
+    InspectorSession? session,
+    HttpTrafficCollector? collector,
+  ])  : session = session ??
+            (collector is DefaultHttpTrafficCollector
+                ? collector.session
+                : InspectorSession.instance),
+        collector = collector ??
+            DefaultHttpTrafficCollector(
+              session ?? InspectorSession.instance,
+            );
 
   factory InterceptlyHttpClient.wrap(
     http.Client inner, [
     InspectorSession? session,
+    HttpTrafficCollector? collector,
   ]) =>
-      InterceptlyHttpClient(inner, session);
+      InterceptlyHttpClient(inner, session, collector);
 
   final http.Client _inner;
+
+  @override
   final InspectorSession session;
 
   @override
-  Future<http.StreamedResponse> send(http.BaseRequest request) async {
-    final id = RequestId.generate();
-    final startedAt = DateTime.now();
+  final HttpTrafficCollector collector;
 
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
     final bodyBytes = _extractRequestBody(request);
 
     final reqHeaders = Map<String, String>.fromEntries(
       request.headers.entries.map((e) => MapEntry(e.key, e.value)),
     );
 
-    guardCapture(() {
-      session.recordPending(
-        id: id,
+    HttpRequestContext? context;
+    try {
+      context = await collector.startRequest(
         method: request.method,
-        url: request.url.toString(),
-        timestamp: startedAt,
-        requestHeaders: reqHeaders,
-        requestBodyBytes: bodyBytes,
-        requestContentType: request.headers['content-type'],
+        uri: request.url,
+        headers: reqHeaders,
+        bodyBytes: bodyBytes,
+        contentType: request.headers['content-type'],
       );
-    });
+    } on SimulatedNetworkException {
+      rethrow;
+    } catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('[Interceptly] startRequest capture failed: $e\n$st');
+      }
+    }
 
     http.StreamedResponse response;
-
     try {
-      await session.applyNetworkSimulationBeforeRequest(
-        uploadBytes: bodyBytes?.length ?? 0,
-      );
       response = await _inner.send(request);
     } catch (e) {
-      guardCapture(() {
-        final durationMs = DateTime.now().difference(startedAt).inMilliseconds;
-        session.record(
-          RawCapture(
-            id: id,
-            method: request.method,
-            url: request.url.toString(),
-            requestHeaders: reqHeaders,
-            responseHeaders: const {},
-            statusCode: 0,
-            durationMs: durationMs,
-            timestamp: startedAt,
-            requestBodyBytes: RawCapture.wrapBytes(bodyBytes),
-            requestContentType: request.headers['content-type'],
-            errorType: e.runtimeType.toString(),
-            errorMessage: e.toString(),
-          ),
+      if (context != null) {
+        collector.failRequest(
+          context: context,
+          error: e,
+          errorType: e.runtimeType.toString(),
+          errorMessage: e.toString(),
         );
-      });
+      }
       rethrow;
     }
 
@@ -87,11 +92,7 @@ class InterceptlyHttpClient extends http.BaseClient {
     return http.StreamedResponse(
       _teeResponseStream(
         source: response.stream,
-        startedAt: startedAt,
-        id: id,
-        request: request,
-        reqHeaders: reqHeaders,
-        bodyBytes: bodyBytes,
+        context: context,
         response: response,
         resHeaders: resHeaders,
       ),
@@ -111,15 +112,11 @@ class InterceptlyHttpClient extends http.BaseClient {
   ///   [BytesBuilder] for capture — then stops accumulating (never buffers
   ///   more than the cap regardless of how large the response is).
   ///
-  /// [session.record] is called once when the stream ends (successfully or
-  /// with an error), so duration reflects the full download time.
+  /// [collector.completeResponse] is called once when the stream ends successfully,
+  /// and [collector.failRequest] when it encounters an error or cancellation.
   Stream<List<int>> _teeResponseStream({
     required Stream<List<int>> source,
-    required DateTime startedAt,
-    required String id,
-    required http.BaseRequest request,
-    required Map<String, String> reqHeaders,
-    required Uint8List? bodyBytes,
+    required HttpRequestContext? context,
     required http.StreamedResponse response,
     required Map<String, String> resHeaders,
   }) {
@@ -128,29 +125,42 @@ class InterceptlyHttpClient extends http.BaseClient {
     bool captureStopped = false;
     bool recorded = false;
 
-    void record({String? errorType, String? errorMessage}) {
-      if (recorded) return;
+    void recordResponse() {
+      if (recorded || context == null) return;
       recorded = true;
-      final durationMs = DateTime.now().difference(startedAt).inMilliseconds;
       final captured = captureBuffer.isEmpty ? null : captureBuffer.toBytes();
-      session.record(
-        RawCapture(
-          id: id,
-          method: request.method,
-          url: request.url.toString(),
-          requestHeaders: reqHeaders,
-          responseHeaders: resHeaders,
-          statusCode: response.statusCode,
-          durationMs: durationMs,
-          timestamp: startedAt,
-          requestBodyBytes: RawCapture.wrapBytes(bodyBytes),
-          responseBodyBytes: RawCapture.wrapBytes(captured),
-          requestContentType: request.headers['content-type'],
-          responseContentType: response.headers['content-type'],
+      guardCapture(() {
+        unawaited(
+          collector.completeResponse(
+            context: context,
+            statusCode: response.statusCode,
+            headers: resHeaders,
+            bodyBytes: captured,
+            responseContentType: response.headers['content-type'],
+          ),
+        );
+      });
+    }
+
+    void recordFailure({
+      required Object error,
+      String? errorType,
+      String? errorMessage,
+    }) {
+      if (recorded || context == null) return;
+      recorded = true;
+      final captured = captureBuffer.isEmpty ? null : captureBuffer.toBytes();
+      guardCapture(() {
+        collector.failRequest(
+          context: context,
+          error: error,
           errorType: errorType,
           errorMessage: errorMessage,
-        ),
-      );
+          statusCode: response.statusCode,
+          responseHeaders: resHeaders,
+          responseBodyBytes: captured,
+        );
+      });
     }
 
     late StreamSubscription<List<int>> sub;
@@ -185,15 +195,14 @@ class InterceptlyHttpClient extends http.BaseClient {
             handleChunk(chunk);
           },
           onDone: () {
-            guardCapture(() => record());
+            recordResponse();
             controller.close();
           },
           onError: (Object e, StackTrace st) {
-            guardCapture(
-              () => record(
-                errorType: e.runtimeType.toString(),
-                errorMessage: e.toString(),
-              ),
+            recordFailure(
+              error: e,
+              errorType: e.runtimeType.toString(),
+              errorMessage: e.toString(),
             );
             controller.addError(e, st);
             controller.close();
@@ -204,11 +213,10 @@ class InterceptlyHttpClient extends http.BaseClient {
       onPause: () => sub.pause(),
       onResume: () => sub.resume(),
       onCancel: () {
-        guardCapture(
-          () => record(
-            errorType: 'CancellationException',
-            errorMessage: 'Stream subscription was canceled by client.',
-          ),
+        recordFailure(
+          error: 'CancellationException',
+          errorType: 'CancellationException',
+          errorMessage: 'Stream subscription was canceled by client.',
         );
         return sub.cancel();
       },
