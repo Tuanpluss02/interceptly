@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
 
@@ -227,6 +228,14 @@ class _JsonViewerState extends State<JsonViewer> {
 
   final FocusNode _selectableFocusNode = FocusNode();
 
+  final GlobalKey _contentViewportKey = GlobalKey();
+
+  late final _JsonViewerSelectionContainerDelegate _selectionContainerDelegate =
+      _JsonViewerSelectionContainerDelegate(
+    horizontalController: _horizontalScrollController,
+    viewportKey: _contentViewportKey,
+  );
+
   @visibleForTesting
   List<_FlatLine>? get memoLinesForTest => _memoLines;
 
@@ -402,6 +411,7 @@ class _JsonViewerState extends State<JsonViewer> {
     _gutterScrollController.dispose();
     _horizontalScrollController.dispose();
     _selectableFocusNode.dispose();
+    _selectionContainerDelegate.dispose();
     super.dispose();
   }
 
@@ -722,21 +732,21 @@ class _JsonViewerState extends State<JsonViewer> {
                                   notif.metrics.axis == Axis.horizontal,
                               interactive: true,
                               thumbVisibility: widget.thumbVisibility,
-                              child: SingleChildScrollView(
-                                controller: _horizontalScrollController,
-                                scrollDirection: Axis.horizontal,
-                                child: SizedBox(
-                                  width: contentWidth,
-                                  height: viewportHeight,
-                                  child: SelectableRegion(
-                                    focusNode: _selectableFocusNode,
-                                    selectionControls:
-                                        materialTextSelectionControls,
-                                    child: Builder(
-                                      builder: (context) {
-                                        final registrar =
-                                            SelectionContainer.maybeOf(context);
-                                        return SelectionContainer.disabled(
+                              child: KeyedSubtree(
+                                key: _contentViewportKey,
+                                child: SelectableRegion(
+                                  focusNode: _selectableFocusNode,
+                                  selectionControls:
+                                      materialTextSelectionControls,
+                                  child: SelectionContainer(
+                                    delegate: _selectionContainerDelegate,
+                                    child: SelectionContainer.disabled(
+                                      child: SingleChildScrollView(
+                                        controller: _horizontalScrollController,
+                                        scrollDirection: Axis.horizontal,
+                                        child: SizedBox(
+                                          width: contentWidth,
+                                          height: viewportHeight,
                                           child: Padding(
                                             padding: const EdgeInsets.only(
                                                 left: 4.0),
@@ -755,18 +765,16 @@ class _JsonViewerState extends State<JsonViewer> {
                                                   lineHeight,
                                                   contentStyle,
                                                 );
-                                                if (registrar == null) {
-                                                  return lineWidget;
-                                                }
                                                 return SelectionRegistrarScope(
-                                                  registrar: registrar,
+                                                  registrar:
+                                                      _selectionContainerDelegate,
                                                   child: lineWidget,
                                                 );
                                               },
                                             ),
                                           ),
-                                        );
-                                      },
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -1416,4 +1424,60 @@ class _ChildEntry {
     this.isLast = false,
     required this.childPath,
   });
+}
+
+/// A selection container delegate that provides horizontal auto-scrolling
+/// while selecting text across wide JSON lines, without crashing on empty space.
+class _JsonViewerSelectionContainerDelegate
+    extends StaticSelectionContainerDelegate {
+  _JsonViewerSelectionContainerDelegate({
+    required this.horizontalController,
+    required this.viewportKey,
+  });
+
+  final ScrollController horizontalController;
+  final GlobalKey viewportKey;
+
+  static const double _edgeMargin = 40.0;
+
+  @override
+  SelectionResult handleSelectionEdgeUpdate(SelectionEdgeUpdateEvent event) {
+    final result = super.handleSelectionEdgeUpdate(event);
+
+    final renderObject = viewportKey.currentContext?.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.hasSize) {
+      return result;
+    }
+
+    if (!horizontalController.hasClients) {
+      return result;
+    }
+
+    final localPos = renderObject.globalToLocal(event.globalPosition);
+    final viewportWidth = renderObject.size.width;
+
+    double delta = 0.0;
+    if (localPos.dx > viewportWidth - _edgeMargin) {
+      // Near or past right edge -> scroll right
+      final overscroll =
+          math.max(1.0, localPos.dx - (viewportWidth - _edgeMargin));
+      delta = (overscroll * 0.4).clamp(4.0, 24.0);
+    } else if (localPos.dx < _edgeMargin) {
+      // Near or past left edge -> scroll left
+      final overscroll = math.max(1.0, _edgeMargin - localPos.dx);
+      delta = -(overscroll * 0.4).clamp(4.0, 24.0);
+    }
+
+    if (delta != 0.0) {
+      final currentOffset = horizontalController.offset;
+      final maxScroll = horizontalController.position.maxScrollExtent;
+      final targetOffset = (currentOffset + delta).clamp(0.0, maxScroll);
+      if ((targetOffset - currentOffset).abs() > 0.01) {
+        horizontalController.jumpTo(targetOffset);
+        return SelectionResult.pending;
+      }
+    }
+
+    return result;
+  }
 }

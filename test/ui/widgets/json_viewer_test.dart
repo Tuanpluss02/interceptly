@@ -235,6 +235,51 @@ void main() {
     );
 
     testWidgets(
+      'dragging selection edge near right boundary auto-scrolls horizontally',
+      (tester) async {
+        const token =
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
+        final data = {
+          'Authorization': 'Bearer $token',
+        };
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                height: 300,
+                width: 300,
+                child: JsonViewer(data: data),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final horizontalScrollable = tester.state<ScrollableState>(
+          find.byWidgetPredicate(
+            (w) => w is Scrollable && w.axisDirection == AxisDirection.right,
+          ),
+        );
+        expect(horizontalScrollable.position.pixels, equals(0.0));
+
+        // Start long press on text at (60, 27) and drag towards right edge (290, 27)
+        final gesture = await tester.startGesture(const Offset(60, 27));
+        await tester.pump(const Duration(milliseconds: 600));
+
+        // Move to near the right edge (290 is within 40px of 300)
+        await gesture.moveTo(const Offset(290, 27));
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump(const Duration(milliseconds: 100));
+
+        expect(horizontalScrollable.position.pixels, greaterThan(0.0));
+
+        await gesture.up();
+        await tester.pumpAndSettle();
+      },
+    );
+
+    testWidgets(
         'fold indicators scroll vertically with the lines they represent',
         (tester) async {
       final data = {
