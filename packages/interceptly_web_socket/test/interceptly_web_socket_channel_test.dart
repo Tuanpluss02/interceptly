@@ -437,4 +437,244 @@ void main() {
       await expectLater(doneFuture, completes);
     });
   });
+
+  group('RealtimeCaptureAdapter and TrafficCollector Delegation', () {
+    late FakeWebSocketChannel fakeChannel;
+    late _SpyRealtimeTrafficCollector spyCollector;
+
+    setUp(() {
+      fakeChannel = FakeWebSocketChannel(protocol: 'spy-v1');
+      spyCollector = _SpyRealtimeTrafficCollector();
+    });
+
+    test('implements RealtimeCaptureAdapter contract and exposes getters', () {
+      final channel = InterceptlyWebSocketChannel(
+        fakeChannel,
+        collector: spyCollector,
+      );
+
+      expect(channel, isA<RealtimeCaptureAdapter>());
+      expect(channel.collector, equals(spyCollector));
+      expect(channel.session, isA<InspectorSession>());
+      expect(channel.interceptly, isA<Interceptly>());
+      expect(channel.interceptly.session, equals(channel.session));
+    });
+
+    test('binds custom session and collector via constructor and factories', () {
+      final customSession = InspectorSession();
+      addTearDown(customSession.dispose);
+
+      final channel = InterceptlyWebSocketChannel(
+        fakeChannel,
+        session: customSession,
+        collector: spyCollector,
+      );
+
+      expect(channel.session, equals(customSession));
+      expect(channel.collector, equals(spyCollector));
+
+      final wrapped = InterceptlyWebSocketChannel.wrap(
+        fakeChannel,
+        session: customSession,
+        collector: spyCollector,
+      );
+      expect(wrapped.session, equals(customSession));
+      expect(wrapped.collector, equals(spyCollector));
+    });
+
+    test('delegates connection handshake to collector.recordConnection', () {
+      final uri = Uri.parse('wss://example.com/handshake');
+      InterceptlyWebSocketChannel(
+        fakeChannel,
+        uri: uri,
+        sessionId: 'session-handshake',
+        headers: {'X-Test': 'Value'},
+        collector: spyCollector,
+      );
+
+      expect(spyCollector.recordConnectionCalls.length, equals(1));
+      final call = spyCollector.recordConnectionCalls.first;
+      expect(call['sessionId'], equals('session-handshake'));
+      expect(call['uri'], equals(uri));
+      expect(call['headers'], equals({'X-Test': 'Value'}));
+    });
+
+    test('does not record connection when uri is null', () {
+      InterceptlyWebSocketChannel(
+        fakeChannel,
+        collector: spyCollector,
+      );
+
+      expect(spyCollector.recordConnectionCalls, isEmpty);
+    });
+
+    test('delegates outgoing frames (text, binary, list) to collector.recordFrame', () async {
+      final channel = InterceptlyWebSocketChannel(
+        fakeChannel,
+        sessionId: 'out-frames',
+        collector: spyCollector,
+      );
+
+      channel.sink.add('text payload');
+      channel.sink.add(Uint8List.fromList([1, 2, 3]));
+      channel.sink.add(<int>[4, 5, 6]);
+      await pumpEventQueue();
+
+      expect(spyCollector.recordFrameCalls.length, equals(3));
+
+      expect(spyCollector.recordFrameCalls[0]['sessionId'], equals('out-frames'));
+      expect(spyCollector.recordFrameCalls[0]['direction'], equals(FrameDirection.outgoing));
+      expect(spyCollector.recordFrameCalls[0]['type'], equals(FrameType.text));
+      expect(spyCollector.recordFrameCalls[0]['payload'], equals('text payload'));
+
+      expect(spyCollector.recordFrameCalls[1]['sessionId'], equals('out-frames'));
+      expect(spyCollector.recordFrameCalls[1]['direction'], equals(FrameDirection.outgoing));
+      expect(spyCollector.recordFrameCalls[1]['type'], equals(FrameType.binary));
+      expect(spyCollector.recordFrameCalls[1]['payload'], equals(Uint8List.fromList([1, 2, 3])));
+
+      expect(spyCollector.recordFrameCalls[2]['sessionId'], equals('out-frames'));
+      expect(spyCollector.recordFrameCalls[2]['direction'], equals(FrameDirection.outgoing));
+      expect(spyCollector.recordFrameCalls[2]['type'], equals(FrameType.binary));
+      expect(spyCollector.recordFrameCalls[2]['payload'], equals(<int>[4, 5, 6]));
+    });
+
+    test('delegates incoming frames to collector.recordFrame', () async {
+      final channel = InterceptlyWebSocketChannel(
+        fakeChannel,
+        sessionId: 'in-frames',
+        collector: spyCollector,
+      );
+
+      final received = <dynamic>[];
+      final sub = channel.stream.listen(received.add);
+      addTearDown(sub.cancel);
+
+      fakeChannel.emitIncoming('incoming text');
+      fakeChannel.emitIncoming(Uint8List.fromList([7, 8, 9]));
+      await pumpEventQueue();
+
+      expect(received.length, equals(2));
+      expect(spyCollector.recordFrameCalls.length, equals(2));
+
+      expect(spyCollector.recordFrameCalls[0]['direction'], equals(FrameDirection.incoming));
+      expect(spyCollector.recordFrameCalls[0]['type'], equals(FrameType.text));
+      expect(spyCollector.recordFrameCalls[0]['payload'], equals('incoming text'));
+
+      expect(spyCollector.recordFrameCalls[1]['direction'], equals(FrameDirection.incoming));
+      expect(spyCollector.recordFrameCalls[1]['type'], equals(FrameType.binary));
+      expect(spyCollector.recordFrameCalls[1]['payload'], equals(Uint8List.fromList([7, 8, 9])));
+    });
+
+    test('delegates sink.close and server close to collector.recordClose', () async {
+      final channel = InterceptlyWebSocketChannel(
+        fakeChannel,
+        sessionId: 'close-delegation',
+        collector: spyCollector,
+      );
+
+      await channel.sink.close(1000, 'Normal Client Close');
+      await pumpEventQueue();
+
+      expect(spyCollector.recordCloseCalls.length, equals(1));
+      expect(spyCollector.recordCloseCalls[0]['sessionId'], equals('close-delegation'));
+      expect(spyCollector.recordCloseCalls[0]['closeCode'], equals(1000));
+      expect(spyCollector.recordCloseCalls[0]['closeReason'], equals('Normal Client Close'));
+    });
+
+    test('resilient against collector exceptions without breaking socket traffic', () async {
+      spyCollector.throwOnConnection = true;
+      spyCollector.throwOnFrame = true;
+      spyCollector.throwOnClose = true;
+
+      final channel = InterceptlyWebSocketChannel(
+        fakeChannel,
+        uri: Uri.parse('wss://example.com/throwing'),
+        sessionId: 'throwing-session',
+        collector: spyCollector,
+      );
+
+      // Sending frames should not throw
+      channel.sink.add('safe outgoing');
+      await pumpEventQueue();
+      expect(fakeChannel.sentData, equals(['safe outgoing']));
+
+      // Receiving frames should not throw
+      final received = <dynamic>[];
+      final sub = channel.stream.listen(received.add);
+      addTearDown(sub.cancel);
+
+      fakeChannel.emitIncoming('safe incoming');
+      await pumpEventQueue();
+      expect(received, equals(['safe incoming']));
+
+      // Closing should not throw
+      await channel.sink.close(1000, 'Safe close');
+      await pumpEventQueue();
+      expect(fakeChannel.sinkClosed, isTrue);
+    });
+  });
 }
+
+class _SpyRealtimeTrafficCollector implements RealtimeTrafficCollector {
+  _SpyRealtimeTrafficCollector([InspectorSession? session])
+      : session = session ?? InspectorSession.instance;
+
+  final InspectorSession session;
+
+  final List<Map<String, dynamic>> recordConnectionCalls = [];
+  final List<Map<String, dynamic>> recordFrameCalls = [];
+  final List<Map<String, dynamic>> recordCloseCalls = [];
+
+  bool throwOnConnection = false;
+  bool throwOnFrame = false;
+  bool throwOnClose = false;
+
+  @override
+  void recordConnection({
+    required String sessionId,
+    required Uri uri,
+    Map<String, String>? headers,
+  }) {
+    if (throwOnConnection) throw Exception('Simulated recordConnection error');
+    recordConnectionCalls.add({
+      'sessionId': sessionId,
+      'uri': uri,
+      'headers': headers,
+    });
+  }
+
+  @override
+  void recordFrame({
+    required String sessionId,
+    required FrameDirection direction,
+    required FrameType type,
+    required dynamic payload,
+    int? payloadSizeBytes,
+    DateTime? timestamp,
+  }) {
+    if (throwOnFrame) throw Exception('Simulated recordFrame error');
+    recordFrameCalls.add({
+      'sessionId': sessionId,
+      'direction': direction,
+      'type': type,
+      'payload': payload,
+      'payloadSizeBytes': payloadSizeBytes,
+      'timestamp': timestamp,
+    });
+  }
+
+  @override
+  void recordClose({
+    required String sessionId,
+    int? closeCode,
+    String? closeReason,
+  }) {
+    if (throwOnClose) throw Exception('Simulated recordClose error');
+    recordCloseCalls.add({
+      'sessionId': sessionId,
+      'closeCode': closeCode,
+      'closeReason': closeReason,
+    });
+  }
+}
+

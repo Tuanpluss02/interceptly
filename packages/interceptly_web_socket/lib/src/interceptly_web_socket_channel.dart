@@ -8,9 +8,9 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 /// A wrapper around [WebSocketChannel] that captures incoming and outgoing
 /// frames and connection lifecycle events for the Interceptly inspector.
 class InterceptlyWebSocketChannel extends StreamChannelMixin
-    implements WebSocketChannel {
+    implements WebSocketChannel, RealtimeCaptureAdapter {
   final WebSocketChannel _inner;
-  final Interceptly _client;
+  final Interceptly? _interceptly;
 
   /// The unique session ID for this WebSocket connection.
   final String sessionId;
@@ -21,28 +21,54 @@ class InterceptlyWebSocketChannel extends StreamChannelMixin
   /// The initial handshake headers for this connection, if provided.
   final Map<String, String>? headers;
 
+  @override
+  final InspectorSession session;
+
+  @override
+  final RealtimeTrafficCollector collector;
+
+  late final Interceptly _resolvedInterceptly =
+      _interceptly ?? Interceptly(session: session);
+
   bool _isClosed = false;
 
   /// Creates an [InterceptlyWebSocketChannel] wrapping [inner].
   ///
   /// If [sessionId] is omitted, a unique ID is generated automatically.
   /// If [uri] is provided, an initial realtime connection is recorded with
-  /// [interceptly] (or [Interceptly.instance] if omitted).
+  /// [collector].
   InterceptlyWebSocketChannel(
     WebSocketChannel inner, {
     this.uri,
     String? sessionId,
     Interceptly? interceptly,
+    InspectorSession? session,
+    RealtimeTrafficCollector? collector,
     this.headers,
   })  : _inner = inner,
-        _client = interceptly ?? Interceptly.instance,
-        sessionId = sessionId ?? RequestId.generate() {
+        _interceptly = interceptly,
+        sessionId = sessionId ?? RequestId.generate(),
+        session = session ??
+            (interceptly != null && interceptly.session is InspectorSession
+                ? interceptly.session as InspectorSession
+                : (collector is DefaultRealtimeTrafficCollector
+                    ? collector.session
+                    : InspectorSession.instance)),
+        collector = collector ??
+            DefaultRealtimeTrafficCollector(
+              session ??
+                  (interceptly != null && interceptly.session is InspectorSession
+                      ? interceptly.session as InspectorSession
+                      : (collector is DefaultRealtimeTrafficCollector
+                          ? collector.session
+                          : InspectorSession.instance)),
+            ) {
     if (uri != null) {
       try {
-        _client.recordRealtimeConnection(
-          id: this.sessionId,
-          url: uri.toString(),
-          headers: headers ?? const {},
+        this.collector.recordConnection(
+          sessionId: this.sessionId,
+          uri: uri!,
+          headers: headers,
         );
       } catch (_) {
         // Prevent inspector failures from interrupting application traffic.
@@ -56,6 +82,8 @@ class InterceptlyWebSocketChannel extends StreamChannelMixin
     Uri? uri,
     String? sessionId,
     Interceptly? interceptly,
+    InspectorSession? session,
+    RealtimeTrafficCollector? collector,
     Map<String, String>? headers,
   }) {
     return InterceptlyWebSocketChannel(
@@ -63,6 +91,8 @@ class InterceptlyWebSocketChannel extends StreamChannelMixin
       uri: uri,
       sessionId: sessionId,
       interceptly: interceptly,
+      session: session,
+      collector: collector,
       headers: headers,
     );
   }
@@ -73,6 +103,8 @@ class InterceptlyWebSocketChannel extends StreamChannelMixin
     Iterable<String>? protocols,
     String? sessionId,
     Interceptly? interceptly,
+    InspectorSession? session,
+    RealtimeTrafficCollector? collector,
     Map<String, String>? headers,
   }) {
     final inner = WebSocketChannel.connect(uri, protocols: protocols);
@@ -81,6 +113,8 @@ class InterceptlyWebSocketChannel extends StreamChannelMixin
       uri: uri,
       sessionId: sessionId,
       interceptly: interceptly,
+      session: session,
+      collector: collector,
       headers: headers,
     );
   }
@@ -88,8 +122,8 @@ class InterceptlyWebSocketChannel extends StreamChannelMixin
   /// The underlying [WebSocketChannel] instance.
   WebSocketChannel get inner => _inner;
 
-  /// The [Interceptly] instance used for recording frames.
-  Interceptly get interceptly => _client;
+  /// The [Interceptly] facade instance.
+  Interceptly get interceptly => _resolvedInterceptly;
 
   @override
   String? get protocol => _inner.protocol;
@@ -128,34 +162,18 @@ class InterceptlyWebSocketChannel extends StreamChannelMixin
 
   void _recordFrame(dynamic data, FrameDirection direction) {
     try {
-      if (data is String) {
-        _client.recordRealtimeFrame(
-          RealtimeFrame.text(
-            id: RequestId.generate(),
-            sessionId: sessionId,
-            direction: direction,
-            text: data,
-          ),
-        );
-      } else if (data is Uint8List) {
-        _client.recordRealtimeFrame(
-          RealtimeFrame.binary(
-            id: RequestId.generate(),
-            sessionId: sessionId,
-            direction: direction,
-            bytes: data,
-          ),
-        );
-      } else if (data is List<int>) {
-        _client.recordRealtimeFrame(
-          RealtimeFrame.binary(
-            id: RequestId.generate(),
-            sessionId: sessionId,
-            direction: direction,
-            bytes: Uint8List.fromList(data),
-          ),
-        );
+      final FrameType type;
+      if (data is Uint8List || data is List<int>) {
+        type = FrameType.binary;
+      } else {
+        type = FrameType.text;
       }
+      collector.recordFrame(
+        sessionId: sessionId,
+        direction: direction,
+        type: type,
+        payload: data,
+      );
     } catch (_) {
       // Prevent inspector failures from interrupting application traffic.
     }
@@ -165,8 +183,8 @@ class InterceptlyWebSocketChannel extends StreamChannelMixin
     if (_isClosed) return;
     _isClosed = true;
     try {
-      _client.closeRealtimeConnection(
-        sessionId,
+      collector.recordClose(
+        sessionId: sessionId,
         closeCode: closeCode ?? _inner.closeCode ?? 1000,
         closeReason: closeReason ?? _inner.closeReason,
       );
