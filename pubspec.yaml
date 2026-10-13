@@ -1,0 +1,9 @@
+name: interceptly_monorepo
+description: "Monorepo workspace for Interceptly and its adapters"
+publish_to: "none"
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+
+dev_dependencies:
+  melos: ^6.0.0

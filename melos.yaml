@@ -1,6 +1,6 @@
 name: interceptly_monorepo
 packages:
-  - packages/**
+  - packages/*
 
 scripts:
   analyze:
@@ -9,3 +9,6 @@ scripts:
   test:
     exec: flutter test
     description: Run tests in all packages.
+  clean:
+    exec: flutter clean
+    description: Clean build artifacts in all packages.
