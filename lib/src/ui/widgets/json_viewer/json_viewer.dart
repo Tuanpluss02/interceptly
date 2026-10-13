@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -6,7 +5,14 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
 
-import 'toast_notification.dart';
+import '../toast_notification.dart';
+import 'json_line.dart';
+import 'json_search.dart';
+import 'json_viewer_style.dart';
+
+export 'json_line.dart';
+export 'json_search.dart';
+export 'json_viewer_style.dart';
 
 /// Collapsible JSON renderer with VSCode-style line numbers, gutter
 /// expand/collapse, search highlighting, and copy support.
@@ -46,126 +52,36 @@ class JsonViewer extends StatefulWidget {
   });
 
   /// Format any data into a pretty-printed JSON string.
-  /// Used by _computeMatches in request_detail_page.dart for search counting.
-  static String formatData(dynamic data) {
-    if (data == null) return 'null';
-    try {
-      if (data is String) {
-        try {
-          final decoded = jsonDecode(data);
-          return const JsonEncoder.withIndent('  ').convert(decoded);
-        } catch (_) {
-          return data;
-        }
-      } else {
-        return const JsonEncoder.withIndent('  ').convert(data);
-      }
-    } catch (e) {
-      return data.toString();
-    }
-  }
+  ///
+  /// Delegates to [JsonSearch.formatData].
+  static String formatData(dynamic data) => JsonSearch.formatData(data);
 
   /// Counts case-insensitive query matches within structured JSON data.
-  static int countMatches(dynamic data, String query) {
-    if (query.isEmpty) return 0;
-    final q = query.toLowerCase();
+  ///
+  /// Delegates to [JsonSearch.countMatches].
+  static int countMatches(dynamic data, String query) =>
+      JsonSearch.countMatches(data, query);
 
-    if (data == null) return _countIn('null', q);
-    if (data is bool) return _countIn(data.toString(), q);
-    if (data is num) return _countIn(data.toString(), q);
-    if (data is String) {
-      return _countIn('"$data"', q);
-    }
-    if (data is List) {
-      int total = 0;
-      for (final item in data) {
-        total += countMatches(item, query);
-      }
-      return total;
-    }
-    if (data is Map) {
-      int total = 0;
-      for (final entry in data.entries) {
-        total += _countIn('"${entry.key}"', q);
-        total += countMatches(entry.value, query);
-      }
-      return total;
-    }
-    return _countIn(data.toString(), q);
-  }
-
-  static int _countIn(String text, String lowerQuery) {
-    int count = 0;
-    int start = 0;
-    final lower = text.toLowerCase();
-    while (true) {
-      final idx = lower.indexOf(lowerQuery, start);
-      if (idx < 0) break;
-      count++;
-      start = idx + lowerQuery.length;
-    }
-    return count;
-  }
+  static int _countIn(String text, String lowerQuery) =>
+      JsonSearch.countIn(text, lowerQuery);
 
   /// Build highlighted [TextSpan] list for [text], marking query matches.
   ///
-  /// [matchOffset] is the global index of the first match within [text].
-  /// [activeGlobalIndex] is the currently selected match (painted orange).
+  /// Delegates to [JsonSearch.buildHighlightedSpans].
   static List<TextSpan> buildHighlightedSpans(
     String text,
     String lowerQuery,
     int matchOffset,
     int? activeGlobalIndex,
     Color baseColor,
-  ) {
-    final spans = <TextSpan>[];
-    final lowerText = text.toLowerCase();
-    int start = 0;
-    int currentMatch = matchOffset;
-
-    while (true) {
-      final index = lowerText.indexOf(lowerQuery, start);
-      if (index < 0) {
-        if (start < text.length) {
-          spans.add(
-            TextSpan(
-              text: text.substring(start),
-              style: TextStyle(color: baseColor),
-            ),
-          );
-        }
-        break;
-      }
-
-      if (index > start) {
-        spans.add(
-          TextSpan(
-            text: text.substring(start, index),
-            style: TextStyle(color: baseColor),
-          ),
-        );
-      }
-
-      final isActive = currentMatch == activeGlobalIndex;
-      currentMatch++;
-
-      spans.add(
-        TextSpan(
-          text: text.substring(index, index + lowerQuery.length),
-          style: TextStyle(
-            color: baseColor,
-            backgroundColor: isActive
-                ? _JsonViewerState._activeHighlightColor
-                : _JsonViewerState._highlightColor,
-          ),
-        ),
+  ) =>
+      JsonSearch.buildHighlightedSpans(
+        text,
+        lowerQuery,
+        matchOffset,
+        activeGlobalIndex,
+        baseColor,
       );
-
-      start = index + lowerQuery.length;
-    }
-
-    return spans;
-  }
 
   @override
   State<JsonViewer> createState() => _JsonViewerState();
@@ -176,19 +92,18 @@ class JsonViewer extends StatefulWidget {
 // ─────────────────────────────────────────────────────────────
 
 class _JsonViewerState extends State<JsonViewer> {
-  static const double _foldIconWidth = 16.0;
+  static const double _foldIconWidth = JsonViewerMetrics.foldIconWidth;
+  static const int _largeDocLineThreshold =
+      JsonViewerMetrics.largeDocLineThreshold;
 
-  static const _keyColor = InterceptlyGlobalColor.blue400;
-  static const _stringColor = InterceptlyGlobalColor.red400;
-  static const _numberColor = InterceptlyGlobalColor.green400;
-  static const _boolColor = InterceptlyGlobalColor.blue500;
-  static const _nullColor = InterceptlyGlobalColor.blue500;
-  static const _punctuationColor = InterceptlyGlobalColor.textQuaternary;
-  static const _highlightColor = InterceptlyGlobalColor.highlightStrong;
-  static const _activeHighlightColor = InterceptlyGlobalColor.orange;
-  static const _lineNumberColor = InterceptlyGlobalColor.textMuted;
-
-  static const int _largeDocLineThreshold = 1500;
+  static const _keyColor = JsonViewerColors.key;
+  static const _stringColor = JsonViewerColors.string;
+  static const _numberColor = JsonViewerColors.number;
+  static const _boolColor = JsonViewerColors.boolean;
+  static const _nullColor = JsonViewerColors.nullValue;
+  static const _punctuationColor = JsonViewerColors.punctuation;
+  static const _activeHighlightColor = JsonViewerColors.activeHighlight;
+  static const _lineNumberColor = JsonViewerColors.lineNumber;
 
   final Map<String, bool> _expandState = {};
 
@@ -204,7 +119,7 @@ class _JsonViewerState extends State<JsonViewer> {
 
   bool _isSyncingScroll = false;
 
-  List<_FlatLine>? _memoLines;
+  List<JsonLine>? _memoLines;
 
   double _memoLineNumberWidth = 0;
 
@@ -237,7 +152,7 @@ class _JsonViewerState extends State<JsonViewer> {
   );
 
   @visibleForTesting
-  List<_FlatLine>? get memoLinesForTest => _memoLines;
+  List<JsonLine>? get memoLinesForTest => _memoLines;
 
   @visibleForTesting
   ScrollController get contentScrollControllerForTest =>
@@ -253,7 +168,7 @@ class _JsonViewerState extends State<JsonViewer> {
 
   void _checkScrollToActive({
     required int activeLineIndex,
-    required _FlatLine line,
+    required JsonLine line,
     required double viewportHeight,
     required double viewportWidth,
     required double lineHeight,
@@ -454,8 +369,8 @@ class _JsonViewerState extends State<JsonViewer> {
         _largeDocLineThreshold;
     _memoMatchCounts = effectiveQuery == null
         ? null
-        : _matchCountsByPath(widget.data, effectiveQuery);
-    final lines = <_FlatLine>[];
+        : JsonSearch.matchCountsByPath(widget.data, effectiveQuery);
+    final lines = <JsonLine>[];
     _flatten(
       value: widget.data,
       key: null,
@@ -491,34 +406,6 @@ class _JsonViewerState extends State<JsonViewer> {
       }
       _memoMaxChars = maxLen;
     }
-  }
-
-  static Map<String, int> _matchCountsByPath(dynamic data, String query) {
-    final counts = <String, int>{};
-    int walk(dynamic value, String path) {
-      int total = 0;
-      if (value is List) {
-        for (var i = 0; i < value.length; i++) {
-          total += walk(value[i], '$path[$i]');
-        }
-      } else if (value is Map) {
-        value.forEach((k, v) {
-          total += JsonViewer._countIn('"$k"', query);
-          total += walk(v, '$path.$k');
-        });
-      } else if (value is String) {
-        total += JsonViewer._countIn('"$value"', query);
-      } else if (value != null) {
-        total += JsonViewer._countIn(value.toString(), query);
-      } else {
-        total += JsonViewer._countIn('null', query);
-      }
-      counts[path] = total;
-      return total;
-    }
-
-    walk(data, r'$');
-    return counts;
   }
 
   void _copyToClipboard() {
@@ -819,7 +706,7 @@ class _JsonViewerState extends State<JsonViewer> {
 
   Widget _buildLine(
     int index,
-    _FlatLine line,
+    JsonLine line,
     double lineHeight,
     TextStyle style,
   ) {
@@ -847,7 +734,7 @@ class _JsonViewerState extends State<JsonViewer> {
   /// The entire row is tappable for collapsible lines so the touch
   /// target is wide enough on mobile.
   Widget _buildGutterCell({
-    required _FlatLine line,
+    required JsonLine line,
     required double lineNumberWidth,
     required double lineHeight,
     required TextStyle style,
@@ -912,7 +799,7 @@ class _JsonViewerState extends State<JsonViewer> {
   // Flatten logic
   // ─────────────────────────────────────────────────────────────
 
-  /// Recursively flatten [value] into sequential [_FlatLine] objects.
+  /// Recursively flatten [value] into sequential [JsonLine] objects.
   ///
   /// [realLine] is the line number this value starts at in the
   /// fully-expanded document.
@@ -929,7 +816,7 @@ class _JsonViewerState extends State<JsonViewer> {
     required String? query,
     required int matchOffset,
     required int realLine,
-    required List<_FlatLine> output,
+    required List<JsonLine> output,
   }) {
     int currentOffset = matchOffset;
 
@@ -1000,7 +887,7 @@ class _JsonViewerState extends State<JsonViewer> {
     // ── List ──
     if (value is List) {
       if (value.isEmpty) {
-        output.add(_FlatLine(
+        output.add(JsonLine(
           indentLevel: indent,
           realLineNumber: realLine,
           spans: [
@@ -1038,7 +925,7 @@ class _JsonViewerState extends State<JsonViewer> {
     // ── Map ──
     if (value is Map) {
       if (value.isEmpty) {
-        output.add(_FlatLine(
+        output.add(JsonLine(
           indentLevel: indent,
           realLineNumber: realLine,
           spans: [
@@ -1081,7 +968,7 @@ class _JsonViewerState extends State<JsonViewer> {
 
   /// Emit a single leaf line (scalar value).
   ({int matchOffset, int nextRealLine}) _emitLeaf(
-    List<_FlatLine> output,
+    List<JsonLine> output,
     int indent,
     List<TextSpan> keySpans,
     String valueText,
@@ -1118,7 +1005,7 @@ class _JsonViewerState extends State<JsonViewer> {
 
     if (commaSpan != null) spans.add(commaSpan);
 
-    output.add(_FlatLine(
+    output.add(JsonLine(
       indentLevel: indent,
       realLineNumber: realLine,
       spans: spans,
@@ -1129,7 +1016,7 @@ class _JsonViewerState extends State<JsonViewer> {
   }
 
   ({int matchOffset, int nextRealLine}) _emitChunkedString({
-    required List<_FlatLine> output,
+    required List<JsonLine> output,
     required int indent,
     required List<TextSpan> keySpans,
     required String value,
@@ -1194,7 +1081,7 @@ class _JsonViewerState extends State<JsonViewer> {
         chunkSpans.add(commaSpan);
       }
 
-      output.add(_FlatLine(
+      output.add(JsonLine(
         indentLevel: isFirst ? indent : indent + 1,
         realLineNumber: lineNum,
         spans: chunkSpans,
@@ -1216,7 +1103,7 @@ class _JsonViewerState extends State<JsonViewer> {
   /// fully-expanded subtree would occupy so siblings get correct
   /// real line numbers.
   ({int matchOffset, int nextRealLine}) _emitCollapsible({
-    required List<_FlatLine> output,
+    required List<JsonLine> output,
     required int indent,
     required List<TextSpan> keySpans,
     required String openBracket,
@@ -1252,11 +1139,11 @@ class _JsonViewerState extends State<JsonViewer> {
 
     if (expanded) {
       // Header: "key": {
-      output.add(_FlatLine(
+      output.add(JsonLine(
         indentLevel: indent,
         realLineNumber: realLine,
         spans: [...keySpans, _bracketSpan(openBracket)],
-        collapsible: _CollapsibleInfo(
+        collapsible: JsonCollapsibleInfo(
           path: path,
           childCount: childCount,
           isExpanded: true,
@@ -1284,7 +1171,7 @@ class _JsonViewerState extends State<JsonViewer> {
       }
 
       // Closing bracket
-      output.add(_FlatLine(
+      output.add(JsonLine(
         indentLevel: indent,
         realLineNumber: nextLine,
         spans: [
@@ -1302,7 +1189,7 @@ class _JsonViewerState extends State<JsonViewer> {
       // the correct real line number.
       final expandedLineCount = _countExpandedLines(rawValue, _lineCountMemo);
 
-      output.add(_FlatLine(
+      output.add(JsonLine(
         indentLevel: indent,
         realLineNumber: realLine,
         spans: [
@@ -1318,7 +1205,7 @@ class _JsonViewerState extends State<JsonViewer> {
           _bracketSpan(closeBracket),
           if (commaSpan != null) commaSpan,
         ],
-        collapsible: _CollapsibleInfo(
+        collapsible: JsonCollapsibleInfo(
           path: path,
           childCount: childCount,
           isExpanded: false,
@@ -1341,73 +1228,13 @@ class _JsonViewerState extends State<JsonViewer> {
 
   // ── Helpers ──
 
-  static bool _spanHasActiveHighlight(TextSpan span) {
-    final style = span.style;
-    if (style?.backgroundColor == _activeHighlightColor) {
-      return true;
-    }
-
-    final children = span.children;
-    if (children == null || children.isEmpty) return false;
-    for (final child in children) {
-      if (_spanHasActiveHighlight(child as TextSpan)) {
-        return true;
-      }
-    }
-    return false;
-  }
+  static bool _spanHasActiveHighlight(TextSpan span) =>
+      JsonSearch.spanHasActiveHighlight(span);
 }
 
 // ─────────────────────────────────────────────────────────────
 // Data classes
 // ─────────────────────────────────────────────────────────────
-
-/// A single visual line in the flat JSON view.
-class _FlatLine {
-  /// Indentation depth (0 = root).
-  final int indentLevel;
-
-  /// Line number in the **fully-expanded** document.
-  ///
-  /// When collapsible regions are folded, visible line numbers will
-  /// skip the hidden range — matching VSCode behavior.
-  final int realLineNumber;
-
-  /// Inline spans forming the visible text content of this line.
-  final List<TextSpan> spans;
-
-  /// Non-null when this line opens a collapsible block.
-  final _CollapsibleInfo? collapsible;
-
-  /// `true` when this line contains the currently active search match.
-  final bool hasActiveMatch;
-
-  const _FlatLine({
-    required this.indentLevel,
-    required this.realLineNumber,
-    required this.spans,
-    this.collapsible,
-    this.hasActiveMatch = false,
-  });
-}
-
-/// Metadata attached to a collapsible header line.
-class _CollapsibleInfo {
-  /// Unique path identifying this node (e.g. `$.data.items[0]`).
-  final String path;
-
-  /// Number of direct children (used for the default expand heuristic).
-  final int childCount;
-
-  /// Snapshot of the expanded state at build time.
-  final bool isExpanded;
-
-  const _CollapsibleInfo({
-    required this.path,
-    required this.childCount,
-    required this.isExpanded,
-  });
-}
 
 /// A child entry passed to [_emitCollapsible] for iteration.
 class _ChildEntry {

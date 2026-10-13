@@ -3,7 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/ui/widgets/json_viewer.dart';
+import 'package:interceptly/src/ui/widgets/json_viewer/json_viewer.dart';
 import 'package:interceptly/src/export/curl_generator.dart';
 import 'package:interceptly/src/export/har_exporter.dart';
 import 'package:interceptly/src/export/postman_exporter.dart';

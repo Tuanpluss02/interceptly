@@ -14,7 +14,7 @@ import 'package:interceptly/src/model/request_record.dart';
 import 'package:interceptly/src/session/body_store.dart';
 import 'package:interceptly/src/session/master_search_controller.dart';
 import 'package:interceptly/src/session/memory_index.dart';
-import 'package:interceptly/src/ui/widgets/json_viewer.dart';
+import 'package:interceptly/src/ui/widgets/json_viewer/json_viewer.dart';
 
 Uint8List _packBody({
   String? requestBody,

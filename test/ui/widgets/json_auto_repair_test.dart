@@ -17,7 +17,7 @@ import 'package:interceptly/src/session/inspector_preferences.dart';
 import 'package:interceptly/src/session/inspector_session_view.dart';
 import 'package:interceptly/src/ui/detail/detail_search.dart';
 import 'package:interceptly/src/ui/detail/request_detail_page.dart';
-import 'package:interceptly/src/ui/widgets/json_viewer.dart';
+import 'package:interceptly/src/ui/widgets/json_viewer/json_viewer.dart';
 
 class _FakeSession extends InspectorSessionView {
   _FakeSession({required this.record, required this.entry});
