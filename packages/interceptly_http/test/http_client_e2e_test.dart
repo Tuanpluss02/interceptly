@@ -1,12 +1,35 @@
-import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:interceptly/interceptly.dart';
-import '../lib/src/interceptly_http_client.dart';
+import 'package:interceptly_http/interceptly_http.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  late Directory tempDir;
+
+  setUp(() async {
+    tempDir =
+        await Directory.systemTemp.createTemp('interceptly_http_e2e_test');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+      const MethodChannel('plugins.flutter.io/path_provider'),
+      (call) async {
+        if (call.method == 'getTemporaryDirectory') return tempDir.path;
+        return null;
+      },
+    );
+  });
+
+  tearDown(() async {
+    try {
+      await tempDir.delete(recursive: true);
+    } catch (_) {}
+  });
 
   test(
       'Scenario 1: End-to-end HTTP client request capture into InspectorSession',

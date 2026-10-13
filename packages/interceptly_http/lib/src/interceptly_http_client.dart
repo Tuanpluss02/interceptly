@@ -4,10 +4,7 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
-import '../../session/request_id.dart';
-import '../../model/raw_capture.dart';
-import '../../session/inspector_session.dart';
-import '../capture_guard.dart';
+import 'package:interceptly/interceptly.dart';
 
 /// A drop-in [http.BaseClient] wrapper that captures all requests.
 ///
