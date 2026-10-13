@@ -1,6 +1,13 @@
 /// Flutter network inspector for Dio, HTTP, and Chopper with overlay UI, replay tools, and HAR/cURL export.
 library;
 
+export 'src/adapter/http_request_context.dart' show HttpRequestContext;
+export 'src/adapter/http_traffic_collector.dart'
+    show DefaultHttpTrafficCollector, HttpTrafficCollector;
+export 'src/adapter/network_capture_adapter.dart'
+    show HttpCaptureAdapter, RealtimeCaptureAdapter;
+export 'src/adapter/realtime_traffic_collector.dart'
+    show DefaultRealtimeTrafficCollector, RealtimeTrafficCollector;
 export 'src/capture/capture_guard.dart';
 export 'src/core/interceptly_controller.dart' show Interceptly;
 export 'src/export/curl_generator.dart' show CurlGenerator;
