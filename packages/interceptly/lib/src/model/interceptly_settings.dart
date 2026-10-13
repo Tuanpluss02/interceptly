@@ -7,6 +7,7 @@ class InterceptlySettings {
     this.maxUiPreviewBytes = 2 * 1024 * 1024,
     this.maxQueuedEvents = 500,
     this.maxEntries = 5000,
+    this.maxFramesPerSession = 1000,
     this.urlDecodeEnabled = true,
     this.pendingTimeout = const Duration(seconds: 45),
     this.redactedHeaders = const {},
@@ -38,6 +39,11 @@ class InterceptlySettings {
   /// When exceeded, the oldest entry is removed.
   final int maxEntries;
 
+  /// Maximum number of `RealtimeFrame` items kept in memory per realtime session.
+  /// When exceeded, the oldest frame in the session is evicted.
+  /// Defaults to 1000.
+  final int maxFramesPerSession;
+
   /// Whether to decode URL encodings in the UI.
   final bool urlDecodeEnabled;
 
@@ -63,6 +69,7 @@ class InterceptlySettings {
     int? maxUiPreviewBytes,
     int? maxQueuedEvents,
     int? maxEntries,
+    int? maxFramesPerSession,
     bool? urlDecodeEnabled,
     Duration? pendingTimeout,
     Set<String>? redactedHeaders,
@@ -76,6 +83,7 @@ class InterceptlySettings {
       maxUiPreviewBytes: maxUiPreviewBytes ?? this.maxUiPreviewBytes,
       maxQueuedEvents: maxQueuedEvents ?? this.maxQueuedEvents,
       maxEntries: maxEntries ?? this.maxEntries,
+      maxFramesPerSession: maxFramesPerSession ?? this.maxFramesPerSession,
       urlDecodeEnabled: urlDecodeEnabled ?? this.urlDecodeEnabled,
       pendingTimeout: pendingTimeout ?? this.pendingTimeout,
       redactedHeaders: redactedHeaders ?? this.redactedHeaders,
