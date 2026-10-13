@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../model/interceptly_settings.dart';
 import '../model/network_simulation.dart';
 import '../model/raw_capture.dart';
+import '../model/realtime_frame.dart';
 import '../model/request_filter.dart';
 import '../model/request_record.dart';
 import '../model/request_summary.dart';
@@ -120,6 +121,44 @@ class Interceptly extends ChangeNotifier {
       _session.setNetworkSimulation(profile);
   void clearNetworkSimulation() => _session.clearNetworkSimulation();
   Future<void> clear() => _session.clear();
+
+  /// Enqueues a captured [RealtimeFrame] into the session buffer.
+  void recordRealtimeFrame(RealtimeFrame frame) =>
+      _session.recordRealtimeFrame(frame);
+
+  /// Returns captured realtime frames for the given [sessionId] in FIFO order.
+  List<RealtimeFrame> getRealtimeFrames(String sessionId) =>
+      _session.getRealtimeFrames(sessionId);
+
+  /// Alias for [getRealtimeFrames].
+  List<RealtimeFrame> getFrames(String sessionId) =>
+      _session.getFrames(sessionId);
+
+  /// Records opening of a realtime connection (e.g. WebSocket handshake).
+  void recordRealtimeConnection({
+    required String id,
+    required String url,
+    Map<String, String> headers = const {},
+    DateTime? timestamp,
+  }) =>
+      _session.recordRealtimeConnection(
+        id: id,
+        url: url,
+        headers: headers,
+        timestamp: timestamp,
+      );
+
+  /// Records closing of an active realtime connection with close code and reason.
+  void closeRealtimeConnection(
+    String id, {
+    int closeCode = 1000,
+    String? closeReason,
+  }) =>
+      _session.closeRealtimeConnection(
+        id,
+        closeCode: closeCode,
+        closeReason: closeReason,
+      );
 
   @override
   void dispose() {

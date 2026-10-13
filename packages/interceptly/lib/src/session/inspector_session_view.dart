@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../model/domain_group.dart';
 import '../model/interceptly_settings.dart';
 import '../model/network_simulation.dart';
+import '../model/realtime_frame.dart';
 import '../model/request_filter.dart';
 import '../model/request_record.dart';
 import '../model/request_summary.dart';
@@ -48,4 +49,12 @@ abstract class InspectorSessionView extends ChangeNotifier {
   void cancelMasterSearch();
   Future<void> startMasterSearch(String query);
   Set<String> get availableDomains;
+
+  /// Returns captured realtime frames for the given [sessionId] in FIFO order.
+  List<RealtimeFrame> getRealtimeFrames(String sessionId) =>
+      const <RealtimeFrame>[];
+
+  /// Alias for [getRealtimeFrames].
+  List<RealtimeFrame> getFrames(String sessionId) =>
+      getRealtimeFrames(sessionId);
 }

@@ -10,6 +10,7 @@ import '../model/index_entry.dart';
 import '../model/interceptly_settings.dart';
 import '../model/network_simulation.dart';
 import '../model/raw_capture.dart';
+import '../model/realtime_frame.dart';
 import '../model/request_filter.dart';
 import '../model/request_record.dart';
 import '../model/request_summary.dart';
@@ -23,6 +24,7 @@ import 'inspector_preferences.dart';
 import 'inspector_session_view.dart';
 import 'master_search_controller.dart';
 import 'memory_index.dart';
+import 'ring_buffer.dart';
 import 'writer_isolate.dart';
 import '../capture/capture_guard.dart';
 
@@ -75,6 +77,11 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   InterceptlySettings get settings => _settings;
 
   void _applySettings(InterceptlySettings newSettings) {
+    if (newSettings.maxFramesPerSession != _settings.maxFramesPerSession) {
+      for (final buffer in _realtimeFramesBySession.values) {
+        buffer.updateCapacity(newSettings.maxFramesPerSession);
+      }
+    }
     _settings = newSettings;
     _normalizedRedactedHeaders = newSettings.normalizedRedactedHeaders;
     _writerIsolate.updateSettings(newSettings);
@@ -91,6 +98,10 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   late final WriterIsolate _writerIsolate;
   late final BoundedEventQueue<RawCapture> _preInitQueue;
   StreamSubscription<IndexEntry>? _resultSub;
+
+  final Map<String, RingBuffer<RealtimeFrame>> _realtimeFramesBySession = {};
+  Timer? _realtimeThrottleTimer;
+  bool _hasPendingRealtimeFrameNotification = false;
 
   Future<void>? _initFuture;
   bool _initialized = false;
@@ -431,6 +442,102 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     notifyListeners();
   }
 
+  /// Records a captured [RealtimeFrame] into the session buffer and schedules
+  /// a throttled notification (~100ms interval) to avoid UI message storm thrashing.
+  void recordRealtimeFrame(RealtimeFrame frame) {
+    if (!_enabled) return;
+
+    final buffer = _realtimeFramesBySession.putIfAbsent(
+      frame.sessionId,
+      () => RingBuffer<RealtimeFrame>(capacity: settings.maxFramesPerSession),
+    );
+    buffer.add(frame);
+
+    _scheduleRealtimeNotification();
+  }
+
+  void _scheduleRealtimeNotification() {
+    _hasPendingRealtimeFrameNotification = true;
+    _realtimeThrottleTimer ??= Timer(const Duration(milliseconds: 100), () {
+      _realtimeThrottleTimer = null;
+      if (_hasPendingRealtimeFrameNotification) {
+        _hasPendingRealtimeFrameNotification = false;
+        notifyListeners();
+      }
+    });
+  }
+
+  @override
+  List<RealtimeFrame> getRealtimeFrames(String sessionId) {
+    final buffer = _realtimeFramesBySession[sessionId];
+    if (buffer == null || buffer.isEmpty) {
+      return const <RealtimeFrame>[];
+    }
+    return buffer.toList();
+  }
+
+  @override
+  List<RealtimeFrame> getFrames(String sessionId) =>
+      getRealtimeFrames(sessionId);
+
+  /// Records opening of a realtime connection (e.g. WebSocket handshake).
+  void recordRealtimeConnection({
+    required String id,
+    required String url,
+    Map<String, String> headers = const {},
+    DateTime? timestamp,
+  }) {
+    if (!_enabled) return;
+    recordPending(
+      id: id,
+      method: 'WS',
+      url: url,
+      timestamp: timestamp ?? DateTime.now(),
+      requestHeaders: headers,
+    );
+  }
+
+  /// Records closing of an active realtime connection with close code and reason.
+  void closeRealtimeConnection(
+    String id, {
+    int closeCode = 1000,
+    String? closeReason,
+  }) {
+    _cancelPendingTimeout(id);
+    final current = _memoryIndex.byId(id);
+    if (current != null) {
+      _memoryIndex.add(
+        IndexEntry(
+          id: current.id,
+          method: current.method,
+          url: current.url,
+          statusCode: closeCode,
+          durationMs:
+              DateTime.now().difference(current.timestamp).inMilliseconds,
+          requestSizeBytes: current.requestSizeBytes,
+          responseSizeBytes: current.responseSizeBytes,
+          timestamp: current.timestamp,
+          hasError: closeCode > 1000 && closeCode != 1005,
+          bodyLocation: current.bodyLocation,
+          inlineRequestBody: current.inlineRequestBody,
+          inlineResponseBody: current.inlineResponseBody,
+          requestHeaders: current.requestHeaders,
+          responseHeaders: current.responseHeaders,
+          requestContentType: current.requestContentType,
+          responseContentType: current.responseContentType,
+          errorType: current.errorType,
+          errorMessage: closeReason ?? current.errorMessage,
+          requestTruncation: current.requestTruncation,
+          responseTruncation: current.responseTruncation,
+          fileOffset: current.fileOffset,
+          fileLength: current.fileLength,
+        ),
+      );
+      _invalidateGroupedCache();
+      notifyListeners();
+    }
+  }
+
   /// Describes a pending row's request body.
   ///
   /// A pending row is trimmed to [InterceptlySettings.previewTruncationBytes]
@@ -679,6 +786,10 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
         timer.cancel();
       }
       _pendingTimers.clear();
+      _realtimeThrottleTimer?.cancel();
+      _realtimeThrottleTimer = null;
+      _hasPendingRealtimeFrameNotification = false;
+      _realtimeFramesBySession.clear();
       notifyListeners();
     } finally {
       _clearFuture = null;
@@ -687,6 +798,16 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
 
   @override
   Future<void> dispose() async {
+    _realtimeThrottleTimer?.cancel();
+    _realtimeThrottleTimer = null;
+    _hasPendingRealtimeFrameNotification = false;
+    _realtimeFramesBySession.clear();
+    for (final timer in _pendingTimers.values) {
+      timer.cancel();
+    }
+    _pendingTimers.clear();
+    _memoryIndex.clear();
+    _preInitQueue.clear();
     _search.cancel();
     _search.removeListener(_onSearchChanged);
     _search.dispose();
@@ -696,12 +817,6 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     _preferences.dispose();
     await _resultSub?.cancel();
     await _writerIsolate.dispose();
-    _memoryIndex.clear();
-    _preInitQueue.clear();
-    for (final timer in _pendingTimers.values) {
-      timer.cancel();
-    }
-    _pendingTimers.clear();
     _initialized = false;
     _inFlight = 0;
     _initFuture = null;
