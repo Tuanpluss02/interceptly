@@ -15,10 +15,16 @@ import '../widgets/toast_notification.dart';
 import 'custom_request_page.dart';
 
 class ReplayHandler {
-  const ReplayHandler({required this.context, required this.session});
+  const ReplayHandler({
+    required this.context,
+    required this.session,
+    @visibleForTesting this.clientFactory,
+  });
 
   final BuildContext context;
   final InspectorSession session;
+  @visibleForTesting
+  final HttpClient Function()? clientFactory;
 
   void showReplayMenu(RequestRecord record) {
     showModalBottomSheet(
@@ -211,7 +217,7 @@ class ReplayHandler {
       );
     }
 
-    final client = HttpClient();
+    final client = clientFactory?.call() ?? HttpClient();
     final stopwatch = Stopwatch()..start();
     final start = DateTime.now();
 

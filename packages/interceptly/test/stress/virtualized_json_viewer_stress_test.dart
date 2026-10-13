@@ -4,8 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
+import '../helpers/mock_http_client.dart';
 import 'package:interceptly/src/export/curl_generator.dart';
 import 'package:interceptly/src/export/har_exporter.dart';
 import 'package:interceptly/src/export/postman_exporter.dart';
@@ -642,11 +641,7 @@ void main() {
             stage: TruncationStage.preview,
           ));
 
-      http.Request? capturedRequest;
-      final mockClient = MockClient((request) async {
-        capturedRequest = request;
-        return http.Response('{"replayed": true}', 200);
-      });
+      MockHttpClientRequest? capturedRequest;
 
       late BuildContext savedContext;
       await tester.pumpWidget(
@@ -661,11 +656,15 @@ void main() {
       );
 
       await tester.runAsync(() async {
-        await http.runWithClient(() async {
-          final handler =
-              ReplayHandler(context: savedContext, session: replaySession);
-          await handler.retry(record);
-        }, () => mockClient);
+        final handler =
+            ReplayHandler(
+          context: savedContext,
+          session: replaySession,
+          clientFactory: () => MockHttpClient((request) {
+            capturedRequest = request;
+          }),
+        );
+        await handler.retry(record);
       });
 
       expect(capturedRequest, isNotNull);

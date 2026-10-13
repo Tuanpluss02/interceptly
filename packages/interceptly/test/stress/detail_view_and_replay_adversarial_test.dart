@@ -3,8 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
+import '../helpers/mock_http_client.dart';
 import 'package:interceptly/src/model/body_truncation.dart';
 import 'package:interceptly/src/model/request_record.dart';
 import 'package:interceptly/src/session/inspector_session.dart';
@@ -485,11 +484,7 @@ void main() {
     testWidgets(
         'Null body on retry transmits without bodyBytes or content-type',
         (tester) async {
-      http.Request? capturedRequest;
-      final mockClient = MockClient((req) async {
-        capturedRequest = req;
-        return http.Response('ok', 200);
-      });
+      MockHttpClientRequest? capturedRequest;
 
       final record = RequestRecord(
         id: 'r_null_body',
@@ -518,25 +513,27 @@ void main() {
       );
 
       await tester.runAsync(() async {
-        await http.runWithClient(() async {
-          final handler =
-              ReplayHandler(context: savedContext, session: session);
-          await handler.retry(record);
-        }, () => mockClient);
+        final handler = ReplayHandler(
+          context: savedContext,
+          session: session,
+          clientFactory: () => MockHttpClient((req) {
+            capturedRequest = req;
+          }),
+        );
+        await handler.retry(record);
       });
 
       expect(capturedRequest, isNotNull);
       expect(capturedRequest!.bodyBytes, isEmpty);
-      expect(capturedRequest!.headers.containsKey('content-type'), isFalse);
+      expect(
+        (capturedRequest!.headers as MockHttpHeaders).containsKey('content-type'),
+        isFalse,
+      );
     });
 
     testWidgets('Empty string body on retry transmits without bodyBytes',
         (tester) async {
-      http.Request? capturedRequest;
-      final mockClient = MockClient((req) async {
-        capturedRequest = req;
-        return http.Response('ok', 200);
-      });
+      MockHttpClientRequest? capturedRequest;
 
       final record = RequestRecord(
         id: 'r_empty_body',
@@ -565,25 +562,27 @@ void main() {
       );
 
       await tester.runAsync(() async {
-        await http.runWithClient(() async {
-          final handler =
-              ReplayHandler(context: savedContext, session: session);
-          await handler.retry(record);
-        }, () => mockClient);
+        final handler = ReplayHandler(
+          context: savedContext,
+          session: session,
+          clientFactory: () => MockHttpClient((req) {
+            capturedRequest = req;
+          }),
+        );
+        await handler.retry(record);
       });
 
       expect(capturedRequest, isNotNull);
       expect(capturedRequest!.bodyBytes, isEmpty);
-      expect(capturedRequest!.headers.containsKey('content-type'), isFalse);
+      expect(
+        (capturedRequest!.headers as MockHttpHeaders).containsKey('content-type'),
+        isFalse,
+      );
     });
 
     testWidgets('Legitimate JSON array body [ { ... } ] is replayed properly',
         (tester) async {
-      http.Request? capturedRequest;
-      final mockClient = MockClient((req) async {
-        capturedRequest = req;
-        return http.Response('ok', 200);
-      });
+      MockHttpClientRequest? capturedRequest;
 
       const arrayJson =
           '[{"id": 1, "name": "first"}, {"id": 2, "name": "second"}]';
@@ -614,27 +613,28 @@ void main() {
       );
 
       await tester.runAsync(() async {
-        await http.runWithClient(() async {
-          final handler =
-              ReplayHandler(context: savedContext, session: session);
-          await handler.retry(record);
-        }, () => mockClient);
+        final handler = ReplayHandler(
+          context: savedContext,
+          session: session,
+          clientFactory: () => MockHttpClient((req) {
+            capturedRequest = req;
+          }),
+        );
+        await handler.retry(record);
       });
 
       expect(capturedRequest, isNotNull);
       expect(capturedRequest!.body, equals(arrayJson));
-      expect(capturedRequest!.headers['content-type'],
-          equals('application/json; charset=utf-8'));
+      expect(
+        capturedRequest!.headers.value('content-type'),
+        equals('application/json; charset=utf-8'),
+      );
     });
 
     testWidgets(
         'Non-JSON plain text body with custom content-type is preserved',
         (tester) async {
-      http.Request? capturedRequest;
-      final mockClient = MockClient((req) async {
-        capturedRequest = req;
-        return http.Response('ok', 200);
-      });
+      MockHttpClientRequest? capturedRequest;
 
       const textBody = 'Hello, plain text world!';
       final record = RequestRecord(
@@ -664,16 +664,19 @@ void main() {
       );
 
       await tester.runAsync(() async {
-        await http.runWithClient(() async {
-          final handler =
-              ReplayHandler(context: savedContext, session: session);
-          await handler.retry(record);
-        }, () => mockClient);
+        final handler = ReplayHandler(
+          context: savedContext,
+          session: session,
+          clientFactory: () => MockHttpClient((req) {
+            capturedRequest = req;
+          }),
+        );
+        await handler.retry(record);
       });
 
       expect(capturedRequest, isNotNull);
       expect(capturedRequest!.body, equals(textBody));
-      expect(capturedRequest!.headers['content-type'], equals('text/plain'));
+      expect(capturedRequest!.headers.value('content-type'), equals('text/plain'));
     });
 
     testWidgets('All placeholder formats are stripped during replay',
@@ -696,11 +699,7 @@ void main() {
       );
 
       for (final placeholder in placeholders) {
-        http.Request? capturedRequest;
-        final mockClient = MockClient((req) async {
-          capturedRequest = req;
-          return http.Response('ok', 200);
-        });
+        MockHttpClientRequest? capturedRequest;
 
         final record = RequestRecord(
           id: 'r_ph',
@@ -723,17 +722,23 @@ void main() {
         );
 
         await tester.runAsync(() async {
-          await http.runWithClient(() async {
-            final handler =
-                ReplayHandler(context: savedContext, session: session);
-            await handler.retry(record);
-          }, () => mockClient);
+          final handler = ReplayHandler(
+            context: savedContext,
+            session: session,
+            clientFactory: () => MockHttpClient((req) {
+              capturedRequest = req;
+            }),
+          );
+          await handler.retry(record);
         });
 
         expect(capturedRequest, isNotNull);
         expect(capturedRequest!.bodyBytes, isEmpty,
             reason: 'Failed for placeholder: $placeholder');
-        expect(capturedRequest!.headers.containsKey('content-type'), isFalse);
+        expect(
+          (capturedRequest!.headers as MockHttpHeaders).containsKey('content-type'),
+          isFalse,
+        );
       }
     });
 

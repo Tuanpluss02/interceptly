@@ -4,8 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
+import '../../helpers/mock_http_client.dart';
 import 'package:interceptly/src/model/body_truncation.dart';
 import 'package:interceptly/src/model/request_record.dart';
 import 'package:interceptly/src/session/inspector_session.dart';
@@ -431,11 +430,7 @@ void main() {
     testWidgets(
       'guards against sending placeholder string as HTTP body on retry',
       (tester) async {
-        http.Request? capturedRequest;
-        final mockClient = MockClient((request) async {
-          capturedRequest = request;
-          return http.Response('ok', 200);
-        });
+        MockHttpClientRequest? capturedRequest;
 
         final record = RequestRecord(
           id: 'r_replay_bin',
@@ -466,27 +461,29 @@ void main() {
         );
 
         await tester.runAsync(() async {
-          await http.runWithClient(() async {
-            final handler =
-                ReplayHandler(context: savedContext, session: session);
-            await handler.retry(record);
-          }, () => mockClient);
+          final handler = ReplayHandler(
+            context: savedContext,
+            session: session,
+            clientFactory: () => MockHttpClient((request) {
+              capturedRequest = request;
+            }),
+          );
+          await handler.retry(record);
         });
 
         expect(capturedRequest, isNotNull);
         expect(capturedRequest!.bodyBytes, isEmpty);
         expect(capturedRequest!.body, isEmpty);
-        expect(capturedRequest!.headers.containsKey('content-type'), isFalse);
+        expect(
+          (capturedRequest!.headers as MockHttpHeaders).containsKey('content-type'),
+          isFalse,
+        );
       },
     );
 
     testWidgets('sends legitimate request body normally on retry',
         (tester) async {
-      http.Request? capturedRequest;
-      final mockClient = MockClient((request) async {
-        capturedRequest = request;
-        return http.Response('{"success": true}', 200);
-      });
+      MockHttpClientRequest? capturedRequest;
 
       const validJsonBody = '{"user": "alice", "active": true}';
       final record = RequestRecord(
@@ -518,17 +515,20 @@ void main() {
       );
 
       await tester.runAsync(() async {
-        await http.runWithClient(() async {
-          final handler =
-              ReplayHandler(context: savedContext, session: session);
-          await handler.retry(record);
-        }, () => mockClient);
+        final handler = ReplayHandler(
+          context: savedContext,
+          session: session,
+          clientFactory: () => MockHttpClient((request) {
+            capturedRequest = request;
+          }),
+        );
+        await handler.retry(record);
       });
 
       expect(capturedRequest, isNotNull);
       expect(capturedRequest!.body, equals(validJsonBody));
       expect(
-        capturedRequest!.headers['content-type'],
+        capturedRequest!.headers.value('content-type'),
         equals('application/json; charset=utf-8'),
       );
     });

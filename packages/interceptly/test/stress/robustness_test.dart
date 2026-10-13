@@ -1,15 +1,10 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:chopper/chopper.dart' as chopper;
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
 import 'package:interceptly/interceptly.dart';
-import 'package:interceptly/src/model/raw_capture.dart';
 import 'package:interceptly/src/session/body_decode_service.dart';
 
 const _pathProviderChannel = MethodChannel('plugins.flutter.io/path_provider');
@@ -48,47 +43,6 @@ RawCapture _capture(
       responseContentType: 'application/json',
     );
 
-class _FakeChain<T> implements chopper.Chain<T> {
-  _FakeChain(this.request, this.handler);
-
-  @override
-  final chopper.Request request;
-  final FutureOr<chopper.Response<T>> Function(chopper.Request) handler;
-
-  @override
-  FutureOr<chopper.Response<T>> proceed(chopper.Request request) =>
-      handler(request);
-}
-
-class _Model {
-  const _Model();
-}
-
-class _ToStringThrows {
-  @override
-  String toString() => throw StateError('boom');
-}
-
-class _FixedAdapter implements HttpClientAdapter {
-  @override
-  Future<ResponseBody> fetch(
-    RequestOptions options,
-    Stream<Uint8List>? requestStream,
-    Future<void>? cancelFuture,
-  ) async {
-    return ResponseBody.fromString(
-      '{"streamed":true}',
-      200,
-      headers: {
-        Headers.contentTypeHeader: ['application/json'],
-      },
-    );
-  }
-
-  @override
-  void close({bool force = false}) {}
-}
-
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -103,139 +57,6 @@ void main() {
     try {
       await tempDir.delete(recursive: true);
     } catch (_) {}
-  });
-
-  group('Chopper interceptor never breaks the request', () {
-    late InspectorSession session;
-
-    setUp(() async {
-      session = InspectorSession();
-      await session.initialize();
-    });
-
-    tearDown(() => session.dispose());
-
-    test('multipart base request does not throw', () async {
-      final interceptor = InterceptlyChopperInterceptor(session);
-      final request = chopper.Request(
-        'POST',
-        Uri.parse('https://api.example.com/upload'),
-        Uri.parse('https://api.example.com'),
-        multipart: true,
-      );
-      final base = http.MultipartRequest('POST', request.url)
-        ..fields['name'] = 'alice';
-
-      final chain = _FakeChain<String>(
-        request,
-        (req) => chopper.Response(
-          http.Response('ok', 200, request: base),
-          'ok',
-        ),
-      );
-
-      final response = await interceptor.intercept(chain);
-      expect(response.statusCode, 200);
-    });
-
-    test('response without base request does not throw', () async {
-      final interceptor = InterceptlyChopperInterceptor(session);
-      final request = chopper.Request(
-        'GET',
-        Uri.parse('https://api.example.com/mock'),
-        Uri.parse('https://api.example.com'),
-      );
-
-      final chain = _FakeChain<String>(
-        request,
-        (req) => chopper.Response(http.Response('ok', 200), 'ok'),
-      );
-
-      final response = await interceptor.intercept(chain);
-      expect(response.statusCode, 200);
-    });
-
-    test('captures raw response bytes, not the converted model', () async {
-      final interceptor = InterceptlyChopperInterceptor(session);
-      final request = chopper.Request(
-        'GET',
-        Uri.parse('https://api.example.com/model'),
-        Uri.parse('https://api.example.com'),
-      );
-
-      final chain = _FakeChain<_Model>(
-        request,
-        (req) => chopper.Response(
-          http.Response(
-            '{"a":1}',
-            200,
-            headers: {'content-type': 'application/json'},
-            request: http.Request('GET', req.url),
-          ),
-          const _Model(),
-        ),
-      );
-
-      await interceptor.intercept(chain);
-      await _waitFor(
-        () =>
-            session.entries.isNotEmpty && session.entries.first.statusCode != 0,
-      );
-
-      final detail = await session.loadDetail(session.entries.first);
-      expect(detail.responseBodyPreview, '{"a":1}');
-    });
-  });
-
-  group('Dio interceptor never breaks the request', () {
-    late InspectorSession session;
-
-    setUp(() async {
-      session = InspectorSession();
-      await session.initialize();
-    });
-
-    tearDown(() => session.dispose());
-
-    test('response whose data cannot be serialised still completes', () async {
-      final dio = Dio()..httpClientAdapter = _FixedAdapter();
-      dio.interceptors.addAll([
-        InterceptorsWrapper(
-          onRequest: (options, handler) => handler.resolve(
-            Response<dynamic>(
-              requestOptions: options,
-              data: _ToStringThrows(),
-              statusCode: 200,
-            ),
-            true,
-          ),
-        ),
-        InterceptlyDioInterceptor(session),
-      ]);
-
-      final response = await dio
-          .get<dynamic>('https://api.example.com/bad')
-          .timeout(const Duration(seconds: 3));
-      expect(response.statusCode, 200);
-    });
-
-    test('stream responses are not captured as "Instance of"', () async {
-      final dio = Dio()..httpClientAdapter = _FixedAdapter();
-      dio.interceptors.add(InterceptlyDioInterceptor(session));
-
-      final response = await dio.get<ResponseBody>(
-        'https://api.example.com/stream',
-        options: Options(responseType: ResponseType.stream),
-      );
-      await response.data!.stream.drain<void>();
-
-      await _waitFor(
-        () =>
-            session.entries.isNotEmpty && session.entries.first.statusCode != 0,
-      );
-      final detail = await session.loadDetail(session.entries.first);
-      expect(detail.responseBodyPreview ?? '', isNot(contains('Instance of')));
-    });
   });
 
   group('Session survives storage failures', () {

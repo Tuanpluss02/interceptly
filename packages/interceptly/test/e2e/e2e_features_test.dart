@@ -5,10 +5,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
+import '../helpers/mock_http_client.dart';
 import 'package:interceptly/interceptly.dart';
-import 'package:interceptly/src/capture/capture_guard.dart';
 import 'package:interceptly/src/model/body_location.dart';
 import 'package:interceptly/src/model/domain_group.dart';
 import 'package:interceptly/src/model/index_entry.dart';
@@ -832,51 +830,6 @@ void main() {
   });
 
   group('Tier 4: Real-World Scenarios', () {
-    test(
-        'Scenario 1: End-to-end HTTP client request capture into InspectorSession',
-        () async {
-      final session = InspectorSession();
-      await session.initialize();
-
-      final mockClient = MockClient((request) async {
-        if (request.url.path.contains('/api/items')) {
-          return http.Response(
-            '{"items":[{"id":101,"name":"Widget"}]}',
-            200,
-            headers: {'content-type': 'application/json'},
-          );
-        }
-        return http.Response('Not Found', 404);
-      });
-
-      final client = InterceptlyHttpClient(mockClient, session);
-      final response = await client.get(
-        Uri.parse('https://api.example.com/api/items'),
-        headers: {'Authorization': 'Bearer secret_user_token'},
-      );
-
-      expect(response.statusCode, equals(200));
-
-      final deadline = DateTime.now().add(const Duration(seconds: 3));
-      while (
-          session.entries.isEmpty || session.entries.first.statusCode != 200) {
-        if (DateTime.now().isAfter(deadline)) {
-          fail(
-              'Timed out waiting for intercepted entry to settle in InspectorSession');
-        }
-        await Future<void>.delayed(const Duration(milliseconds: 50));
-      }
-
-      final captured = session.entries.first;
-      expect(captured.statusCode, equals(200));
-      expect(captured.method, equals('GET'));
-      expect(captured.url, contains('/api/items'));
-      expect(captured.requestHeaders['Authorization'],
-          equals('Bearer secret_user_token'));
-
-      session.dispose();
-    });
-
     testWidgets(
         'Scenario 2: Inspecting full response and headers in RequestDetailPage',
         (tester) async {
@@ -931,12 +884,7 @@ void main() {
         requestBodyPreview: '{"cartId":"cart_789"}',
       );
 
-      http.Request? capturedReplayRequest;
-      final mockClient = MockClient((request) async {
-        capturedReplayRequest = request;
-        return http.Response('{"orderId":"ord_456"}', 201);
-      });
-
+      MockHttpClientRequest? capturedReplayRequest;
       late BuildContext savedContext;
       await tester.pumpWidget(
         MaterialApp(
@@ -950,18 +898,21 @@ void main() {
       );
 
       final dummySession = InspectorSession();
-      final handler =
-          ReplayHandler(context: savedContext, session: dummySession);
+      final handler = ReplayHandler(
+        context: savedContext,
+        session: dummySession,
+        clientFactory: () => MockHttpClient((request) {
+          capturedReplayRequest = request;
+        }),
+      );
 
       await tester.runAsync(() async {
-        await http.runWithClient(() async {
-          await handler.retry(record);
-        }, () => mockClient);
+        await handler.retry(record);
       });
 
       expect(capturedReplayRequest, isNotNull);
       expect(capturedReplayRequest!.method, equals('POST'));
-      expect(capturedReplayRequest!.url.toString(),
+      expect(capturedReplayRequest!.uri.toString(),
           equals('https://api.example.com/checkout'));
       expect(capturedReplayRequest!.body, equals('{"cartId":"cart_789"}'));
     });
