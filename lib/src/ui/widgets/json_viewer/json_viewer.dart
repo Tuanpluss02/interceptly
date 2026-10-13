@@ -7,14 +7,18 @@ import 'package:interceptly/src/ui/interceptly_theme.dart';
 
 import '../toast_notification.dart';
 import 'json_expansion_state.dart';
+import 'json_gutter.dart';
 import 'json_line.dart';
 import 'json_line_flattener.dart';
+import 'json_line_view.dart';
 import 'json_search.dart';
 import 'json_viewer_style.dart';
 
 export 'json_expansion_state.dart';
+export 'json_gutter.dart';
 export 'json_line.dart';
 export 'json_line_flattener.dart';
+export 'json_line_view.dart';
 export 'json_search.dart';
 export 'json_viewer_style.dart';
 
@@ -496,99 +500,23 @@ class _JsonViewerState extends State<JsonViewer> {
                             addAutomaticKeepAlives: false,
                             physics: const ClampingScrollPhysics(),
                             itemBuilder: (context, index) {
-                              return _buildGutterCell(
+                              return JsonGutterCell(
                                 line: lines[index],
                                 lineNumberWidth: lineNumberWidth,
                                 lineHeight: lineHeight,
                                 style: contentStyle,
+                                onToggle: _toggleNode,
                               );
                             },
                           ),
                         ),
                       ),
-                      Expanded(
-                        child: ScrollbarTheme(
-                          data: ScrollbarThemeData(
-                            thumbColor:
-                                WidgetStateProperty.resolveWith((states) {
-                              final baseColor =
-                                  InterceptlyTheme.colors.textTertiary;
-                              if (states.contains(WidgetState.dragged)) {
-                                return baseColor.withValues(alpha: 0.6);
-                              }
-                              if (states.contains(WidgetState.hovered)) {
-                                return baseColor.withValues(alpha: 0.5);
-                              }
-                              return baseColor.withValues(alpha: 0.35);
-                            }),
-                            radius: const Radius.circular(4.0),
-                            thickness: const WidgetStatePropertyAll(5.0),
-                            crossAxisMargin: 0.0,
-                            mainAxisMargin: 0.0,
-                            interactive: true,
-                          ),
-                          child: Scrollbar(
-                            controller: _contentScrollController,
-                            notificationPredicate: (notif) =>
-                                notif.metrics.axis == Axis.vertical,
-                            interactive: true,
-                            thumbVisibility: widget.thumbVisibility,
-                            child: Scrollbar(
-                              controller: _horizontalScrollController,
-                              notificationPredicate: (notif) =>
-                                  notif.metrics.axis == Axis.horizontal,
-                              interactive: true,
-                              thumbVisibility: widget.thumbVisibility,
-                              child: KeyedSubtree(
-                                key: _contentViewportKey,
-                                child: SelectableRegion(
-                                  focusNode: _selectableFocusNode,
-                                  selectionControls:
-                                      materialTextSelectionControls,
-                                  child: SelectionContainer(
-                                    delegate: _selectionContainerDelegate,
-                                    child: SelectionContainer.disabled(
-                                      child: SingleChildScrollView(
-                                        controller: _horizontalScrollController,
-                                        scrollDirection: Axis.horizontal,
-                                        child: SizedBox(
-                                          width: contentWidth,
-                                          height: viewportHeight,
-                                          child: Padding(
-                                            padding: const EdgeInsets.only(
-                                                left: 4.0),
-                                            child: ListView.builder(
-                                              controller:
-                                                  _contentScrollController,
-                                              itemExtent: lineHeight,
-                                              itemCount: lines.length,
-                                              addAutomaticKeepAlives: false,
-                                              physics:
-                                                  const ClampingScrollPhysics(),
-                                              itemBuilder: (context, index) {
-                                                final lineWidget = _buildLine(
-                                                  index,
-                                                  lines[index],
-                                                  lineHeight,
-                                                  contentStyle,
-                                                );
-                                                return SelectionRegistrarScope(
-                                                  registrar:
-                                                      _selectionContainerDelegate,
-                                                  child: lineWidget,
-                                                );
-                                              },
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
+                      _buildContent(
+                        lines: lines,
+                        lineHeight: lineHeight,
+                        contentStyle: contentStyle,
+                        contentWidth: contentWidth,
+                        viewportHeight: viewportHeight,
                       ),
                     ],
                   ),
@@ -624,95 +552,88 @@ class _JsonViewerState extends State<JsonViewer> {
     );
   }
 
-  Widget _buildLine(
-    int index,
-    JsonLine line,
-    double lineHeight,
-    TextStyle style,
-  ) {
-    return Container(
-      height: lineHeight,
-      alignment: Alignment.centerLeft,
-      padding: EdgeInsets.only(left: line.indentLevel * 16.0),
-      child: Text.rich(
-        TextSpan(
-          style: style,
-          children: line.spans,
-        ),
-        softWrap: false,
-        overflow: TextOverflow.visible,
-      ),
-    );
-  }
-
-  // ─────────────────────────────────────────────────────────────
-  // Gutter & Content line builders
-  // ─────────────────────────────────────────────────────────────
-
-  /// Builds one gutter row: **real line number** + optional **fold icon**.
-  ///
-  /// The entire row is tappable for collapsible lines so the touch
-  /// target is wide enough on mobile.
-  Widget _buildGutterCell({
-    required JsonLine line,
-    required double lineNumberWidth,
+  Widget _buildContent({
+    required List<JsonLine> lines,
     required double lineHeight,
-    required TextStyle style,
+    required TextStyle contentStyle,
+    required double contentWidth,
+    required double viewportHeight,
   }) {
-    final hasFold = line.collapsible != null;
-
-    Widget cell = SizedBox(
-      height: lineHeight,
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            SizedBox(
-              width: lineNumberWidth,
-              child: Text(
-                '${line.realLineNumber}',
-                textAlign: TextAlign.right,
-                style: style.copyWith(color: JsonViewerColors.lineNumber),
-              ),
-            ),
-            SizedBox(
-              width: JsonViewerMetrics.foldIconWidth,
-              height: lineHeight,
-              child: hasFold
-                  ? Center(
-                      child: Transform.rotate(
-                        angle: line.collapsible!.isExpanded ? 0 : -1.5708,
-                        child: const Icon(
-                          Icons.arrow_drop_down,
-                          size: 16,
-                          color: InterceptlyTheme.textMuted,
+    return Expanded(
+      child: ScrollbarTheme(
+        data: ScrollbarThemeData(
+          thumbColor: WidgetStateProperty.resolveWith((states) {
+            final baseColor = InterceptlyTheme.colors.textTertiary;
+            if (states.contains(WidgetState.dragged)) {
+              return baseColor.withValues(alpha: 0.6);
+            }
+            if (states.contains(WidgetState.hovered)) {
+              return baseColor.withValues(alpha: 0.5);
+            }
+            return baseColor.withValues(alpha: 0.35);
+          }),
+          radius: const Radius.circular(4.0),
+          thickness: const WidgetStatePropertyAll(5.0),
+          crossAxisMargin: 0.0,
+          mainAxisMargin: 0.0,
+          interactive: true,
+        ),
+        child: Scrollbar(
+          controller: _contentScrollController,
+          notificationPredicate: (notif) => notif.metrics.axis == Axis.vertical,
+          interactive: true,
+          thumbVisibility: widget.thumbVisibility,
+          child: Scrollbar(
+            controller: _horizontalScrollController,
+            notificationPredicate: (notif) =>
+                notif.metrics.axis == Axis.horizontal,
+            interactive: true,
+            thumbVisibility: widget.thumbVisibility,
+            child: KeyedSubtree(
+              key: _contentViewportKey,
+              child: SelectableRegion(
+                focusNode: _selectableFocusNode,
+                selectionControls: materialTextSelectionControls,
+                child: SelectionContainer(
+                  delegate: _selectionContainerDelegate,
+                  child: SelectionContainer.disabled(
+                    child: SingleChildScrollView(
+                      controller: _horizontalScrollController,
+                      scrollDirection: Axis.horizontal,
+                      child: SizedBox(
+                        width: contentWidth,
+                        height: viewportHeight,
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 4.0),
+                          child: ListView.builder(
+                            controller: _contentScrollController,
+                            itemExtent: lineHeight,
+                            itemCount: lines.length,
+                            addAutomaticKeepAlives: false,
+                            physics: const ClampingScrollPhysics(),
+                            itemBuilder: (context, index) {
+                              final lineWidget = JsonLineView(
+                                line: lines[index],
+                                lineHeight: lineHeight,
+                                style: contentStyle,
+                              );
+                              return SelectionRegistrarScope(
+                                registrar: _selectionContainerDelegate,
+                                child: lineWidget,
+                              );
+                            },
+                          ),
                         ),
                       ),
-                    )
-                  : null,
+                    ),
+                  ),
+                ),
+              ),
             ),
-          ],
+          ),
         ),
       ),
     );
-
-    if (hasFold) {
-      cell = GestureDetector(
-        onTap: () => _toggleNode(
-          line.collapsible!.path,
-          line.collapsible!.childCount,
-        ),
-        behavior: HitTestBehavior.opaque,
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: cell,
-        ),
-      );
-    }
-
-    return cell;
   }
 }
 
