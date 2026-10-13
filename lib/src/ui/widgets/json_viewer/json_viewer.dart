@@ -6,11 +6,15 @@ import 'package:flutter/services.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
 
 import '../toast_notification.dart';
+import 'json_expansion_state.dart';
 import 'json_line.dart';
+import 'json_line_flattener.dart';
 import 'json_search.dart';
 import 'json_viewer_style.dart';
 
+export 'json_expansion_state.dart';
 export 'json_line.dart';
+export 'json_line_flattener.dart';
 export 'json_search.dart';
 export 'json_viewer_style.dart';
 
@@ -62,9 +66,6 @@ class JsonViewer extends StatefulWidget {
   static int countMatches(dynamic data, String query) =>
       JsonSearch.countMatches(data, query);
 
-  static int _countIn(String text, String lowerQuery) =>
-      JsonSearch.countIn(text, lowerQuery);
-
   /// Build highlighted [TextSpan] list for [text], marking query matches.
   ///
   /// Delegates to [JsonSearch.buildHighlightedSpans].
@@ -92,24 +93,7 @@ class JsonViewer extends StatefulWidget {
 // ─────────────────────────────────────────────────────────────
 
 class _JsonViewerState extends State<JsonViewer> {
-  static const double _foldIconWidth = JsonViewerMetrics.foldIconWidth;
-  static const int _largeDocLineThreshold =
-      JsonViewerMetrics.largeDocLineThreshold;
-
-  static const _keyColor = JsonViewerColors.key;
-  static const _stringColor = JsonViewerColors.string;
-  static const _numberColor = JsonViewerColors.number;
-  static const _boolColor = JsonViewerColors.boolean;
-  static const _nullColor = JsonViewerColors.nullValue;
-  static const _punctuationColor = JsonViewerColors.punctuation;
-  static const _activeHighlightColor = JsonViewerColors.activeHighlight;
-  static const _lineNumberColor = JsonViewerColors.lineNumber;
-
-  final Map<String, bool> _expandState = {};
-
-  final Set<String> _searchAutoExpanded = {};
-
-  final Set<String> _userCollapsedPaths = {};
+  final JsonExpansionState _expansion = JsonExpansionState();
 
   final ScrollController _gutterScrollController = ScrollController();
 
@@ -136,8 +120,6 @@ class _JsonViewerState extends State<JsonViewer> {
   int? _memoActiveGlobalIndex;
 
   Brightness? _memoBrightness;
-
-  bool _memoForceCollapse = false;
 
   Expando<int>? _lineCountMemo;
 
@@ -225,8 +207,9 @@ class _JsonViewerState extends State<JsonViewer> {
               _horizontalScrollController.position.maxScrollExtent;
           if (maxHorizontal > 0) {
             final textBefore = line.spans
-                .takeWhile(
-                    (s) => s.style?.backgroundColor != _activeHighlightColor)
+                .takeWhile((s) =>
+                    s.style?.backgroundColor !=
+                    JsonViewerColors.activeHighlight)
                 .map((s) => s.text ?? '')
                 .join();
             final textPainter = TextPainter(
@@ -302,13 +285,13 @@ class _JsonViewerState extends State<JsonViewer> {
     super.didUpdateWidget(oldWidget);
     if (widget.activeGlobalIndex != oldWidget.activeGlobalIndex ||
         widget.searchQuery != oldWidget.searchQuery) {
-      _searchAutoExpanded.clear();
-      _userCollapsedPaths.clear();
+      _expansion.resetSearch();
       _lastScrolledGlobalIndex = null;
       _lastScrolledQuery = widget.searchQuery;
     }
     if (!identical(widget.data, oldWidget.data)) {
       _lineCountMemo = null;
+      _expansion.clear();
     }
     if (!identical(widget.data, oldWidget.data) ||
         widget.searchQuery != oldWidget.searchQuery ||
@@ -330,24 +313,9 @@ class _JsonViewerState extends State<JsonViewer> {
     super.dispose();
   }
 
-  bool _isNodeExpanded(String path, int childCount) {
-    if (_searchAutoExpanded.contains(path)) return true;
-    final explicit = _expandState[path];
-    if (explicit != null) return explicit;
-    if (_memoForceCollapse) return path == r'$';
-    return childCount <= 20;
-  }
-
   void _toggleNode(String path, int childCount) {
     setState(() {
-      final wasExpanded = _isNodeExpanded(path, childCount);
-      _expandState[path] = !wasExpanded;
-      _searchAutoExpanded.remove(path);
-      if (wasExpanded) {
-        _userCollapsedPaths.add(path);
-      } else {
-        _userCollapsedPaths.remove(path);
-      }
+      _expansion.toggle(path, childCount);
       _memoLines = null;
     });
   }
@@ -365,23 +333,29 @@ class _JsonViewerState extends State<JsonViewer> {
       return;
     }
     _lineCountMemo ??= Expando<int>('json_line_counts');
-    _memoForceCollapse = _countExpandedLines(widget.data, _lineCountMemo) >
-        _largeDocLineThreshold;
+    _expansion.forceCollapse = JsonLineFlattener.countExpandedLines(
+          widget.data,
+          _lineCountMemo,
+        ) >
+        JsonViewerMetrics.largeDocLineThreshold;
     _memoMatchCounts = effectiveQuery == null
         ? null
         : JsonSearch.matchCountsByPath(widget.data, effectiveQuery);
-    final lines = <JsonLine>[];
-    _flatten(
-      value: widget.data,
-      key: null,
-      isLast: true,
-      indent: 0,
-      path: r'$',
+
+    final flattener = JsonLineFlattener(
+      expansion: _expansion,
+      activeGlobalIndex: widget.activeGlobalIndex,
+      matchCounts: _memoMatchCounts,
+      lineCountMemo: _lineCountMemo,
+      baseTextStyle: _baseTextStyle,
+    );
+
+    final lines = flattener.flatten(
+      widget.data,
       query: effectiveQuery,
       matchOffset: widget.matchOffset,
-      realLine: 1,
-      output: lines,
     );
+
     _memoLines = lines;
     _memoData = widget.data;
     _memoQuery = effectiveQuery;
@@ -418,61 +392,6 @@ class _JsonViewerState extends State<JsonViewer> {
   }
 
   TextStyle get _baseTextStyle => InterceptlyTheme.typography.bodyMediumRegular;
-
-  TextSpan _bracketSpan(String text) => TextSpan(
-        text: text,
-        style: _baseTextStyle.copyWith(color: _punctuationColor),
-      );
-
-  // ─────────────────────────────────────────────────────────────
-  // Expanded line counting
-  // ─────────────────────────────────────────────────────────────
-
-  /// Counts how many lines [value] would occupy when **fully expanded**.
-  ///
-  /// Used to assign correct real line numbers when a collapsible node
-  /// is folded — the line numbers skip the hidden range, matching
-  /// VSCode behavior.
-  static int _countExpandedLines(
-    dynamic value, [
-    Expando<int>? memo,
-  ]) {
-    if (value == null || value is bool || value is num || value is String) {
-      return 1;
-    }
-    if (memo != null && (value is List || value is Map)) {
-      final cached = memo[value];
-      if (cached != null) return cached;
-    }
-
-    int count = 1;
-    if (value is List) {
-      if (value.isEmpty) {
-        count = 1;
-      } else {
-        int total = 2;
-        for (final item in value) {
-          total += _countExpandedLines(item, memo);
-        }
-        count = total;
-      }
-    } else if (value is Map) {
-      if (value.isEmpty) {
-        count = 1;
-      } else {
-        int total = 2;
-        for (final entry in value.entries) {
-          total += _countExpandedLines(entry.value, memo);
-        }
-        count = total;
-      }
-    }
-
-    if (memo != null && (value is List || value is Map)) {
-      memo[value] = count;
-    }
-    return count;
-  }
 
   // ─────────────────────────────────────────────────────────────
   // Build
@@ -529,7 +448,8 @@ class _JsonViewerState extends State<JsonViewer> {
               ? constraints.maxHeight
               : (lines.length * lineHeight).clamp(24.0, 500.0);
 
-          final gutterTotalWidth = lineNumberWidth + _foldIconWidth + 8.0;
+          final gutterTotalWidth =
+              lineNumberWidth + JsonViewerMetrics.foldIconWidth + 8.0;
           final minContentWidth = constraints.hasBoundedWidth
               ? math.max(0.0, constraints.maxWidth - gutterTotalWidth)
               : 0.0;
@@ -754,11 +674,11 @@ class _JsonViewerState extends State<JsonViewer> {
               child: Text(
                 '${line.realLineNumber}',
                 textAlign: TextAlign.right,
-                style: style.copyWith(color: _lineNumberColor),
+                style: style.copyWith(color: JsonViewerColors.lineNumber),
               ),
             ),
             SizedBox(
-              width: _foldIconWidth,
+              width: JsonViewerMetrics.foldIconWidth,
               height: lineHeight,
               child: hasFold
                   ? Center(
@@ -794,463 +714,6 @@ class _JsonViewerState extends State<JsonViewer> {
 
     return cell;
   }
-
-  // ─────────────────────────────────────────────────────────────
-  // Flatten logic
-  // ─────────────────────────────────────────────────────────────
-
-  /// Recursively flatten [value] into sequential [JsonLine] objects.
-  ///
-  /// [realLine] is the line number this value starts at in the
-  /// fully-expanded document.
-  ///
-  /// Returns a record with the updated [matchOffset] and the
-  /// [nextRealLine] (the line number that follows this value in the
-  /// fully-expanded view).
-  ({int matchOffset, int nextRealLine}) _flatten({
-    required dynamic value,
-    required String? key,
-    required bool isLast,
-    required int indent,
-    required String path,
-    required String? query,
-    required int matchOffset,
-    required int realLine,
-    required List<JsonLine> output,
-  }) {
-    int currentOffset = matchOffset;
-
-    // ── Build key spans ──
-    final keySpans = <TextSpan>[];
-    if (key != null) {
-      final keyText = '"$key"';
-      if (query != null) {
-        keySpans.addAll(
-          JsonViewer.buildHighlightedSpans(
-            keyText,
-            query,
-            currentOffset,
-            widget.activeGlobalIndex,
-            _keyColor,
-          ),
-        );
-        currentOffset += JsonViewer._countIn(keyText, query);
-      } else {
-        keySpans.add(TextSpan(
-          text: keyText,
-          style: _baseTextStyle.copyWith(color: _keyColor),
-        ));
-      }
-      keySpans.add(TextSpan(
-        text: ': ',
-        style: _baseTextStyle.copyWith(color: _punctuationColor),
-      ));
-    }
-
-    final commaSpan = isLast
-        ? null
-        : TextSpan(
-            text: ',',
-            style: _baseTextStyle.copyWith(color: _punctuationColor),
-          );
-
-    // ── Scalars ──
-    if (value == null) {
-      return _emitLeaf(output, indent, keySpans, 'null', _nullColor,
-          currentOffset, query, commaSpan, realLine);
-    }
-    if (value is bool) {
-      return _emitLeaf(output, indent, keySpans, value.toString(), _boolColor,
-          currentOffset, query, commaSpan, realLine);
-    }
-    if (value is num) {
-      return _emitLeaf(output, indent, keySpans, value.toString(), _numberColor,
-          currentOffset, query, commaSpan, realLine);
-    }
-    if (value is String) {
-      if (value.contains('\n') || value.length > 2000) {
-        return _emitChunkedString(
-          output: output,
-          indent: indent,
-          keySpans: keySpans,
-          value: value,
-          commaSpan: commaSpan,
-          currentOffset: currentOffset,
-          query: query,
-          realLine: realLine,
-        );
-      }
-      return _emitLeaf(output, indent, keySpans, '"$value"', _stringColor,
-          currentOffset, query, commaSpan, realLine);
-    }
-
-    // ── List ──
-    if (value is List) {
-      if (value.isEmpty) {
-        output.add(JsonLine(
-          indentLevel: indent,
-          realLineNumber: realLine,
-          spans: [
-            ...keySpans,
-            _bracketSpan('[]'),
-            if (commaSpan != null) commaSpan,
-          ],
-        ));
-        return (matchOffset: currentOffset, nextRealLine: realLine + 1);
-      }
-      return _emitCollapsible(
-        output: output,
-        indent: indent,
-        keySpans: keySpans,
-        openBracket: '[',
-        closeBracket: ']',
-        commaSpan: commaSpan,
-        path: path,
-        childCount: value.length,
-        query: query,
-        matchOffset: currentOffset,
-        realLine: realLine,
-        rawValue: value,
-        children: value.asMap().entries.map(
-              (e) => _ChildEntry(
-                key: null,
-                value: e.value,
-                isLast: e.key == value.length - 1,
-                childPath: '$path[${e.key}]',
-              ),
-            ),
-      );
-    }
-
-    // ── Map ──
-    if (value is Map) {
-      if (value.isEmpty) {
-        output.add(JsonLine(
-          indentLevel: indent,
-          realLineNumber: realLine,
-          spans: [
-            ...keySpans,
-            _bracketSpan('{}'),
-            if (commaSpan != null) commaSpan,
-          ],
-        ));
-        return (matchOffset: currentOffset, nextRealLine: realLine + 1);
-      }
-      final entries = value.entries.toList();
-      return _emitCollapsible(
-        output: output,
-        indent: indent,
-        keySpans: keySpans,
-        openBracket: '{',
-        closeBracket: '}',
-        commaSpan: commaSpan,
-        path: path,
-        childCount: entries.length,
-        query: query,
-        matchOffset: currentOffset,
-        realLine: realLine,
-        rawValue: value,
-        children: entries.asMap().entries.map(
-              (e) => _ChildEntry(
-                key: e.value.key.toString(),
-                value: e.value.value,
-                isLast: e.key == entries.length - 1,
-                childPath: '$path.${e.value.key}',
-              ),
-            ),
-      );
-    }
-
-    // ── Fallback ──
-    return _emitLeaf(output, indent, keySpans, value.toString(),
-        _punctuationColor, currentOffset, query, commaSpan, realLine);
-  }
-
-  /// Emit a single leaf line (scalar value).
-  ({int matchOffset, int nextRealLine}) _emitLeaf(
-    List<JsonLine> output,
-    int indent,
-    List<TextSpan> keySpans,
-    String valueText,
-    Color valueColor,
-    int matchOffset,
-    String? query,
-    TextSpan? commaSpan,
-    int realLine,
-  ) {
-    final spans = <TextSpan>[...keySpans];
-    bool hasActiveMatch = false;
-
-    if (query != null) {
-      final valueSpans = JsonViewer.buildHighlightedSpans(
-        valueText,
-        query,
-        matchOffset,
-        widget.activeGlobalIndex,
-        valueColor,
-      );
-      final activeInValue = valueSpans.any(
-        (s) => s.style?.backgroundColor == _activeHighlightColor,
-      );
-      final activeInKey = keySpans.any(_spanHasActiveHighlight);
-      hasActiveMatch = activeInValue || activeInKey;
-      spans.addAll(valueSpans);
-      matchOffset += JsonViewer._countIn(valueText, query);
-    } else {
-      spans.add(TextSpan(
-        text: valueText,
-        style: _baseTextStyle.copyWith(color: valueColor),
-      ));
-    }
-
-    if (commaSpan != null) spans.add(commaSpan);
-
-    output.add(JsonLine(
-      indentLevel: indent,
-      realLineNumber: realLine,
-      spans: spans,
-      hasActiveMatch: hasActiveMatch,
-    ));
-
-    return (matchOffset: matchOffset, nextRealLine: realLine + 1);
-  }
-
-  ({int matchOffset, int nextRealLine}) _emitChunkedString({
-    required List<JsonLine> output,
-    required int indent,
-    required List<TextSpan> keySpans,
-    required String value,
-    required TextSpan? commaSpan,
-    required int currentOffset,
-    required String? query,
-    required int realLine,
-  }) {
-    final splitLines = value.split('\n');
-    final rawLines = <String>[];
-    const maxLineLen = 1000;
-    for (final l in splitLines) {
-      if (l.length <= maxLineLen) {
-        rawLines.add(l);
-      } else {
-        for (int i = 0; i < l.length; i += maxLineLen) {
-          rawLines.add(l.substring(i, math.min(i + maxLineLen, l.length)));
-        }
-      }
-    }
-
-    int lineNum = realLine;
-    int offset = currentOffset;
-
-    for (int i = 0; i < rawLines.length; i++) {
-      final lineStr = rawLines[i];
-      final isFirst = i == 0;
-      final isLastLine = i == rawLines.length - 1;
-
-      final chunkSpans = <TextSpan>[
-        if (isFirst) ...keySpans,
-      ];
-
-      final prefix = isFirst ? '"' : '';
-      final suffix = isLastLine ? '"' : '';
-      final displayText = '$prefix$lineStr$suffix';
-
-      bool hasActiveMatch = false;
-      if (query != null) {
-        final highlighted = JsonViewer.buildHighlightedSpans(
-          displayText,
-          query,
-          offset,
-          widget.activeGlobalIndex,
-          _stringColor,
-        );
-        final activeInText = highlighted.any(
-          (s) => s.style?.backgroundColor == _activeHighlightColor,
-        );
-        final activeInKey = isFirst && keySpans.any(_spanHasActiveHighlight);
-        hasActiveMatch = activeInText || activeInKey;
-        chunkSpans.addAll(highlighted);
-        offset += JsonViewer._countIn(displayText, query);
-      } else {
-        chunkSpans.add(TextSpan(
-          text: displayText,
-          style: _baseTextStyle.copyWith(color: _stringColor),
-        ));
-      }
-
-      if (isLastLine && commaSpan != null) {
-        chunkSpans.add(commaSpan);
-      }
-
-      output.add(JsonLine(
-        indentLevel: isFirst ? indent : indent + 1,
-        realLineNumber: lineNum,
-        spans: chunkSpans,
-        hasActiveMatch: hasActiveMatch,
-      ));
-
-      lineNum++;
-    }
-
-    return (matchOffset: offset, nextRealLine: lineNum);
-  }
-
-  /// Emit lines for a collapsible Map or List.
-  ///
-  /// When expanded: header + children + closing bracket.
-  /// When collapsed: single line with `{ … }` / `[ … ]`.
-  ///
-  /// Collapsed nodes advance [realLine] by the number of lines the
-  /// fully-expanded subtree would occupy so siblings get correct
-  /// real line numbers.
-  ({int matchOffset, int nextRealLine}) _emitCollapsible({
-    required List<JsonLine> output,
-    required int indent,
-    required List<TextSpan> keySpans,
-    required String openBracket,
-    required String closeBracket,
-    required TextSpan? commaSpan,
-    required String path,
-    required int childCount,
-    required String? query,
-    required int matchOffset,
-    required int realLine,
-    required dynamic rawValue,
-    required Iterable<_ChildEntry> children,
-  }) {
-    int currentOffset = matchOffset;
-
-    // Auto-expand when the active search match falls inside this subtree
-    // and the user hasn't manually collapsed it.
-    if (query != null &&
-        widget.activeGlobalIndex != null &&
-        !_userCollapsedPaths.contains(path)) {
-      final totalValueMatches = _memoMatchCounts?[path] ?? 0;
-      if (totalValueMatches > 0 &&
-          widget.activeGlobalIndex! >= currentOffset &&
-          widget.activeGlobalIndex! < currentOffset + totalValueMatches) {
-        if (!_isNodeExpanded(path, childCount)) {
-          _searchAutoExpanded.add(path);
-        }
-      }
-    }
-
-    final expanded = _isNodeExpanded(path, childCount);
-    final activeInKey = keySpans.any(_spanHasActiveHighlight);
-
-    if (expanded) {
-      // Header: "key": {
-      output.add(JsonLine(
-        indentLevel: indent,
-        realLineNumber: realLine,
-        spans: [...keySpans, _bracketSpan(openBracket)],
-        collapsible: JsonCollapsibleInfo(
-          path: path,
-          childCount: childCount,
-          isExpanded: true,
-        ),
-        hasActiveMatch: activeInKey,
-      ));
-
-      int nextLine = realLine + 1;
-
-      // Children
-      for (final child in children) {
-        final result = _flatten(
-          value: child.value,
-          key: child.key,
-          isLast: child.isLast,
-          indent: indent + 1,
-          path: child.childPath,
-          query: query,
-          matchOffset: currentOffset,
-          realLine: nextLine,
-          output: output,
-        );
-        currentOffset = result.matchOffset;
-        nextLine = result.nextRealLine;
-      }
-
-      // Closing bracket
-      output.add(JsonLine(
-        indentLevel: indent,
-        realLineNumber: nextLine,
-        spans: [
-          _bracketSpan(closeBracket),
-          if (commaSpan != null) commaSpan,
-        ],
-      ));
-
-      return (matchOffset: currentOffset, nextRealLine: nextLine + 1);
-    } else {
-      // Collapsed: "key": { … },
-      //
-      // The real line number is the opening bracket line. We advance
-      // by the total expanded line count so the next sibling picks up
-      // the correct real line number.
-      final expandedLineCount = _countExpandedLines(rawValue, _lineCountMemo);
-
-      output.add(JsonLine(
-        indentLevel: indent,
-        realLineNumber: realLine,
-        spans: [
-          ...keySpans,
-          _bracketSpan(openBracket),
-          TextSpan(
-            text: ' … ',
-            style: _baseTextStyle.copyWith(
-              color: InterceptlyTheme.textMuted,
-              fontSize: 10,
-            ),
-          ),
-          _bracketSpan(closeBracket),
-          if (commaSpan != null) commaSpan,
-        ],
-        collapsible: JsonCollapsibleInfo(
-          path: path,
-          childCount: childCount,
-          isExpanded: false,
-        ),
-        hasActiveMatch: activeInKey,
-      ));
-
-      // Advance the match offset past all collapsed children so
-      // sibling nodes receive the correct offset.
-      if (query != null) {
-        currentOffset += _memoMatchCounts?[path] ?? 0;
-      }
-
-      return (
-        matchOffset: currentOffset,
-        nextRealLine: realLine + expandedLineCount,
-      );
-    }
-  }
-
-  // ── Helpers ──
-
-  static bool _spanHasActiveHighlight(TextSpan span) =>
-      JsonSearch.spanHasActiveHighlight(span);
-}
-
-// ─────────────────────────────────────────────────────────────
-// Data classes
-// ─────────────────────────────────────────────────────────────
-
-/// A child entry passed to [_emitCollapsible] for iteration.
-class _ChildEntry {
-  final String? key;
-  final dynamic value;
-  final bool isLast;
-
-  /// Path string for this child (e.g. `$.items[0]` or `$.data.name`).
-  final String childPath;
-
-  const _ChildEntry({
-    this.key,
-    required this.value,
-    this.isLast = false,
-    required this.childPath,
-  });
 }
 
 /// A selection container delegate that provides horizontal auto-scrolling
