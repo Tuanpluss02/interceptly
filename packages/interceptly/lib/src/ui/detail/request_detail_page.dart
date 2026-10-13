@@ -487,6 +487,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                               tryParseJson: _tryParseJson,
                               sectionKeys: _sectionKeys,
                               scrollTrigger: _scrollNavGeneration,
+                              session: widget.session,
                             );
                             return IndexedStack(
                               index: tabIndex,

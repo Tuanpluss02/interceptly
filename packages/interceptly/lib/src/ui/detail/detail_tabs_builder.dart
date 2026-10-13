@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:interceptly/src/session/inspector_session_view.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
 import 'package:interceptly/src/ui/widgets/error_summary.dart';
 import 'package:interceptly/src/ui/widgets/json_viewer/json_viewer.dart';
@@ -6,6 +7,7 @@ import 'package:interceptly/src/ui/widgets/json_viewer/json_viewer.dart';
 import '../../model/body_truncation.dart';
 import '../../model/request_record.dart';
 import 'detail_search.dart';
+import 'realtime_messages_tab.dart';
 
 class DetailTabsBuilder {
   final RequestRecord record;
@@ -16,6 +18,7 @@ class DetailTabsBuilder {
   final dynamic Function(String?) tryParseJson;
   final Map<DetailSection, GlobalKey>? sectionKeys;
   final int? scrollTrigger;
+  final InspectorSessionView? session;
 
   DetailTabsBuilder({
     required this.record,
@@ -26,6 +29,7 @@ class DetailTabsBuilder {
     required this.tryParseJson,
     this.sectionKeys,
     this.scrollTrigger,
+    this.session,
   });
 
   Widget buildOverviewTab() {
@@ -248,123 +252,9 @@ class DetailTabsBuilder {
   }
 
   Widget buildMessagesTab() {
-    final messages = <Map<String, dynamic>>[];
-
-    if (messages.isEmpty) {
-      return Center(
-        child: Text(
-          'No WebSocket messages captured.',
-          style: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
-            color: InterceptlyTheme.textMuted,
-          ),
-        ),
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(16.0),
-      itemCount: messages.length + 1,
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 16.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'CONNECTION FRAMES',
-                  style: InterceptlyTheme.typography.bodyMediumBold.copyWith(
-                    fontSize: 12,
-                    color: InterceptlyTheme.purple400,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8.0,
-                    vertical: 2.0,
-                  ),
-                  decoration: BoxDecoration(
-                    color: InterceptlyTheme.green500.withValues(alpha: 0.1),
-                    border: Border.all(
-                      color: InterceptlyTheme.green500.withValues(alpha: 0.2),
-                    ),
-                    borderRadius: BorderRadius.circular(4.0),
-                  ),
-                  child: Text(
-                    'Live',
-                    style: InterceptlyTheme.typography.labelSmallMedium
-                        .copyWith(color: InterceptlyTheme.green400),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-
-        final msg = messages[index - 1];
-        final isOut = msg['type'] == 'out';
-        final iconColor =
-            isOut ? InterceptlyTheme.green400 : InterceptlyTheme.blue400;
-        final icon = isOut ? Icons.call_made : Icons.call_received;
-        final bgColor = isOut
-            ? InterceptlyTheme.green500.withValues(alpha: 0.1)
-            : InterceptlyTheme.blue500.withValues(alpha: 0.1);
-        final label = isOut ? 'SENT' : 'RECV';
-
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12.0),
-          decoration: BoxDecoration(
-            color: InterceptlyTheme.surfaceContainer,
-            border: Border.all(color: InterceptlyTheme.dividerSubtle),
-            borderRadius: BorderRadius.circular(12.0),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12.0,
-                  vertical: 8.0,
-                ),
-                decoration: BoxDecoration(
-                  color: bgColor,
-                  border: Border(
-                    bottom: BorderSide(color: InterceptlyTheme.dividerSubtle),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(icon, color: iconColor, size: 16),
-                    const SizedBox(width: 8),
-                    Text(
-                      label,
-                      style: InterceptlyTheme.typography.labelSmallMedium
-                          .copyWith(color: iconColor),
-                    ),
-                    const Spacer(),
-                    Text(
-                      msg['time'] ?? '',
-                      style: InterceptlyTheme.typography.bodyMediumRegular
-                          .copyWith(
-                        fontSize: 10,
-                        color: InterceptlyTheme.textMuted,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 3.0),
-                child: JsonViewer(
-                  data: msg['data'],
-                  searchQuery: query.isEmpty ? null : query,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+    return RealtimeMessagesTab(
+      sessionId: record.id,
+      session: session,
     );
   }
 
