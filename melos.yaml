@@ -1,0 +1,11 @@
+name: interceptly_monorepo
+packages:
+  - packages/**
+
+scripts:
+  analyze:
+    exec: dart analyze .
+    description: Run analyzer in all packages.
+  test:
+    exec: flutter test
+    description: Run tests in all packages.
