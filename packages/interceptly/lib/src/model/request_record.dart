@@ -63,6 +63,9 @@ class RequestRecord {
 
   bool get hasError => errorType != null;
 
+  /// Whether this request represents a realtime connection (WebSocket, Socket.IO, SSE).
+  bool get isRealtime => method == 'WS' || method == 'SIO' || method == 'SSE';
+
   /// True when either body lost bytes that cannot be reproduced.
   bool get hasDataLoss =>
       requestTruncation.hasDataLoss || responseTruncation.hasDataLoss;

@@ -132,6 +132,10 @@ class _FakeSessionView extends ChangeNotifier implements InspectorSessionView {
   List<RealtimeFrame> getRealtimeFrames(String sessionId) => const [];
 
   @override
+  RealtimeFrameCounts getRealtimeFrameCounts(String sessionId) =>
+      const RealtimeFrameCounts();
+
+  @override
   bool canSendRealtimeMessage(String sessionId) => false;
 
   @override

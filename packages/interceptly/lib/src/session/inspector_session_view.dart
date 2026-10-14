@@ -80,6 +80,10 @@ abstract class InspectorSessionView extends ChangeNotifier {
   List<RealtimeFrame> getRealtimeFrames(String sessionId) =>
       const <RealtimeFrame>[];
 
+  /// Returns frame counts (incoming and outgoing) for [sessionId].
+  RealtimeFrameCounts getRealtimeFrameCounts(String sessionId) =>
+      const RealtimeFrameCounts();
+
   /// Whether messages can be actively sent to the realtime session with [sessionId].
   bool canSendRealtimeMessage(String sessionId) => false;
 

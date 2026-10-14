@@ -434,6 +434,10 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       _realtimeStore.getRealtimeFrames(sessionId);
 
   @override
+  RealtimeFrameCounts getRealtimeFrameCounts(String sessionId) =>
+      _realtimeStore.getFrameCounts(sessionId);
+
+  @override
   bool canSendRealtimeMessage(String sessionId) =>
       RealtimeTrafficCollector.instance.canSend(sessionId);
 

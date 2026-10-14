@@ -243,3 +243,40 @@ int utf8ByteLength(String text) {
   }
   return bytes;
 }
+
+/// Tracks the count of frames received (incoming) and sent (outgoing) for a realtime session.
+class RealtimeFrameCounts {
+  const RealtimeFrameCounts({this.incoming = 0, this.outgoing = 0});
+
+  /// Total number of incoming frames received from the server.
+  final int incoming;
+
+  /// Total number of outgoing frames sent to the server.
+  final int outgoing;
+
+  /// Combined total of incoming and outgoing frames.
+  int get total => incoming + outgoing;
+
+  /// Returns a copy of [RealtimeFrameCounts] incremented for [direction].
+  RealtimeFrameCounts copyWithIncrement({required FrameDirection direction}) {
+    if (direction == FrameDirection.incoming) {
+      return RealtimeFrameCounts(incoming: incoming + 1, outgoing: outgoing);
+    } else {
+      return RealtimeFrameCounts(incoming: incoming, outgoing: outgoing + 1);
+    }
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RealtimeFrameCounts &&
+          other.incoming == incoming &&
+          other.outgoing == outgoing;
+
+  @override
+  int get hashCode => Object.hash(incoming, outgoing);
+
+  @override
+  String toString() =>
+      'RealtimeFrameCounts(incoming: $incoming, outgoing: $outgoing)';
+}

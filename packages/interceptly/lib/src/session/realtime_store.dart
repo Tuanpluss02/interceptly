@@ -21,6 +21,7 @@ class RealtimeStore {
   int _maxFramesPerSession;
   final VoidCallback _onThrottledBatch;
   final Map<String, RingBuffer<RealtimeFrame>> _realtimeFramesBySession = {};
+  final Map<String, RealtimeFrameCounts> _frameCountsBySession = {};
   Timer? _throttleTimer;
   bool _hasPendingNotification = false;
   bool _isDisposed = false;
@@ -29,11 +30,17 @@ class RealtimeStore {
   void recordFrame(RealtimeFrame frame) {
     if (_isDisposed) return;
 
+    final currentCounts =
+        _frameCountsBySession[frame.sessionId] ?? const RealtimeFrameCounts();
+    _frameCountsBySession[frame.sessionId] =
+        currentCounts.copyWithIncrement(direction: frame.direction);
+
     var buffer = _realtimeFramesBySession.remove(frame.sessionId);
     if (buffer == null) {
       if (_realtimeFramesBySession.length >= maxSessions) {
         final oldestKey = _realtimeFramesBySession.keys.first;
         _realtimeFramesBySession.remove(oldestKey);
+        _frameCountsBySession.remove(oldestKey);
       }
       buffer = RingBuffer<RealtimeFrame>(capacity: _maxFramesPerSession);
     }
@@ -66,6 +73,12 @@ class RealtimeStore {
     return buffer.toList();
   }
 
+  /// Returns the total incoming and outgoing frame counts for [sessionId].
+  RealtimeFrameCounts getFrameCounts(String sessionId) {
+    if (_isDisposed) return const RealtimeFrameCounts();
+    return _frameCountsBySession[sessionId] ?? const RealtimeFrameCounts();
+  }
+
   /// Updates maximum capacity for all current and future session buffers.
   void updateMaxFramesPerSession(int maxFrames) {
     _maxFramesPerSession = maxFrames;
@@ -80,6 +93,7 @@ class RealtimeStore {
     _throttleTimer = null;
     _hasPendingNotification = false;
     _realtimeFramesBySession.clear();
+    _frameCountsBySession.clear();
   }
 
   /// Disposes the store, canceling background timers and clearing buffers.

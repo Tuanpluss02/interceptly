@@ -21,3 +21,28 @@ String formatBytes(int bytes) {
   }
   return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
 }
+
+/// Formats a [Duration] into a compact, human-readable string.
+///
+/// Examples:
+/// - `< 1000ms`: `'350ms'`
+/// - `< 60s`: `'45s'`
+/// - `< 60m`: `'2m 15s'` or `'2m'`
+/// - `>= 1h`: `'1h 23m'` or `'1h'`
+String formatDuration(Duration duration) {
+  if (duration.isNegative || duration == Duration.zero) return '0ms';
+  final ms = duration.inMilliseconds;
+  if (ms < 1000) return '${ms}ms';
+  final seconds = duration.inSeconds;
+  if (seconds < 60) return '${seconds}s';
+  final minutes = duration.inMinutes;
+  final remainingSeconds = seconds % 60;
+  if (minutes < 60) {
+    return remainingSeconds > 0
+        ? '${minutes}m ${remainingSeconds}s'
+        : '${minutes}m';
+  }
+  final hours = duration.inHours;
+  final remainingMinutes = minutes % 60;
+  return remainingMinutes > 0 ? '${hours}h ${remainingMinutes}m' : '${hours}h';
+}

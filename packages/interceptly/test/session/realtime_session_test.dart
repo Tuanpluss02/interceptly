@@ -465,5 +465,47 @@ void main() {
       // total = 4 + 6 + 6 + 7 + 4 = 27 bytes
       expect(multiByteFrame.payloadSizeBytes, equals(27));
     });
+
+    test('tracks and increments frame counts correctly across directions', () {
+      final session = InspectorSession();
+      addTearDown(session.dispose);
+
+      expect(session.getRealtimeFrameCounts('ws-count').incoming, equals(0));
+      expect(session.getRealtimeFrameCounts('ws-count').outgoing, equals(0));
+      expect(session.getRealtimeFrameCounts('ws-count').total, equals(0));
+
+      session.recordRealtimeFrame(
+        RealtimeFrame.text(
+          id: 'f-in-1',
+          sessionId: 'ws-count',
+          direction: FrameDirection.incoming,
+          text: 'msg1',
+        ),
+      );
+      session.recordRealtimeFrame(
+        RealtimeFrame.text(
+          id: 'f-in-2',
+          sessionId: 'ws-count',
+          direction: FrameDirection.incoming,
+          text: 'msg2',
+        ),
+      );
+      session.recordRealtimeFrame(
+        RealtimeFrame.text(
+          id: 'f-out-1',
+          sessionId: 'ws-count',
+          direction: FrameDirection.outgoing,
+          text: 'msg3',
+        ),
+      );
+
+      final counts = session.getRealtimeFrameCounts('ws-count');
+      expect(counts.incoming, equals(2));
+      expect(counts.outgoing, equals(1));
+      expect(counts.total, equals(3));
+
+      session.clear();
+      expect(session.getRealtimeFrameCounts('ws-count').total, equals(0));
+    });
   });
 }

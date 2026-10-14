@@ -39,4 +39,32 @@ void main() {
       expect(formatBytes(2 * 1024 * 1024 * 1024), '2.0 GB');
     });
   });
+
+  group('formatDuration', () {
+    test('formats 0 duration', () {
+      expect(formatDuration(Duration.zero), '0ms');
+    });
+
+    test('formats negative duration gracefully', () {
+      expect(formatDuration(const Duration(milliseconds: -100)), '0ms');
+    });
+
+    test('formats milliseconds', () {
+      expect(formatDuration(const Duration(milliseconds: 350)), '350ms');
+    });
+
+    test('formats seconds', () {
+      expect(formatDuration(const Duration(seconds: 45)), '45s');
+    });
+
+    test('formats minutes and seconds', () {
+      expect(formatDuration(const Duration(minutes: 2, seconds: 15)), '2m 15s');
+      expect(formatDuration(const Duration(minutes: 5)), '5m');
+    });
+
+    test('formats hours and minutes', () {
+      expect(formatDuration(const Duration(hours: 1, minutes: 23)), '1h 23m');
+      expect(formatDuration(const Duration(hours: 2)), '2h');
+    });
+  });
 }

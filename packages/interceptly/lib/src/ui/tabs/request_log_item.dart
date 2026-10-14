@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
 
+import '../../model/realtime_frame.dart';
 import '../../model/search_match_scope.dart';
 import '../format.dart';
 
@@ -22,7 +23,30 @@ class _ListStatusLook {
     required bool isPending,
     required bool isErrorWithoutStatus,
     required InterceptlyColors palette,
+    bool isRealtime = false,
+    bool hasError = false,
   }) {
+    if (isRealtime) {
+      if (isPending) {
+        return _ListStatusLook(
+          background: InterceptlyTheme.green500.withValues(alpha: 0.14),
+          foreground: InterceptlyTheme.green400,
+          border: InterceptlyTheme.green500.withValues(alpha: 0.38),
+        );
+      }
+      if (hasError || (status > 1000 && status != 1005)) {
+        return _ListStatusLook(
+          background: InterceptlyTheme.red500.withValues(alpha: 0.15),
+          foreground: InterceptlyTheme.red400,
+          border: InterceptlyTheme.red500.withValues(alpha: 0.38),
+        );
+      }
+      return _ListStatusLook(
+        background: palette.surfaceTertiary,
+        foreground: palette.textSecondary,
+        border: InterceptlyTheme.dividerSubtle,
+      );
+    }
     if (isPending) {
       final s = InterceptlyTheme.getStatusStyle(status);
       return _ListStatusLook(
@@ -83,6 +107,8 @@ class RequestLogItem extends StatelessWidget {
     this.isSelected = false,
     this.searchScopes,
     this.highlightQuery,
+    this.isRealtime = false,
+    this.realtimeFrameCounts,
   });
 
   final String method;
@@ -97,6 +123,8 @@ class RequestLogItem extends StatelessWidget {
   final bool isSelected;
   final Set<SearchMatchScope>? searchScopes;
   final String? highlightQuery;
+  final bool isRealtime;
+  final RealtimeFrameCounts? realtimeFrameCounts;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
 
@@ -142,6 +170,10 @@ class RequestLogItem extends StatelessWidget {
   }
 
   String _buildMetaLine() {
+    if (isRealtime) {
+      final counts = realtimeFrameCounts ?? const RealtimeFrameCounts();
+      return '$time · $duration · ↓ ${counts.incoming}  ↑ ${counts.outgoing}';
+    }
     final hasSize = !isPending && !(status == 0 && hasError);
     if (hasSize) {
       return '$time · $duration · ${formatBytes(responseSizeBytes)}';
@@ -170,7 +202,24 @@ class RequestLogItem extends StatelessWidget {
       isPending: isPending,
       isErrorWithoutStatus: isErrorWithoutStatus,
       palette: colors,
+      isRealtime: isRealtime,
+      hasError: hasError,
     );
+
+    final String statusLabel;
+    if (isRealtime) {
+      if (isPending) {
+        statusLabel = 'CONNECTED';
+      } else if (hasError || (status > 1000 && status != 1005)) {
+        statusLabel = 'DROPPED';
+      } else {
+        statusLabel = 'CLOSED';
+      }
+    } else if (isErrorWithoutStatus) {
+      statusLabel = 'ERR';
+    } else {
+      statusLabel = '$status';
+    }
 
     final (:path, :host) = _splitUrl(url);
     final borderRadius = BorderRadius.circular(InterceptlyTheme.radius.lg);
@@ -178,7 +227,7 @@ class RequestLogItem extends StatelessWidget {
 
     return Semantics(
       button: true,
-      label: '$method $url, status $status',
+      label: '$method $url, status $statusLabel',
       child: Material(
         color: isSelected
             ? colors.actionPrimary.withValues(alpha: 0.12)
@@ -359,7 +408,7 @@ class RequestLogItem extends StatelessWidget {
                         horizontal: 9,
                         vertical: 5,
                       ),
-                      child: isPending
+                      child: isPending && !isRealtime
                           ? SizedBox(
                               width: 14,
                               height: 14,
@@ -370,17 +419,51 @@ class RequestLogItem extends StatelessWidget {
                                 ),
                               ),
                             )
-                          : Text(
-                              isErrorWithoutStatus ? 'ERR' : '$status',
-                              style: InterceptlyTheme.typography.monospace(
-                                InterceptlyTheme.typography.labelMediumBold
-                                    .copyWith(
-                                  fontSize: 12,
-                                  height: 1,
-                                  color: statusLook.foreground,
+                          : isRealtime && isPending
+                              ? Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 6,
+                                      height: 6,
+                                      decoration: BoxDecoration(
+                                        color: statusLook.foreground,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      statusLabel,
+                                      style:
+                                          InterceptlyTheme.typography.monospace(
+                                        InterceptlyTheme
+                                            .typography.labelSmallBold
+                                            .copyWith(
+                                          fontSize: 10,
+                                          height: 1,
+                                          fontWeight: FontWeight.w700,
+                                          color: statusLook.foreground,
+                                          letterSpacing: 0.3,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Text(
+                                  statusLabel,
+                                  style: InterceptlyTheme.typography.monospace(
+                                    InterceptlyTheme.typography.labelMediumBold
+                                        .copyWith(
+                                      fontSize: isRealtime ? 10 : 12,
+                                      height: 1,
+                                      fontWeight: isRealtime
+                                          ? FontWeight.w700
+                                          : FontWeight.bold,
+                                      color: statusLook.foreground,
+                                      letterSpacing: isRealtime ? 0.3 : null,
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ),
                     ),
                   ),
                 ),
