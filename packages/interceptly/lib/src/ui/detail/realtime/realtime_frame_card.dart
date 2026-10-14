@@ -13,6 +13,8 @@ class RealtimeFrameCard extends StatelessWidget {
   final dynamic parsedJson;
   final VoidCallback onToggleInspect;
   final VoidCallback onCopy;
+  final VoidCallback? onResend;
+  final VoidCallback? onEdit;
 
   const RealtimeFrameCard({
     super.key,
@@ -21,6 +23,8 @@ class RealtimeFrameCard extends StatelessWidget {
     required this.parsedJson,
     required this.onToggleInspect,
     required this.onCopy,
+    this.onResend,
+    this.onEdit,
   });
 
   @override
@@ -106,6 +110,31 @@ class RealtimeFrameCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (frame.eventName != null) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    key: ValueKey('frame_event_${frame.id}'),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6.0,
+                      vertical: 2.0,
+                    ),
+                    decoration: BoxDecoration(
+                      color: InterceptlyTheme.indigo500.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4.0),
+                      border: Border.all(
+                        color: InterceptlyTheme.indigo500.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Text(
+                      frame.eventName!,
+                      style:
+                          InterceptlyTheme.typography.labelSmallMedium.copyWith(
+                        color: InterceptlyTheme.indigo400,
+                        fontSize: 10.5,
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(width: 8),
                 Text(
                   formatBytes(frame.payloadSizeBytes),
@@ -155,6 +184,38 @@ class RealtimeFrameCard extends StatelessWidget {
                   ),
                   onPressed: onCopy,
                 ),
+                if (onEdit != null) ...[
+                  const SizedBox(width: 2),
+                  IconButton(
+                    key: ValueKey('frame_edit_${frame.id}'),
+                    tooltip: 'Edit message',
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 24, minHeight: 24),
+                    icon: const Icon(
+                      Icons.edit_note_rounded,
+                      size: 16,
+                      color: InterceptlyTheme.textMuted,
+                    ),
+                    onPressed: onEdit,
+                  ),
+                ],
+                if (onResend != null) ...[
+                  const SizedBox(width: 2),
+                  IconButton(
+                    key: ValueKey('frame_resend_${frame.id}'),
+                    tooltip: 'Resend message',
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 24, minHeight: 24),
+                    icon: const Icon(
+                      Icons.replay_rounded,
+                      size: 15,
+                      color: InterceptlyTheme.textMuted,
+                    ),
+                    onPressed: onResend,
+                  ),
+                ],
               ],
             ),
           ),

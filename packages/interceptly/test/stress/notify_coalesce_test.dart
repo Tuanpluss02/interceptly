@@ -91,7 +91,9 @@ void main() {
       expect(find.textContaining('regular_message_0'), findsOneWidget);
       expect(find.textContaining('needle_special_payload'), findsOneWidget);
 
-      final searchField = find.byType(TextField);
+      final searchField = find.byWidgetPredicate(
+        (w) => w is TextField && w.decoration?.hintText == 'Search messages...',
+      );
       expect(searchField, findsOneWidget);
 
       await tester.enterText(searchField, 'needle');

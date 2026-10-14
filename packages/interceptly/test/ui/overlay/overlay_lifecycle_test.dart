@@ -4,6 +4,7 @@ import 'package:interceptly/src/model/domain_group.dart';
 import 'package:interceptly/src/model/interceptly_settings.dart';
 import 'package:interceptly/src/model/network_simulation.dart';
 import 'package:interceptly/src/model/realtime_frame.dart';
+import 'package:interceptly/src/model/realtime_protocol_type.dart';
 import 'package:interceptly/src/model/request_filter.dart';
 import 'package:interceptly/src/model/request_record.dart';
 import 'package:interceptly/src/model/request_summary.dart';
@@ -130,6 +131,17 @@ class _FakeSessionView extends ChangeNotifier implements InspectorSessionView {
   @override
   List<RealtimeFrame> getRealtimeFrames(String sessionId) => const [];
 
+  @override
+  bool canSendRealtimeMessage(String sessionId) => false;
+
+  @override
+  RealtimeProtocolType? getRealtimeProtocol(String sessionId) => null;
+
+  @override
+  Future<void> sendRealtimeMessage(
+    String sessionId,
+    RealtimeMessageDraft draft,
+  ) async {}
 }
 
 void main() {

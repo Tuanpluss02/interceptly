@@ -5,6 +5,7 @@ import 'package:interceptly/interceptly.dart';
 import 'package:interceptly/src/model/domain_group.dart';
 import 'package:interceptly/src/session/inspector_preferences.dart';
 import 'package:interceptly/src/ui/detail/detail_tabs_builder.dart';
+import 'package:interceptly/src/ui/detail/realtime/realtime_filter_header.dart';
 import 'package:interceptly/src/ui/detail/realtime_messages_tab.dart';
 import 'package:interceptly/src/ui/widgets/json_viewer/json_viewer.dart';
 
@@ -112,6 +113,21 @@ class _MockSession extends ChangeNotifier implements InspectorSessionView {
   List<RealtimeFrame> getRealtimeFrames(String sessionId) =>
       List.unmodifiable(framesBySession[sessionId] ?? const <RealtimeFrame>[]);
 
+  bool activeCanSend = false;
+  RealtimeProtocolType? protocol;
+  final List<RealtimeMessageDraft> sentDrafts = [];
+
+  @override
+  bool canSendRealtimeMessage(String sessionId) => activeCanSend;
+
+  @override
+  RealtimeProtocolType? getRealtimeProtocol(String sessionId) => protocol;
+
+  @override
+  Future<void> sendRealtimeMessage(
+      String sessionId, RealtimeMessageDraft draft) async {
+    sentDrafts.add(draft);
+  }
 
   void addFrame(RealtimeFrame frame) {
     framesBySession.putIfAbsent(frame.sessionId, () => []).add(frame);
@@ -325,7 +341,10 @@ void main() {
       expect(find.byKey(const ValueKey('frame_card_f-3')), findsOneWidget);
 
       // 1. Filter by search query
-      final searchField = find.byType(TextField);
+      final searchField = find.descendant(
+        of: find.byType(RealtimeFilterHeader),
+        matching: find.byType(TextField),
+      );
       expect(searchField, findsOneWidget);
       await tester.enterText(searchField, 'alpha');
       await tester.pumpAndSettle();
@@ -487,6 +506,125 @@ void main() {
       expect(find.byType(RealtimeMessagesTab), findsOneWidget);
       expect(find.byKey(const ValueKey('frame_card_ws-frame-1')), findsOneWidget);
       expect(find.textContaining('connected'), findsOneWidget);
+    });
+
+    group('Realtime Message Sender Integration', () {
+      testWidgets('renders RealtimeChatBar at bottom of tab even when frames list is empty or populated', (tester) async {
+        final session = _MockSession();
+        session.activeCanSend = true;
+        session.protocol = RealtimeProtocolType.webSocket;
+
+        await tester.pumpWidget(buildTestWidget(sessionId: 'sess_1', session: session));
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(const ValueKey('realtime_chat_input')), findsOneWidget);
+        expect(find.byKey(const ValueKey('realtime_chat_send_button')), findsOneWidget);
+      });
+
+      testWidgets('frame cards render Resend and Edit buttons and optional event badge', (tester) async {
+        final session = _MockSession();
+        session.activeCanSend = true;
+        session.protocol = RealtimeProtocolType.socketIo;
+        session.addFrame(
+          RealtimeFrame.text(
+            id: 'frame_sio_1',
+            sessionId: 'sess_1',
+            timestamp: DateTime(2026, 1, 1),
+            direction: FrameDirection.outgoing,
+            text: '{"ping":1}',
+            eventName: 'chat_msg',
+          ),
+        );
+
+        await tester.pumpWidget(buildTestWidget(sessionId: 'sess_1', session: session));
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(const ValueKey('frame_event_frame_sio_1')), findsOneWidget);
+        expect(find.text('chat_msg'), findsOneWidget);
+        expect(find.byKey(const ValueKey('frame_resend_frame_sio_1')), findsOneWidget);
+        expect(find.byKey(const ValueKey('frame_edit_frame_sio_1')), findsOneWidget);
+      });
+
+      testWidgets('tapping Edit populates RealtimeChatBar inputs', (tester) async {
+        final session = _MockSession();
+        session.activeCanSend = true;
+        session.protocol = RealtimeProtocolType.socketIo;
+        session.addFrame(
+          RealtimeFrame.text(
+            id: 'frame_edit_target',
+            sessionId: 'sess_1',
+            timestamp: DateTime(2026, 1, 1),
+            direction: FrameDirection.outgoing,
+            text: '{"action":"authenticate"}',
+            eventName: 'auth',
+          ),
+        );
+
+        await tester.pumpWidget(buildTestWidget(sessionId: 'sess_1', session: session));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const ValueKey('frame_edit_frame_edit_target')));
+        await tester.pumpAndSettle();
+
+        final input = tester.widget<TextField>(find.byKey(const ValueKey('realtime_chat_input')));
+        expect(input.controller?.text, '{"action":"authenticate"}');
+
+        final eventInput = tester.widget<TextField>(find.byKey(const ValueKey('realtime_chat_event_input')));
+        expect(eventInput.controller?.text, 'auth');
+      });
+
+      testWidgets('tapping Resend immediately sends frame draft', (tester) async {
+        final session = _MockSession();
+        session.activeCanSend = true;
+        session.protocol = RealtimeProtocolType.socketIo;
+        session.addFrame(
+          RealtimeFrame.text(
+            id: 'frame_resend_target',
+            sessionId: 'sess_1',
+            timestamp: DateTime(2026, 1, 1),
+            direction: FrameDirection.outgoing,
+            text: '{"action":"heartbeat"}',
+            eventName: 'ping',
+          ),
+        );
+
+        await tester.pumpWidget(buildTestWidget(sessionId: 'sess_1', session: session));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const ValueKey('frame_resend_frame_resend_target')));
+        await tester.pumpAndSettle();
+
+        expect(session.sentDrafts.length, 1);
+        expect(session.sentDrafts.first.event, 'ping');
+        expect(session.sentDrafts.first.payload, '{"action":"heartbeat"}');
+      });
+
+      testWidgets('typing and tapping send in chat bar sends message', (tester) async {
+        final session = _MockSession();
+        session.activeCanSend = true;
+        session.protocol = RealtimeProtocolType.webSocket;
+        session.addFrame(
+          RealtimeFrame.text(
+            id: 'f1',
+            sessionId: 'sess_1',
+            timestamp: DateTime(2026, 1, 1),
+            direction: FrameDirection.incoming,
+            text: 'welcome',
+          ),
+        );
+
+        await tester.pumpWidget(buildTestWidget(sessionId: 'sess_1', session: session));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(find.byKey(const ValueKey('realtime_chat_input')), 'hello server');
+        await tester.pump();
+
+        await tester.tap(find.byKey(const ValueKey('realtime_chat_send_button')));
+        await tester.pumpAndSettle();
+
+        expect(session.sentDrafts.length, 1);
+        expect(session.sentDrafts.first.payload, 'hello server');
+      });
     });
   });
 }
