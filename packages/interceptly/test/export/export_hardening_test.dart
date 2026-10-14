@@ -72,16 +72,16 @@ void main() {
       expect(curl, contains("-H 'X-Injected: badheader'"));
     });
 
-    test('supports redactOnExport for sensitive headers', () {
+    test('outputs headers raw without redaction', () {
       final record = _record(
         requestHeaders: {
           'Authorization': 'Bearer secret-token',
           'Content-Type': 'application/json',
         },
       );
-      final curl = CurlGenerator.fromRecord(record, redactOnExport: true);
-      expect(curl, isNot(contains('secret-token')));
-      expect(curl, contains("-H 'Authorization: [REDACTED]'"));
+      final curl = CurlGenerator.fromRecord(record);
+      expect(curl, contains('secret-token'));
+      expect(curl, contains("-H 'Authorization: Bearer secret-token'"));
       expect(curl, contains("-H 'Content-Type: application/json'"));
     });
   });
@@ -143,24 +143,24 @@ void main() {
       expect(res['statusText'], isNotEmpty);
     });
 
-    test('redacts headers and query parameters when redactOnExport: true', () {
+    test('outputs headers and query parameters raw without redaction', () {
       final record = _record(
         url: 'https://api.example.com/data?token=supersecret&page=1',
         requestHeaders: {'Authorization': 'Bearer confidential'},
       );
-      final har = HarExporter.fromRecords([record], redactOnExport: true);
+      final har = HarExporter.fromRecords([record]);
       final entries = (har['log'] as Map)['entries'] as List;
       final req = (entries.first as Map)['request'] as Map;
 
       final headers = (req['headers'] as List).cast<Map<String, String>>();
       expect(
-        headers.any((h) => h['name'] == 'Authorization' && h['value'] == '[REDACTED]'),
+        headers.any((h) => h['name'] == 'Authorization' && h['value'] == 'Bearer confidential'),
         isTrue,
       );
 
       final query = (req['queryString'] as List).cast<Map<String, String>>();
       expect(
-        query.any((q) => q['name'] == 'token' && q['value'] == '[REDACTED]'),
+        query.any((q) => q['name'] == 'token' && q['value'] == 'supersecret'),
         isTrue,
       );
       expect(
@@ -213,24 +213,24 @@ void main() {
       expect(first['value'].toString().toLowerCase(), contains('multipart'));
     });
 
-    test('redacts headers when redactOnExport: true', () {
+    test('outputs headers raw without redaction', () {
       final record = _record(
         requestHeaders: {
           'Authorization': 'Bearer token-abc',
           'X-Api-Key': 'key-xyz',
         },
       );
-      final postman = PostmanExporter.fromRecords([record], redactOnExport: true);
+      final postman = PostmanExporter.fromRecords([record]);
       final items = postman['item'] as List;
       final req = (items.first as Map)['request'] as Map;
       final headers = (req['header'] as List).cast<Map<String, String>>();
 
       expect(
-        headers.any((h) => h['key'] == 'Authorization' && h['value'] == '[REDACTED]'),
+        headers.any((h) => h['key'] == 'Authorization' && h['value'] == 'Bearer token-abc'),
         isTrue,
       );
       expect(
-        headers.any((h) => h['key'] == 'X-Api-Key' && h['value'] == '[REDACTED]'),
+        headers.any((h) => h['key'] == 'X-Api-Key' && h['value'] == 'key-xyz'),
         isTrue,
       );
     });

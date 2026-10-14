@@ -117,13 +117,13 @@ void main() {
       expect(content['text'], equals('{"id":"usr_123","name":"Alice"}'));
     });
 
-    test('HAR export with redactOnExport scrubs authorization and query params', () async {
+    test('HAR export outputs authorization and query params raw without redaction', () async {
       final records = [
         sampleRecord(url: 'https://api.example.com/auth?token=999'),
       ];
 
-      final harMap = HarExporter.fromRecords(records, redactOnExport: true);
-      final file = File('${tempDir.path}/redacted.har');
+      final harMap = HarExporter.fromRecords(records);
+      final file = File('${tempDir.path}/unredacted.har');
       await file.writeAsString(jsonEncode(harMap));
 
       final decoded = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
@@ -132,11 +132,11 @@ void main() {
 
       final headers = (req['headers'] as List).cast<Map<String, dynamic>>();
       final authHeader = headers.firstWhere((h) => h['name'] == 'Authorization');
-      expect(authHeader['value'], equals('[REDACTED]'));
+      expect(authHeader['value'], equals('Bearer test-token-123'));
 
       final qs = (req['queryString'] as List).cast<Map<String, dynamic>>();
       final tokenQuery = qs.firstWhere((q) => q['name'] == 'token');
-      expect(tokenQuery['value'], equals('[REDACTED]'));
+      expect(tokenQuery['value'], equals('999'));
     });
 
     test('HAR export handles binary placeholder without corrupting JSON', () async {

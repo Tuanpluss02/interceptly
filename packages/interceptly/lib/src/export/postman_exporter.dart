@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import '../capture/body_bytes.dart';
-import '../capture/capture_guard.dart';
 import '../model/request_record.dart';
 import '../session/body_decode_service.dart';
 
@@ -12,45 +11,20 @@ import '../session/body_decode_service.dart';
 class PostmanExporter {
   const PostmanExporter._();
 
-  /// Default headers to redact on export if not explicitly specified.
-  static const Set<String> _defaultRedactedHeaders = {
-    'authorization',
-    'cookie',
-    'set-cookie',
-    'x-api-key',
-  };
-
-  /// Default query parameters to redact on export if not explicitly specified.
-  static const Set<String> _defaultRedactedQueryParams = {
-    'token',
-    'api_key',
-    'password',
-    'secret',
-  };
-
   /// Converts [records] into a Postman Collection v2.1 JSON string.
   static String toJson(
     List<RequestRecord> records, {
     String collectionName = 'Interceptly Export',
-    bool redactOnExport = false,
-    Set<String>? redactedHeaders,
-    Set<String>? redactedQueryParams,
   }) =>
       jsonEncode(toMap(
         records,
         collectionName: collectionName,
-        redactOnExport: redactOnExport,
-        redactedHeaders: redactedHeaders,
-        redactedQueryParams: redactedQueryParams,
       ));
 
   /// Converts [records] into a Postman Collection v2.1 root object.
   static Map<String, Object?> toMap(
     List<RequestRecord> records, {
     String collectionName = 'Interceptly Export',
-    bool redactOnExport = false,
-    Set<String>? redactedHeaders,
-    Set<String>? redactedQueryParams,
   }) {
     return {
       'info': {
@@ -58,14 +32,7 @@ class PostmanExporter {
         'schema':
             'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
       },
-      'item': records
-          .map((r) => _itemFromRecord(
-                r,
-                redactOnExport: redactOnExport,
-                redactedHeaders: redactedHeaders,
-                redactedQueryParams: redactedQueryParams,
-              ))
-          .toList(),
+      'item': records.map(_itemFromRecord).toList(),
     };
   }
 
@@ -73,53 +40,14 @@ class PostmanExporter {
   static Map<String, Object?> fromRecords(
     List<RequestRecord> records, {
     String collectionName = 'Interceptly Export',
-    bool redactOnExport = false,
-    Set<String>? redactedHeaders,
-    Set<String>? redactedQueryParams,
   }) =>
       toMap(
         records,
         collectionName: collectionName,
-        redactOnExport: redactOnExport,
-        redactedHeaders: redactedHeaders,
-        redactedQueryParams: redactedQueryParams,
       );
 
-  static Map<String, Object?> _itemFromRecord(
-    RequestRecord r, {
-    required bool redactOnExport,
-    Set<String>? redactedHeaders,
-    Set<String>? redactedQueryParams,
-  }) {
-    final effectiveReqHeaders = redactOnExport
-        ? CaptureGuard.redactHeaders(
-            r.requestHeaders,
-            (redactedHeaders ?? _defaultRedactedHeaders)
-                .map((h) => h.toLowerCase())
-                .toSet(),
-          )
-        : (redactedHeaders != null && redactedHeaders.isNotEmpty
-            ? CaptureGuard.redactHeaders(
-                r.requestHeaders,
-                redactedHeaders.map((h) => h.toLowerCase()).toSet(),
-              )
-            : r.requestHeaders);
-
-    final effectiveUrl = redactOnExport
-        ? CaptureGuard.sanitizeUrl(
-            r.url,
-            (redactedQueryParams ?? _defaultRedactedQueryParams)
-                .map((q) => q.toLowerCase())
-                .toSet(),
-          )
-        : (redactedQueryParams != null && redactedQueryParams.isNotEmpty
-            ? CaptureGuard.sanitizeUrl(
-                r.url,
-                redactedQueryParams.map((q) => q.toLowerCase()).toSet(),
-              )
-            : r.url);
-
-    final uri = Uri.tryParse(effectiveUrl);
+  static Map<String, Object?> _itemFromRecord(RequestRecord r) {
+    final uri = Uri.tryParse(r.url);
 
     final isMultipart =
         (r.requestContentType ?? '').contains('multipart/form-data');
@@ -139,12 +67,12 @@ class PostmanExporter {
     }
 
     return {
-      'name': '${r.method} ${uri?.path ?? effectiveUrl}',
+      'name': '${r.method} ${uri?.path ?? r.url}',
       'request': {
         'method': r.method,
-        'header': _mapHeaders(effectiveReqHeaders),
+        'header': _mapHeaders(r.requestHeaders),
         'body': _buildBody(r),
-        'url': _buildUrl(effectiveUrl, uri),
+        'url': _buildUrl(r.url, uri),
         if (description != null) 'description': description,
       },
       'response': <Object>[],

@@ -17,7 +17,6 @@ class ShareHandler {
   ShareHandler({
     required this.context,
     required this.fabKey,
-    this.redactOnExport = true,
   }) : _share = InterceptlyShare();
 
   @visibleForTesting
@@ -25,13 +24,11 @@ class ShareHandler {
     required this.context,
     required this.fabKey,
     required InterceptlyShare share,
-    this.redactOnExport = true,
   }) : _share = share;
 
   final BuildContext context;
   final GlobalKey fabKey;
   final InterceptlyShare _share;
-  final bool redactOnExport;
 
   void showShareMenu(RequestRecord record) {
     showModalBottomSheet(
@@ -130,10 +127,7 @@ class ShareHandler {
 
   void shareCurlCommand(RequestRecord record) {
     try {
-      final curl = CurlGenerator.fromRecord(
-        record,
-        redactOnExport: redactOnExport,
-      );
+      final curl = CurlGenerator.fromRecord(record);
       Clipboard.setData(ClipboardData(text: curl));
       ToastNotification.show('cURL command copied', contextHint: context);
     } catch (e) {
@@ -152,10 +146,7 @@ class ShareHandler {
   Future<void> _exportPostmanRecords(List<RequestRecord> records) async {
     File? file;
     try {
-      final collectionJson = PostmanExporter.toJson(
-        records,
-        redactOnExport: redactOnExport,
-      );
+      final collectionJson = PostmanExporter.toJson(records);
 
       final directory = await getTemporaryDirectory();
       final fileName =
@@ -187,10 +178,7 @@ class ShareHandler {
   Future<void> exportHarFile(RequestRecord record) async {
     File? file;
     try {
-      final harJson = HarExporter.toJson(
-        [record],
-        redactOnExport: redactOnExport,
-      );
+      final harJson = HarExporter.toJson([record]);
 
       final directory = await getTemporaryDirectory();
       final sanitizedMethod = _sanitizeFilename(record.method);

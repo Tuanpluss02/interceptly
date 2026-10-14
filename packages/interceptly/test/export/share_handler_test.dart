@@ -38,7 +38,7 @@ void main() {
   });
 
   testWidgets(
-    'ShareHandler defaults to redactOnExport true',
+    'ShareHandler copies cURL command without redaction',
     (tester) async {
       late BuildContext savedContext;
       await tester.pumpWidget(
@@ -52,19 +52,32 @@ void main() {
         ),
       );
 
-      expect(
-        ShareHandler(context: savedContext, fabKey: GlobalKey())
-            .redactOnExport,
-        isTrue,
+      final clipboardTexts = <String>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'Clipboard.setData') {
+          final args = call.arguments as Map<dynamic, dynamic>?;
+          clipboardTexts.add((args?['text'] ?? '').toString());
+        }
+        return null;
+      });
+
+      final handler = ShareHandler(
+        context: savedContext,
+        fabKey: GlobalKey(),
       );
-      expect(
-        ShareHandler.withShare(
-          context: savedContext,
-          fabKey: GlobalKey(),
-          share: _NeverShare(),
-        ).redactOnExport,
-        isTrue,
+      final record = _record(
+        requestHeaders: {
+          'Authorization': 'Bearer secret-auth-token',
+        },
       );
+      handler.shareCurlCommand(record);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 3));
+
+      expect(clipboardTexts, isNotEmpty);
+      expect(clipboardTexts.first, contains('Bearer secret-auth-token'));
+      expect(clipboardTexts.first, isNot(contains('[REDACTED]')));
     },
     timeout: const Timeout(Duration(seconds: 60)),
   );
@@ -190,7 +203,7 @@ class _NeverShare extends Fake implements InterceptlyShare {
   }
 }
 
-RequestRecord _record() {
+RequestRecord _record({Map<String, String>? requestHeaders}) {
   return RequestRecord(
     id: 'test-id',
     method: 'GET',
@@ -200,7 +213,7 @@ RequestRecord _record() {
     requestSizeBytes: 0,
     responseSizeBytes: 0,
     timestamp: DateTime(2026, 1, 1),
-    requestHeaders: const {},
+    requestHeaders: requestHeaders ?? const {},
     responseHeaders: const {},
     requestTruncation: const BodyTruncation.complete(0),
     responseTruncation: const BodyTruncation.complete(0),
