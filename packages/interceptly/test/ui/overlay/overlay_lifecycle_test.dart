@@ -48,6 +48,9 @@ class _FakeSessionView extends ChangeNotifier implements InspectorSessionView {
   InterceptlySettings get settings => const InterceptlySettings();
 
   @override
+  bool get isRealtimeActive => false;
+
+  @override
   List<RequestSummary> get entries => const [];
 
   @override
