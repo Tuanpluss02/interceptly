@@ -209,16 +209,6 @@ void main() {
 
       expect(client.collector, same(spy));
     });
-
-    test('wrap factory creates InterceptlyHttpClient with provided collector',
-        () {
-      final inner = _FixedMockClient();
-      final spy = _SpyHttpTrafficCollector();
-      final client = InterceptlyHttpClient.wrap(inner, spy);
-
-      expect(client, isA<InterceptlyHttpClient>());
-      expect(client.collector, same(spy));
-    });
   });
 
   group('Collector Delegation', () {

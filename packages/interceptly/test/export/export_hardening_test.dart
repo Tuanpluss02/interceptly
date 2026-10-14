@@ -92,7 +92,7 @@ void main() {
         durationMs: 120,
         url: 'https://api.example.com/items?category=books&page=2',
       );
-      final har = HarExporter.fromRecords([record]);
+      final har = HarExporter.toMap([record]);
       final log = har['log'] as Map<String, Object?>;
 
       expect(log.containsKey('pages'), isTrue);
@@ -125,7 +125,7 @@ void main() {
     test('formats startedDateTime in UTC ISO 8601', () {
       final localTime = DateTime(2026, 5, 1, 10, 30);
       final record = _record(timestamp: localTime);
-      final har = HarExporter.fromRecords([record]);
+      final har = HarExporter.toMap([record]);
       final entries = (har['log'] as Map)['entries'] as List;
       final started = (entries.first as Map)['startedDateTime'] as String;
 
@@ -135,7 +135,7 @@ void main() {
 
     test('guards status <= 0 to avoid breaking HAR viewers', () {
       final abortedRecord = _record(statusCode: 0);
-      final har = HarExporter.fromRecords([abortedRecord]);
+      final har = HarExporter.toMap([abortedRecord]);
       final entries = (har['log'] as Map)['entries'] as List;
       final res = (entries.first as Map)['response'] as Map;
 
@@ -148,7 +148,7 @@ void main() {
         url: 'https://api.example.com/data?token=supersecret&page=1',
         requestHeaders: {'Authorization': 'Bearer confidential'},
       );
-      final har = HarExporter.fromRecords([record]);
+      final har = HarExporter.toMap([record]);
       final entries = (har['log'] as Map)['entries'] as List;
       final req = (entries.first as Map)['request'] as Map;
 
@@ -173,7 +173,7 @@ void main() {
   group('PostmanExporter hardening', () {
     test('preserves custom port in URL structure', () {
       final record = _record(url: 'https://api.example.com:8443/v1/users');
-      final postman = PostmanExporter.fromRecords([record]);
+      final postman = PostmanExporter.toMap([record]);
       final items = postman['item'] as List;
       final req = (items.first as Map)['request'] as Map;
       final url = req['url'] as Map;
@@ -185,7 +185,7 @@ void main() {
 
     test('strips userinfo from URL for security', () {
       final record = _record(url: 'https://admin:secret123@api.example.com/v1/data');
-      final postman = PostmanExporter.fromRecords([record]);
+      final postman = PostmanExporter.toMap([record]);
       final items = postman['item'] as List;
       final req = (items.first as Map)['request'] as Map;
       final url = req['url'] as Map;
@@ -200,7 +200,7 @@ void main() {
         requestContentType: 'multipart/form-data; boundary=xyz',
         requestBodyPreview: null,
       );
-      final postman = PostmanExporter.fromRecords([record]);
+      final postman = PostmanExporter.toMap([record]);
       final items = postman['item'] as List;
       final req = (items.first as Map)['request'] as Map;
       final body = req['body'] as Map?;
@@ -220,7 +220,7 @@ void main() {
           'X-Api-Key': 'key-xyz',
         },
       );
-      final postman = PostmanExporter.fromRecords([record]);
+      final postman = PostmanExporter.toMap([record]);
       final items = postman['item'] as List;
       final req = (items.first as Map)['request'] as Map;
       final headers = (req['header'] as List).cast<Map<String, String>>();

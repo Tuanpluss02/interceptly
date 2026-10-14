@@ -71,7 +71,7 @@ void main() {
         sampleRecord(id: 'r2', method: 'POST', url: 'https://api.example.com/items', statusCode: 201),
       ];
 
-      final harMap = HarExporter.fromRecords(records);
+      final harMap = HarExporter.toMap(records);
       final jsonString = jsonEncode(harMap);
 
       final file = File('${tempDir.path}/test_export.har');
@@ -122,7 +122,7 @@ void main() {
         sampleRecord(url: 'https://api.example.com/auth?token=999'),
       ];
 
-      final harMap = HarExporter.fromRecords(records);
+      final harMap = HarExporter.toMap(records);
       final file = File('${tempDir.path}/unredacted.har');
       await file.writeAsString(jsonEncode(harMap));
 
@@ -147,7 +147,7 @@ void main() {
         ),
       ];
 
-      final harMap = HarExporter.fromRecords(records);
+      final harMap = HarExporter.toMap(records);
       final jsonString = jsonEncode(harMap);
       final file = File('${tempDir.path}/binary.har');
       await file.writeAsString(jsonString);
@@ -172,7 +172,7 @@ void main() {
         ),
       ];
 
-      final postmanMap = PostmanExporter.fromRecords(records, collectionName: 'My Service API');
+      final postmanMap = PostmanExporter.toMap(records, collectionName: 'My Service API');
       final jsonString = jsonEncode(postmanMap);
 
       final file = File('${tempDir.path}/test_collection.json');
@@ -221,7 +221,7 @@ void main() {
         ),
       ];
 
-      final postmanMap = PostmanExporter.fromRecords(records);
+      final postmanMap = PostmanExporter.toMap(records);
       final file = File('${tempDir.path}/form.json');
       await file.writeAsString(jsonEncode(postmanMap));
 
@@ -239,16 +239,16 @@ void main() {
   group('Golden Exporters Determinism Test', () {
     test('HAR output is deterministic for identical input record', () {
       final record = sampleRecord();
-      final har1 = HarExporter.fromRecords([record]);
-      final har2 = HarExporter.fromRecords([record]);
+      final har1 = HarExporter.toMap([record]);
+      final har2 = HarExporter.toMap([record]);
 
       expect(jsonEncode(har1), equals(jsonEncode(har2)));
     });
 
     test('Postman output is deterministic for identical input record', () {
       final record = sampleRecord();
-      final postman1 = PostmanExporter.fromRecords([record]);
-      final postman2 = PostmanExporter.fromRecords([record]);
+      final postman1 = PostmanExporter.toMap([record]);
+      final postman2 = PostmanExporter.toMap([record]);
 
       expect(jsonEncode(postman1), equals(jsonEncode(postman2)));
     });

@@ -393,10 +393,10 @@ void main() {
       expect(fakeChannel.sinkErrors.first, isA<FormatException>());
     });
 
-    test('wrap factory creates functional InterceptlyWebSocketChannel',
+    test('constructor creates functional InterceptlyWebSocketChannel',
         () async {
       final uri = Uri.parse('wss://example.com/wrapped');
-      final channel = InterceptlyWebSocketChannel.wrap(
+      final channel = InterceptlyWebSocketChannel(
         fakeChannel,
         uri: uri,
         sessionId: 'wrapped-id',
@@ -542,12 +542,6 @@ void main() {
       );
 
       expect(channel.collector, equals(spyCollector));
-
-      final wrapped = InterceptlyWebSocketChannel.wrap(
-        fakeChannel,
-        collector: spyCollector,
-      );
-      expect(wrapped.collector, equals(spyCollector));
     });
 
     test('delegates connection handshake to collector.recordConnection', () {

@@ -80,7 +80,7 @@ void main() {
 
   group('HarExporter', () {
     test('produces valid HAR root structure', () {
-      final har = HarExporter.fromRecords([_record()]);
+      final har = HarExporter.toMap([_record()]);
       expect(har.containsKey('log'), isTrue);
       final log = har['log'] as Map<String, Object?>;
       expect(log['version'], '1.2');
@@ -89,7 +89,7 @@ void main() {
     });
 
     test('entry contains request and response blocks', () {
-      final har = HarExporter.fromRecords([_record()]);
+      final har = HarExporter.toMap([_record()]);
       final entry = (har['log'] as Map)['entries'] as List;
       expect(entry.length, 1);
       final e = entry.first as Map;
@@ -98,7 +98,7 @@ void main() {
     });
 
     test('request block carries correct method and URL', () {
-      final har = HarExporter.fromRecords([
+      final har = HarExporter.toMap([
         _record(method: 'POST', url: 'https://api.example.com/login'),
       ]);
       final req = ((har['log'] as Map)['entries'] as List).first as Map;
@@ -107,7 +107,7 @@ void main() {
     });
 
     test('response content.text is empty for binary placeholder', () {
-      final har = HarExporter.fromRecords([
+      final har = HarExporter.toMap([
         _record(responseBodyPreview: '\x00[binary: 512 bytes]'),
       ]);
       final entry = ((har['log'] as Map)['entries'] as List).first as Map;
@@ -116,7 +116,7 @@ void main() {
     });
 
     test('response content.text carries decoded body', () {
-      final har = HarExporter.fromRecords([
+      final har = HarExporter.toMap([
         _record(responseBodyPreview: '{"status":"ok"}'),
       ]);
       final entry = ((har['log'] as Map)['entries'] as List).first as Map;
@@ -125,7 +125,7 @@ void main() {
     });
 
     test('headers are mapped to name/value pairs', () {
-      final har = HarExporter.fromRecords([
+      final har = HarExporter.toMap([
         _record(requestHeaders: {'Content-Type': 'application/json'}),
       ]);
       final req = ((har['log'] as Map)['entries'] as List).first as Map;
@@ -137,7 +137,7 @@ void main() {
     });
 
     test('empty records list produces empty entries', () {
-      final har = HarExporter.fromRecords([]);
+      final har = HarExporter.toMap([]);
       final entries = (har['log'] as Map)['entries'] as List;
       expect(entries, isEmpty);
     });
@@ -145,7 +145,7 @@ void main() {
 
   group('PostmanExporter', () {
     test('produces valid Postman collection root structure', () {
-      final col = PostmanExporter.fromRecords([_record()]);
+      final col = PostmanExporter.toMap([_record()]);
       expect(col.containsKey('info'), isTrue);
       expect(col.containsKey('item'), isTrue);
       final info = col['info'] as Map;
@@ -153,12 +153,12 @@ void main() {
     });
 
     test('uses custom collection name', () {
-      final col = PostmanExporter.fromRecords([], collectionName: 'My API');
+      final col = PostmanExporter.toMap([], collectionName: 'My API');
       expect((col['info'] as Map)['name'], 'My API');
     });
 
     test('item name is METHOD /path', () {
-      final col = PostmanExporter.fromRecords([
+      final col = PostmanExporter.toMap([
         _record(method: 'GET', url: 'https://api.example.com/users'),
       ]);
       final item = (col['item'] as List).first as Map;
@@ -166,7 +166,7 @@ void main() {
     });
 
     test('url block carries raw and parsed fields', () {
-      final col = PostmanExporter.fromRecords([
+      final col = PostmanExporter.toMap([
         _record(url: 'https://api.example.com/users?page=1'),
       ]);
       final item = (col['item'] as List).first as Map;
@@ -180,7 +180,7 @@ void main() {
     });
 
     test('raw body mode is used for JSON content type', () {
-      final col = PostmanExporter.fromRecords([
+      final col = PostmanExporter.toMap([
         _record(
           requestBodyPreview: '{"name":"Alice"}',
           requestContentType: 'application/json',
@@ -193,7 +193,7 @@ void main() {
     });
 
     test('urlencoded body mode for form-encoded content type', () {
-      final col = PostmanExporter.fromRecords([
+      final col = PostmanExporter.toMap([
         _record(
           requestBodyPreview: 'key=value&foo=bar',
           requestContentType: 'application/x-www-form-urlencoded',
@@ -213,7 +213,7 @@ void main() {
     });
 
     test('formdata mode for multipart/form-data', () {
-      final col = PostmanExporter.fromRecords([
+      final col = PostmanExporter.toMap([
         _record(
           requestBodyPreview: 'some content',
           requestContentType: 'multipart/form-data',
@@ -225,7 +225,7 @@ void main() {
     });
 
     test('body is null when requestBodyPreview is null', () {
-      final col = PostmanExporter.fromRecords([
+      final col = PostmanExporter.toMap([
         _record(requestBodyPreview: null),
       ]);
       final item = (col['item'] as List).first as Map;
@@ -233,7 +233,7 @@ void main() {
     });
 
     test('headers are mapped to key/value pairs', () {
-      final col = PostmanExporter.fromRecords([
+      final col = PostmanExporter.toMap([
         _record(requestHeaders: {'Authorization': 'Bearer token'}),
       ]);
       final item = (col['item'] as List).first as Map;

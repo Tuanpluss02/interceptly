@@ -141,9 +141,6 @@ class Interceptly extends ChangeNotifier {
   List<RealtimeFrame> getRealtimeFrames(String sessionId) =>
       _session.getRealtimeFrames(sessionId);
 
-  /// Alias for [getRealtimeFrames].
-  List<RealtimeFrame> getFrames(String sessionId) =>
-      _session.getFrames(sessionId);
 
   /// Records opening of a realtime connection (e.g. WebSocket handshake).
   void recordRealtimeConnection({

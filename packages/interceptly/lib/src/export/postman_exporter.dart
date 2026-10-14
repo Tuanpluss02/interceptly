@@ -36,15 +36,6 @@ class PostmanExporter {
     };
   }
 
-  /// Convenience alias for [toMap] — matches the [HarExporter] naming.
-  static Map<String, Object?> fromRecords(
-    List<RequestRecord> records, {
-    String collectionName = 'Interceptly Export',
-  }) =>
-      toMap(
-        records,
-        collectionName: collectionName,
-      );
 
   static Map<String, Object?> _itemFromRecord(RequestRecord r) {
     final uri = Uri.tryParse(r.url);

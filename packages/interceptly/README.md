@@ -109,7 +109,7 @@ final dio = Dio()..interceptors.add(InterceptlyDioInterceptor());
 import 'package:http/http.dart' as http;
 import 'package:interceptly_http/interceptly_http.dart';
 
-final client = InterceptlyHttpClient.wrap(http.Client());
+final client = InterceptlyHttpClient(http.Client());
 final response = await client.get(Uri.parse('https://api.example.com/data'));
 ```
 

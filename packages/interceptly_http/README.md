@@ -34,7 +34,7 @@ import 'package:interceptly_http/interceptly_http.dart';
 final navigatorKey = GlobalKey<NavigatorState>();
 
 // Wrap any http.Client instance:
-final client = InterceptlyHttpClient.wrap(http.Client());
+final client = InterceptlyHttpClient(http.Client());
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -68,7 +68,7 @@ void main() async {
 ```dart
 // Inject a custom HttpTrafficCollector:
 final collector = MyCustomHttpTrafficCollector();
-final customClient = InterceptlyHttpClient.wrap(
+final customClient = InterceptlyHttpClient(
   http.Client(),
   collector,
 );

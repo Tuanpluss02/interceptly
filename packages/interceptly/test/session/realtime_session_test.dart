@@ -41,9 +41,6 @@ void main() {
       expect(frames[1].id, equals('f-2'));
       expect(frames[1].textPayload, equals('{"action":"subscribe"}'));
 
-      // getFrames alias should return the exact same frames
-      expect(session.getFrames('ws-100'), equals(frames));
-
       // Unknown session returns empty list
       expect(session.getRealtimeFrames('ws-unknown'), isEmpty);
     });
@@ -304,7 +301,6 @@ void main() {
 
       expect(interceptly.getRealtimeFrames('ws-facade').length, equals(1));
       expect(interceptly.getRealtimeFrames('ws-facade').first.id, equals('f-facade'));
-      expect(interceptly.getFrames('ws-facade'), equals(interceptly.getRealtimeFrames('ws-facade')));
       expect(session.getRealtimeFrames('ws-facade').length, equals(1));
     });
 

@@ -69,11 +69,6 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     return '${time}_$seq';
   }
 
-  /// Global configure helper for the shared singleton before or after first access.
-  static void configure(InterceptlySettings settings) {
-    _defaultSettings = settings;
-    _instance?._applySettings(settings);
-  }
 
   static InspectorSession? _instance;
 
@@ -412,11 +407,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
 
   @override
   List<RealtimeFrame> getRealtimeFrames(String sessionId) =>
-      _realtimeStore.getFrames(sessionId);
-
-  @override
-  List<RealtimeFrame> getFrames(String sessionId) =>
-      getRealtimeFrames(sessionId);
+      _realtimeStore.getRealtimeFrames(sessionId);
 
   /// Records opening of a realtime connection.
   void recordRealtimeConnection({

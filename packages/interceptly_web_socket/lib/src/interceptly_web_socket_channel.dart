@@ -49,22 +49,6 @@ class InterceptlyWebSocketChannel extends StreamChannelMixin
     );
   }
 
-  /// Convenience wrapper around an existing [WebSocketChannel].
-  static InterceptlyWebSocketChannel wrap(
-    WebSocketChannel inner, {
-    Uri? uri,
-    String? sessionId,
-    RealtimeTrafficCollector? collector,
-    Map<String, String>? headers,
-  }) {
-    return InterceptlyWebSocketChannel(
-      inner,
-      uri: uri,
-      sessionId: sessionId,
-      collector: collector,
-      headers: headers,
-    );
-  }
 
   /// Connects to [uri] and wraps the resulting channel with Interceptly capture.
   static InterceptlyWebSocketChannel connect(

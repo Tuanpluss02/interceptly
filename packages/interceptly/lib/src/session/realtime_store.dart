@@ -56,7 +56,7 @@ class RealtimeStore {
   }
 
   /// Returns captured frames for [sessionId] in FIFO order.
-  List<RealtimeFrame> getFrames(String sessionId) {
+  List<RealtimeFrame> getRealtimeFrames(String sessionId) {
     if (_isDisposed) return const <RealtimeFrame>[];
     final buffer = _realtimeFramesBySession.remove(sessionId);
     if (buffer == null || buffer.isEmpty) {

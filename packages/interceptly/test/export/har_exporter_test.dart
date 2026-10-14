@@ -9,7 +9,7 @@ import 'package:interceptly/src/model/request_record.dart';
 void main() {
   group('HarExporter', () {
     test('uses creator version 2.0.0', () {
-      final har = HarExporter.fromRecords([_record()]);
+      final har = HarExporter.toMap([_record()]);
       final log = har['log'] as Map<String, Object?>;
       final creator = log['creator'] as Map<String, Object?>;
 
@@ -25,7 +25,7 @@ void main() {
         responseBodyBytes: pngBytes,
       );
 
-      final har = HarExporter.fromRecords([record]);
+      final har = HarExporter.toMap([record]);
       final entries = (har['log'] as Map<String, Object?>)['entries'] as List;
       final res = (entries.first as Map<String, Object?>)['response'] as Map<String, Object?>;
       final content = res['content'] as Map<String, Object?>;
@@ -44,7 +44,7 @@ void main() {
         responseBodyBytes: nonUtf8Bytes,
       );
 
-      final har = HarExporter.fromRecords([record]);
+      final har = HarExporter.toMap([record]);
       final entries = (har['log'] as Map<String, Object?>)['entries'] as List;
       final res = (entries.first as Map<String, Object?>)['response'] as Map<String, Object?>;
       final content = res['content'] as Map<String, Object?>;
@@ -62,7 +62,7 @@ void main() {
         responseBodyBytes: textBytes,
       );
 
-      final har = HarExporter.fromRecords([record]);
+      final har = HarExporter.toMap([record]);
       final entries = (har['log'] as Map<String, Object?>)['entries'] as List;
       final res = (entries.first as Map<String, Object?>)['response'] as Map<String, Object?>;
       final content = res['content'] as Map<String, Object?>;
@@ -79,7 +79,7 @@ void main() {
         responseBodyPreview: '{"preview":true}',
       );
 
-      final har = HarExporter.fromRecords([record]);
+      final har = HarExporter.toMap([record]);
       final entries = (har['log'] as Map<String, Object?>)['entries'] as List;
       final res = (entries.first as Map<String, Object?>)['response'] as Map<String, Object?>;
       final content = res['content'] as Map<String, Object?>;
@@ -95,7 +95,7 @@ void main() {
         responseBodyPreview: '\x00[binary: 1024 bytes]',
       );
 
-      final har = HarExporter.fromRecords([record]);
+      final har = HarExporter.toMap([record]);
       final entries = (har['log'] as Map<String, Object?>)['entries'] as List;
       final res = (entries.first as Map<String, Object?>)['response'] as Map<String, Object?>;
       final content = res['content'] as Map<String, Object?>;
@@ -116,7 +116,7 @@ void main() {
         ),
       );
 
-      final har = HarExporter.fromRecords([record]);
+      final har = HarExporter.toMap([record]);
       final entries = (har['log'] as Map<String, Object?>)['entries'] as List;
       final res = (entries.first as Map<String, Object?>)['response'] as Map<String, Object?>;
       final content = res['content'] as Map<String, Object?>;
@@ -139,7 +139,7 @@ void main() {
         ),
       );
 
-      final har = HarExporter.fromRecords([record]);
+      final har = HarExporter.toMap([record]);
       final entries = (har['log'] as Map<String, Object?>)['entries'] as List;
       final res = (entries.first as Map<String, Object?>)['response'] as Map<String, Object?>;
       final content = res['content'] as Map<String, Object?>;
@@ -158,7 +158,7 @@ void main() {
         responseTruncation: const BodyTruncation.complete(100),
       );
 
-      final har = HarExporter.fromRecords([record]);
+      final har = HarExporter.toMap([record]);
       final entries = (har['log'] as Map<String, Object?>)['entries'] as List;
       final res = (entries.first as Map<String, Object?>)['response'] as Map<String, Object?>;
       final content = res['content'] as Map<String, Object?>;
@@ -178,7 +178,7 @@ void main() {
         ),
       );
 
-      final har = HarExporter.fromRecords([record]);
+      final har = HarExporter.toMap([record]);
       final entries = (har['log'] as Map<String, Object?>)['entries'] as List;
       final res = (entries.first as Map<String, Object?>)['response'] as Map<String, Object?>;
       final content = res['content'] as Map<String, Object?>;

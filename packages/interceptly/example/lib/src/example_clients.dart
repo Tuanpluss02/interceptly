@@ -26,7 +26,7 @@ class ExampleClients {
       ),
     )..interceptors.add(InterceptlyDioInterceptor());
 
-    final httpClient = InterceptlyHttpClient.wrap(http.Client());
+    final httpClient = InterceptlyHttpClient(http.Client());
 
     final chopperClient = chopper.ChopperClient(
       baseUrl: Uri.parse(baseUrl),

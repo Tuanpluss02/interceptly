@@ -73,7 +73,7 @@ import 'package:interceptly_web_socket/interceptly_web_socket.dart';
 
 final rawChannel = WebSocketChannel.connect(uri);
 
-final inspectedChannel = InterceptlyWebSocketChannel.wrap(
+final inspectedChannel = InterceptlyWebSocketChannel(
   rawChannel,
   uri: uri,
   headers: {'Authorization': 'Bearer token'},

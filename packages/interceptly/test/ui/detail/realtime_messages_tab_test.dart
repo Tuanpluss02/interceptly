@@ -109,9 +109,6 @@ class _MockSession extends ChangeNotifier implements InspectorSessionView {
   List<RealtimeFrame> getRealtimeFrames(String sessionId) =>
       List.unmodifiable(framesBySession[sessionId] ?? const <RealtimeFrame>[]);
 
-  @override
-  List<RealtimeFrame> getFrames(String sessionId) =>
-      getRealtimeFrames(sessionId);
 
   void addFrame(RealtimeFrame frame) {
     framesBySession.putIfAbsent(frame.sessionId, () => []).add(frame);

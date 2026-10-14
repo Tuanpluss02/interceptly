@@ -18,12 +18,6 @@ class InterceptlyHttpClient extends http.BaseClient {
     HttpTrafficCollector? collector,
   ]) : collector = collector ?? HttpTrafficCollector.instance;
 
-  /// Convenience constructor wrapping an existing [http.Client].
-  factory InterceptlyHttpClient.wrap(
-    http.Client inner, [
-    HttpTrafficCollector? collector,
-  ]) =>
-      InterceptlyHttpClient(inner, collector);
 
   final http.Client _inner;
 

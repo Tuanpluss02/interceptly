@@ -163,7 +163,6 @@ void main() {
       expect(index.length, 0);
       expect(index.entries, isEmpty);
       expect(index.byId('missing'), isNull);
-      expect(index.get('missing'), isNull);
       expect(index.filtered(RequestFilter()), isEmpty);
 
       expect(() => index.clear(), returnsNormally);
@@ -181,7 +180,6 @@ void main() {
         expect(index.length, 0);
         expect(index.entries, isEmpty);
         expect(index.byId('any'), isNull);
-        expect(index.get('any'), isNull);
         expect(() => index.clear(), returnsNormally);
         expect(() => index.add(_createEntry('neg')), returnsNormally);
         expect(index.length, 1);
@@ -222,7 +220,6 @@ void main() {
         if (i > 0) {
           final prevId = 'req_${i - 1}';
           expect(index.byId(prevId), isNull);
-          expect(index.get(prevId), isNull);
         }
 
         final updated = _createEntry(id, statusCode: 200, durationMs: i);
@@ -312,7 +309,6 @@ void main() {
         if (n > capacity) {
           final evictedId = 'item_${n - capacity}';
           expect(index.byId(evictedId), isNull);
-          expect(index.get(evictedId), isNull);
         }
       }
     });

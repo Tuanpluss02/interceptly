@@ -164,9 +164,7 @@ void main() {
       expect(index.length, 3);
       expect(index.entries.map((e) => e.id).toList(), ['4', '3', '2']);
       expect(index.byId('1'), isNull);
-      expect(index.get('1'), isNull);
       expect(index.byId('4')?.id, '4');
-      expect(index.get('4')?.id, '4');
     });
 
     test('updates in-place without reordering or shifting other entries', () {
@@ -185,7 +183,6 @@ void main() {
       expect(index.entries[1].statusCode, 200);
       expect(index.entries[1].durationMs, 99);
       expect(index.byId('2')?.statusCode, 200);
-      expect(index.get('2')?.durationMs, 99);
     });
 
     test('clamps maxEntries <= 0 to 1 on add', () {
@@ -211,7 +208,7 @@ void main() {
       expect(index.length, 0);
       expect(index.entries, isEmpty);
       expect(index.byId('a'), isNull);
-      expect(index.get('b'), isNull);
+      expect(index.byId('b'), isNull);
 
       index.add(_buildEntry('d'));
       expect(index.length, 1);

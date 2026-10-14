@@ -75,8 +75,4 @@ abstract class InspectorSessionView extends ChangeNotifier {
   /// Returns captured realtime frames for the given [sessionId] in FIFO order.
   List<RealtimeFrame> getRealtimeFrames(String sessionId) =>
       const <RealtimeFrame>[];
-
-  /// Alias for [getRealtimeFrames].
-  List<RealtimeFrame> getFrames(String sessionId) =>
-      getRealtimeFrames(sessionId);
 }

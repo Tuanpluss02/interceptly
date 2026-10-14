@@ -46,8 +46,6 @@ class MemoryIndex {
     return _buffer[slot];
   }
 
-  /// Alias for [byId] matching interface contract.
-  IndexEntry? get(String id) => byId(id);
 
   /// Inserts a new entry or updates an existing entry in-place in O(1) time.
   ///

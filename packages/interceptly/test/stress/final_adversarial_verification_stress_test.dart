@@ -124,12 +124,12 @@ void main() {
       expect(newest.id, startsWith('req_'));
 
       for (var i = 0; i < totalItems - capacity; i++) {
-        expect(index.get('req_$i'), isNull);
+        expect(index.byId('req_$i'), isNull);
       }
 
       var retainedCount = 0;
       for (var i = totalItems - capacity; i < totalItems; i++) {
-        if (index.get('req_$i') != null) {
+        if (index.byId('req_$i') != null) {
           retainedCount++;
         }
       }
@@ -137,7 +137,7 @@ void main() {
 
       for (var i = 0; i < capacity; i++) {
         final entry = index.entries[i];
-        expect(index.get(entry.id), isNotNull);
+        expect(index.byId(entry.id), isNotNull);
       }
     });
 
