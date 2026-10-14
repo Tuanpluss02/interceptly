@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -47,6 +48,16 @@ class ExampleLocalServer {
 
   Future<void> _handleRequest(HttpRequest request) async {
     final path = request.uri.path;
+
+    if (path == '/ws/chat' && WebSocketTransformer.isUpgradeRequest(request)) {
+      try {
+        final socket = await WebSocketTransformer.upgrade(request);
+        _handleChatSocket(socket);
+      } catch (_) {
+        // Upgrade failed
+      }
+      return;
+    }
 
     if (path == '/ws/echo' && WebSocketTransformer.isUpgradeRequest(request)) {
       try {
@@ -567,4 +578,113 @@ class ExampleLocalServer {
     0x5A, 0x91, 0x0A, 0x13, 0x00, 0x00, 0x00, 0x00,
     0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
   ]);
+
+  void _handleChatSocket(WebSocket socket) {
+    // 1. Initial system welcome
+    socket.add(
+      jsonEncode({
+        'type': 'system',
+        'event': 'connected',
+        'room': 'support_channel',
+        'message':
+            'Kết nối thành công đến Support Hub. Chuyên viên Sarah đã sẵn sàng!',
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      }),
+    );
+
+    // 2. Delayed Sarah greeting after 400ms
+    Timer(const Duration(milliseconds: 400), () {
+      if (socket.readyState == WebSocket.open) {
+        socket.add(
+          jsonEncode({
+            'type': 'agent_message',
+            'from': 'Sarah (Support Specialist)',
+            'message':
+                'Xin chào! Mình là Sarah từ ban kỹ thuật Interceptly. Bạn cần mình hỗ trợ gì hôm nay?',
+            'timestamp': DateTime.now().millisecondsSinceEpoch,
+          }),
+        );
+      }
+    });
+
+    // 3. Heartbeat every 25 seconds
+    final heartbeatTimer = Timer.periodic(const Duration(seconds: 25), (_) {
+      if (socket.readyState == WebSocket.open) {
+        socket.add(
+          jsonEncode({
+            'type': 'heartbeat',
+            'serverTime': DateTime.now().toIso8601String(),
+          }),
+        );
+      }
+    });
+
+    // 4. Handle incoming messages
+    socket.listen(
+      (dynamic rawMessage) {
+        final text = rawMessage.toString().trim();
+        String userQuery = text;
+        try {
+          final dynamic decoded = jsonDecode(text);
+          if (decoded is Map<String, dynamic> && decoded['message'] != null) {
+            userQuery = decoded['message'].toString();
+          }
+        } catch (_) {}
+
+        // Send typing indicator after 150ms
+        Timer(const Duration(milliseconds: 150), () {
+          if (socket.readyState != WebSocket.open) return;
+          socket.add(
+            jsonEncode({
+              'type': 'typing',
+              'from': 'Sarah',
+              'status': true,
+            }),
+          );
+
+          // Reply after 400ms
+          Timer(const Duration(milliseconds: 400), () {
+            if (socket.readyState != WebSocket.open) return;
+
+            final lower = userQuery.toLowerCase();
+            String reply;
+
+            if (lower.contains('ping')) {
+              reply =
+                  'Pong! 🏓 Kết nối WebSocket đang phản hồi cực nhanh (~10ms).';
+            } else if (lower.contains('lỗi') ||
+                lower.contains('bug') ||
+                lower.contains('error') ||
+                lower.contains('fail')) {
+              reply =
+                  'Để kiểm tra lỗi này, bạn hãy mở Interceptly Inspector (bấm Floating Bubble hoặc nút Inspect ở trên), chọn tab Realtime để xem chi tiết error code & headers nhé!';
+            } else if (lower.contains('đơn hàng') ||
+                lower.contains('order')) {
+              reply =
+                  'Đơn hàng #DH-20261014 của bạn đã được đóng gói và đang được vận chuyển đến bạn!';
+            } else {
+              reply =
+                  'Sarah đã nhận được tin nhắn của bạn: "$userQuery". Bạn có thể vào tab Realtime của Interceptly để xem outgoing & incoming frame của tin nhắn này!';
+            }
+
+            socket.add(
+              jsonEncode({
+                'type': 'agent_message',
+                'from': 'Sarah (Support Specialist)',
+                'message': reply,
+                'timestamp': DateTime.now().millisecondsSinceEpoch,
+              }),
+            );
+          });
+        });
+      },
+      onError: (Object error) {
+        heartbeatTimer.cancel();
+        socket.close(WebSocketStatus.unsupportedData, error.toString());
+      },
+      onDone: () {
+        heartbeatTimer.cancel();
+      },
+    );
+  }
 }
