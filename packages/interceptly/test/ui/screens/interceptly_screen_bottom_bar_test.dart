@@ -77,7 +77,7 @@ void main() {
       expect(find.text('Realtime'), findsOneWidget);
 
       session.closeRealtimeConnection('ws_auto_1');
-      await tester.pump();
+      await tester.pumpAndSettle();
     });
 
     testWidgets('tab switching alternates between REST requests and WebSocket connections', (tester) async {
