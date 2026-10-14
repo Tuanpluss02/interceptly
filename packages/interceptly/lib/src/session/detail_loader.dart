@@ -68,10 +68,6 @@ class DetailLoader {
           } else {
             reqBytes = decoded.$1;
             resBytes = decoded.$2;
-            if (decoded.$3) {
-              reqStorage = markStorageCut(reqStorage, reqBytes?.length ?? 0);
-              resStorage = markStorageCut(resStorage, resBytes?.length ?? 0);
-            }
           }
         } catch (_) {
           reqPreview = BodyDecodeService.unavailablePlaceholder;

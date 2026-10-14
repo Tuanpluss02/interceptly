@@ -146,6 +146,13 @@ void main() {
       expect(res, isNull);
       expect(truncated, isFalse);
     });
+    test('decodes clean packed format without trailing flag byte', () {
+      final packed = _packClean('{"id":1}', '{"ok":true}');
+      final (req, res, truncated) = BodyDecodeService.unpackToText(packed);
+      expect(req, '{"id":1}');
+      expect(res, '{"ok":true}');
+      expect(truncated, isFalse);
+    });
   });
 
   group('BodyDecodeService.unpackToBytes', () {
@@ -153,6 +160,18 @@ void main() {
       final reqText = '{"id":1}';
       final resText = '{"ok":true}';
       final packed = _packBodies(reqText, resText);
+      final (reqBytes, resBytes, truncated) = BodyDecodeService.unpackToBytes(
+        packed,
+      );
+      expect(utf8.decode(reqBytes!), reqText);
+      expect(utf8.decode(resBytes!), resText);
+      expect(truncated, isFalse);
+    });
+
+    test('decodes clean packed format without trailing flag byte', () {
+      final reqText = '{"id":1}';
+      final resText = '{"ok":true}';
+      final packed = _packClean(reqText, resText);
       final (reqBytes, resBytes, truncated) = BodyDecodeService.unpackToBytes(
         packed,
       );
@@ -170,6 +189,31 @@ void main() {
       expect(truncated, isFalse);
     });
   });
+}
+
+Uint8List _packClean(String? req, String? res) {
+  final reqBytes = req == null ? null : Uint8List.fromList(utf8.encode(req));
+  final resBytes = res == null ? null : Uint8List.fromList(utf8.encode(res));
+  final total = 4 + (reqBytes?.length ?? 0) + 4 + (resBytes?.length ?? 0);
+  final out = Uint8List(total);
+  final data = ByteData.sublistView(out);
+  var offset = 0;
+
+  void writePart(Uint8List? part) {
+    if (part == null) {
+      data.setUint32(offset, 0xFFFFFFFF, Endian.big);
+      offset += 4;
+      return;
+    }
+    data.setUint32(offset, part.length, Endian.big);
+    offset += 4;
+    out.setRange(offset, offset + part.length, part);
+    offset += part.length;
+  }
+
+  writePart(reqBytes);
+  writePart(resBytes);
+  return out;
 }
 
 /// Builds a packed body record in the format that BodyDecodeService expects.

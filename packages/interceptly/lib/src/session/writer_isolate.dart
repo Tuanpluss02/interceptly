@@ -380,15 +380,32 @@ Future<void> _isolateEntry(_InitMessage init) async {
   }
 }
 
+@visibleForTesting
+IndexEntry fallbackEntryForTesting(RawCapture capture) => _fallbackEntry(capture);
+
 IndexEntry _fallbackEntry(RawCapture capture) {
+  int? reqLen;
+  try {
+    reqLen = capture.requestBodyBytes?.materialize().asUint8List().length;
+  } catch (_) {}
+  final reqSize = capture.requestSizeBytes ?? reqLen ?? 0;
+  final hasReq = reqSize > 0 || capture.requestBodyBytes != null;
+
+  int? resLen;
+  try {
+    resLen = capture.responseBodyBytes?.materialize().asUint8List().length;
+  } catch (_) {}
+  final resSize = capture.responseSizeBytes ?? resLen ?? 0;
+  final hasRes = resSize > 0 || capture.responseBodyBytes != null;
+
   return IndexEntry(
     id: capture.id,
     method: capture.method,
     url: capture.url,
     statusCode: capture.statusCode,
     durationMs: capture.durationMs,
-    requestSizeBytes: 0,
-    responseSizeBytes: 0,
+    requestSizeBytes: reqSize,
+    responseSizeBytes: resSize,
     timestamp: capture.timestamp,
     hasError: capture.hasError,
     bodyLocation: BodyLocation.memory,
@@ -400,19 +417,24 @@ IndexEntry _fallbackEntry(RawCapture capture) {
     responseContentType: capture.responseContentType,
     errorType: capture.errorType,
     errorMessage: capture.errorMessage,
-    requestTruncation: const BodyTruncation.complete(0),
-    responseTruncation: const BodyTruncation.complete(0),
+    requestTruncation: hasReq
+        ? BodyTruncation(
+            originalBytes: reqSize,
+            retainedBytes: 0,
+            stage: TruncationStage.storage,
+          )
+        : const BodyTruncation.complete(0),
+    responseTruncation: hasRes
+        ? BodyTruncation(
+            originalBytes: resSize,
+            retainedBytes: 0,
+            stage: TruncationStage.storage,
+          )
+        : const BodyTruncation.complete(0),
     fileOffset: null,
     fileLength: null,
   );
 }
-
-/// Outcome of packing both bodies for the on-disk record.
-///
-/// The trailing flag byte keeps the packed format byte-compatible with
-/// earlier sessions; the per-side booleans are derived from the same limits
-/// when the entry is built, so they are not carried here.
-typedef _PackedBodies = ({Uint8List bytes});
 
 /// Builds the [BodyTruncation] for one body given how many bytes storage kept.
 ///
@@ -459,7 +481,7 @@ Future<IndexEntry> _processCapture(
   if (useFile) {
     try {
       final packed = _packBodies(reqRaw, resRaw, maxBody);
-      final result = await bodyStore.append(packed.bytes);
+      final result = await bodyStore.append(packed);
       fileOffset = result.$1;
       fileLength = result.$2;
     } catch (_) {
@@ -515,7 +537,7 @@ Uint8List? _maybeTruncate(Uint8List? bytes, int maxBytes) {
 int _keptBytes(int originalBytes, int maxBody) =>
     maxBody > 0 && originalBytes > maxBody ? maxBody : originalBytes;
 
-_PackedBodies _packBodies(
+Uint8List _packBodies(
   Uint8List? req,
   Uint8List? res,
   int maxBody,
@@ -525,13 +547,10 @@ _PackedBodies _packBodies(
     return bytes.sublist(0, maxBody);
   }
 
-  final reqTruncated = maxBody > 0 && req != null && req.length > maxBody;
-  final resTruncated = maxBody > 0 && res != null && res.length > maxBody;
-
   final reqData = req != null && req.isNotEmpty ? truncate(req) : null;
   final resData = res != null && res.isNotEmpty ? truncate(res) : null;
 
-  final total = 4 + (reqData?.length ?? 0) + 4 + (resData?.length ?? 0) + 1;
+  final total = 4 + (reqData?.length ?? 0) + 4 + (resData?.length ?? 0);
   final out = Uint8List(total);
   final data = ByteData.sublistView(out);
   var offset = 0;
@@ -550,7 +569,6 @@ _PackedBodies _packBodies(
 
   writePart(reqData);
   writePart(resData);
-  out[offset] = (reqTruncated || resTruncated) ? 1 : 0;
 
-  return (bytes: out);
+  return out;
 }

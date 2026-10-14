@@ -166,8 +166,8 @@ class BodyDecodeService {
 
       final req = readPart();
       final res = readPart();
-      if (offset + 1 > raw.length) throw const FormatException();
-      return (req, res, raw[offset] == 1);
+      final isTruncated = offset < raw.length && raw[offset] == 1;
+      return (req, res, isTruncated);
     } catch (_) {
       return null;
     }
