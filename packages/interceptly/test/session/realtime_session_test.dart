@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/capture/frame_normalizer.dart';
 
 void main() {
   setUp(() async {
@@ -589,4 +590,74 @@ void main() {
       expect(customSettings.maxTotalRealtimeFrames, equals(10000));
     });
   });
+
+  group('FrameNormalizer & Ingestion Pipeline', () {
+    test('text payload computes byte size via utf8ByteLength with 0 heap byte allocations', () {
+      const text = 'Hello world! 🚀 12345';
+      final normalized = FrameNormalizer.normalize(
+        text,
+        offloadThreshold: 32 * 1024,
+        maxBodyBytes: 1024,
+      );
+      expect(normalized.type, equals(FrameType.text));
+      expect(normalized.originalSizeBytes, equals(utf8ByteLength(text)));
+      expect(normalized.payload, equals(text));
+      expect(normalized.shouldOffload, isFalse);
+      expect(normalized.shortPreview, equals(text));
+    });
+
+    test('binary payload passed as Uint8List is not cloned via fromList', () {
+      final bytes = Uint8List.fromList([1, 2, 3, 4, 5]);
+      final normalized = FrameNormalizer.normalize(
+        bytes,
+        offloadThreshold: 32 * 1024,
+        maxBodyBytes: 1024,
+      );
+      expect(normalized.type, equals(FrameType.binary));
+      expect(identical(normalized.payload, bytes), isTrue, reason: 'Must not clone Uint8List');
+      expect(normalized.originalSizeBytes, equals(5));
+      expect(normalized.shouldOffload, isFalse);
+    });
+
+    test('payloads exceeding offloadThreshold are marked shouldOffload = true', () {
+      final largeText = 'a' * 40000;
+      final normalized = FrameNormalizer.normalize(
+        largeText,
+        offloadThreshold: 32 * 1024,
+        maxBodyBytes: 100 * 1024,
+      );
+      expect(normalized.shouldOffload, isTrue);
+      expect(normalized.originalSizeBytes, equals(40000));
+      expect(normalized.shortPreview.length, equals(128));
+    });
+
+    test('handshake shouldCapture predicate is evaluated once and cached on RealtimeSessionScope', () {
+      var checkCount = 0;
+      final settings = InterceptlySettings(
+        shouldCapture: (url) {
+          checkCount++;
+          return url.contains('allowed');
+        },
+      );
+      final session = InspectorSession(settings: settings);
+      final collector = DefaultRealtimeTrafficCollector(session: session);
+
+      // Disallowed connection
+      final droppedScope = collector.openSession(uri: Uri.parse('wss://example.com/blocked'));
+      expect(checkCount, equals(1));
+
+      // Sending messages on droppedScope should not check predicate again and should not record frames
+      droppedScope.send('hello');
+      droppedScope.receive('world');
+      expect(checkCount, equals(1), reason: 'Predicate must be cached and evaluated once per connection handshake');
+      expect(session.getRealtimeFrames(droppedScope.sessionId), isEmpty);
+
+      // Allowed connection
+      final allowedScope = collector.openSession(uri: Uri.parse('wss://example.com/allowed'));
+      expect(checkCount, equals(2));
+      allowedScope.send('msg1');
+      expect(checkCount, equals(2));
+    });
+  });
 }
+

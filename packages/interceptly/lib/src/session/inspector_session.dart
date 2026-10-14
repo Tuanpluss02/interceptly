@@ -398,6 +398,26 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     if (_settings.shouldCapture != null && !_settings.shouldCapture!(url)) {
       return;
     }
+    _recordPendingEntry(
+      id: id,
+      method: method,
+      url: url,
+      timestamp: timestamp,
+      requestHeaders: requestHeaders,
+      requestBodyBytes: requestBodyBytes,
+      requestContentType: requestContentType,
+    );
+  }
+
+  void _recordPendingEntry({
+    required String id,
+    required String method,
+    required String url,
+    required DateTime timestamp,
+    Map<String, String> requestHeaders = const {},
+    Uint8List? requestBodyBytes,
+    String? requestContentType,
+  }) {
     _entriesVersion++;
     final pending = _pendingTracker.recordPending(
       id: id,
@@ -417,14 +437,13 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   /// Records a captured realtime frame into the session buffer.
   ///
   /// Frames belonging to connections rejected by [InterceptlySettings.shouldCapture]
-  /// are skipped, resolving the connection URL from the stored handshake entry.
-  /// Unknown session ids are skipped only while a capture predicate is active.
+  /// are skipped by verifying that the session was accepted and recorded at handshake.
   void recordRealtimeFrame(RealtimeFrame frame) {
     if (!_enabled || _isDisposed) return;
     final predicate = _settings.shouldCapture;
     if (predicate != null) {
-      final String? url = _memoryIndex.byId(frame.sessionId)?.url;
-      if (url == null || !predicate(url)) return;
+      final entry = _memoryIndex.byId(frame.sessionId);
+      if (entry == null) return;
     }
     _realtimeStore.recordFrame(frame);
   }
@@ -458,10 +477,16 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     required String url,
     Map<String, String> headers = const {},
     DateTime? timestamp,
+    bool isPreValidated = false,
   }) {
     if (!_enabled || _isDisposed) return;
+    if (!isPreValidated &&
+        _settings.shouldCapture != null &&
+        !_settings.shouldCapture!(url)) {
+      return;
+    }
     markRealtimeActive();
-    recordPending(
+    _recordPendingEntry(
       id: id,
       method: 'WS',
       url: url,

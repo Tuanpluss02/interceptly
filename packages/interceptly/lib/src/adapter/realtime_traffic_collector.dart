@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import '../capture/capture_guard.dart';
+import '../capture/frame_normalizer.dart';
 import '../model/realtime_frame.dart';
 import '../model/realtime_protocol_type.dart';
 import '../session/inspector_session.dart';
@@ -30,6 +31,12 @@ abstract interface class RealtimeTrafficCollector {
 
   /// Maximum byte capacity for captured realtime frames.
   int get maxBodyBytes;
+
+  /// Byte threshold above which realtime frame payloads should be offloaded to disk.
+  int get offloadThreshold;
+
+  /// Checks if [uri] is allowed to be captured according to current settings.
+  bool shouldCapture(Uri? uri);
 
   /// Opens and returns a [RealtimeSessionScope] for tracking an active connection.
   RealtimeSessionScope openSession({
@@ -63,6 +70,8 @@ abstract interface class RealtimeTrafficCollector {
     required dynamic payload,
     int? payloadSizeBytes,
     DateTime? timestamp,
+    String? shortPreview,
+    bool? shouldOffload,
   });
 
   /// Records the closure of an active realtime connection.
@@ -89,6 +98,17 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
   int get maxBodyBytes => session.settings.maxBodyBytes;
 
   @override
+  int get offloadThreshold => session.settings.realtimeBodyOffloadThreshold;
+
+  @override
+  bool shouldCapture(Uri? uri) {
+    if (uri == null) return true;
+    final predicate = session.settings.shouldCapture;
+    if (predicate == null) return true;
+    return predicate(uri.toString());
+  }
+
+  @override
   RealtimeSessionScope openSession({
     Uri? uri,
     String? sessionId,
@@ -98,12 +118,15 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
     session.markRealtimeActive();
     final effectiveId = sessionId ?? RequestId.generate();
 
-    if (uri != null) {
+    final isCaptured = shouldCapture(uri);
+
+    if (uri != null && isCaptured) {
       guardCapture(() {
-        recordConnection(
-          sessionId: effectiveId,
-          uri: uri,
-          headers: headers,
+        session.recordRealtimeConnection(
+          id: effectiveId,
+          url: uri.toString(),
+          headers: headers ?? const {},
+          isPreValidated: true,
         );
       });
     }
@@ -113,6 +136,7 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
       sessionId: effectiveId,
       uri: uri,
       protocolType: protocolType,
+      shouldCapture: isCaptured,
     );
     _activeScopes[effectiveId] = scope;
     return scope;
@@ -142,8 +166,7 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
     required Uri uri,
     Map<String, String>? headers,
   }) {
-    if (session.settings.shouldCapture != null &&
-        !session.settings.shouldCapture!(uri.toString())) {
+    if (!shouldCapture(uri)) {
       return;
     }
     guardCapture(() {
@@ -163,44 +186,43 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
     required dynamic payload,
     int? payloadSizeBytes,
     DateTime? timestamp,
+    String? shortPreview,
+    bool? shouldOffload,
   }) {
     guardCapture(() {
+      final normalized = (shortPreview != null && payloadSizeBytes != null)
+          ? null
+          : FrameNormalizer.normalize(
+              payload,
+              offloadThreshold: offloadThreshold,
+              maxBodyBytes: maxBodyBytes,
+              explicitType: type,
+            );
+
+      final effectiveType = normalized?.type ?? type;
+      final effectivePayload = normalized?.payload ?? payload;
+      final effectiveSize =
+          normalized?.originalSizeBytes ?? payloadSizeBytes ?? 0;
+      final effectivePreview =
+          normalized?.shortPreview ?? shortPreview ?? '';
+
       String? textPayload;
       Uint8List? binaryPayload;
-      int? effectiveSize = payloadSizeBytes;
 
-      if (payload is String) {
-        textPayload = payload;
-      } else if (payload is Uint8List) {
-        binaryPayload = Uint8List.fromList(payload);
-      } else if (payload is List<int>) {
-        binaryPayload = Uint8List.fromList(payload);
-      } else if (payload != null) {
-        textPayload = payload.toString();
-      }
-
-      final maxBytes = maxBodyBytes;
-      if (maxBytes > 0) {
-        if (binaryPayload != null) {
-          effectiveSize ??= binaryPayload.lengthInBytes;
-          if (binaryPayload.length > maxBytes) {
-            binaryPayload = Uint8List.sublistView(binaryPayload, 0, maxBytes);
-          }
-        } else if (textPayload != null) {
-          effectiveSize ??= utf8ByteLength(textPayload);
-          if (textPayload.length > maxBytes) {
-            textPayload = textPayload.substring(0, maxBytes);
-          }
-        }
+      if (effectiveType == FrameType.binary && effectivePayload is Uint8List) {
+        binaryPayload = Uint8List.fromList(effectivePayload);
+      } else if (effectiveType == FrameType.text && effectivePayload is String) {
+        textPayload = effectivePayload;
       }
 
       final frame = RealtimeFrame(
         id: RequestId.generate(),
         sessionId: sessionId,
         direction: direction,
-        type: type,
+        type: effectiveType,
         textPayload: textPayload,
         binaryPayload: binaryPayload,
+        shortPreview: effectivePreview,
         payloadSizeBytes: effectiveSize,
         timestamp: timestamp,
       );
