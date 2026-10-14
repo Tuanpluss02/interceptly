@@ -110,51 +110,10 @@ class MasterSearchController extends ChangeNotifier {
 
     final matchedIds = <String>{};
 
-    Set<SearchMatchScope> checkStructuredScopes(IndexEntry e) {
-      final scopes = <SearchMatchScope>{};
-      if (e.url.toLowerCase().contains(q) ||
-          e.method.toLowerCase().contains(q)) {
-        scopes.add(SearchMatchScope.url);
-      }
-      if (e.errorMessage?.toLowerCase().contains(q) ?? false) {
-        scopes.add(SearchMatchScope.error);
-      }
-      for (final h in e.requestHeaders.entries) {
-        if (h.key.toLowerCase().contains(q) ||
-            h.value.toLowerCase().contains(q)) {
-          scopes.add(SearchMatchScope.headers);
-          break;
-        }
-      }
-      if (!scopes.contains(SearchMatchScope.headers)) {
-        for (final h in e.responseHeaders.entries) {
-          if (h.key.toLowerCase().contains(q) ||
-              h.value.toLowerCase().contains(q)) {
-            scopes.add(SearchMatchScope.headers);
-            break;
-          }
-        }
-      }
-      return scopes;
-    }
-
-    bool matchesInlineBody(IndexEntry e) {
-      final req = BodyDecodeService.decode(
-        e.inlineRequestBody,
-        e.requestContentType,
-      )?.toLowerCase();
-      if (req != null && req.contains(q)) return true;
-      final res = BodyDecodeService.decode(
-        e.inlineResponseBody,
-        e.responseContentType,
-      )?.toLowerCase();
-      return res != null && res.contains(q);
-    }
-
     for (var i = 0; i < entriesSnapshot.length; i++) {
       if (gen != _generation || _isDisposed) return;
       final e = entriesSnapshot[i];
-      final scopes = checkStructuredScopes(e);
+      final scopes = _checkStructuredScopes(e, q);
       if (scopes.isNotEmpty) {
         matchedIds.add(e.id);
         _results?.add(e);
@@ -172,7 +131,7 @@ class MasterSearchController extends ChangeNotifier {
     for (var i = 0; i < entriesSnapshot.length; i++) {
       if (gen != _generation || _isDisposed) return;
       final e = entriesSnapshot[i];
-      if (e.bodyLocation == BodyLocation.memory && matchesInlineBody(e)) {
+      if (e.bodyLocation == BodyLocation.memory && _matchesInlineBody(e, q)) {
         if (!matchedIds.contains(e.id)) {
           matchedIds.add(e.id);
           _results?.add(e);
@@ -305,6 +264,81 @@ class MasterSearchController extends ChangeNotifier {
       _isScanningFiles = false;
       _notifyThrottled(force: true);
     }
+  }
+
+  /// Dynamically updates or inserts [entry] in search results if an active query matches.
+  void updateOrAddEntry(IndexEntry entry) {
+    final query = _query;
+    if (_isDisposed || query == null || query.isEmpty || _results == null) {
+      return;
+    }
+
+    final q = query.toLowerCase();
+    final scopes = _checkStructuredScopes(entry, q);
+    if (scopes.isEmpty &&
+        entry.bodyLocation == BodyLocation.memory &&
+        _matchesInlineBody(entry, q)) {
+      scopes.add(SearchMatchScope.body);
+    }
+
+    final existingIndex = _results!.indexWhere((e) => e.id == entry.id);
+
+    if (scopes.isNotEmpty) {
+      if (existingIndex >= 0) {
+        _results![existingIndex] = entry;
+      } else {
+        _results!.insert(0, entry);
+      }
+      _matchScopes[entry.id] = scopes;
+      _notifyThrottled();
+    } else {
+      if (existingIndex >= 0) {
+        _results!.removeAt(existingIndex);
+        _matchScopes.remove(entry.id);
+        _notifyThrottled();
+      }
+    }
+  }
+
+  static Set<SearchMatchScope> _checkStructuredScopes(IndexEntry e, String q) {
+    final scopes = <SearchMatchScope>{};
+    if (e.url.toLowerCase().contains(q) ||
+        e.method.toLowerCase().contains(q)) {
+      scopes.add(SearchMatchScope.url);
+    }
+    if (e.errorMessage?.toLowerCase().contains(q) ?? false) {
+      scopes.add(SearchMatchScope.error);
+    }
+    for (final h in e.requestHeaders.entries) {
+      if (h.key.toLowerCase().contains(q) ||
+          h.value.toLowerCase().contains(q)) {
+        scopes.add(SearchMatchScope.headers);
+        break;
+      }
+    }
+    if (!scopes.contains(SearchMatchScope.headers)) {
+      for (final h in e.responseHeaders.entries) {
+        if (h.key.toLowerCase().contains(q) ||
+            h.value.toLowerCase().contains(q)) {
+          scopes.add(SearchMatchScope.headers);
+          break;
+        }
+      }
+    }
+    return scopes;
+  }
+
+  static bool _matchesInlineBody(IndexEntry e, String q) {
+    final req = BodyDecodeService.decode(
+      e.inlineRequestBody,
+      e.requestContentType,
+    )?.toLowerCase();
+    if (req != null && req.contains(q)) return true;
+    final res = BodyDecodeService.decode(
+      e.inlineResponseBody,
+      e.responseContentType,
+    )?.toLowerCase();
+    return res != null && res.contains(q);
   }
 
   @override

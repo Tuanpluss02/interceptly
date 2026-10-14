@@ -32,7 +32,7 @@ class PendingTracker {
   }
 
   /// Inserts a pending request entry into [MemoryIndex] and starts its timeout timer.
-  void recordPending({
+  IndexEntry recordPending({
     required String id,
     required String method,
     required String url,
@@ -53,33 +53,34 @@ class PendingTracker {
       inlineBytes: inlineRequestBody?.length ?? 0,
     );
 
-    _memoryIndex.add(
-      IndexEntry(
-        id: id,
-        method: method,
-        url: url,
-        statusCode: 0,
-        durationMs: 0,
-        requestSizeBytes: requestSize,
-        responseSizeBytes: 0,
-        timestamp: timestamp,
-        hasError: false,
-        bodyLocation: BodyLocation.memory,
-        inlineRequestBody: inlineRequestBody,
-        inlineResponseBody: null,
-        requestHeaders: requestHeaders,
-        responseHeaders: const {},
-        requestContentType: requestContentType,
-        responseContentType: null,
-        errorType: null,
-        errorMessage: null,
-        requestTruncation: requestTruncation,
-        responseTruncation: const BodyTruncation.complete(0),
-        fileOffset: null,
-        fileLength: null,
-      ),
+    final entry = IndexEntry(
+      id: id,
+      method: method,
+      url: url,
+      statusCode: 0,
+      durationMs: 0,
+      requestSizeBytes: requestSize,
+      responseSizeBytes: 0,
+      timestamp: timestamp,
+      hasError: false,
+      bodyLocation: BodyLocation.memory,
+      inlineRequestBody: inlineRequestBody,
+      inlineResponseBody: null,
+      requestHeaders: requestHeaders,
+      responseHeaders: const {},
+      requestContentType: requestContentType,
+      responseContentType: null,
+      errorType: null,
+      errorMessage: null,
+      requestTruncation: requestTruncation,
+      responseTruncation: const BodyTruncation.complete(0),
+      fileOffset: null,
+      fileLength: null,
     );
+
+    _memoryIndex.add(entry);
     schedule(id);
+    return entry;
   }
 
   /// Marks a pending realtime connection as closed with [closeCode] and [closeReason].

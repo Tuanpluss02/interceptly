@@ -55,7 +55,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       tempFilePathProvider: () => _capturePipeline.tempFilePath,
       maxUiPreviewBytesProvider: () => _settings.maxUiPreviewBytes,
     );
-    _search.addListener(notifyListeners);
+    _search.addListener(_onSearchChanged);
     _grouping.addListener(_onGroupingChanged);
     _preferences.addListener(notifyListeners);
   }
@@ -206,10 +206,16 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     notifyListeners();
   }
 
+  void _onSearchChanged() {
+    _invalidateGroupedCache();
+    notifyListeners();
+  }
+
   void _onCaptureReady(IndexEntry entry) {
     _entriesVersion++;
     _memoryIndex.add(entry);
     _invalidateGroupedCache();
+    _search.updateOrAddEntry(entry);
     _scheduleCoalescedNotify();
   }
 
@@ -374,7 +380,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       return;
     }
     _entriesVersion++;
-    _pendingTracker.recordPending(
+    final pending = _pendingTracker.recordPending(
       id: id,
       method: method,
       url: url,
@@ -385,7 +391,8 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       settings: _settings,
     );
     _invalidateGroupedCache();
-    notifyListeners();
+    _search.updateOrAddEntry(pending);
+    _scheduleCoalescedNotify();
   }
 
   /// Records a captured realtime frame into the session buffer.
