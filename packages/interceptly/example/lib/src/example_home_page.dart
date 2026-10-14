@@ -317,23 +317,14 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
             const SizedBox(height: 24),
 
             _buildSectionHeader(
-              title: 'Security & Filtering',
-              subtitle:
-                  'Verify sensitive headers redaction and URL blacklist exclusion.',
+              title: 'URL Filtering',
+              subtitle: 'Verify URL blacklist exclusion via shouldCapture filter.',
               color: Colors.teal,
             ),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                FilledButton.tonalIcon(
-                  onPressed: _isLoading
-                      ? null
-                      : () => _runRequest('Redacted Headers',
-                          _runner.runSecureRequestWithTokens),
-                  icon: const Icon(Icons.lock_outline, size: 18),
-                  label: const Text('Redacted Headers (Token/Cookie)'),
-                ),
                 OutlinedButton.icon(
                   onPressed: _isLoading
                       ? null

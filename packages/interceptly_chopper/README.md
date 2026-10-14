@@ -64,25 +64,15 @@ void main() {
 
 ## Configuration Options & SPI Injection
 
-`InterceptlyChopperInterceptor` implements `HttpCaptureAdapter`. By default it attaches to `InspectorSession.instance` and `DefaultHttpTrafficCollector`, but you can pass custom instances:
+`InterceptlyChopperInterceptor` implements `HttpCaptureAdapter`. By default it uses `DefaultHttpTrafficCollector()`, which automatically coordinates with `InspectorSession.instance`. You can also inject a custom `HttpTrafficCollector`:
 
 ```dart
-// Custom session:
-final customSession = InspectorSession(
-  settings: const InterceptlySettings(maxEntries: 1000),
-);
+// Custom collector:
+final collector = MyCustomHttpTrafficCollector();
 
 final chopper = ChopperClient(
   interceptors: [
-    InterceptlyChopperInterceptor(customSession),
-  ],
-);
-
-// Or custom collector:
-final collector = DefaultHttpTrafficCollector(customSession);
-final customChopper = ChopperClient(
-  interceptors: [
-    InterceptlyChopperInterceptor(customSession, collector),
+    InterceptlyChopperInterceptor(collector: collector),
   ],
 );
 ```

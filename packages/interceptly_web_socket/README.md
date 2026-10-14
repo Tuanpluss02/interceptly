@@ -96,18 +96,13 @@ final inspectedChannel = InterceptlyWebSocketChannel.wrap(
 
 ## Configuration Options & SPI Injection
 
-`InterceptlyWebSocketChannel` implements `RealtimeCaptureAdapter`. By default it attaches to `InspectorSession.instance` and `DefaultRealtimeTrafficCollector`, but you can inject custom instances:
+`InterceptlyWebSocketChannel` implements `RealtimeCaptureAdapter`. By default it uses `DefaultRealtimeTrafficCollector()`, which automatically coordinates with `InspectorSession.instance`. You can also inject a custom `RealtimeTrafficCollector`:
 
 ```dart
-final customSession = InspectorSession(
-  settings: const InterceptlySettings(maxFramesPerSession: 1000),
-);
-
-final collector = DefaultRealtimeTrafficCollector(customSession);
+final collector = MyCustomRealtimeTrafficCollector();
 
 final channel = InterceptlyWebSocketChannel.connect(
   Uri.parse('wss://echo.websocket.events'),
-  session: customSession,
   collector: collector,
 );
 ```

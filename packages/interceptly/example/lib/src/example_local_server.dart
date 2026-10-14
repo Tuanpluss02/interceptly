@@ -7,9 +7,8 @@ import 'dart:typed_data';
 /// Binds to `127.0.0.1:0` (ephemeral port assigned by OS) to serve:
 /// 1. Standard RESTful endpoints (GET, POST 201, PUT, PATCH, DELETE 204, 400, 401, 404, 503).
 /// 2. Specialized formats (GraphQL, Multipart upload, Binary PNG, Vector SVG).
-/// 3. Security verification (Redacted headers like Authorization, Cookies, API Keys).
-/// 4. URL filtering test (Analytics endpoint).
-/// 5. Stress test endpoints (Heavy list 1MB, Extreme list 6MB, Deeply nested 35 lvls, Wide text, Delayed).
+/// 3. URL filtering test (Analytics endpoint).
+/// 4. Stress test endpoints (Heavy list 1MB, Extreme list 6MB, Deeply nested 35 lvls, Wide text, Delayed).
 class ExampleLocalServer {
   HttpServer? _server;
   String? _baseUrl;
@@ -93,8 +92,6 @@ class ExampleLocalServer {
         _handleImagePng(response);
       } else if (path == '/api/image/svg') {
         _handleImageSvg(response);
-      } else if (path == '/api/secure-profile') {
-        _handleSecureProfile(request, response);
       } else if (path == '/api/analytics/track') {
         _handleAnalytics(request, response);
       } else if (path == '/api/unauthorized') {
@@ -356,25 +353,6 @@ class ExampleLocalServer {
 ''');
   }
 
-  void _handleSecureProfile(HttpRequest request, HttpResponse response) {
-    response.headers.contentType = ContentType.json;
-    final auth = request.headers.value('authorization');
-    final apiKey = request.headers.value('x-api-key');
-    final cookie = request.headers.value('cookie');
-
-    response.statusCode = HttpStatus.ok;
-    response.write(
-      jsonEncode({
-        'status': 'authorized',
-        'user': 'security_tester',
-        'hasAuthorization': auth != null,
-        'hasApiKey': apiKey != null,
-        'hasCookie': cookie != null,
-        'securityAudit':
-            'All sensitive authorization/cookie/api-key headers should appear as [REDACTED] in Interceptly!',
-      }),
-    );
-  }
 
   void _handleAnalytics(HttpRequest request, HttpResponse response) {
     response.headers.contentType = ContentType.json;

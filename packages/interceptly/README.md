@@ -28,7 +28,7 @@ The core `interceptly` package contains the inspection UI overlay, background is
 - **Network Simulation**: Global simulation profiles for Offline, Slow 3G, Fast 4G, or custom latency/bandwidth.
 - **Advanced Formatters**: Specialized views for GraphQL operations, Multipart FormData, cURL generation, and Binary data.
 - **Master Search**: Filter across URLs, headers, bodies, frames, and errors with instant highlight navigation.
-- **Opt-in Redaction**: Capture stores everything by default; pass `redactedHeaders`, `redactedQueryParams`, or `bodyRedactor` to scrub secrets before storage, and use the custom `shouldCapture` predicate to filter endpoints.
+- **Endpoint Filtering**: Synchronously filter URLs with the `shouldCapture` predicate to bypass analytics or unwanted endpoints.
 - **Export**: Share or export traffic sessions as HAR, cURL commands, or Postman collections.
 
 ---
@@ -87,10 +87,6 @@ void main() {
       settings: const InterceptlySettings(
         maxEntries: 1000,
         maxFramesPerSession: 1000,
-        // Opt-in: redaction is off by default, so list every sensitive
-        // header explicitly. Captured traffic may contain PII — keep the
-        // inspector debug-only and consider redactedQueryParams/bodyRedactor.
-        redactedHeaders: {'authorization', 'cookie', 'set-cookie', 'x-api-key'},
       ),
       showFloatingButton: true, // Floating overlay bug button
     );
@@ -315,9 +311,6 @@ All capture parameters and limits are configured via `InterceptlySettings`:
 | `maxEntries` | `5000` | Maximum network requests/sessions retained in history |
 | `pendingTimeout` | `45 s` | Duration after which an unfinished request is marked as timed out |
 | `urlDecodeEnabled` | `true` | Decode URL percent-encodings in inspector views |
-| `redactedHeaders` | `{}` (opt-in) | Header names replaced with `[REDACTED]` (case-insensitive); empty means capture stores all headers |
-| `redactedQueryParams` | `{}` (opt-in) | Query parameter names masked as `[REDACTED]` in stored URLs (case-insensitive) |
-| `bodyRedactor` | `null` (opt-in) | Optional `Uint8List? Function(Uint8List?)` hook transforming bodies before persist; `null` leaves bytes untouched |
 | `shouldCapture` | `null` | Optional predicate `bool Function(String url)`; returns `false` to skip capture |
 
 > [!NOTE]
@@ -359,7 +352,7 @@ Interceptly.instance.clearNetworkSimulation();
 | `showFloatingButton` | `bool` | `true` | Whether to display the draggable floating action button overlay |
 | `fabChild` | `Widget?` | `null` | Optional custom widget rendered inside the floating action button |
 | `customTrigger` | `Stream<void>?` | `null` | External event stream to trigger opening the inspector (e.g. shake detector, volume keys, gesture) |
-| `settings` | `InterceptlySettings?` | Default settings | Storage thresholds, body caps, redactions, and timeout durations |
+| `settings` | `InterceptlySettings?` | Default settings | Storage thresholds, body caps, filtering predicates, and timeout durations |
 | `allowInRelease` | `bool` | `false` | Security guard preventing accidental release-mode exposure unless set to `true` |
 
 ### Overlay & Navigation Triggers

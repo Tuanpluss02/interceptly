@@ -80,10 +80,6 @@ void main() {
       settings: const InterceptlySettings(
         maxEntries: 1000,
         maxFramesPerSession: 1000,
-        // Opt-in: redaction is off by default, so list every sensitive
-        // header explicitly. Captured traffic may contain PII — keep the
-        // inspector debug-only and consider redactedQueryParams/bodyRedactor.
-        redactedHeaders: {'authorization', 'cookie', 'set-cookie', 'x-api-key'},
       ),
     );
   }
@@ -143,7 +139,7 @@ channel.sink.add('Hello Interceptly!');
 | `showFloatingButton` | `bool` | `true` | Whether to display the draggable floating action button overlay |
 | `fabChild` | `Widget?` | `null` | Optional custom widget rendered inside the floating action button |
 | `customTrigger` | `Stream<void>?` | `null` | Stream triggering inspector opening (e.g. shake detector, volume keys, gesture) |
-| `settings` | `InterceptlySettings?` | Default settings | Storage thresholds, body caps, redactions, and timeout durations |
+| `settings` | `InterceptlySettings?` | Default settings | Storage thresholds, body caps, filtering predicates, and timeout durations |
 | `allowInRelease` | `bool` | `false` | Security guard preventing accidental release-mode exposure unless set to `true` |
 
 ### Overlay & Navigation Triggers

@@ -525,41 +525,6 @@ mutation UpdateUserStatus(\$id: ID!, \$status: String!) {
     }
   }
 
-  /// GET /api/secure-profile -> Sends Bearer token, Cookie, and API Key
-  Future<ExampleRequestResult> runSecureRequestWithTokens() async {
-    final sw = Stopwatch()..start();
-    try {
-      final response = await dio.get<dynamic>(
-        '/api/secure-profile',
-        options: Options(
-          headers: {
-            'Authorization':
-                'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.super_secret_payload_987654321',
-            'X-Api-Key': 'prod_secret_api_key_ABC123XYZ',
-            'Cookie':
-                'session_token=secret_cookie_session_456; refresh_token=refresh_secret_789',
-          },
-        ),
-      );
-      sw.stop();
-      final bodyStr = jsonEncode(response.data);
-      return ExampleRequestResult(
-        statusCode: response.statusCode ?? 200,
-        preview: bodyStr,
-        bytesReceived: utf8.encode(bodyStr).length,
-        durationMs: sw.elapsedMilliseconds,
-      );
-    } on DioException catch (e) {
-      sw.stop();
-      final preview = e.message ?? e.type.name;
-      return ExampleRequestResult(
-        statusCode: e.response?.statusCode ?? 0,
-        preview: preview,
-        bytesReceived: utf8.encode(preview).length,
-        durationMs: sw.elapsedMilliseconds,
-      );
-    }
-  }
 
   /// POST /api/analytics/track -> URL blacklisted by shouldCapture
   Future<ExampleRequestResult> runAnalyticsRequest() async {

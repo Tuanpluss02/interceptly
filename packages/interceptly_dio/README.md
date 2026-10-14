@@ -45,7 +45,7 @@ void main() {
     Interceptly.init(
       navigatorKey: navigatorKey,
       settings: const InterceptlySettings(
-        redactedHeaders: {'authorization', 'cookie', 'x-api-key'},
+        maxEntries: 1000,
       ),
     );
   }
@@ -67,21 +67,13 @@ void main() {
 
 ## Configuration Options & SPI Injection
 
-`InterceptlyDioInterceptor` implements `HttpCaptureAdapter`. By default it attaches to `InspectorSession.instance` and `DefaultHttpTrafficCollector`, but you can inject a custom session or custom `HttpTrafficCollector`:
+`InterceptlyDioInterceptor` implements `HttpCaptureAdapter`. By default it uses `DefaultHttpTrafficCollector()`, which automatically coordinates with `InspectorSession.instance`. You can also inject a custom `HttpTrafficCollector`:
 
 ```dart
-// Custom session
-final customSession = InspectorSession(
-  settings: const InterceptlySettings(maxEntries: 1000),
-);
-final dio = Dio()..interceptors.add(
-  InterceptlyDioInterceptor(customSession),
-);
-
-// Or custom collector:
-final collector = DefaultHttpTrafficCollector(customSession);
+// Custom collector:
+final collector = MyCustomHttpTrafficCollector();
 final customDio = Dio()..interceptors.add(
-  InterceptlyDioInterceptor(customSession, collector),
+  InterceptlyDioInterceptor(collector: collector),
 );
 ```
 
