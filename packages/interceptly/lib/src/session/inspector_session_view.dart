@@ -4,6 +4,7 @@ import '../model/domain_group.dart';
 import '../model/interceptly_settings.dart';
 import '../model/network_simulation.dart';
 import '../model/realtime_frame.dart';
+import '../model/realtime_protocol_type.dart';
 import '../model/request_filter.dart';
 import '../model/request_record.dart';
 import '../model/request_summary.dart';
@@ -78,4 +79,16 @@ abstract class InspectorSessionView extends ChangeNotifier {
   /// Returns captured realtime frames for the given [sessionId] in FIFO order.
   List<RealtimeFrame> getRealtimeFrames(String sessionId) =>
       const <RealtimeFrame>[];
+
+  /// Whether messages can be actively sent to the realtime session with [sessionId].
+  bool canSendRealtimeMessage(String sessionId) => false;
+
+  /// Returns the protocol type for the given realtime [sessionId], if known.
+  RealtimeProtocolType? getRealtimeProtocol(String sessionId) => null;
+
+  /// Transmits [draft] to the active connection with [sessionId].
+  Future<void> sendRealtimeMessage(
+    String sessionId,
+    RealtimeMessageDraft draft,
+  ) async {}
 }

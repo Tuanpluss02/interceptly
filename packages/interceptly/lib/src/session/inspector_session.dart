@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../adapter/realtime_traffic_collector.dart';
 import '../core/interceptly_controller.dart';
 import '../model/domain_group.dart';
 import '../model/index_entry.dart';
@@ -9,6 +10,7 @@ import '../model/interceptly_settings.dart';
 import '../model/network_simulation.dart';
 import '../model/raw_capture.dart';
 import '../model/realtime_frame.dart';
+import '../model/realtime_protocol_type.dart';
 import '../model/request_filter.dart';
 import '../model/request_record.dart';
 import '../model/request_summary.dart';
@@ -430,6 +432,21 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   @override
   List<RealtimeFrame> getRealtimeFrames(String sessionId) =>
       _realtimeStore.getRealtimeFrames(sessionId);
+
+  @override
+  bool canSendRealtimeMessage(String sessionId) =>
+      RealtimeTrafficCollector.instance.canSend(sessionId);
+
+  @override
+  RealtimeProtocolType? getRealtimeProtocol(String sessionId) =>
+      RealtimeTrafficCollector.instance.getSender(sessionId)?.protocolType;
+
+  @override
+  Future<void> sendRealtimeMessage(
+    String sessionId,
+    RealtimeMessageDraft draft,
+  ) =>
+      RealtimeTrafficCollector.instance.sendMessage(sessionId, draft);
 
   /// Records opening of a realtime connection.
   void recordRealtimeConnection({

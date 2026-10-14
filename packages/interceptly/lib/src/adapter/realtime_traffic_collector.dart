@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import '../capture/capture_guard.dart';
 import '../model/realtime_frame.dart';
+import '../model/realtime_protocol_type.dart';
 import '../session/inspector_session.dart';
 import '../session/request_id.dart';
 import 'realtime_session_scope.dart';
@@ -35,7 +36,17 @@ abstract interface class RealtimeTrafficCollector {
     Uri? uri,
     String? sessionId,
     Map<String, String>? headers,
+    RealtimeProtocolType protocolType = RealtimeProtocolType.webSocket,
   });
+
+  /// Whether message transmission is currently permitted on [sessionId].
+  bool canSend(String sessionId);
+
+  /// Returns the active [RealtimeConnectionSender] for [sessionId], if attached.
+  RealtimeConnectionSender? getSender(String sessionId);
+
+  /// Transmits [draft] through the active sender registered for [sessionId].
+  Future<void> sendMessage(String sessionId, RealtimeMessageDraft draft);
 
   /// Records the establishment of a realtime connection (e.g. WebSocket handshake).
   void recordConnection({
@@ -69,6 +80,7 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
       : _customSession = session;
 
   final InspectorSession? _customSession;
+  final Map<String, RealtimeSessionScope> _activeScopes = {};
 
   /// The underlying [InspectorSession] used for storing captured traffic.
   InspectorSession get session => _customSession ?? InspectorSession.instance;
@@ -81,6 +93,7 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
     Uri? uri,
     String? sessionId,
     Map<String, String>? headers,
+    RealtimeProtocolType protocolType = RealtimeProtocolType.webSocket,
   }) {
     session.markRealtimeActive();
     final effectiveId = sessionId ?? RequestId.generate();
@@ -95,11 +108,32 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
       });
     }
 
-    return RealtimeSessionScope(
+    final scope = RealtimeSessionScope(
       collector: this,
       sessionId: effectiveId,
       uri: uri,
+      protocolType: protocolType,
     );
+    _activeScopes[effectiveId] = scope;
+    return scope;
+  }
+
+  @override
+  bool canSend(String sessionId) => _activeScopes[sessionId]?.canSend ?? false;
+
+  @override
+  RealtimeConnectionSender? getSender(String sessionId) =>
+      _activeScopes[sessionId]?.sender;
+
+  @override
+  Future<void> sendMessage(String sessionId, RealtimeMessageDraft draft) async {
+    final scope = _activeScopes[sessionId];
+    if (scope == null) {
+      throw StateError(
+        'Cannot send message: no active session found for id $sessionId',
+      );
+    }
+    await scope.sendToServer(draft);
   }
 
   @override
@@ -181,6 +215,7 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
     int? closeCode,
     String? closeReason,
   }) {
+    _activeScopes.remove(sessionId);
     guardCapture(() {
       session.closeRealtimeConnection(
         sessionId,
