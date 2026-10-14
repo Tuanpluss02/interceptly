@@ -800,6 +800,151 @@ void main() {
       expect(notifierA.value.incoming, equals(1));
     });
   });
+
+  group('RealtimeBodyStore Integration & Async Lazy Load in InspectorSession', () {
+    test('frames >= 32 KB are offloaded to temp file and lazy-loaded', () async {
+      final session = InspectorSession(
+        settings: const InterceptlySettings(
+          realtimeBodyOffloadThreshold: 32 * 1024,
+        ),
+      );
+      addTearDown(session.dispose);
+
+      const smallText = 'hello world';
+      final largeText = 'a' * (40 * 1024);
+
+      session.recordRealtimeConnection(
+        id: 'ws-offload',
+        url: 'wss://example.com/ws',
+      );
+
+      // Small frame: memory
+      await session.recordRealtimeFrame(RealtimeFrame.text(
+        id: 'f-small',
+        sessionId: 'ws-offload',
+        direction: FrameDirection.incoming,
+        text: smallText,
+      ));
+
+      // Large frame: offloaded
+      await session.recordRealtimeFrame(RealtimeFrame.text(
+        id: 'f-large',
+        sessionId: 'ws-offload',
+        direction: FrameDirection.incoming,
+        text: largeText,
+      ));
+
+      final frames = session.getRealtimeFrames('ws-offload');
+      expect(frames.length, equals(2));
+
+      // Small frame remains in memory
+      expect(frames[0].location, equals(BodyLocation.memory));
+      expect(frames[0].textPayload, equals(smallText));
+      final loadedSmall = await session.loadRealtimePayload(frames[0]);
+      expect(loadedSmall, equals(smallText));
+
+      // Large frame is offloaded to file
+      expect(frames[1].location, equals(BodyLocation.file));
+      expect(frames[1].textPayload, isNull);
+      expect(frames[1].fileOffset, isNotNull);
+      expect(frames[1].fileLength, equals(40 * 1024));
+
+      // Lazy load reads back full payload
+      final loadedLarge = await session.loadRealtimePayload(frames[1]);
+      expect(loadedLarge, equals(largeText));
+    });
+
+    test('large binary frame is offloaded and loaded back as Uint8List', () async {
+      final session = InspectorSession(
+        settings: const InterceptlySettings(
+          realtimeBodyOffloadThreshold: 1024,
+        ),
+      );
+      addTearDown(session.dispose);
+
+      final largeBytes = Uint8List.fromList(List.generate(2048, (i) => i % 256));
+
+      session.recordRealtimeConnection(
+        id: 'ws-bin-off',
+        url: 'wss://example.com/bin',
+      );
+
+      await session.recordRealtimeFrame(RealtimeFrame.binary(
+        id: 'f-bin-large',
+        sessionId: 'ws-bin-off',
+        direction: FrameDirection.outgoing,
+        bytes: largeBytes,
+      ));
+
+      final frames = session.getRealtimeFrames('ws-bin-off');
+      expect(frames.length, equals(1));
+      expect(frames[0].location, equals(BodyLocation.file));
+      expect(frames[0].binaryPayload, isNull);
+
+      final loaded = await session.loadRealtimePayload(frames[0]);
+      expect(loaded, isA<Uint8List>());
+      expect(loaded, equals(largeBytes));
+    });
+
+    test('expired frame returns graceful expiration placeholder after file rotation', () async {
+      final session = InspectorSession(
+        settings: const InterceptlySettings(
+          realtimeBodyOffloadThreshold: 1024,
+        ),
+      );
+      addTearDown(session.dispose);
+
+      session.recordRealtimeConnection(
+        id: 'ws-rot',
+        url: 'wss://example.com/rot',
+      );
+
+      await session.recordRealtimeFrame(RealtimeFrame.text(
+        id: 'f-rot',
+        sessionId: 'ws-rot',
+        direction: FrameDirection.incoming,
+        text: 'x' * 2048,
+      ));
+
+      final frames = session.getRealtimeFrames('ws-rot');
+      final frame = frames.first;
+      expect(frame.location, equals(BodyLocation.file));
+
+      // Force file rotation on the session's RealtimeBodyStore
+      await session.rotateRealtimeBodyStoreForTesting();
+
+      final result = await session.loadRealtimePayload(frame);
+      expect(result, contains('expired due to file rotation'));
+    });
+
+    test('clear resets realtime tmp file without touching REST session tmp file', () async {
+      final session = InspectorSession(
+        settings: const InterceptlySettings(
+          realtimeBodyOffloadThreshold: 1024,
+        ),
+      );
+      addTearDown(session.dispose);
+
+      session.recordRealtimeConnection(
+        id: 'ws-clear',
+        url: 'wss://example.com/clear',
+      );
+
+      await session.recordRealtimeFrame(RealtimeFrame.text(
+        id: 'f-clear',
+        sessionId: 'ws-clear',
+        direction: FrameDirection.incoming,
+        text: 'c' * 2048,
+      ));
+
+      expect(session.getRealtimeFrames('ws-clear').length, equals(1));
+
+      await session.clear();
+      expect(session.getRealtimeFrames('ws-clear'), isEmpty);
+      expect(session.realtimeBodyStoreCurrentOffsetForTesting, equals(0));
+    });
+  });
 }
+
 
 

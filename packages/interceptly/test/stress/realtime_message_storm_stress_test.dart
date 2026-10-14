@@ -83,7 +83,10 @@ void main() {
       'Test 1.1: Default settings (1,000 capacity) with 10 sessions x 1,200 frames (12,000 frames total)',
       () async {
         final session = InspectorSession(
-          settings: const InterceptlySettings(maxFramesPerSession: 1000),
+          settings: const InterceptlySettings(
+            maxFramesPerSession: 1000,
+            maxTotalRealtimeFrames: 10000,
+          ),
         );
         addTearDown(session.dispose);
 

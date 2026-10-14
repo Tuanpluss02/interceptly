@@ -7,7 +7,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import '../helpers/mock_http_client.dart';
 import 'package:interceptly/interceptly.dart';
-import 'package:interceptly/src/model/body_location.dart';
 import 'package:interceptly/src/model/domain_group.dart';
 import 'package:interceptly/src/model/index_entry.dart';
 import 'package:interceptly/src/session/body_store.dart';

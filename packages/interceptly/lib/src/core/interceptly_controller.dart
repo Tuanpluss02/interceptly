@@ -134,7 +134,7 @@ class Interceptly extends ChangeNotifier {
   Future<void> clear() => _session.clear();
 
   /// Enqueues a captured [RealtimeFrame] into the session buffer.
-  void recordRealtimeFrame(RealtimeFrame frame) =>
+  Future<void> recordRealtimeFrame(RealtimeFrame frame) =>
       _session.recordRealtimeFrame(frame);
 
   /// Returns captured realtime frames for the given [sessionId] in FIFO order.

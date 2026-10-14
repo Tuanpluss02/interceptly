@@ -1,6 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
+
+import '../model/body_location.dart';
 
 import '../adapter/realtime_traffic_collector.dart';
 import '../core/interceptly_controller.dart';
@@ -24,6 +29,7 @@ import 'inspector_session_view.dart';
 import 'master_search_controller.dart';
 import 'memory_index.dart';
 import 'pending_tracker.dart';
+import 'realtime_body_store.dart';
 import 'realtime_store.dart';
 import 'writer_isolate.dart';
 
@@ -53,6 +59,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       maxTotalRealtimeFrames: _settings.maxTotalRealtimeFrames,
       onThrottledBatch: notifyListeners,
     );
+    _realtimeBodyStore = RealtimeBodyStore();
     _detailLoader = DetailLoader(
       memoryIndex: _memoryIndex,
       tempFilePathProvider: () => _capturePipeline.tempFilePath,
@@ -97,7 +104,9 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   late final CapturePipeline _capturePipeline;
   late final PendingTracker _pendingTracker;
   late final RealtimeStore _realtimeStore;
+  late final RealtimeBodyStore _realtimeBodyStore;
   late final DetailLoader _detailLoader;
+  String? _realtimeDirPath;
 
   final InspectorPreferences _preferences = InspectorPreferences();
   final MasterSearchController _search = MasterSearchController();
@@ -223,6 +232,26 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
 
   /// Initializes background workers and disk storage.
   Future<void> initialize() => _capturePipeline.initialize();
+
+  Future<void> _ensureRealtimeBodyStoreInitialized() async {
+    if (_realtimeBodyStore.isInitialized || _isDisposed) return;
+    String dirPath;
+    if (_settings.persistToDisk) {
+      try {
+        final dir = await getTemporaryDirectory();
+        dirPath = dir.path;
+      } catch (_) {
+        dirPath = Directory.systemTemp.path;
+      }
+    } else {
+      dirPath = Directory.systemTemp.path;
+    }
+    _realtimeDirPath = dirPath;
+    await _realtimeBodyStore.initForWrite(
+      dirPath,
+      fileName: 'interceptly_${sessionId}_realtime.tmp',
+    );
+  }
 
   void _onGroupingChanged() {
     _invalidateGroupedCache();
@@ -438,18 +467,91 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     _scheduleCoalescedNotify();
   }
 
-  /// Records a captured realtime frame into the session buffer.
+  /// Records a captured [RealtimeFrame] into the session buffer.
   ///
-  /// Frames belonging to connections rejected by [InterceptlySettings.shouldCapture]
-  /// are skipped by verifying that the session was accepted and recorded at handshake.
-  void recordRealtimeFrame(RealtimeFrame frame) {
-    if (!_enabled || _isDisposed) return;
+  /// If the frame exceeds [InterceptlySettings.realtimeBodyOffloadThreshold]
+  /// and disk persistence is enabled, it is appended to [RealtimeBodyStore]
+  /// and swapped with an offloaded [RealtimeFrame] in-place.
+  Future<void> recordRealtimeFrame(RealtimeFrame frame) {
+    if (!_enabled || _isDisposed) return Future<void>.value();
     final predicate = _settings.shouldCapture;
     if (predicate != null) {
       final entry = _memoryIndex.byId(frame.sessionId);
-      if (entry == null) return;
+      if (entry == null) return Future<void>.value();
     }
-    _realtimeStore.recordFrame(frame);
+
+    if (_settings.persistToDisk &&
+        frame.location == BodyLocation.memory &&
+        frame.payloadSizeBytes >= _settings.realtimeBodyOffloadThreshold) {
+      _realtimeStore.recordFrame(frame);
+      return _offloadAndReplaceFrame(frame);
+    } else {
+      _realtimeStore.recordFrame(frame);
+      return Future<void>.value();
+    }
+  }
+
+  Future<void> _offloadAndReplaceFrame(RealtimeFrame frame) async {
+    await _ensureRealtimeBodyStoreInitialized();
+    final Uint8List bytes;
+    if (frame.type == FrameType.text) {
+      bytes = Uint8List.fromList(utf8.encode(frame.textPayload ?? ''));
+    } else {
+      bytes = frame.binaryPayload ?? Uint8List(0);
+    }
+
+    final (offset, length, rotation) = await _realtimeBodyStore.append(bytes);
+
+    final offloaded = RealtimeFrame.offloaded(
+      id: frame.id,
+      sessionId: frame.sessionId,
+      direction: frame.direction,
+      timestamp: frame.timestamp,
+      type: frame.type,
+      payloadSizeBytes: frame.payloadSizeBytes,
+      shortPreview: frame.shortPreview,
+      fileOffset: offset,
+      fileLength: length,
+      rotationCount: rotation,
+      eventName: frame.eventName,
+    );
+
+    _realtimeStore.replaceFrame(offloaded);
+  }
+
+  @override
+  Future<dynamic> loadRealtimePayload(RealtimeFrame frame) async {
+    if (frame.location == BodyLocation.memory) {
+      if (frame.type == FrameType.text) {
+        return frame.textPayload ?? '';
+      }
+      return frame.binaryPayload ?? Uint8List(0);
+    }
+
+    if (frame.rotationCount != null &&
+        frame.rotationCount! < _realtimeBodyStore.rotationCount) {
+      return '[Payload expired due to file rotation]';
+    }
+
+    if (!_realtimeBodyStore.isInitialized) {
+      return '[Payload unavailable: store uninitialized]';
+    }
+
+    final offset = frame.fileOffset;
+    final length = frame.fileLength;
+    if (offset == null || length == null || length <= 0) {
+      return frame.type == FrameType.text ? '' : Uint8List(0);
+    }
+
+    try {
+      final bytes = await _realtimeBodyStore.readBytes(offset, length);
+      if (frame.type == FrameType.text) {
+        return utf8.decode(bytes, allowMalformed: true);
+      }
+      return bytes;
+    } catch (e) {
+      return '[Error loading payload: $e]';
+    }
   }
 
   @override
@@ -592,6 +694,9 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       if (!_isDisposed) {
         notifyListeners();
       }
+      if (_realtimeBodyStore.isInitialized && _realtimeDirPath != null) {
+        await _realtimeBodyStore.resetFile(_realtimeDirPath!);
+      }
     } finally {
       _clearFuture = null;
     }
@@ -620,6 +725,21 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     _preferences.removeListener(notifyListeners);
     _preferences.dispose();
     await _capturePipeline.dispose();
+    await _realtimeBodyStore.dispose();
     super.dispose();
   }
+
+  /// Forces file rotation on the session's [RealtimeBodyStore] for testing.
+  @visibleForTesting
+  Future<void> rotateRealtimeBodyStoreForTesting() =>
+      _realtimeBodyStore.rotate();
+
+  /// Current byte offset in [RealtimeBodyStore] for testing.
+  @visibleForTesting
+  int get realtimeBodyStoreCurrentOffsetForTesting =>
+      _realtimeBodyStore.currentOffset;
+
+  /// Underlying [RealtimeBodyStore] for testing.
+  @visibleForTesting
+  RealtimeBodyStore get realtimeBodyStoreForTesting => _realtimeBodyStore;
 }

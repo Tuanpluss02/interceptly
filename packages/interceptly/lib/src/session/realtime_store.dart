@@ -90,6 +90,18 @@ class DynamicCircularBuffer {
     return _buffer[(_head + index) % _capacity]!;
   }
 
+  /// Replaces a frame by its [id] in-place, returning true if found.
+  bool replaceById(String id, RealtimeFrame newFrame) {
+    for (var i = 0; i < _count; i++) {
+      final index = (_head + i) % _capacity;
+      if (_buffer[index]?.id == id) {
+        _buffer[index] = newFrame;
+        return true;
+      }
+    }
+    return false;
+  }
+
   /// Updates maximum capacity, evicting oldest items if current count exceeds [newMaxCapacity].
   void updateMaxCapacity(int newMaxCapacity) {
     _maxCapacity = newMaxCapacity;
@@ -258,6 +270,14 @@ class RealtimeStore {
     }
 
     _scheduleNotification();
+  }
+
+  /// Replaces an existing frame in the session buffer (e.g. after offloading to disk).
+  bool replaceFrame(RealtimeFrame newFrame) {
+    if (_isDisposed) return false;
+    final buffer = _buffersBySession[newFrame.sessionId];
+    if (buffer == null) return false;
+    return buffer.replaceById(newFrame.id, newFrame);
   }
 
   void _enforceGlobalBudget() {

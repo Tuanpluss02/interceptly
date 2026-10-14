@@ -96,6 +96,13 @@ abstract class InspectorSessionView extends ChangeNotifier {
   /// Returns the protocol type for the given realtime [sessionId], if known.
   RealtimeProtocolType? getRealtimeProtocol(String sessionId) => null;
 
+  /// Asynchronously loads the full payload for [frame].
+  ///
+  /// For in-memory frames, returns immediately with the resident [String] or [Uint8List].
+  /// For offloaded frames, reads the byte range from the realtime temp file and decodes it.
+  /// If the underlying file was rotated, returns a graceful expiration placeholder string.
+  Future<dynamic> loadRealtimePayload(RealtimeFrame frame) async => '';
+
   /// Transmits [draft] to the active connection with [sessionId].
   Future<void> sendRealtimeMessage(
     String sessionId,

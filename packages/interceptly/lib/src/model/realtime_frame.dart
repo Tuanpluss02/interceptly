@@ -55,11 +55,9 @@ class RealtimeFrame {
   })  : shortPreview = shortPreview ??
             extractShortPreview(textPayload ?? binaryPayload, type),
         payloadSizeBytes = payloadSizeBytes ??
-            (fileLength != null
-                ? fileLength
-                : (binaryPayload != null
-                    ? binaryPayload.lengthInBytes
-                    : (textPayload != null ? utf8ByteLength(textPayload) : 0))),
+            fileLength ??
+            binaryPayload?.lengthInBytes ??
+            (textPayload != null ? utf8ByteLength(textPayload) : 0),
         timestamp = timestamp ?? DateTime.now();
 
   /// Raw const constructor for zero-overhead initialization.

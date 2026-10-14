@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 
 import '../capture/capture_guard.dart';
 import '../capture/frame_normalizer.dart';

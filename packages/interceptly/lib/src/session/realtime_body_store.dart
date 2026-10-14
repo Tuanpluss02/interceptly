@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 
@@ -29,7 +28,7 @@ class RealtimeBodyStore {
   bool _isInitialized = false;
   bool _isDisposed = false;
 
-  Future<void> _writeChain = Future<void>.value();
+  Future<void>? _writeChain;
 
   /// Current byte offset in the active file.
   int get currentOffset => _currentOffset;
@@ -74,7 +73,7 @@ class RealtimeBodyStore {
     }
 
     final completer = Completer<(int, int, int)>();
-    _writeChain = _writeChain.then((_) async {
+    Future<void> writeOp(_) async {
       if (_isDisposed || _raf == null) {
         completer.completeError(
           StateError('RealtimeBodyStore was disposed before write completed.'),
@@ -93,7 +92,14 @@ class RealtimeBodyStore {
       } catch (error, stackTrace) {
         completer.completeError(error, stackTrace);
       }
-    });
+    }
+
+    final prev = _writeChain;
+    if (prev == null) {
+      _writeChain = writeOp(null);
+    } else {
+      _writeChain = prev.then(writeOp);
+    }
 
     return completer.future;
   }
@@ -115,14 +121,21 @@ class RealtimeBodyStore {
   /// Explicitly rotates the store file, resetting offset to 0 and incrementing [rotationCount].
   Future<void> rotate() {
     final completer = Completer<void>();
-    _writeChain = _writeChain.then((_) async {
+    Future<void> rotateOp(_) async {
       try {
         await _performRotate();
         completer.complete();
       } catch (error, stackTrace) {
         completer.completeError(error, stackTrace);
       }
-    });
+    }
+
+    final prev = _writeChain;
+    if (prev == null) {
+      _writeChain = rotateOp(null);
+    } else {
+      _writeChain = prev.then(rotateOp);
+    }
     return completer.future;
   }
 
@@ -143,7 +156,7 @@ class RealtimeBodyStore {
   /// Resets the file on disk: deletes, recreates, and resets offset/rotation.
   Future<void> resetFile(String dirPath, {String? fileName}) {
     final completer = Completer<void>();
-    _writeChain = _writeChain.then((_) async {
+    Future<void> resetOp(_) async {
       try {
         await _raf?.close();
         _raf = null;
@@ -160,7 +173,14 @@ class RealtimeBodyStore {
       } catch (error, stackTrace) {
         completer.completeError(error, stackTrace);
       }
-    });
+    }
+
+    final prev = _writeChain;
+    if (prev == null) {
+      _writeChain = resetOp(null);
+    } else {
+      _writeChain = prev.then(resetOp);
+    }
     return completer.future;
   }
 
@@ -169,18 +189,23 @@ class RealtimeBodyStore {
     if (_isDisposed) return;
     _isDisposed = true;
 
-    try {
-      await _writeChain;
-    } catch (_) {}
+    final chain = _writeChain;
+    if (chain != null) {
+      try {
+        await chain;
+      } catch (_) {}
+    }
 
     await _raf?.close();
     _raf = null;
-    _isInitialized = false;
 
-    try {
-      if (await _file.exists()) {
-        await _file.delete();
-      }
-    } catch (_) {}
+    if (_isInitialized) {
+      _isInitialized = false;
+      try {
+        if (await _file.exists()) {
+          await _file.delete();
+        }
+      } catch (_) {}
+    }
   }
 }
