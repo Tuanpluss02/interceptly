@@ -9,21 +9,13 @@ import 'package:interceptly/interceptly.dart';
 /// A Chopper interceptor that captures all requests and responses.
 class InterceptlyChopperInterceptor
     implements Interceptor, HttpCaptureAdapter {
-  /// Creates an interceptor backed by [session] and [collector].
+  /// Creates an interceptor backed by [collector].
   InterceptlyChopperInterceptor([
-    InspectorSession? session,
     HttpTrafficCollector? collector,
-  ])  : session = session ??
-            (collector is DefaultHttpTrafficCollector
-                ? collector.session
-                : InspectorSession.instance),
-        collector = collector ??
-            DefaultHttpTrafficCollector(
-              session ?? InspectorSession.instance,
-            );
+  ]) : collector = collector ?? DefaultHttpTrafficCollector();
 
   @override
-  final InspectorSession session;
+  InspectorSession get session => InspectorSession.instance;
 
   @override
   final HttpTrafficCollector collector;

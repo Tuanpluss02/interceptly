@@ -52,12 +52,14 @@ void main() {
   });
 
   setUp(() async {
-    session = InspectorSession();
+    await InspectorSession.resetForTesting();
+    session = InspectorSession.instance;
     await session.initialize();
   });
 
   tearDown(() async {
-    session.dispose();
+    await session.dispose();
+    await InspectorSession.resetForTesting();
   });
 
   Future<void> waitForSessionEntry({
@@ -84,7 +86,7 @@ void main() {
     test(
       'Adversarial parameters: emojis, unicode, URL-reserved symbols, spaces',
       () async {
-        final interceptor = InterceptlyChopperInterceptor(session);
+        final interceptor = InterceptlyChopperInterceptor();
         final complexParams = <String, dynamic>{
           'emoji': '🚀🔥🎉✨',
           'vietnamese': 'tiếng Việt có dấu và khoảng trắng',
@@ -138,7 +140,7 @@ void main() {
     );
 
     test('Empty, null, nested lists and primitive parameters', () async {
-      final interceptor = InterceptlyChopperInterceptor(session);
+      final interceptor = InterceptlyChopperInterceptor();
       final diverseParams = <String, dynamic>{
         'empty_string': '',
         'null_val': null,
@@ -185,7 +187,7 @@ void main() {
     test(
       'Colliding parameter names: user explicitly passes interceptly_* keys',
       () async {
-        final interceptor = InterceptlyChopperInterceptor(session);
+        final interceptor = InterceptlyChopperInterceptor();
         final userCustomParams = <String, dynamic>{
           'interceptly_started_at': 'custom_user_timestamp_123',
           'interceptly_request_id': 'custom_user_req_999',
@@ -224,7 +226,7 @@ void main() {
 
     test('50 concurrent Chopper requests preserve unique IDs and parameters',
         () async {
-      final interceptor = InterceptlyChopperInterceptor(session);
+      final interceptor = InterceptlyChopperInterceptor();
       final futures = <Future<void>>[];
       final proceededParams = <int, Map<String, dynamic>>{};
 
@@ -283,7 +285,7 @@ void main() {
 
     test('Transport exceptions rethrow and record RawCapture promptly',
         () async {
-      final interceptor = InterceptlyChopperInterceptor(session);
+      final interceptor = InterceptlyChopperInterceptor();
       final request = Request(
         'GET',
         Uri.parse('https://api.example.com/socket-fail'),

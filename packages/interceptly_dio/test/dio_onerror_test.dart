@@ -81,14 +81,16 @@ void main() {
   late InspectorSession session;
 
   setUp(() async {
+    await InspectorSession.resetForTesting();
     tempDir = await Directory.systemTemp.createTemp('interceptly_dio_onerror');
     _mockTempDir(() async => tempDir.path);
-    session = InspectorSession();
+    session = InspectorSession.instance;
     await session.initialize();
   });
 
   tearDown(() async {
-    session.dispose();
+    await session.dispose();
+    await InspectorSession.resetForTesting();
     try {
       await tempDir.delete(recursive: true);
     } catch (_) {}
@@ -102,7 +104,7 @@ void main() {
           statusCode: 404,
           responseBody: '{"error":"Not Found"}',
         );
-      dio.interceptors.add(InterceptlyDioInterceptor(session));
+      dio.interceptors.add(InterceptlyDioInterceptor());
 
       DioException? caught;
       try {
@@ -136,7 +138,7 @@ void main() {
           statusCode: 500,
           responseBody: '{"error":"Server Error"}',
         );
-      dio.interceptors.add(InterceptlyDioInterceptor(session));
+      dio.interceptors.add(InterceptlyDioInterceptor());
 
       DioException? caught;
       try {
@@ -171,7 +173,7 @@ void main() {
             requestOptions: options,
           ),
         );
-      dio.interceptors.add(InterceptlyDioInterceptor(session));
+      dio.interceptors.add(InterceptlyDioInterceptor());
 
       DioException? caught;
       try {
@@ -199,7 +201,7 @@ void main() {
             reason: 'User canceled request',
           ),
         );
-      dio.interceptors.add(InterceptlyDioInterceptor(session));
+      dio.interceptors.add(InterceptlyDioInterceptor());
 
       DioException? caught;
       try {
@@ -232,7 +234,7 @@ void main() {
             message: 'Request cancelled with CancelToken',
           );
         });
-      dio.interceptors.add(InterceptlyDioInterceptor(session));
+      dio.interceptors.add(InterceptlyDioInterceptor());
 
       DioException? caught;
       try {
@@ -264,7 +266,7 @@ void main() {
           statusCode: 200,
           responseBody: '{"status":"ok"}',
         );
-      dio.interceptors.add(InterceptlyDioInterceptor(session));
+      dio.interceptors.add(InterceptlyDioInterceptor());
 
       final response = await dio.post<dynamic>(
         'https://api.example.com/large-body',
@@ -294,7 +296,7 @@ void main() {
             Headers.contentTypeHeader: ['text/plain'],
           },
         );
-      dio.interceptors.add(InterceptlyDioInterceptor(session));
+      dio.interceptors.add(InterceptlyDioInterceptor());
 
       final response = await dio.get<dynamic>('https://api.example.com/large-res');
       expect(response.statusCode, equals(200));
@@ -318,7 +320,7 @@ void main() {
           statusCode: 200,
           responseBody: '{"ok":true}',
         );
-      dio.interceptors.add(InterceptlyDioInterceptor(session));
+      dio.interceptors.add(InterceptlyDioInterceptor());
 
       final response = await dio.get<dynamic>(
         'https://api.example.com/extra-cleanup',

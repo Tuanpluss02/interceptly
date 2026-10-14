@@ -71,11 +71,15 @@ void main() {
     late InspectorSession session;
 
     setUp(() async {
-      session = InspectorSession();
+      await InspectorSession.resetForTesting();
+      session = InspectorSession.instance;
       await session.initialize();
     });
 
-    tearDown(() => session.dispose());
+    tearDown(() async {
+      await session.dispose();
+      await InspectorSession.resetForTesting();
+    });
 
     test('response whose data cannot be serialised still completes', () async {
       final dio = Dio()..httpClientAdapter = _FixedAdapter();
@@ -90,7 +94,7 @@ void main() {
             true,
           ),
         ),
-        InterceptlyDioInterceptor(session),
+        InterceptlyDioInterceptor(),
       ]);
 
       final response = await dio
@@ -101,7 +105,7 @@ void main() {
 
     test('stream responses are not captured as "Instance of"', () async {
       final dio = Dio()..httpClientAdapter = _FixedAdapter();
-      dio.interceptors.add(InterceptlyDioInterceptor(session));
+      dio.interceptors.add(InterceptlyDioInterceptor());
 
       final response = await dio.get<ResponseBody>(
         'https://api.example.com/stream',

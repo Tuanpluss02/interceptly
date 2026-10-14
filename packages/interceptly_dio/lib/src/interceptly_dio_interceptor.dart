@@ -7,21 +7,13 @@ import 'package:interceptly/interceptly.dart';
 /// A Dio interceptor that captures requests and responses for Interceptly.
 class InterceptlyDioInterceptor extends Interceptor
     implements HttpCaptureAdapter {
-  /// Creates an interceptor backed by [session] and [collector].
+  /// Creates an interceptor backed by [collector].
   InterceptlyDioInterceptor([
-    InspectorSession? session,
     HttpTrafficCollector? collector,
-  ])  : session = session ??
-            (collector is DefaultHttpTrafficCollector
-                ? collector.session
-                : InspectorSession.instance),
-        collector = collector ??
-            DefaultHttpTrafficCollector(
-              session ?? InspectorSession.instance,
-            );
+  ]) : collector = collector ?? DefaultHttpTrafficCollector();
 
   @override
-  final InspectorSession session;
+  InspectorSession get session => InspectorSession.instance;
 
   @override
   final HttpTrafficCollector collector;

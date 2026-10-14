@@ -173,42 +173,19 @@ void main() {
       );
     });
 
-    test('constructor accepts custom session and wires into DefaultHttpTrafficCollector', () {
-      final inner = _FixedMockClient();
-      final customSession = InspectorSession();
-      final client = InterceptlyHttpClient(inner, customSession);
-
-      expect(client.session, same(customSession));
-      expect(client.collector, isA<DefaultHttpTrafficCollector>());
-      expect(
-        (client.collector as DefaultHttpTrafficCollector).session,
-        same(customSession),
-      );
-    });
-
-    test('constructor accepts DefaultHttpTrafficCollector and derives session', () {
-      final inner = _FixedMockClient();
-      final customSession = InspectorSession();
-      final collector = DefaultHttpTrafficCollector(customSession);
-      final client = InterceptlyHttpClient(inner, null, collector);
-
-      expect(client.collector, same(collector));
-      expect(client.session, same(customSession));
-    });
-
-    test('constructor accepts custom collector and falls back to instance session', () {
+    test('constructor accepts custom collector', () {
       final inner = _FixedMockClient();
       final spy = _SpyHttpTrafficCollector();
-      final client = InterceptlyHttpClient(inner, null, spy);
+      final client = InterceptlyHttpClient(inner, spy);
 
       expect(client.collector, same(spy));
       expect(client.session, same(InspectorSession.instance));
     });
 
-    test('wrap factory creates InterceptlyHttpClient with provided session and collector', () {
+    test('wrap factory creates InterceptlyHttpClient with provided collector', () {
       final inner = _FixedMockClient();
       final spy = _SpyHttpTrafficCollector();
-      final client = InterceptlyHttpClient.wrap(inner, null, spy);
+      final client = InterceptlyHttpClient.wrap(inner, spy);
 
       expect(client, isA<InterceptlyHttpClient>());
       expect(client, isA<HttpCaptureAdapter>());
@@ -227,7 +204,7 @@ void main() {
           'x-custom-res': 'header-val',
         },
       );
-      final client = InterceptlyHttpClient(inner, null, spy);
+      final client = InterceptlyHttpClient(inner, spy);
 
       final response = await client.post(
         Uri.parse('https://api.example.com/items'),
@@ -260,7 +237,7 @@ void main() {
     test('delegates inner client failure to collector.failRequest', () async {
       final spy = _SpyHttpTrafficCollector();
       final inner = _FailingMockClient();
-      final client = InterceptlyHttpClient(inner, null, spy);
+      final client = InterceptlyHttpClient(inner, spy);
 
       await expectLater(
         () => client.get(Uri.parse('https://api.example.com/failing')),
@@ -279,7 +256,7 @@ void main() {
       final spy = _SpyHttpTrafficCollector();
       final streamCtrl = StreamController<List<int>>();
       final inner = _StreamingMockClient(streamCtrl);
-      final client = InterceptlyHttpClient(inner, null, spy);
+      final client = InterceptlyHttpClient(inner, spy);
 
       final response = await client.send(
         http.Request('GET', Uri.parse('https://api.example.com/stream-err')),
@@ -309,7 +286,7 @@ void main() {
       final spy = _SpyHttpTrafficCollector();
       final streamCtrl = StreamController<List<int>>();
       final inner = _StreamingMockClient(streamCtrl);
-      final client = InterceptlyHttpClient(inner, null, spy);
+      final client = InterceptlyHttpClient(inner, spy);
 
       final response = await client.send(
         http.Request('GET', Uri.parse('https://api.example.com/stream-cancel')),
@@ -331,7 +308,7 @@ void main() {
     test('rethrows SimulatedNetworkException when startRequest throws SimulatedNetworkException', () async {
       final spy = _SpyHttpTrafficCollector()..throwSimulatedException = true;
       final inner = _FixedMockClient();
-      final client = InterceptlyHttpClient(inner, null, spy);
+      final client = InterceptlyHttpClient(inner, spy);
 
       await expectLater(
         () => client.get(Uri.parse('https://api.example.com/simulated')),
@@ -345,7 +322,7 @@ void main() {
     test('proceeds normally without recording when collector returns null context', () async {
       final spy = _SpyHttpTrafficCollector()..returnNullContext = true;
       final inner = _FixedMockClient(responseBody: 'test-payload');
-      final client = InterceptlyHttpClient(inner, null, spy);
+      final client = InterceptlyHttpClient(inner, spy);
 
       final response = await client.get(Uri.parse('https://api.example.com/null-context'));
 
@@ -362,6 +339,7 @@ void main() {
     late InspectorSession session;
 
     setUp(() async {
+      await InspectorSession.resetForTesting();
       tempDir = await Directory.systemTemp.createTemp('interceptly_http_test');
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
@@ -371,12 +349,13 @@ void main() {
           return null;
         },
       );
-      session = InspectorSession();
+      session = InspectorSession.instance;
       await session.initialize();
     });
 
     tearDown(() async {
-      session.dispose();
+      await session.dispose();
+      await InspectorSession.resetForTesting();
       try {
         await tempDir.delete(recursive: true);
       } catch (_) {}
@@ -387,7 +366,7 @@ void main() {
       () async {
         final streamCtrl = StreamController<List<int>>();
         final innerClient = _StreamingMockClient(streamCtrl);
-        final client = InterceptlyHttpClient(innerClient, session);
+        final client = InterceptlyHttpClient(innerClient);
 
         final response = await client.send(
           http.Request('GET', Uri.parse('https://api.example.com/stream')),
@@ -420,7 +399,7 @@ void main() {
         session.setNetworkSimulation(NetworkSimulationProfile.slow3G);
         final streamCtrl = StreamController<List<int>>();
         final innerClient = _StreamingMockClient(streamCtrl);
-        final client = InterceptlyHttpClient(innerClient, session);
+        final client = InterceptlyHttpClient(innerClient);
 
         final response = await client.send(
           http.Request('GET', Uri.parse('https://api.example.com/throttle-cancel')),
@@ -443,7 +422,7 @@ void main() {
     test('records successful response when stream completes normally', () async {
       final streamCtrl = StreamController<List<int>>();
       final innerClient = _StreamingMockClient(streamCtrl);
-      final client = InterceptlyHttpClient(innerClient, session);
+      final client = InterceptlyHttpClient(innerClient);
 
       final response = await client.send(
         http.Request('GET', Uri.parse('https://api.example.com/data')),
@@ -472,7 +451,7 @@ void main() {
     test('records stream error when response stream emits error', () async {
       final streamCtrl = StreamController<List<int>>();
       final innerClient = _StreamingMockClient(streamCtrl);
-      final client = InterceptlyHttpClient(innerClient, session);
+      final client = InterceptlyHttpClient(innerClient);
 
       final response = await client.send(
         http.Request(
@@ -501,7 +480,7 @@ void main() {
 
     test('records transport failure when inner send throws', () async {
       final innerClient = _FailingMockClient();
-      final client = InterceptlyHttpClient(innerClient, session);
+      final client = InterceptlyHttpClient(innerClient);
 
       await expectLater(
         () => client.send(
@@ -521,7 +500,7 @@ void main() {
     test('offline simulation aborts request with SimulatedNetworkException and records failure in session', () async {
       session.setNetworkSimulation(NetworkSimulationProfile.offlineProfile);
 
-      final client = InterceptlyHttpClient(_FixedMockClient(), session);
+      final client = InterceptlyHttpClient(_FixedMockClient());
 
       await expectLater(
         () => client.get(Uri.parse('https://api.example.com/offline-sim')),

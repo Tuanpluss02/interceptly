@@ -19,28 +19,19 @@ class InterceptlyHttpClient extends http.BaseClient
     implements HttpCaptureAdapter {
   InterceptlyHttpClient(
     this._inner, [
-    InspectorSession? session,
     HttpTrafficCollector? collector,
-  ])  : session = session ??
-            (collector is DefaultHttpTrafficCollector
-                ? collector.session
-                : InspectorSession.instance),
-        collector = collector ??
-            DefaultHttpTrafficCollector(
-              session ?? InspectorSession.instance,
-            );
+  ]) : collector = collector ?? DefaultHttpTrafficCollector();
 
   factory InterceptlyHttpClient.wrap(
     http.Client inner, [
-    InspectorSession? session,
     HttpTrafficCollector? collector,
   ]) =>
-      InterceptlyHttpClient(inner, session, collector);
+      InterceptlyHttpClient(inner, collector);
 
   final http.Client _inner;
 
   @override
-  final InspectorSession session;
+  InspectorSession get session => InspectorSession.instance;
 
   @override
   final HttpTrafficCollector collector;

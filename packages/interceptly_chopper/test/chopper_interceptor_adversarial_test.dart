@@ -42,12 +42,14 @@ void main() {
         return null;
       },
     );
-    session = InspectorSession();
+    await InspectorSession.resetForTesting();
+    session = InspectorSession.instance;
     await session.initialize();
   });
 
   tearDown(() async {
-    session.dispose();
+    await session.dispose();
+    await InspectorSession.resetForTesting();
     try {
       if (tempDir.existsSync()) {
         await tempDir.delete(recursive: true);
@@ -60,7 +62,7 @@ void main() {
     test(
         'Burst invocation: 100 rapid requests with diverse methods, bodies, and parameters',
         () async {
-      final interceptor = InterceptlyChopperInterceptor(session);
+      final interceptor = InterceptlyChopperInterceptor();
       final methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD'];
       final futures = <Future<void>>[];
       final proceededParams = <int, Map<String, dynamic>>{};
@@ -150,7 +152,7 @@ void main() {
     test(
         'Exception matrix: rethrows synchronous and asynchronous transport exceptions without leaking state',
         () async {
-      final interceptor = InterceptlyChopperInterceptor(session);
+      final interceptor = InterceptlyChopperInterceptor();
 
       final testCases = <Map<String, dynamic>>[
         {
@@ -243,7 +245,7 @@ void main() {
     test(
         'Chopper HTTP error codes (400, 401, 403, 404, 500, 502, 503) record ChopperError and preserve status code',
         () async {
-      final interceptor = InterceptlyChopperInterceptor(session);
+      final interceptor = InterceptlyChopperInterceptor();
       final errorStatuses = [400, 401, 403, 404, 500, 502, 503];
 
       for (final code in errorStatuses) {

@@ -10,7 +10,6 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 class InterceptlyWebSocketChannel extends StreamChannelMixin
     implements WebSocketChannel, RealtimeCaptureAdapter {
   final WebSocketChannel _inner;
-  final Interceptly? _interceptly;
 
   /// The unique session ID for this WebSocket connection.
   final String sessionId;
@@ -22,13 +21,10 @@ class InterceptlyWebSocketChannel extends StreamChannelMixin
   final Map<String, String>? headers;
 
   @override
-  final InspectorSession session;
+  InspectorSession get session => InspectorSession.instance;
 
   @override
   final RealtimeTrafficCollector collector;
-
-  late final Interceptly _resolvedInterceptly =
-      _interceptly ?? Interceptly(session: session);
 
   bool _isClosed = false;
 
@@ -41,28 +37,11 @@ class InterceptlyWebSocketChannel extends StreamChannelMixin
     WebSocketChannel inner, {
     this.uri,
     String? sessionId,
-    Interceptly? interceptly,
-    InspectorSession? session,
     RealtimeTrafficCollector? collector,
     this.headers,
   })  : _inner = inner,
-        _interceptly = interceptly,
         sessionId = sessionId ?? RequestId.generate(),
-        session = session ??
-            (interceptly != null && interceptly.session is InspectorSession
-                ? interceptly.session as InspectorSession
-                : (collector is DefaultRealtimeTrafficCollector
-                    ? collector.session
-                    : InspectorSession.instance)),
-        collector = collector ??
-            DefaultRealtimeTrafficCollector(
-              session ??
-                  (interceptly != null && interceptly.session is InspectorSession
-                      ? interceptly.session as InspectorSession
-                      : (collector is DefaultRealtimeTrafficCollector
-                          ? collector.session
-                          : InspectorSession.instance)),
-            ) {
+        collector = collector ?? DefaultRealtimeTrafficCollector() {
     if (uri != null) {
       try {
         this.collector.recordConnection(
@@ -89,8 +68,6 @@ class InterceptlyWebSocketChannel extends StreamChannelMixin
     WebSocketChannel inner, {
     Uri? uri,
     String? sessionId,
-    Interceptly? interceptly,
-    InspectorSession? session,
     RealtimeTrafficCollector? collector,
     Map<String, String>? headers,
   }) {
@@ -98,8 +75,6 @@ class InterceptlyWebSocketChannel extends StreamChannelMixin
       inner,
       uri: uri,
       sessionId: sessionId,
-      interceptly: interceptly,
-      session: session,
       collector: collector,
       headers: headers,
     );
@@ -110,8 +85,6 @@ class InterceptlyWebSocketChannel extends StreamChannelMixin
     Uri uri, {
     Iterable<String>? protocols,
     String? sessionId,
-    Interceptly? interceptly,
-    InspectorSession? session,
     RealtimeTrafficCollector? collector,
     Map<String, String>? headers,
   }) {
@@ -120,8 +93,6 @@ class InterceptlyWebSocketChannel extends StreamChannelMixin
       inner,
       uri: uri,
       sessionId: sessionId,
-      interceptly: interceptly,
-      session: session,
       collector: collector,
       headers: headers,
     );
@@ -131,7 +102,7 @@ class InterceptlyWebSocketChannel extends StreamChannelMixin
   WebSocketChannel get inner => _inner;
 
   /// The [Interceptly] facade instance.
-  Interceptly get interceptly => _resolvedInterceptly;
+  Interceptly get interceptly => Interceptly.instance;
 
   @override
   String? get protocol => _inner.protocol;

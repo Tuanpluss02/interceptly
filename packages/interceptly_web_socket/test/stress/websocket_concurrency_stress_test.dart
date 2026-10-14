@@ -117,13 +117,15 @@ void main() {
     test(
       'Test 1: Multi-channel bidirectional message bombardment (10 channels x 1,000 messages = 10,000 messages)',
       () async {
-        final session = InspectorSession(
-          settings: const InterceptlySettings(maxFramesPerSession: 1500),
+        await InspectorSession.resetForTesting();
+        final session = InspectorSession.instance;
+        session.configureSession(
+          const InterceptlySettings(maxFramesPerSession: 1500),
         );
-        addTearDown(session.dispose);
-
-        final interceptly = Interceptly(session: session);
-        addTearDown(interceptly.dispose);
+        addTearDown(() async {
+          await session.dispose();
+          await InspectorSession.resetForTesting();
+        });
 
         const channelCount = 10;
         const messagesPerDirection = 500; // 500 out + 500 in = 1,000 per channel
@@ -141,7 +143,6 @@ void main() {
             fake,
             uri: Uri.parse('wss://stress.interceptly.dev/channel/$c'),
             sessionId: 'ws-stress-channel-$c',
-            interceptly: interceptly,
             headers: {'X-Channel-Index': '$c'},
           );
           channels.add(channel);
@@ -276,11 +277,12 @@ void main() {
     test(
       'Test 2: High concurrency stream closing & error recovery under in-flight messages',
       () async {
-        final session = InspectorSession();
-        addTearDown(session.dispose);
-
-        final interceptly = Interceptly(session: session);
-        addTearDown(interceptly.dispose);
+        await InspectorSession.resetForTesting();
+        final session = InspectorSession.instance;
+        addTearDown(() async {
+          await session.dispose();
+          await InspectorSession.resetForTesting();
+        });
 
         const channelCount = 20;
         final fakes = <StressFakeWebSocketChannel>[];
@@ -295,7 +297,6 @@ void main() {
             fake,
             uri: Uri.parse('wss://closing.example.com/ch/$i'),
             sessionId: 'ws-close-$i',
-            interceptly: interceptly,
           );
           channels.add(channel);
 

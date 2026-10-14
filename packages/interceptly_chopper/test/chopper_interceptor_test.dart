@@ -135,12 +135,14 @@ void main() {
         return null;
       },
     );
-    session = InspectorSession();
+    await InspectorSession.resetForTesting();
+    session = InspectorSession.instance;
     await session.initialize();
   });
 
   tearDown(() async {
-    session.dispose();
+    await session.dispose();
+    await InspectorSession.resetForTesting();
     try {
       await tempDir.delete(recursive: true);
     } catch (_) {}
@@ -161,36 +163,10 @@ void main() {
       expect(defaultCollector.session, same(InspectorSession.instance));
     });
 
-    test('constructs with custom session', () {
-      final interceptor = InterceptlyChopperInterceptor(session);
-      expect(interceptor.session, same(session));
-      expect(interceptor.collector, isA<DefaultHttpTrafficCollector>());
-      final defaultCollector =
-          interceptor.collector as DefaultHttpTrafficCollector;
-      expect(defaultCollector.session, same(session));
-    });
-
-    test('constructs with custom DefaultHttpTrafficCollector', () {
-      final collector = DefaultHttpTrafficCollector(session);
-      final interceptor = InterceptlyChopperInterceptor(null, collector);
-      expect(interceptor.session, same(session));
-      expect(interceptor.collector, same(collector));
-    });
-
-    test(
-        'constructs with custom HttpTrafficCollector and falls back to shared session',
-        () {
+    test('constructs with custom HttpTrafficCollector', () {
       final spyCollector = _SpyHttpTrafficCollector();
-      final interceptor = InterceptlyChopperInterceptor(null, spyCollector);
+      final interceptor = InterceptlyChopperInterceptor(spyCollector);
       expect(interceptor.session, same(InspectorSession.instance));
-      expect(interceptor.collector, same(spyCollector));
-    });
-
-    test('constructs with both custom session and custom HttpTrafficCollector',
-        () {
-      final spyCollector = _SpyHttpTrafficCollector();
-      final interceptor = InterceptlyChopperInterceptor(session, spyCollector);
-      expect(interceptor.session, same(session));
       expect(interceptor.collector, same(spyCollector));
     });
   });
@@ -198,7 +174,7 @@ void main() {
   group('Lifecycle delegation to HttpTrafficCollector', () {
     test('delegates successful request/response to collector', () async {
       final spy = _SpyHttpTrafficCollector(session);
-      final interceptor = InterceptlyChopperInterceptor(session, spy);
+      final interceptor = InterceptlyChopperInterceptor(spy);
 
       final request = Request(
         'POST',
@@ -250,7 +226,7 @@ void main() {
         'delegates unsuccessful HTTP response (isSuccessful = false) to collector.completeResponse',
         () async {
       final spy = _SpyHttpTrafficCollector(session);
-      final interceptor = InterceptlyChopperInterceptor(session, spy);
+      final interceptor = InterceptlyChopperInterceptor(spy);
 
       final request = Request(
         'GET',
@@ -292,7 +268,7 @@ void main() {
         'delegates transport/client exception during proceed to collector.failRequest and rethrows',
         () async {
       final spy = _SpyHttpTrafficCollector(session);
-      final interceptor = InterceptlyChopperInterceptor(session, spy);
+      final interceptor = InterceptlyChopperInterceptor(spy);
 
       final request = Request(
         'GET',
@@ -325,7 +301,7 @@ void main() {
         () async {
       final spy = _SpyHttpTrafficCollector(session)
         ..throwSimulatedException = true;
-      final interceptor = InterceptlyChopperInterceptor(session, spy);
+      final interceptor = InterceptlyChopperInterceptor(spy);
 
       final request = Request(
         'GET',
@@ -354,7 +330,7 @@ void main() {
 
     test('handles collector.startRequest returning null gracefully', () async {
       final spy = _SpyHttpTrafficCollector(session)..returnNullContext = true;
-      final interceptor = InterceptlyChopperInterceptor(session, spy);
+      final interceptor = InterceptlyChopperInterceptor(spy);
 
       final request = Request(
         'GET',
@@ -383,7 +359,7 @@ void main() {
     test(
       'InterceptlyChopperInterceptor does not alter outbound request.parameters',
       () async {
-        final interceptor = InterceptlyChopperInterceptor(session);
+        final interceptor = InterceptlyChopperInterceptor();
 
         final originalParams = <String, dynamic>{
           'page': '1',
@@ -449,7 +425,7 @@ void main() {
     );
 
     test('preserves empty parameters without adding tracking keys', () async {
-      final interceptor = InterceptlyChopperInterceptor(session);
+      final interceptor = InterceptlyChopperInterceptor();
 
       final request = Request(
         'POST',
@@ -489,7 +465,7 @@ void main() {
     });
 
     test('captures transport exception when chain.proceed throws', () async {
-      final interceptor = InterceptlyChopperInterceptor(session);
+      final interceptor = InterceptlyChopperInterceptor();
 
       final request = Request(
         'GET',
@@ -522,7 +498,7 @@ void main() {
     });
 
     test('captures HTTP error responses from server', () async {
-      final interceptor = InterceptlyChopperInterceptor(session);
+      final interceptor = InterceptlyChopperInterceptor();
 
       final request = Request(
         'GET',
@@ -566,7 +542,7 @@ void main() {
         'records SimulatedNetworkException when offline network simulation is active',
         () async {
       session.setNetworkSimulation(NetworkSimulationProfile.offlineProfile);
-      final interceptor = InterceptlyChopperInterceptor(session);
+      final interceptor = InterceptlyChopperInterceptor();
 
       final request = Request(
         'GET',

@@ -62,14 +62,18 @@ void main() {
     late InspectorSession session;
 
     setUp(() async {
-      session = InspectorSession();
+      await InspectorSession.resetForTesting();
+      session = InspectorSession.instance;
       await session.initialize();
     });
 
-    tearDown(() => session.dispose());
+    tearDown(() async {
+      await session.dispose();
+      await InspectorSession.resetForTesting();
+    });
 
     test('multipart base request does not throw', () async {
-      final interceptor = InterceptlyChopperInterceptor(session);
+      final interceptor = InterceptlyChopperInterceptor();
       final request = chopper.Request(
         'POST',
         Uri.parse('https://api.example.com/upload'),
@@ -92,7 +96,7 @@ void main() {
     });
 
     test('response without base request does not throw', () async {
-      final interceptor = InterceptlyChopperInterceptor(session);
+      final interceptor = InterceptlyChopperInterceptor();
       final request = chopper.Request(
         'GET',
         Uri.parse('https://api.example.com/mock'),
@@ -109,7 +113,7 @@ void main() {
     });
 
     test('captures raw response bytes, not the converted model', () async {
-      final interceptor = InterceptlyChopperInterceptor(session);
+      final interceptor = InterceptlyChopperInterceptor();
       final request = chopper.Request(
         'GET',
         Uri.parse('https://api.example.com/model'),

@@ -34,7 +34,8 @@ void main() {
   test(
       'Scenario 1: End-to-end HTTP client request capture into InspectorSession',
       () async {
-    final session = InspectorSession();
+    await InspectorSession.resetForTesting();
+    final session = InspectorSession.instance;
     await session.initialize();
 
     final mockClient = MockClient((request) async {
@@ -48,7 +49,7 @@ void main() {
       return http.Response('Not Found', 404);
     });
 
-    final client = InterceptlyHttpClient(mockClient, session);
+    final client = InterceptlyHttpClient(mockClient);
     final response = await client.get(
       Uri.parse('https://api.example.com/api/items'),
       headers: {'Authorization': 'Bearer secret_user_token'},
@@ -73,6 +74,7 @@ void main() {
     expect(captured.requestHeaders['Authorization'],
         equals('Bearer secret_user_token'));
 
-    session.dispose();
+    await session.dispose();
+    await InspectorSession.resetForTesting();
   });
 }

@@ -107,18 +107,17 @@ class _FakeWebSocketSink implements WebSocketSink {
 void main() {
   group('InterceptlyWebSocketChannel', () {
     late InspectorSession session;
-    late Interceptly interceptly;
     late FakeWebSocketChannel fakeChannel;
 
-    setUp(() {
-      session = InspectorSession();
-      interceptly = Interceptly(session: session);
+    setUp(() async {
+      await InspectorSession.resetForTesting();
+      session = InspectorSession.instance;
       fakeChannel = FakeWebSocketChannel(protocol: 'chat-v1');
     });
 
-    tearDown(() {
-      session.dispose();
-      interceptly.dispose();
+    tearDown(() async {
+      await session.dispose();
+      await InspectorSession.resetForTesting();
     });
 
     test('initializes with custom sessionId, uri, headers and getters', () async {
@@ -127,7 +126,6 @@ void main() {
         fakeChannel,
         uri: uri,
         sessionId: 'custom-session-1',
-        interceptly: interceptly,
         headers: {'Authorization': 'Bearer test'},
       );
 
@@ -136,7 +134,7 @@ void main() {
       expect(channel.headers, equals({'Authorization': 'Bearer test'}));
       expect(channel.protocol, equals('chat-v1'));
       expect(channel.inner, equals(fakeChannel));
-      expect(channel.interceptly, equals(interceptly));
+      expect(channel.interceptly, equals(Interceptly.instance));
       await expectLater(channel.ready, completes);
 
       // Verify connection recorded in session
@@ -152,7 +150,6 @@ void main() {
     test('auto-generates sessionId when omitted and skips uri if null', () {
       final channel = InterceptlyWebSocketChannel(
         fakeChannel,
-        interceptly: interceptly,
       );
 
       expect(channel.sessionId, isNotEmpty);
@@ -164,7 +161,6 @@ void main() {
       final channel = InterceptlyWebSocketChannel(
         fakeChannel,
         sessionId: 'ws-out-text',
-        interceptly: interceptly,
       );
 
       channel.sink.add('Hello, Server!');
@@ -188,7 +184,6 @@ void main() {
       final channel = InterceptlyWebSocketChannel(
         fakeChannel,
         sessionId: 'ws-out-bin',
-        interceptly: interceptly,
       );
 
       final uint8Bytes = Uint8List.fromList([1, 2, 3, 4]);
@@ -218,7 +213,6 @@ void main() {
       final channel = InterceptlyWebSocketChannel(
         fakeChannel,
         sessionId: 'ws-in-text',
-        interceptly: interceptly,
       );
 
       final received = <dynamic>[];
@@ -244,7 +238,6 @@ void main() {
       final channel = InterceptlyWebSocketChannel(
         fakeChannel,
         sessionId: 'ws-in-bin',
-        interceptly: interceptly,
       );
 
       final received = <dynamic>[];
@@ -277,7 +270,6 @@ void main() {
       final channel = InterceptlyWebSocketChannel(
         fakeChannel,
         sessionId: 'ws-stream-out',
-        interceptly: interceptly,
       );
 
       final outgoingStream = Stream.fromIterable([
@@ -304,7 +296,6 @@ void main() {
         fakeChannel,
         uri: uri,
         sessionId: 'ws-close-sink',
-        interceptly: interceptly,
       );
 
       await channel.sink.close(1000, 'User logged out');
@@ -325,7 +316,6 @@ void main() {
         fakeChannel,
         uri: uri,
         sessionId: 'ws-close-server',
-        interceptly: interceptly,
       );
 
       final completer = Completer<void>();
@@ -348,7 +338,6 @@ void main() {
         fakeChannel,
         uri: uri,
         sessionId: 'ws-idempotent',
-        interceptly: interceptly,
       );
 
       final completer = Completer<void>();
@@ -373,7 +362,6 @@ void main() {
       final channel = InterceptlyWebSocketChannel(
         fakeChannel,
         sessionId: 'ws-err',
-        interceptly: interceptly,
       );
 
       Object? receivedError;
@@ -395,7 +383,6 @@ void main() {
       final channel = InterceptlyWebSocketChannel(
         fakeChannel,
         sessionId: 'ws-sink-err',
-        interceptly: interceptly,
       );
 
       channel.sink.addError(const FormatException('Bad data'));
@@ -411,7 +398,6 @@ void main() {
         fakeChannel,
         uri: uri,
         sessionId: 'wrapped-id',
-        interceptly: interceptly,
       );
 
       expect(channel, isA<InterceptlyWebSocketChannel>());
@@ -433,7 +419,6 @@ void main() {
       final channel = InterceptlyWebSocketChannel(
         fakeChannel,
         sessionId: 'getters-test',
-        interceptly: interceptly,
       );
 
       expect(channel.closeCode, equals(1005));
@@ -450,7 +435,6 @@ void main() {
         fake,
         uri: Uri.parse('wss://example.com/ready-fail'),
         sessionId: 'ws-ready-fail',
-        interceptly: interceptly,
       );
       expect(channel, isNotNull);
 
@@ -468,7 +452,6 @@ void main() {
         fakeChannel,
         uri: Uri.parse('wss://example.com/stream-err'),
         sessionId: 'ws-stream-err',
-        interceptly: interceptly,
       );
 
       Object? receivedError;
@@ -494,7 +477,6 @@ void main() {
       final channel = InterceptlyWebSocketChannel(
         fakeChannel,
         sessionId: 'ws-bytedata',
-        interceptly: interceptly,
       );
 
       final bd = ByteData(4)..setUint32(0, 0x12345678);
@@ -514,7 +496,6 @@ void main() {
       final channel = InterceptlyWebSocketChannel(
         fakeChannel,
         sessionId: 'ws-truncate',
-        interceptly: interceptly,
       );
 
       final bigText = 'A' * 100;
@@ -531,9 +512,14 @@ void main() {
     late FakeWebSocketChannel fakeChannel;
     late _SpyRealtimeTrafficCollector spyCollector;
 
-    setUp(() {
+    setUp(() async {
+      await InspectorSession.resetForTesting();
       fakeChannel = FakeWebSocketChannel(protocol: 'spy-v1');
       spyCollector = _SpyRealtimeTrafficCollector();
+    });
+
+    tearDown(() async {
+      await InspectorSession.resetForTesting();
     });
 
     test('implements RealtimeCaptureAdapter contract and exposes getters', () {
@@ -544,30 +530,25 @@ void main() {
 
       expect(channel, isA<RealtimeCaptureAdapter>());
       expect(channel.collector, equals(spyCollector));
-      expect(channel.session, isA<InspectorSession>());
-      expect(channel.interceptly, isA<Interceptly>());
+      expect(channel.session, equals(InspectorSession.instance));
+      expect(channel.interceptly, equals(Interceptly.instance));
       expect(channel.interceptly.session, equals(channel.session));
     });
 
-    test('binds custom session and collector via constructor and factories', () {
-      final customSession = InspectorSession();
-      addTearDown(customSession.dispose);
-
+    test('binds custom collector via constructor and factories', () {
       final channel = InterceptlyWebSocketChannel(
         fakeChannel,
-        session: customSession,
         collector: spyCollector,
       );
 
-      expect(channel.session, equals(customSession));
+      expect(channel.session, equals(InspectorSession.instance));
       expect(channel.collector, equals(spyCollector));
 
       final wrapped = InterceptlyWebSocketChannel.wrap(
         fakeChannel,
-        session: customSession,
         collector: spyCollector,
       );
-      expect(wrapped.session, equals(customSession));
+      expect(wrapped.session, equals(InspectorSession.instance));
       expect(wrapped.collector, equals(spyCollector));
     });
 

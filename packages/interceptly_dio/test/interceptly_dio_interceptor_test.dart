@@ -183,39 +183,10 @@ void main() {
       expect(defaultCollector.session, same(InspectorSession.instance));
     });
 
-    test('constructs with custom session', () {
-      final session = InspectorSession();
-      final interceptor = InterceptlyDioInterceptor(session);
-      expect(interceptor.session, same(session));
-      expect(interceptor.collector, isA<DefaultHttpTrafficCollector>());
-      final defaultCollector =
-          interceptor.collector as DefaultHttpTrafficCollector;
-      expect(defaultCollector.session, same(session));
-    });
-
-    test('constructs with custom DefaultHttpTrafficCollector', () {
-      final session = InspectorSession();
-      final collector = DefaultHttpTrafficCollector(session);
-      final interceptor = InterceptlyDioInterceptor(null, collector);
-      expect(interceptor.session, same(session));
-      expect(interceptor.collector, same(collector));
-    });
-
-    test(
-        'constructs with custom HttpTrafficCollector and falls back to shared session',
-        () {
+    test('constructs with custom HttpTrafficCollector', () {
       final spyCollector = _SpyHttpTrafficCollector();
-      final interceptor = InterceptlyDioInterceptor(null, spyCollector);
+      final interceptor = InterceptlyDioInterceptor(spyCollector);
       expect(interceptor.session, same(InspectorSession.instance));
-      expect(interceptor.collector, same(spyCollector));
-    });
-
-    test('constructs with both custom session and custom HttpTrafficCollector',
-        () {
-      final session = InspectorSession();
-      final spyCollector = _SpyHttpTrafficCollector();
-      final interceptor = InterceptlyDioInterceptor(session, spyCollector);
-      expect(interceptor.session, same(session));
       expect(interceptor.collector, same(spyCollector));
     });
   });
@@ -225,7 +196,7 @@ void main() {
         'onRequest delegates to collector.startRequest and stores context in extra',
         () async {
       final spy = _SpyHttpTrafficCollector();
-      final interceptor = InterceptlyDioInterceptor(null, spy);
+      final interceptor = InterceptlyDioInterceptor(spy);
 
       final dio = Dio()..httpClientAdapter = _FixedAdapter();
       dio.interceptors.add(interceptor);
@@ -251,7 +222,7 @@ void main() {
         'onResponse delegates to collector.completeResponse with context and response details',
         () async {
       final spy = _SpyHttpTrafficCollector();
-      final interceptor = InterceptlyDioInterceptor(null, spy);
+      final interceptor = InterceptlyDioInterceptor(spy);
 
       final dio = Dio()
         ..httpClientAdapter = _FixedAdapter(
@@ -281,7 +252,7 @@ void main() {
         'onError delegates to collector.completeResponse on badResponse with response',
         () async {
       final spy = _SpyHttpTrafficCollector();
-      final interceptor = InterceptlyDioInterceptor(null, spy);
+      final interceptor = InterceptlyDioInterceptor(spy);
 
       final dio = Dio()
         ..httpClientAdapter = _ThrowingAdapter(
@@ -316,7 +287,7 @@ void main() {
 
     test('onError creates fallback context when missing from extra', () async {
       final spy = _SpyHttpTrafficCollector();
-      final interceptor = InterceptlyDioInterceptor(null, spy);
+      final interceptor = InterceptlyDioInterceptor(spy);
 
       final dio = Dio()
         ..httpClientAdapter = _ThrowingAdapter(
@@ -350,7 +321,7 @@ void main() {
         'SimulatedNetworkException in startRequest rejects with DioException.connectionError',
         () async {
       final spy = _SpyHttpTrafficCollector()..throwSimulatedException = true;
-      final interceptor = InterceptlyDioInterceptor(null, spy);
+      final interceptor = InterceptlyDioInterceptor(spy);
 
       final dio = Dio()..httpClientAdapter = _FixedAdapter();
       dio.interceptors.add(interceptor);
@@ -375,14 +346,16 @@ void main() {
     late Directory tempDir;
 
     setUp(() async {
+      await InspectorSession.resetForTesting();
       tempDir = await Directory.systemTemp.createTemp('dio_interceptor_test_');
       _mockTempDir(() async => tempDir.path);
-      session = InspectorSession();
+      session = InspectorSession.instance;
       await session.initialize();
     });
 
     tearDown(() async {
       await session.dispose();
+      await InspectorSession.resetForTesting();
       try {
         if (tempDir.existsSync()) await tempDir.delete(recursive: true);
       } catch (_) {}
@@ -391,7 +364,7 @@ void main() {
     test('captures end-to-end GET request and response in session', () async {
       final dio = Dio()
         ..httpClientAdapter = _FixedAdapter(responseBody: '{"id":42}');
-      dio.interceptors.add(InterceptlyDioInterceptor(session));
+      dio.interceptors.add(InterceptlyDioInterceptor());
 
       final response =
           await dio.get<dynamic>('https://api.example.com/items/42');
@@ -423,7 +396,7 @@ void main() {
             requestOptions: options,
           ),
         );
-      dio.interceptors.add(InterceptlyDioInterceptor(session));
+      dio.interceptors.add(InterceptlyDioInterceptor());
 
       await expectLater(
         dio.get<dynamic>('https://api.example.com/slow'),
@@ -446,7 +419,7 @@ void main() {
       session.setNetworkSimulation(NetworkSimulationProfile.offlineProfile);
 
       final dio = Dio()..httpClientAdapter = _FixedAdapter();
-      dio.interceptors.add(InterceptlyDioInterceptor(session));
+      dio.interceptors.add(InterceptlyDioInterceptor());
 
       DioException? caughtException;
       try {
