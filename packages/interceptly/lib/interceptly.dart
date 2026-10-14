@@ -20,6 +20,7 @@ export 'src/model/network_simulation.dart'
 export 'src/model/request_filter.dart' show RequestFilter;
 export 'src/model/request_record.dart' show RequestRecord;
 export 'src/model/raw_capture.dart' show RawCapture;
+export 'src/model/body_location.dart' show BodyLocation;
 export 'src/model/realtime_frame.dart'
     show FrameDirection, FrameType, RealtimeFrame, RealtimeFrameCounts;
 export 'src/model/realtime_protocol_type.dart'

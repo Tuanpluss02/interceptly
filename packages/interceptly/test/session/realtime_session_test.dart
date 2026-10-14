@@ -508,4 +508,85 @@ void main() {
       expect(session.getRealtimeFrameCounts('ws-count').total, equals(0));
     });
   });
+
+  group('Clean-Sheet RealtimeFrame Model & Settings', () {
+    test('shortPreview cuts cleanly at 128 chars without splitting surrogate pairs', () {
+      final longText = 'a' * 150;
+      final preview = RealtimeFrame.extractShortPreview(longText, FrameType.text);
+      expect(preview.length, equals(128));
+      expect(preview, equals('a' * 128));
+
+      // Test with emojis at boundary (each emoji is 2 UTF-16 code units)
+      // 63 'a's + emoji at index 126-127 + emoji at index 128-129
+      final textWithEmoji = '${'a' * 126}🌍🚀${'b' * 50}';
+      final emojiPreview = RealtimeFrame.extractShortPreview(textWithEmoji, FrameType.text);
+      expect(emojiPreview.length, equals(128));
+      expect(emojiPreview.endsWith('🌍'), isTrue, reason: 'Must not split the surrogate pair of 🚀');
+
+      // Binary preview
+      final binaryData = Uint8List.fromList([0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x02]);
+      final binaryPreview = RealtimeFrame.extractShortPreview(binaryData, FrameType.binary);
+      expect(binaryPreview, contains('binary: 6 bytes'));
+      expect(binaryPreview, contains('de ad be ef'));
+    });
+
+    test('RealtimeFrame.offloaded holds file location and null payloads in RAM', () {
+      final frame = RealtimeFrame.offloaded(
+        id: 'frame-off-1',
+        sessionId: 'ws-conn',
+        direction: FrameDirection.incoming,
+        type: FrameType.text,
+        payloadSizeBytes: 65536,
+        shortPreview: '{"initial_sync": true...',
+        fileOffset: 1024,
+        fileLength: 65536,
+        rotationCount: 2,
+      );
+
+      expect(frame.location, equals(BodyLocation.file));
+      expect(frame.textPayload, isNull);
+      expect(frame.binaryPayload, isNull);
+      expect(frame.shortPreview, equals('{"initial_sync": true...'));
+      expect(frame.fileOffset, equals(1024));
+      expect(frame.fileLength, equals(65536));
+      expect(frame.rotationCount, equals(2));
+      expect(frame.payloadSizeBytes, equals(65536));
+    });
+
+    test('RealtimeFrame.memoryText and memoryBinary hold inline payloads', () {
+      final textFrame = RealtimeFrame.memoryText(
+        id: 'f-txt',
+        sessionId: 'ws-conn',
+        direction: FrameDirection.outgoing,
+        text: 'hello world',
+      );
+      expect(textFrame.location, equals(BodyLocation.memory));
+      expect(textFrame.textPayload, equals('hello world'));
+      expect(textFrame.shortPreview, equals('hello world'));
+      expect(textFrame.fileOffset, isNull);
+
+      final binFrame = RealtimeFrame.memoryBinary(
+        id: 'f-bin',
+        sessionId: 'ws-conn',
+        direction: FrameDirection.incoming,
+        bytes: Uint8List.fromList([1, 2, 3]),
+      );
+      expect(binFrame.location, equals(BodyLocation.memory));
+      expect(binFrame.binaryPayload, equals(Uint8List.fromList([1, 2, 3])));
+      expect(binFrame.shortPreview, contains('binary: 3 bytes'));
+    });
+
+    test('InterceptlySettings includes realtimeBodyOffloadThreshold and maxTotalRealtimeFrames', () {
+      const defaultSettings = InterceptlySettings();
+      expect(defaultSettings.realtimeBodyOffloadThreshold, equals(32 * 1024));
+      expect(defaultSettings.maxTotalRealtimeFrames, equals(5000));
+
+      final customSettings = defaultSettings.copyWith(
+        realtimeBodyOffloadThreshold: 64 * 1024,
+        maxTotalRealtimeFrames: 10000,
+      );
+      expect(customSettings.realtimeBodyOffloadThreshold, equals(64 * 1024));
+      expect(customSettings.maxTotalRealtimeFrames, equals(10000));
+    });
+  });
 }

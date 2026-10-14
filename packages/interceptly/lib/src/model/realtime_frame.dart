@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:interceptly/src/model/body_location.dart';
+
 /// The direction of a realtime frame relative to the client.
 enum FrameDirection {
   /// Message received from the server.
@@ -34,21 +36,30 @@ enum FrameType {
 /// (e.g. WebSocket, SSE, Socket.IO).
 class RealtimeFrame {
   /// Creates a [RealtimeFrame] with automatic computation of [payloadSizeBytes]
-  /// if not explicitly supplied.
+  /// and [shortPreview] if not explicitly supplied.
   RealtimeFrame({
     required this.id,
     required this.sessionId,
     required this.direction,
     required this.type,
+    this.location = BodyLocation.memory,
     this.textPayload,
     this.binaryPayload,
+    String? shortPreview,
+    this.fileOffset,
+    this.fileLength,
+    this.rotationCount,
     this.eventName,
     int? payloadSizeBytes,
     DateTime? timestamp,
-  })  : payloadSizeBytes = payloadSizeBytes ??
-            (binaryPayload != null
-                ? binaryPayload.lengthInBytes
-                : (textPayload != null ? utf8ByteLength(textPayload) : 0)),
+  })  : shortPreview = shortPreview ??
+            extractShortPreview(textPayload ?? binaryPayload, type),
+        payloadSizeBytes = payloadSizeBytes ??
+            (fileLength != null
+                ? fileLength
+                : (binaryPayload != null
+                    ? binaryPayload.lengthInBytes
+                    : (textPayload != null ? utf8ByteLength(textPayload) : 0))),
         timestamp = timestamp ?? DateTime.now();
 
   /// Raw const constructor for zero-overhead initialization.
@@ -57,14 +68,99 @@ class RealtimeFrame {
     required this.sessionId,
     required this.direction,
     required this.type,
+    required this.location,
+    required this.shortPreview,
     required this.payloadSizeBytes,
     required this.timestamp,
     this.textPayload,
     this.binaryPayload,
+    this.fileOffset,
+    this.fileLength,
+    this.rotationCount,
     this.eventName,
   });
 
-  /// Convenience factory for creating a text frame.
+  /// Convenience factory for creating a text frame retained in memory.
+  factory RealtimeFrame.memoryText({
+    required String id,
+    required String sessionId,
+    required FrameDirection direction,
+    required String text,
+    String? eventName,
+    DateTime? timestamp,
+    int? payloadSizeBytes,
+    String? shortPreview,
+  }) {
+    return RealtimeFrame(
+      id: id,
+      sessionId: sessionId,
+      direction: direction,
+      type: FrameType.text,
+      location: BodyLocation.memory,
+      textPayload: text,
+      eventName: eventName,
+      payloadSizeBytes: payloadSizeBytes,
+      timestamp: timestamp,
+      shortPreview: shortPreview,
+    );
+  }
+
+  /// Convenience factory for creating a binary frame retained in memory.
+  factory RealtimeFrame.memoryBinary({
+    required String id,
+    required String sessionId,
+    required FrameDirection direction,
+    required Uint8List bytes,
+    String? eventName,
+    DateTime? timestamp,
+    int? payloadSizeBytes,
+    String? shortPreview,
+  }) {
+    return RealtimeFrame(
+      id: id,
+      sessionId: sessionId,
+      direction: direction,
+      type: FrameType.binary,
+      location: BodyLocation.memory,
+      binaryPayload: bytes,
+      eventName: eventName,
+      payloadSizeBytes: payloadSizeBytes,
+      timestamp: timestamp,
+      shortPreview: shortPreview,
+    );
+  }
+
+  /// Convenience factory for creating an offloaded frame persisted to disk.
+  factory RealtimeFrame.offloaded({
+    required String id,
+    required String sessionId,
+    required FrameDirection direction,
+    required FrameType type,
+    required int payloadSizeBytes,
+    required String shortPreview,
+    required int fileOffset,
+    required int fileLength,
+    required int rotationCount,
+    String? eventName,
+    DateTime? timestamp,
+  }) {
+    return RealtimeFrame(
+      id: id,
+      sessionId: sessionId,
+      direction: direction,
+      type: type,
+      location: BodyLocation.file,
+      shortPreview: shortPreview,
+      fileOffset: fileOffset,
+      fileLength: fileLength,
+      rotationCount: rotationCount,
+      payloadSizeBytes: payloadSizeBytes,
+      eventName: eventName,
+      timestamp: timestamp,
+    );
+  }
+
+  /// Alias for [RealtimeFrame.memoryText].
   factory RealtimeFrame.text({
     required String id,
     required String sessionId,
@@ -73,20 +169,10 @@ class RealtimeFrame {
     String? eventName,
     DateTime? timestamp,
     int? payloadSizeBytes,
-  }) {
-    return RealtimeFrame(
-      id: id,
-      sessionId: sessionId,
-      direction: direction,
-      type: FrameType.text,
-      textPayload: text,
-      eventName: eventName,
-      payloadSizeBytes: payloadSizeBytes,
-      timestamp: timestamp,
-    );
-  }
+    String? shortPreview,
+  }) = RealtimeFrame.memoryText;
 
-  /// Convenience factory for creating a binary frame.
+  /// Alias for [RealtimeFrame.memoryBinary].
   factory RealtimeFrame.binary({
     required String id,
     required String sessionId,
@@ -95,18 +181,8 @@ class RealtimeFrame {
     String? eventName,
     DateTime? timestamp,
     int? payloadSizeBytes,
-  }) {
-    return RealtimeFrame(
-      id: id,
-      sessionId: sessionId,
-      direction: direction,
-      type: FrameType.binary,
-      binaryPayload: bytes,
-      eventName: eventName,
-      payloadSizeBytes: payloadSizeBytes,
-      timestamp: timestamp,
-    );
-  }
+    String? shortPreview,
+  }) = RealtimeFrame.memoryBinary;
 
   /// Unique identifier for this frame.
   final String id;
@@ -120,11 +196,26 @@ class RealtimeFrame {
   /// Frame type (text, binary, ping, pong, close, ack).
   final FrameType type;
 
-  /// String content when [type] == [FrameType.text], or null otherwise.
+  /// Storage location of the full payload (memory vs offloaded to file).
+  final BodyLocation location;
+
+  /// String content when [type] == [FrameType.text] and [location] == [BodyLocation.memory].
   final String? textPayload;
 
-  /// Raw byte buffer when [type] == [FrameType.binary], or null otherwise.
+  /// Raw byte buffer when [type] == [FrameType.binary] and [location] == [BodyLocation.memory].
   final Uint8List? binaryPayload;
+
+  /// Lightweight short preview (<= 128 characters, safe Unicode) always retained in RAM.
+  final String shortPreview;
+
+  /// Offset in the realtime temp file if offloaded to disk.
+  final int? fileOffset;
+
+  /// Length of the offloaded payload in bytes if offloaded to disk.
+  final int? fileLength;
+
+  /// Generational rotation count from [RealtimeBodyStore] to detect file rotation.
+  final int? rotationCount;
 
   /// Optional event name for event-driven realtime protocols (e.g. Socket.IO).
   final String? eventName;
@@ -159,14 +250,65 @@ class RealtimeFrame {
   /// True if this frame is an ack frame.
   bool get isAck => type == FrameType.ack;
 
+  /// True if this frame payload has been offloaded to disk.
+  bool get isOffloaded => location == BodyLocation.file;
+
+  /// True if this frame payload is resident in memory.
+  bool get isMemory => location == BodyLocation.memory;
+
+  /// Extracts a safe, concise short preview from [payload] without splitting UTF-16 surrogate pairs.
+  static String extractShortPreview(
+    dynamic payload,
+    FrameType type, {
+    int maxChars = 128,
+  }) {
+    if (payload == null) {
+      return type.name.toUpperCase();
+    }
+    if (payload is Uint8List) {
+      if (payload.isEmpty) return '[empty binary]';
+      final sample = payload
+          .take(16)
+          .map((b) => b.toRadixString(16).padLeft(2, '0'))
+          .join(' ');
+      final suffix = payload.length > 16 ? '...' : '';
+      return '[binary: ${payload.length} bytes] $sample$suffix';
+    }
+    if (type == FrameType.binary && payload is List<int>) {
+      if (payload.isEmpty) return '[empty binary]';
+      final sample = payload
+          .take(16)
+          .map((b) => b.toRadixString(16).padLeft(2, '0'))
+          .join(' ');
+      final suffix = payload.length > 16 ? '...' : '';
+      return '[binary: ${payload.length} bytes] $sample$suffix';
+    }
+    final text = payload is String ? payload : payload.toString();
+    if (text.length <= maxChars) {
+      return text;
+    }
+    // Prevent splitting a UTF-16 surrogate pair
+    if (maxChars > 0 &&
+        text.codeUnitAt(maxChars - 1) >= 0xD800 &&
+        text.codeUnitAt(maxChars - 1) <= 0xDBFF) {
+      return text.substring(0, maxChars - 1);
+    }
+    return text.substring(0, maxChars);
+  }
+
   /// Returns a copy of this frame with given fields replaced.
   RealtimeFrame copyWith({
     String? id,
     String? sessionId,
     FrameDirection? direction,
     FrameType? type,
+    BodyLocation? location,
     String? textPayload,
     Uint8List? binaryPayload,
+    String? shortPreview,
+    int? fileOffset,
+    int? fileLength,
+    int? rotationCount,
     String? eventName,
     int? payloadSizeBytes,
     DateTime? timestamp,
@@ -176,8 +318,13 @@ class RealtimeFrame {
       sessionId: sessionId ?? this.sessionId,
       direction: direction ?? this.direction,
       type: type ?? this.type,
+      location: location ?? this.location,
       textPayload: textPayload ?? this.textPayload,
       binaryPayload: binaryPayload ?? this.binaryPayload,
+      shortPreview: shortPreview ?? this.shortPreview,
+      fileOffset: fileOffset ?? this.fileOffset,
+      fileLength: fileLength ?? this.fileLength,
+      rotationCount: rotationCount ?? this.rotationCount,
       eventName: eventName ?? this.eventName,
       payloadSizeBytes: payloadSizeBytes ?? this.payloadSizeBytes,
       timestamp: timestamp ?? this.timestamp,
@@ -187,7 +334,7 @@ class RealtimeFrame {
   @override
   String toString() {
     return 'RealtimeFrame(id: $id, sessionId: $sessionId, direction: $direction, '
-        'type: $type, eventName: $eventName, payloadSizeBytes: $payloadSizeBytes, timestamp: $timestamp)';
+        'type: $type, location: $location, eventName: $eventName, payloadSizeBytes: $payloadSizeBytes, timestamp: $timestamp)';
   }
 
   @override
@@ -198,7 +345,12 @@ class RealtimeFrame {
         other.sessionId == sessionId &&
         other.direction == direction &&
         other.type == type &&
+        other.location == location &&
         other.textPayload == textPayload &&
+        other.shortPreview == shortPreview &&
+        other.fileOffset == fileOffset &&
+        other.fileLength == fileLength &&
+        other.rotationCount == rotationCount &&
         other.eventName == eventName &&
         other.payloadSizeBytes == payloadSizeBytes &&
         other.timestamp == timestamp;
@@ -210,7 +362,12 @@ class RealtimeFrame {
         sessionId,
         direction,
         type,
+        location,
         textPayload,
+        shortPreview,
+        fileOffset,
+        fileLength,
+        rotationCount,
         eventName,
         payloadSizeBytes,
         timestamp,

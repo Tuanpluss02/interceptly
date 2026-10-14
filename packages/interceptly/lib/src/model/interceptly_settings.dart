@@ -2,12 +2,14 @@
 class InterceptlySettings {
   const InterceptlySettings({
     this.bodyOffloadThreshold = 50 * 1024,
+    this.realtimeBodyOffloadThreshold = 32 * 1024,
     this.previewTruncationBytes = 16 * 1024,
     this.maxBodyBytes = 5 * 1024 * 1024,
     this.maxUiPreviewBytes = 2 * 1024 * 1024,
     this.maxQueuedEvents = 500,
     this.maxEntries = 5000,
     this.maxFramesPerSession = 1000,
+    this.maxTotalRealtimeFrames = 5000,
     this.urlDecodeEnabled = true,
     this.pendingTimeout = const Duration(seconds: 45),
     this.shouldCapture,
@@ -20,12 +22,20 @@ class InterceptlySettings {
           'maxFramesPerSession must be greater than 0',
         ),
         assert(
+          maxTotalRealtimeFrames > 0,
+          'maxTotalRealtimeFrames must be greater than 0',
+        ),
+        assert(
           previewTruncationBytes >= 0,
           'previewTruncationBytes must be non-negative',
         ),
         assert(
           bodyOffloadThreshold >= 0,
           'bodyOffloadThreshold must be non-negative',
+        ),
+        assert(
+          realtimeBodyOffloadThreshold >= 0,
+          'realtimeBodyOffloadThreshold must be non-negative',
         ),
         assert(
           maxUiPreviewBytes >= 0,
@@ -35,6 +45,10 @@ class InterceptlySettings {
   /// Body size (bytes) above which data is offloaded to the temp file.
   /// Below this threshold the raw bytes are kept inline in RAM.
   final int bodyOffloadThreshold;
+
+  /// Body size (bytes) above which realtime frames are offloaded to temp file.
+  /// Defaults to 32 KB (32 * 1024). Below this threshold the raw payload is kept in RAM.
+  final int realtimeBodyOffloadThreshold;
 
   /// Inline byte budget for pending request rows still waiting for a response.
   /// When a pending body exceeds [maxBodyBytes], only this many leading bytes
@@ -61,6 +75,11 @@ class InterceptlySettings {
   /// When exceeded, the oldest frame in the session is evicted.
   /// Defaults to 1000.
   final int maxFramesPerSession;
+
+  /// Global maximum number of `RealtimeFrame` items kept in memory across all sessions.
+  /// When exceeded, frames from closed sessions are prioritized for eviction.
+  /// Defaults to 5000.
+  final int maxTotalRealtimeFrames;
 
   /// Whether to decode URL encodings in the UI.
   final bool urlDecodeEnabled;
@@ -98,12 +117,14 @@ class InterceptlySettings {
 
   InterceptlySettings copyWith({
     int? bodyOffloadThreshold,
+    int? realtimeBodyOffloadThreshold,
     int? previewTruncationBytes,
     int? maxBodyBytes,
     int? maxUiPreviewBytes,
     int? maxQueuedEvents,
     int? maxEntries,
     int? maxFramesPerSession,
+    int? maxTotalRealtimeFrames,
     bool? urlDecodeEnabled,
     Duration? pendingTimeout,
     bool Function(String url)? shouldCapture,
@@ -112,6 +133,8 @@ class InterceptlySettings {
   }) {
     return InterceptlySettings(
       bodyOffloadThreshold: bodyOffloadThreshold ?? this.bodyOffloadThreshold,
+      realtimeBodyOffloadThreshold:
+          realtimeBodyOffloadThreshold ?? this.realtimeBodyOffloadThreshold,
       previewTruncationBytes:
           previewTruncationBytes ?? this.previewTruncationBytes,
       maxBodyBytes: maxBodyBytes ?? this.maxBodyBytes,
@@ -119,6 +142,8 @@ class InterceptlySettings {
       maxQueuedEvents: maxQueuedEvents ?? this.maxQueuedEvents,
       maxEntries: maxEntries ?? this.maxEntries,
       maxFramesPerSession: maxFramesPerSession ?? this.maxFramesPerSession,
+      maxTotalRealtimeFrames:
+          maxTotalRealtimeFrames ?? this.maxTotalRealtimeFrames,
       urlDecodeEnabled: urlDecodeEnabled ?? this.urlDecodeEnabled,
       pendingTimeout: pendingTimeout ?? this.pendingTimeout,
       shouldCapture: shouldCapture ?? this.shouldCapture,
