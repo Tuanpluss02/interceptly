@@ -155,6 +155,7 @@ class _SpyHttpTrafficCollector implements HttpTrafficCollector {
     required int statusCode,
     Map<String, String>? headers,
     Uint8List? bodyBytes,
+    int? responseSizeBytes,
     int? durationMs,
     String? responseContentType,
   }) async {
@@ -163,6 +164,7 @@ class _SpyHttpTrafficCollector implements HttpTrafficCollector {
       'statusCode': statusCode,
       'headers': headers,
       'bodyBytes': bodyBytes,
+      'responseSizeBytes': responseSizeBytes,
       'durationMs': durationMs,
       'responseContentType': responseContentType,
     });
@@ -177,6 +179,7 @@ class _SpyHttpTrafficCollector implements HttpTrafficCollector {
     int? statusCode,
     Map<String, String>? responseHeaders,
     Uint8List? responseBodyBytes,
+    int? responseSizeBytes,
     int? durationMs,
   }) {
     failRequestCalls.add({
@@ -187,6 +190,7 @@ class _SpyHttpTrafficCollector implements HttpTrafficCollector {
       'statusCode': statusCode,
       'responseHeaders': responseHeaders,
       'responseBodyBytes': responseBodyBytes,
+      'responseSizeBytes': responseSizeBytes,
       'durationMs': durationMs,
     });
   }

@@ -93,12 +93,16 @@ void main() {
       ]);
 
       Uint8List? captured;
+      int? capturedTotal;
       final teed = teeStreamCapture(
         source,
         maxBytes: 10,
-        onDone: (bytes) => captured = bytes,
-        onError: (_, __, ___) {},
-        onCancel: (_) {},
+        onDone: (bytes, total) {
+          captured = bytes;
+          capturedTotal = total;
+        },
+        onError: (_, __, ___, ____) {},
+        onCancel: (_, __) {},
       );
 
       final forwarded = await teed.toList();
@@ -109,22 +113,25 @@ void main() {
             [3, 4]
           ]));
       expect(captured, equals(Uint8List.fromList([1, 2, 3, 4])));
+      expect(capturedTotal, equals(4));
     });
 
     test('teeStreamCapture handles error properly', () async {
       final controller = StreamController<List<int>>();
       Object? receivedError;
       Uint8List? captured;
+      int? capturedTotal;
 
       final teed = teeStreamCapture(
         controller.stream,
         maxBytes: 10,
-        onDone: (_) {},
-        onError: (err, st, bytes) {
+        onDone: (_, __) {},
+        onError: (err, st, bytes, total) {
           receivedError = err;
           captured = bytes;
+          capturedTotal = total;
         },
-        onCancel: (_) {},
+        onCancel: (_, __) {},
       );
 
       final sub = teed.listen((_) {}, onError: (_) {});
@@ -134,6 +141,7 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 10));
       expect(receivedError, isA<Exception>());
       expect(captured, equals(Uint8List.fromList([1, 2])));
+      expect(capturedTotal, equals(2));
       await sub.cancel();
       await controller.close();
     });
@@ -142,15 +150,17 @@ void main() {
       final controller = StreamController<List<int>>();
       bool canceled = false;
       Uint8List? captured;
+      int? capturedTotal;
 
       final teed = teeStreamCapture(
         controller.stream,
         maxBytes: 10,
-        onDone: (_) {},
-        onError: (_, __, ___) {},
-        onCancel: (bytes) {
+        onDone: (_, __) {},
+        onError: (_, __, ___, ____) {},
+        onCancel: (bytes, total) {
           canceled = true;
           captured = bytes;
+          capturedTotal = total;
         },
       );
 
@@ -161,7 +171,144 @@ void main() {
 
       expect(canceled, isTrue);
       expect(captured, equals(Uint8List.fromList([1, 2, 3])));
+      expect(capturedTotal, equals(3));
       await controller.close();
     });
+
+    test('CappedBytesBuilder retains unbounded bytes when maxBytes <= 0', () {
+      final builder = CappedBytesBuilder(0);
+      builder.add([1, 2, 3]);
+      builder.add([4, 5, 6, 7]);
+
+      expect(builder.isTruncated, isFalse);
+      expect(builder.totalBytes, equals(7));
+      expect(builder.toBytesOrNull(),
+          equals(Uint8List.fromList([1, 2, 3, 4, 5, 6, 7])));
+    });
+
+    test(
+        'bindResponseStream passes captured capped bytes and original totalBytes to complete',
+        () async {
+      int? reportedStatus;
+      Uint8List? reportedBytes;
+      int? reportedTotalSize;
+
+      final spy = _SpyHttpCollector(
+        onComplete: ({
+          required context,
+          required statusCode,
+          headers,
+          bodyBytes,
+          responseSizeBytes,
+          durationMs,
+          responseContentType,
+        }) {
+          reportedStatus = statusCode;
+          reportedBytes = bodyBytes;
+          reportedTotalSize = responseSizeBytes;
+        },
+      );
+
+      final scope = HttpCaptureScope(
+        collector: spy,
+        context: HttpRequestContext(
+          id: 'test-1',
+          method: 'GET',
+          uri: Uri.parse('https://example.com/large'),
+          startedAt: DateTime.now(),
+        ),
+      );
+
+      final stream = Stream.fromIterable([
+        [1, 2, 3],
+        [4, 5, 6],
+        [7, 8, 9, 10],
+      ]);
+
+      // maxBodyBytes is 4, but stream length is 10
+      final bound = scope.bindResponseStream(stream, statusCode: 200);
+      await bound.drain<void>();
+
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(reportedStatus, equals(200));
+      expect(reportedBytes, equals(Uint8List.fromList([1, 2, 3, 4])));
+      expect(reportedTotalSize, equals(10));
+    });
   });
+}
+
+class _SpyHttpCollector implements HttpTrafficCollector {
+  _SpyHttpCollector({this.onComplete});
+
+  final void Function({
+    required HttpRequestContext context,
+    required int statusCode,
+    Map<String, String>? headers,
+    Uint8List? bodyBytes,
+    int? responseSizeBytes,
+    int? durationMs,
+    String? responseContentType,
+  })? onComplete;
+
+  @override
+  int get maxBodyBytes => 4;
+
+  @override
+  Duration delayForChunk(int chunkBytes) => Duration.zero;
+
+  @override
+  Future<HttpCaptureScope> begin({
+    required String method,
+    required Uri uri,
+    Map<String, String>? headers,
+    Uint8List? bodyBytes,
+    String? contentType,
+    String? requestId,
+  }) async =>
+      HttpCaptureScope.inactive(this);
+
+  @override
+  Future<HttpRequestContext?> startRequest({
+    required String method,
+    required Uri uri,
+    Map<String, String>? headers,
+    Uint8List? bodyBytes,
+    String? contentType,
+    String? requestId,
+  }) async =>
+      null;
+
+  @override
+  Future<void> completeResponse({
+    required HttpRequestContext context,
+    required int statusCode,
+    Map<String, String>? headers,
+    Uint8List? bodyBytes,
+    int? responseSizeBytes,
+    int? durationMs,
+    String? responseContentType,
+  }) async {
+    onComplete?.call(
+      context: context,
+      statusCode: statusCode,
+      headers: headers,
+      bodyBytes: bodyBytes,
+      responseSizeBytes: responseSizeBytes,
+      durationMs: durationMs,
+      responseContentType: responseContentType,
+    );
+  }
+
+  @override
+  void failRequest({
+    required HttpRequestContext context,
+    required Object error,
+    String? errorType,
+    String? errorMessage,
+    int? statusCode,
+    Map<String, String>? responseHeaders,
+    Uint8List? responseBodyBytes,
+    int? responseSizeBytes,
+    int? durationMs,
+  }) {}
 }

@@ -316,8 +316,11 @@ Future<IndexEntry> _processCapture(
   final reqRaw = capture.requestBodyBytes?.materialize().asUint8List();
   final resRaw = capture.responseBodyBytes?.materialize().asUint8List();
 
-  final reqSize = reqRaw?.length ?? 0;
-  final resSize = resRaw?.length ?? 0;
+  final reqKept = reqRaw?.length ?? 0;
+  final resKept = resRaw?.length ?? 0;
+
+  final reqSize = capture.requestSizeBytes ?? reqKept;
+  final resSize = capture.responseSizeBytes ?? resKept;
 
   final largestSize = reqSize > resSize ? reqSize : resSize;
   var useFile = persistToDisk && largestSize >= threshold;
@@ -365,12 +368,12 @@ Future<IndexEntry> _processCapture(
     requestTruncation: _storageTruncation(
       reqSize,
       maxBody,
-      _keptBytes(reqSize, maxBody),
+      _keptBytes(reqKept, maxBody),
     ),
     responseTruncation: _storageTruncation(
       resSize,
       maxBody,
-      _keptBytes(resSize, maxBody),
+      _keptBytes(resKept, maxBody),
     ),
     fileOffset: fileOffset,
     fileLength: fileLength,

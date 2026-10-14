@@ -66,6 +66,7 @@ abstract interface class HttpTrafficCollector {
     required int statusCode,
     Map<String, String>? headers,
     Uint8List? bodyBytes,
+    int? responseSizeBytes,
     int? durationMs,
     String? responseContentType,
   });
@@ -81,6 +82,7 @@ abstract interface class HttpTrafficCollector {
     int? statusCode,
     Map<String, String>? responseHeaders,
     Uint8List? responseBodyBytes,
+    int? responseSizeBytes,
     int? durationMs,
   });
 }
@@ -199,12 +201,17 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
     required int statusCode,
     Map<String, String>? headers,
     Uint8List? bodyBytes,
+    int? responseSizeBytes,
     int? durationMs,
     String? responseContentType,
   }) async {
     await guardCaptureAsync(() async {
+      final actualResponseSize = responseSizeBytes ??
+          _parseContentLength(headers) ??
+          bodyBytes?.length;
+
       await session.applyNetworkSimulationAfterResponse(
-        downloadBytes: bodyBytes?.length ?? 0,
+        downloadBytes: actualResponseSize ?? 0,
       );
 
       final elapsed = durationMs ??
@@ -223,6 +230,8 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
         timestamp: context.startedAt,
         requestBodyBytes: RawCapture.wrapBytes(context.requestBodyBytes),
         responseBodyBytes: RawCapture.wrapBytes(bodyBytes),
+        requestSizeBytes: context.requestBodyBytes?.length,
+        responseSizeBytes: actualResponseSize,
         requestContentType: context.requestContentType,
         responseContentType: resolvedContentType,
       );
@@ -240,6 +249,7 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
     int? statusCode,
     Map<String, String>? responseHeaders,
     Uint8List? responseBodyBytes,
+    int? responseSizeBytes,
     int? durationMs,
   }) {
     guardCapture(() {
@@ -248,6 +258,9 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
       final resolvedContentType = responseHeaders != null
           ? headerValue(responseHeaders, 'content-type')
           : null;
+      final actualResponseSize = responseSizeBytes ??
+          _parseContentLength(responseHeaders) ??
+          responseBodyBytes?.length;
 
       final capture = RawCapture(
         id: context.id,
@@ -260,6 +273,8 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
         timestamp: context.startedAt,
         requestBodyBytes: RawCapture.wrapBytes(context.requestBodyBytes),
         responseBodyBytes: RawCapture.wrapBytes(responseBodyBytes),
+        requestSizeBytes: context.requestBodyBytes?.length,
+        responseSizeBytes: actualResponseSize,
         requestContentType: context.requestContentType,
         responseContentType: resolvedContentType,
         errorType: errorType ?? error.runtimeType.toString(),
@@ -268,5 +283,11 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
 
       session.record(capture);
     });
+  }
+
+  static int? _parseContentLength(Map<String, String>? headers) {
+    if (headers == null) return null;
+    final cl = headerValue(headers, 'content-length');
+    return cl != null ? int.tryParse(cl) : null;
   }
 }

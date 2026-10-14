@@ -17,6 +17,8 @@ class RawCapture {
     required this.timestamp,
     this.requestBodyBytes,
     this.responseBodyBytes,
+    this.requestSizeBytes,
+    this.responseSizeBytes,
     this.requestContentType,
     this.responseContentType,
     this.errorType,
@@ -35,6 +37,10 @@ class RawCapture {
   /// Null when there is no body (e.g. GET with no payload).
   final TransferableTypedData? requestBodyBytes;
   final TransferableTypedData? responseBodyBytes;
+
+  /// Original byte counts before adapter-level or network truncation, if known.
+  final int? requestSizeBytes;
+  final int? responseSizeBytes;
 
   final String? requestContentType;
   final String? responseContentType;

@@ -76,6 +76,7 @@ class HttpCaptureScope {
     required int statusCode,
     Map<String, String>? headers,
     Uint8List? bodyBytes,
+    int? responseSizeBytes,
     String? contentType,
     int? durationMs,
   }) async {
@@ -88,6 +89,7 @@ class HttpCaptureScope {
         statusCode: statusCode,
         headers: headers,
         bodyBytes: bodyBytes,
+        responseSizeBytes: responseSizeBytes,
         responseContentType: contentType,
         durationMs: durationMs,
       );
@@ -104,6 +106,7 @@ class HttpCaptureScope {
     int? statusCode,
     Map<String, String>? responseHeaders,
     Uint8List? responseBodyBytes,
+    int? responseSizeBytes,
     int? durationMs,
   }) {
     if (_isSettled || _context == null) return;
@@ -118,6 +121,7 @@ class HttpCaptureScope {
         statusCode: statusCode,
         responseHeaders: responseHeaders,
         responseBodyBytes: responseBodyBytes,
+        responseSizeBytes: responseSizeBytes,
         durationMs: durationMs,
       );
     });
@@ -137,26 +141,28 @@ class HttpCaptureScope {
       responseStream,
       maxBytes: collector.maxBodyBytes,
       chunkDelay: collector.delayForChunk,
-      onDone: (captured) {
+      onDone: (captured, totalBytes) {
         unawaited(
           complete(
             statusCode: statusCode,
             headers: headers,
             bodyBytes: captured,
+            responseSizeBytes: totalBytes,
             contentType: contentType,
           ),
         );
       },
-      onError: (error, st, captured) {
+      onError: (error, st, captured, totalBytes) {
         fail(
           error,
           stackTrace: st,
           statusCode: statusCode,
           responseHeaders: headers,
           responseBodyBytes: captured,
+          responseSizeBytes: totalBytes,
         );
       },
-      onCancel: (captured) {
+      onCancel: (captured, totalBytes) {
         fail(
           'CancellationException',
           errorType: 'CancellationException',
@@ -164,6 +170,7 @@ class HttpCaptureScope {
           statusCode: statusCode,
           responseHeaders: headers,
           responseBodyBytes: captured,
+          responseSizeBytes: totalBytes,
         );
       },
     );

@@ -59,11 +59,11 @@ Stream<List<int>> teeStreamCapture(
   Stream<List<int>> source, {
   required int maxBytes,
   Duration Function(int chunkBytes)? chunkDelay,
-  required void Function(Uint8List? captured) onDone,
-  required void Function(
-          Object error, StackTrace stackTrace, Uint8List? captured)
+  required void Function(Uint8List? captured, int totalBytes) onDone,
+  required void Function(Object error, StackTrace stackTrace,
+          Uint8List? captured, int totalBytes)
       onError,
-  required void Function(Uint8List? captured) onCancel,
+  required void Function(Uint8List? captured, int totalBytes) onCancel,
 }) {
   final buffer = CappedBytesBuilder(maxBytes);
   bool settled = false;
@@ -76,21 +76,21 @@ Stream<List<int>> teeStreamCapture(
     if (settled) return;
     settled = true;
     final captured = buffer.toBytesOrNull();
-    guardCapture(() => onDone(captured));
+    guardCapture(() => onDone(captured, buffer.totalBytes));
   }
 
   void finishError(Object error, StackTrace st) {
     if (settled) return;
     settled = true;
     final captured = buffer.toBytesOrNull();
-    guardCapture(() => onError(error, st, captured));
+    guardCapture(() => onError(error, st, captured, buffer.totalBytes));
   }
 
   void finishCancel() {
     if (settled) return;
     settled = true;
     final captured = buffer.toBytesOrNull();
-    guardCapture(() => onCancel(captured));
+    guardCapture(() => onCancel(captured, buffer.totalBytes));
   }
 
   controller = StreamController<List<int>>(

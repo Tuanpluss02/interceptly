@@ -40,8 +40,9 @@ class InterceptlyTheme {
   static InterceptlyTypography get typography => const InterceptlyTypography();
   static InterceptlySpacing get spacing => const InterceptlySpacing();
   static InterceptlyRadius get radius => const InterceptlyRadius();
-  static InterceptlyColors get colors =>
-      brightness == Brightness.dark ? const _DarkColors() : const _LightColors();
+  static InterceptlyColors get colors => brightness == Brightness.dark
+      ? const _DarkColors()
+      : const _LightColors();
 
   static Brightness _resolveBrightness({
     BuildContext? context,
@@ -129,6 +130,7 @@ class InterceptlyTheme {
   }) {
     return ThemeData(
       brightness: brightness,
+      fontFamily: 'packages/$fontPackage/$fontFamily',
       scaffoldBackgroundColor: palette.surfacePrimary,
       primaryColor: palette.actionPrimary,
       colorScheme: ColorScheme(
@@ -416,6 +418,8 @@ class InterceptlyTypography {
 
   TextStyle _base(double size, FontWeight weight) {
     return TextStyle(
+      fontFamily: InterceptlyTheme.fontFamily,
+      package: InterceptlyTheme.fontPackage,
       fontSize: size,
       fontWeight: weight,
     );
