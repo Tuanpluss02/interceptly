@@ -75,6 +75,7 @@ class FloatingOverlayManager {
   bool _hiddenForSession = false;
   bool _navObserverAttached = false;
   bool _bringToTopPostFrameScheduled = false;
+  int _attachGeneration = 0;
 
   late final _FloatingOverlayNavigatorObserver _navigatorObserver =
       _FloatingOverlayNavigatorObserver(this);
@@ -86,14 +87,24 @@ class FloatingOverlayManager {
   bool get showFloatingButton => _showFloatingButton;
   NavigatorObserver get navigatorObserver => _navigatorObserver;
 
+  void _removeFabEntry() {
+    final entry = _fabEntry;
+    _fabEntry = null;
+    if (entry != null) {
+      try {
+        entry.remove();
+      } catch (_) {}
+      try {
+        entry.dispose();
+      } catch (_) {}
+    }
+  }
+
   void setHiddenForSession(bool hidden) {
     if (_hiddenForSession == hidden) return;
     _hiddenForSession = hidden;
     if (hidden) {
-      try {
-        _fabEntry?.remove();
-      } catch (_) {}
-      _fabEntry = null;
+      _removeFabEntry();
     } else {
       if (_isAttached && !_inspectorIsOpen && _showFloatingButton) {
         _tryInsertOverlays();
@@ -111,8 +122,10 @@ class FloatingOverlayManager {
     }
     if (_bringToTopPostFrameScheduled) return;
     _bringToTopPostFrameScheduled = true;
+    final gen = _attachGeneration;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _bringToTopPostFrameScheduled = false;
+      if (!_isAttached || _attachGeneration != gen) return;
       bringToTop();
     });
   }
@@ -135,6 +148,8 @@ class FloatingOverlayManager {
         if (!_inspectorIsOpen) {
           _tryInsertOverlays();
         }
+      } else if (_fabEntry == null && showFloatingButton && !_hiddenForSession) {
+        _tryInsertOverlays();
       } else if (configChanged) {
         _fabEntry?.markNeedsBuild();
       }
@@ -148,6 +163,7 @@ class FloatingOverlayManager {
       detach();
     }
 
+    final gen = ++_attachGeneration;
     _navigatorKey = navigatorKey;
     _showFloatingButton = showFloatingButton;
     _fabChild = fabChild;
@@ -167,7 +183,7 @@ class FloatingOverlayManager {
       } else {
         WidgetsBinding.instance.ensureVisualUpdate();
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!_isAttached) return;
+          if (!_isAttached || _attachGeneration != gen) return;
           _tryInsertOverlays();
         });
       }
@@ -176,17 +192,25 @@ class FloatingOverlayManager {
 
   void _tryInsertOverlays() {
     if (!_isAttached || !_showFloatingButton || _hiddenForSession) return;
+    if (_fabEntry != null) return;
 
     final overlay = _navigatorKey?.currentState?.overlay;
     if (overlay == null || !overlay.mounted) {
+      final gen = _attachGeneration;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!_isAttached || !_showFloatingButton) return;
+        if (!_isAttached || _attachGeneration != gen || !_showFloatingButton) {
+          return;
+        }
         final nextOverlay = _navigatorKey?.currentState?.overlay;
         if (nextOverlay != null && nextOverlay.mounted) {
           _tryInsertOverlays();
         } else {
           WidgetsBinding.instance.scheduleFrameCallback((_) {
-            if (!_isAttached || !_showFloatingButton) return;
+            if (!_isAttached ||
+                _attachGeneration != gen ||
+                !_showFloatingButton) {
+              return;
+            }
             _tryInsertOverlays();
           });
         }
@@ -195,19 +219,7 @@ class FloatingOverlayManager {
     }
 
     _tryAttachNavigatorObserver();
-
-    if (_fabEntry != null && !_fabEntry!.mounted) {
-      _fabEntry = null;
-    }
-
-    if (_fabEntry == null) {
-      _insertFab(overlay);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        bringToTop();
-      });
-    } else {
-      bringToTop();
-    }
+    _insertFab(overlay);
   }
 
   void bringToTop() {
@@ -222,8 +234,14 @@ class FloatingOverlayManager {
     if (overlay == null || !overlay.mounted) return;
 
     final entry = _fabEntry;
-    if (entry == null || !entry.mounted) {
+    if (entry == null) {
       _insertFab(overlay);
+      return;
+    }
+
+    if (!entry.mounted) {
+      // Entry was inserted but not yet mounted by the framework.
+      // It is already queued in overlay._entries and will render on top.
       return;
     }
 
@@ -231,13 +249,13 @@ class FloatingOverlayManager {
       entry.remove();
       overlay.insert(entry);
     } catch (_) {
-      _fabEntry = null;
+      _removeFabEntry();
       _insertFab(overlay);
     }
   }
 
   void _insertFab(OverlayState overlay) {
-    if (!overlay.mounted) return;
+    if (!overlay.mounted || _fabEntry != null) return;
 
     _fabEntry = OverlayEntry(
       builder: (context) {
@@ -319,6 +337,7 @@ class FloatingOverlayManager {
   }
 
   void detach() {
+    _attachGeneration++;
     if (_observerRegistered) {
       WidgetsBinding.instance.removeObserver(_lifecycleObserver);
       _observerRegistered = false;
@@ -326,11 +345,8 @@ class FloatingOverlayManager {
 
     _detachNavigatorObserver();
 
-    try {
-      _fabEntry?.remove();
-    } catch (_) {}
+    _removeFabEntry();
 
-    _fabEntry = null;
     _navigatorKey = null;
     _onFabTap = null;
     _fabChild = null;
