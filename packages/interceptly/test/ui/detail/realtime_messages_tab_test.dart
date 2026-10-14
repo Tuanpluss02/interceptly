@@ -19,6 +19,9 @@ class _MockSession extends ChangeNotifier implements InspectorSessionView {
   InspectorPreferences get preferences => _prefs;
 
   @override
+  bool get isRealtimeActive => false;
+
+  @override
   List<RequestSummary> get entries => const [];
 
   @override

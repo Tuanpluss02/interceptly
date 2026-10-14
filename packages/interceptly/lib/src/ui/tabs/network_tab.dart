@@ -9,6 +9,7 @@ import 'package:interceptly/src/ui/widgets/interceptly_text_field.dart';
 import 'package:interceptly/src/ui/widgets/toast_notification.dart';
 
 import '../../model/domain_group.dart';
+import '../../model/network_protocol.dart';
 import '../../model/request_record.dart';
 import '../../model/request_summary.dart';
 import '../../session/inspector_session_view.dart';
@@ -20,11 +21,13 @@ class NetworkTab extends StatefulWidget {
     super.key,
     required this.session,
     this.groupingEnabled = false,
+    this.protocol = NetworkProtocol.all,
     this.onShowFilterPanel,
   });
 
   final InspectorSessionView session;
   final bool groupingEnabled;
+  final NetworkProtocol protocol;
   final VoidCallback? onShowFilterPanel;
 
   @override
@@ -213,13 +216,34 @@ class _NetworkTabState extends State<NetworkTab> {
     );
   }
 
+  List<RequestSummary> _filterByProtocol(List<RequestSummary> list) {
+    switch (widget.protocol) {
+      case NetworkProtocol.rest:
+        return list.where((e) => e.method != 'WS').toList();
+      case NetworkProtocol.realtime:
+        return list.where((e) => e.method == 'WS').toList();
+      case NetworkProtocol.all:
+        return list;
+    }
+  }
+
+  String get _emptyMessage {
+    switch (widget.protocol) {
+      case NetworkProtocol.realtime:
+        return 'No WebSocket connections yet.';
+      case NetworkProtocol.rest:
+      case NetworkProtocol.all:
+        return 'No network requests yet.';
+    }
+  }
+
   Widget _buildFlatList(BuildContext context) {
-    final entries = widget.session.entries;
+    final entries = _filterByProtocol(widget.session.entries);
 
     if (entries.isEmpty) {
       return Center(
         child: Text(
-          'No network requests yet.',
+          _emptyMessage,
           style: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
             color: InterceptlyTheme.textMuted,
           ),
@@ -256,12 +280,23 @@ class _NetworkTabState extends State<NetworkTab> {
   }
 
   Widget _buildGroupedList(BuildContext context) {
-    final groups = widget.session.getGroupedRecords();
+    final rawGroups = widget.session.getGroupedRecords();
+    final groups = <DomainGroup>[];
+    for (final g in rawGroups) {
+      final filteredRequests = _filterByProtocol(g.requests);
+      if (filteredRequests.isNotEmpty) {
+        groups.add(DomainGroup(
+          domain: g.domain,
+          requests: filteredRequests,
+          isExpanded: g.isExpanded,
+        ));
+      }
+    }
 
     if (groups.isEmpty) {
       return Center(
         child: Text(
-          'No network requests yet.',
+          _emptyMessage,
           style: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
             color: InterceptlyTheme.textMuted,
           ),
