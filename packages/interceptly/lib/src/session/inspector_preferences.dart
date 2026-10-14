@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../model/network_protocol.dart';
+
 /// Holds UI preferences that are independent of the capture session state.
 ///
 /// Separated from [InspectorSession] so that theme and decode settings do not
@@ -7,9 +9,13 @@ import 'package:flutter/material.dart';
 class InspectorPreferences extends ChangeNotifier {
   ThemeMode _themeMode = ThemeMode.system;
   bool _urlDecodeEnabled = true;
+  int _selectedTabIndex = 0;
 
   ThemeMode get themeMode => _themeMode;
   bool get urlDecodeEnabled => _urlDecodeEnabled;
+  int get selectedTabIndex => _selectedTabIndex;
+  NetworkProtocol get selectedProtocol =>
+      _selectedTabIndex == 1 ? NetworkProtocol.realtime : NetworkProtocol.rest;
 
   void setThemeMode(ThemeMode mode) {
     if (_themeMode == mode) return;
@@ -21,5 +27,15 @@ class InspectorPreferences extends ChangeNotifier {
     if (_urlDecodeEnabled == value) return;
     _urlDecodeEnabled = value;
     notifyListeners();
+  }
+
+  void setSelectedTabIndex(int index) {
+    if (_selectedTabIndex == index) return;
+    _selectedTabIndex = index;
+    notifyListeners();
+  }
+
+  void setSelectedProtocol(NetworkProtocol protocol) {
+    setSelectedTabIndex(protocol == NetworkProtocol.realtime ? 1 : 0);
   }
 }

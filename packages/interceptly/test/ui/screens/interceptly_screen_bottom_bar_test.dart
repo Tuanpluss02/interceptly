@@ -115,5 +115,40 @@ void main() {
       await session.clear();
       await tester.pump();
     });
+
+    testWidgets('persists selected tab index across screen dismiss and re-open', (tester) async {
+      session.configureSession(const InterceptlySettings(enableRealtime: true));
+
+      // 1. Open InterceptlyScreen
+      await tester.pumpWidget(
+        MaterialApp(
+          home: InterceptlyScreen(session: session),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex, equals(0));
+
+      // 2. User taps 'Realtime' tab
+      await tester.tap(find.text('Realtime'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex, equals(1));
+
+      // 3. User exits screen (simulating popping route/closing overlay)
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      await tester.pumpAndSettle();
+      expect(find.byType(InterceptlyScreen), findsNothing);
+
+      // 4. User opens InterceptlyScreen again with same session
+      await tester.pumpWidget(
+        MaterialApp(
+          home: InterceptlyScreen(session: session),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Must restore Realtime tab (index 1), NOT reset to 0 (REST)
+      expect(tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex, equals(1));
+    });
   });
 }

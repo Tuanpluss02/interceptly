@@ -24,8 +24,6 @@ class InterceptlyScreen extends StatefulWidget {
 }
 
 class _InterceptlyScreenState extends State<InterceptlyScreen> {
-  int _selectedTabIndex = 0;
-
   void _showSettings(BuildContext ctx) {
     SettingsBottomSheet.show(ctx, widget.session);
   }
@@ -74,6 +72,8 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
               listenable: widget.session,
               builder: (context, _) {
                 final isRealtime = widget.session.isRealtimeActive;
+                final selectedTabIndex =
+                    widget.session.preferences.selectedTabIndex.clamp(0, 1);
 
                 return Scaffold(
                   appBar: AppBar(
@@ -115,7 +115,7 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
                               _showFilterPanel(themedContext),
                         )
                       : IndexedStack(
-                          index: _selectedTabIndex,
+                          index: selectedTabIndex,
                           children: [
                             NetworkTab(
                               key: const ValueKey('tab_rest'),
@@ -137,9 +137,9 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
                         ),
                   bottomNavigationBar: isRealtime
                       ? NavigationBar(
-                          selectedIndex: _selectedTabIndex,
+                          selectedIndex: selectedTabIndex,
                           onDestinationSelected: (i) =>
-                              setState(() => _selectedTabIndex = i),
+                              widget.session.preferences.setSelectedTabIndex(i),
                           destinations: const [
                             NavigationDestination(
                               icon: Icon(Icons.http),
