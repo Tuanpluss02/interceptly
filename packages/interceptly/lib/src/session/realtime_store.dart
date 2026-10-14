@@ -1,53 +1,296 @@
 import 'dart:async';
+import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
 
 import '../model/realtime_frame.dart';
-import 'ring_buffer.dart';
 
-/// Stores and buffers realtime frames per session ID, throttling UI notifications.
+/// A high-performance, dynamic circular buffer that grows on demand from a small
+/// initial allocation up to [maxCapacity], and then operates as an O(1) ring buffer.
+class DynamicCircularBuffer {
+  /// Creates a dynamic circular buffer with [maxCapacity] and [initialCapacity].
+  DynamicCircularBuffer({required int maxCapacity, int initialCapacity = 16})
+      : _maxCapacity = maxCapacity,
+        _capacity = initialCapacity.clamp(1, maxCapacity) {
+    _buffer = List<RealtimeFrame?>.filled(_capacity, null);
+  }
+
+  int _maxCapacity;
+  int _capacity;
+  late List<RealtimeFrame?> _buffer;
+  int _head = 0;
+  int _count = 0;
+
+  /// Current number of items in the buffer.
+  int get count => _count;
+
+  /// True if buffer has no elements.
+  bool get isEmpty => _count == 0;
+
+  /// True if buffer contains at least one element.
+  bool get isNotEmpty => _count > 0;
+
+  /// Current allocated capacity of the internal buffer.
+  int get capacity => _capacity;
+
+  /// Maximum allowed capacity before overwriting oldest items.
+  int get maxCapacity => _maxCapacity;
+
+  /// Appends [item] to the buffer.
+  ///
+  /// Expands capacity exponentially (up to [_maxCapacity]) when full.
+  /// Once [_maxCapacity] is reached, overwrites the oldest element in O(1).
+  void add(RealtimeFrame item) {
+    if (_count < _capacity) {
+      final index = (_head + _count) % _capacity;
+      _buffer[index] = item;
+      _count++;
+      return;
+    }
+
+    if (_capacity < _maxCapacity) {
+      _grow();
+      final index = (_head + _count) % _capacity;
+      _buffer[index] = item;
+      _count++;
+      return;
+    }
+
+    // Full at max capacity: overwrite head (oldest element)
+    _buffer[_head] = item;
+    _head = (_head + 1) % _capacity;
+  }
+
+  void _grow() {
+    final newCapacity = (_capacity * 2).clamp(1, _maxCapacity);
+    final newBuffer = List<RealtimeFrame?>.filled(newCapacity, null);
+    for (var i = 0; i < _count; i++) {
+      newBuffer[i] = _buffer[(_head + i) % _capacity];
+    }
+    _buffer = newBuffer;
+    _capacity = newCapacity;
+    _head = 0;
+  }
+
+  /// Removes and returns the oldest item from the buffer in O(1).
+  RealtimeFrame? evictOldest() {
+    if (_count == 0) return null;
+    final item = _buffer[_head];
+    _buffer[_head] = null;
+    _head = (_head + 1) % _capacity;
+    _count--;
+    return item;
+  }
+
+  /// Accesses element at logical [index] in FIFO order (0 = oldest).
+  RealtimeFrame operator [](int index) {
+    if (index < 0 || index >= _count) {
+      throw RangeError.index(index, this, 'index', null, _count);
+    }
+    return _buffer[(_head + index) % _capacity]!;
+  }
+
+  /// Updates maximum capacity, evicting oldest items if current count exceeds [newMaxCapacity].
+  void updateMaxCapacity(int newMaxCapacity) {
+    _maxCapacity = newMaxCapacity;
+    while (_count > _maxCapacity) {
+      evictOldest();
+    }
+    if (_capacity > _maxCapacity) {
+      final newCapacity = _maxCapacity;
+      final newBuffer = List<RealtimeFrame?>.filled(newCapacity, null);
+      for (var i = 0; i < _count; i++) {
+        newBuffer[i] = _buffer[(_head + i) % _capacity];
+      }
+      _buffer = newBuffer;
+      _capacity = newCapacity;
+      _head = 0;
+    }
+  }
+
+  /// Clears all elements from the buffer.
+  void clear() {
+    _buffer.fillRange(0, _capacity, null);
+    _head = 0;
+    _count = 0;
+  }
+}
+
+/// Zero-allocation, unmodifiable live [ListBase] view of a [DynamicCircularBuffer].
+class _RealtimeBufferListView extends ListBase<RealtimeFrame> {
+  _RealtimeBufferListView(this._buffer);
+
+  final DynamicCircularBuffer _buffer;
+
+  @override
+  int get length => _buffer.count;
+
+  @override
+  set length(int newLength) =>
+      throw UnsupportedError('Realtime frame view is unmodifiable');
+
+  @override
+  RealtimeFrame operator [](int index) => _buffer[index];
+
+  @override
+  void operator []=(int index, RealtimeFrame value) =>
+      throw UnsupportedError('Realtime frame view is unmodifiable');
+}
+
+/// Clean-sheet in-memory realtime frame store with dynamic circular buffers,
+/// zero-allocation ListBase views, and global budget coordination.
 @internal
 class RealtimeStore {
-  /// Creates a realtime frame store with capacity [maxFramesPerSession] and
-  /// batch callback [onThrottledBatch].
+  /// Creates a [RealtimeStore] with [maxFramesPerSession] and [onThrottledBatch].
   RealtimeStore({
     required int maxFramesPerSession,
     required VoidCallback onThrottledBatch,
+    int maxTotalRealtimeFrames = 5000,
+    int maxSessions = 50,
   })  : _maxFramesPerSession = maxFramesPerSession,
-        _onThrottledBatch = onThrottledBatch;
-
-  static const int maxSessions = 50;
+        _onThrottledBatch = onThrottledBatch,
+        _maxTotalRealtimeFrames = maxTotalRealtimeFrames,
+        _maxSessions = maxSessions;
 
   int _maxFramesPerSession;
+  int _maxTotalRealtimeFrames;
+  int _maxSessions;
   final VoidCallback _onThrottledBatch;
-  final Map<String, RingBuffer<RealtimeFrame>> _realtimeFramesBySession = {};
-  final Map<String, RealtimeFrameCounts> _frameCountsBySession = {};
+
+  final Map<String, DynamicCircularBuffer> _buffersBySession = {};
+  final Map<String, _RealtimeBufferListView> _viewsBySession = {};
+  final Map<String, ValueNotifier<RealtimeFrameCounts>> _notifiersBySession = {};
+  final Set<String> _closedSessions = {};
+
+  int _totalFramesAcrossSessions = 0;
   Timer? _throttleTimer;
   bool _hasPendingNotification = false;
   bool _isDisposed = false;
 
-  /// Appends [frame] to the buffer for its session and schedules a throttled notification.
+  /// Total count of frames stored across all sessions.
+  int get totalFramesAcrossSessions => _totalFramesAcrossSessions;
+
+  DynamicCircularBuffer _getOrCreateBuffer(String sessionId) {
+    var buffer = _buffersBySession[sessionId];
+    if (buffer == null) {
+      buffer = DynamicCircularBuffer(maxCapacity: _maxFramesPerSession);
+      _buffersBySession[sessionId] = buffer;
+    } else {
+      _buffersBySession.remove(sessionId);
+      _buffersBySession[sessionId] = buffer;
+    }
+    return buffer;
+  }
+
+  void _enforceMaxSessions({String? incomingSessionId}) {
+    if (_buffersBySession.length <= _maxSessions) return;
+
+    // 1. Evict any sessions with count == 0 first (queried empty views)
+    final emptyKeys = <String>[];
+    for (final entry in _buffersBySession.entries) {
+      if (entry.key != incomingSessionId && entry.value.count == 0) {
+        emptyKeys.add(entry.key);
+      }
+    }
+    for (final key in emptyKeys) {
+      _evictSession(key);
+      if (_buffersBySession.length <= _maxSessions) return;
+    }
+
+    // 2. Evict closed sessions next
+    final closedKeys = <String>[];
+    for (final key in _buffersBySession.keys) {
+      if (key != incomingSessionId && _closedSessions.contains(key)) {
+        closedKeys.add(key);
+      }
+    }
+    for (final key in closedKeys) {
+      _evictSession(key);
+      if (_buffersBySession.length <= _maxSessions) return;
+    }
+
+    // 3. Evict oldest sessions (FIFO in linked map)
+    while (_buffersBySession.length > _maxSessions) {
+      final keyToEvict = _buffersBySession.keys.firstWhere(
+        (k) => k != incomingSessionId,
+        orElse: () => _buffersBySession.keys.first,
+      );
+      _evictSession(keyToEvict);
+    }
+  }
+
+  void _evictSession(String sessionId) {
+    final buffer = _buffersBySession.remove(sessionId);
+    if (buffer != null) {
+      _totalFramesAcrossSessions -= buffer.count;
+      buffer.clear();
+    }
+    _viewsBySession.remove(sessionId);
+    _closedSessions.remove(sessionId);
+  }
+
+  /// Appends [frame] to the session buffer, enforces global budget, and updates counters.
   void recordFrame(RealtimeFrame frame) {
     if (_isDisposed) return;
 
-    final currentCounts =
-        _frameCountsBySession[frame.sessionId] ?? const RealtimeFrameCounts();
-    _frameCountsBySession[frame.sessionId] =
-        currentCounts.copyWithIncrement(direction: frame.direction);
-
-    var buffer = _realtimeFramesBySession.remove(frame.sessionId);
-    if (buffer == null) {
-      if (_realtimeFramesBySession.length >= maxSessions) {
-        final oldestKey = _realtimeFramesBySession.keys.first;
-        _realtimeFramesBySession.remove(oldestKey);
-        _frameCountsBySession.remove(oldestKey);
-      }
-      buffer = RingBuffer<RealtimeFrame>(capacity: _maxFramesPerSession);
-    }
-    _realtimeFramesBySession[frame.sessionId] = buffer;
+    final buffer = _getOrCreateBuffer(frame.sessionId);
+    final countBefore = buffer.count;
     buffer.add(frame);
+    final countAfter = buffer.count;
+
+    if (countAfter > countBefore) {
+      _totalFramesAcrossSessions++;
+    }
+
+    _enforceMaxSessions(incomingSessionId: frame.sessionId);
+    _enforceGlobalBudget();
+
+    // Update session frame count notifier
+    final notifier = _notifiersBySession[frame.sessionId];
+    if (notifier != null) {
+      notifier.value =
+          notifier.value.copyWithIncrement(direction: frame.direction);
+    } else {
+      _notifiersBySession[frame.sessionId] = ValueNotifier(
+        const RealtimeFrameCounts()
+            .copyWithIncrement(direction: frame.direction),
+      );
+    }
 
     _scheduleNotification();
+  }
+
+  void _enforceGlobalBudget() {
+    while (_totalFramesAcrossSessions > _maxTotalRealtimeFrames &&
+        _totalFramesAcrossSessions > 0) {
+      // 1. Evict from closed sessions first
+      DynamicCircularBuffer? targetBuffer;
+      for (final closedKey in _closedSessions) {
+        final buf = _buffersBySession[closedKey];
+        if (buf != null && buf.count > 0) {
+          targetBuffer = buf;
+          break;
+        }
+      }
+
+      // 2. If no closed session with frames, evict from the session with the most frames
+      if (targetBuffer == null) {
+        for (final buf in _buffersBySession.values) {
+          if (buf.count > 0) {
+            if (targetBuffer == null || buf.count > targetBuffer.count) {
+              targetBuffer = buf;
+            }
+          }
+        }
+      }
+
+      if (targetBuffer != null && targetBuffer.count > 0) {
+        targetBuffer.evictOldest();
+        _totalFramesAcrossSessions--;
+      } else {
+        break;
+      }
+    }
   }
 
   void _scheduleNotification() {
@@ -62,43 +305,87 @@ class RealtimeStore {
     });
   }
 
-  /// Returns captured frames for [sessionId] in FIFO order.
+  /// Returns an unmodifiable, live [ListBase] view of the captured frames for [sessionId].
   List<RealtimeFrame> getRealtimeFrames(String sessionId) {
     if (_isDisposed) return const <RealtimeFrame>[];
-    final buffer = _realtimeFramesBySession.remove(sessionId);
-    if (buffer == null || buffer.isEmpty) {
-      return const <RealtimeFrame>[];
+    var view = _viewsBySession[sessionId];
+    if (view == null) {
+      final buffer = _getOrCreateBuffer(sessionId);
+      view = _RealtimeBufferListView(buffer);
+      _viewsBySession[sessionId] = view;
     }
-    _realtimeFramesBySession[sessionId] = buffer;
-    return buffer.toList();
+    return view;
   }
 
-  /// Returns the total incoming and outgoing frame counts for [sessionId].
+  /// Returns the per-session [ValueListenable] for reactive frame count updates.
+  ValueListenable<RealtimeFrameCounts> getFrameCountsNotifier(String sessionId) {
+    return _notifiersBySession.putIfAbsent(
+      sessionId,
+      () => ValueNotifier(const RealtimeFrameCounts()),
+    );
+  }
+
+  /// Returns the current total incoming and outgoing frame counts for [sessionId].
   RealtimeFrameCounts getFrameCounts(String sessionId) {
     if (_isDisposed) return const RealtimeFrameCounts();
-    return _frameCountsBySession[sessionId] ?? const RealtimeFrameCounts();
+    return _notifiersBySession[sessionId]?.value ?? const RealtimeFrameCounts();
+  }
+
+  /// Marks [sessionId] as closed, prioritizing its frames for eviction under memory pressure.
+  void markSessionClosed(String sessionId) {
+    _closedSessions.add(sessionId);
   }
 
   /// Updates maximum capacity for all current and future session buffers.
   void updateMaxFramesPerSession(int maxFrames) {
     _maxFramesPerSession = maxFrames;
-    for (final buffer in _realtimeFramesBySession.values) {
-      buffer.updateCapacity(maxFrames);
+    var newTotal = 0;
+    for (final buffer in _buffersBySession.values) {
+      buffer.updateMaxCapacity(maxFrames);
+      newTotal += buffer.count;
+    }
+    _totalFramesAcrossSessions = newTotal;
+    _enforceGlobalBudget();
+  }
+
+  /// Updates global limits across all realtime sessions.
+  void updateGlobalCapacity({int? maxTotalFrames, int? maxSessions}) {
+    if (maxTotalFrames != null && maxTotalFrames > 0) {
+      _maxTotalRealtimeFrames = maxTotalFrames;
+      _enforceGlobalBudget();
+    }
+    if (maxSessions != null && maxSessions > 0) {
+      _maxSessions = maxSessions;
+      _enforceMaxSessions();
     }
   }
 
-  /// Clears all stored frames and cancels any scheduled batch notification.
+  /// Clears all stored frames and resets session tracking.
   void clear() {
     _throttleTimer?.cancel();
     _throttleTimer = null;
     _hasPendingNotification = false;
-    _realtimeFramesBySession.clear();
-    _frameCountsBySession.clear();
+    for (final buffer in _buffersBySession.values) {
+      buffer.clear();
+    }
+    _buffersBySession.clear();
+    _viewsBySession.clear();
+    for (final notifier in _notifiersBySession.values) {
+      notifier.value = const RealtimeFrameCounts();
+    }
+    _closedSessions.clear();
+    _totalFramesAcrossSessions = 0;
   }
 
   /// Disposes the store, canceling background timers and clearing buffers.
   void dispose() {
     _isDisposed = true;
+    _throttleTimer?.cancel();
+    _throttleTimer = null;
+    for (final notifier in _notifiersBySession.values) {
+      notifier.dispose();
+    }
+    _notifiersBySession.clear();
     clear();
   }
 }

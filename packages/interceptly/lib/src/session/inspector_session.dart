@@ -50,6 +50,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     );
     _realtimeStore = RealtimeStore(
       maxFramesPerSession: _settings.maxFramesPerSession,
+      maxTotalRealtimeFrames: _settings.maxTotalRealtimeFrames,
       onThrottledBatch: notifyListeners,
     );
     _detailLoader = DetailLoader(
@@ -208,6 +209,9 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     _capturePipeline.updateSettings(newSettings);
     _pendingTracker.updateTimeout(newSettings.pendingTimeout);
     _realtimeStore.updateMaxFramesPerSession(newSettings.maxFramesPerSession);
+    _realtimeStore.updateGlobalCapacity(
+      maxTotalFrames: newSettings.maxTotalRealtimeFrames,
+    );
     _memoryIndex.updateMaxEntries(newSettings.maxEntries);
     _preferences.setUrlDecodeEnabled(newSettings.urlDecodeEnabled);
     notifyListeners();
@@ -508,9 +512,16 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       closeCode: closeCode,
       closeReason: closeReason,
     );
+    _realtimeStore.markSessionClosed(id);
     _invalidateGroupedCache();
     notifyListeners();
   }
+
+  @override
+  ValueListenable<RealtimeFrameCounts> getRealtimeFrameCountsNotifier(
+    String sessionId,
+  ) =>
+      _realtimeStore.getFrameCountsNotifier(sessionId);
 
   @override
   void applyFilter(RequestFilter filter) {

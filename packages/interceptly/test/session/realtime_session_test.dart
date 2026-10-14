@@ -4,6 +4,7 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
 import 'package:interceptly/src/capture/frame_normalizer.dart';
+import 'package:interceptly/src/session/realtime_store.dart';
 
 void main() {
   setUp(() async {
@@ -659,5 +660,146 @@ void main() {
       expect(checkCount, equals(2));
     });
   });
+
+  group('Clean-Sheet RealtimeStore with Dynamic Circular Buffer & Global Budget', () {
+    test('dynamic circular buffer starts small and expands up to maxFramesPerSession', () {
+      final store = RealtimeStore(
+        maxFramesPerSession: 64,
+        onThrottledBatch: () {},
+      );
+      addTearDown(store.dispose);
+
+      // Record 20 frames into ws-grow
+      for (var i = 0; i < 20; i++) {
+        store.recordFrame(RealtimeFrame.text(
+          id: 'f-$i',
+          sessionId: 'ws-grow',
+          direction: FrameDirection.incoming,
+          text: 'msg-$i',
+        ));
+      }
+
+      final frames = store.getRealtimeFrames('ws-grow');
+      expect(frames.length, equals(20));
+      expect(frames.first.id, equals('f-0'));
+      expect(frames.last.id, equals('f-19'));
+
+      // Verify ring buffer eviction at max capacity (64)
+      for (var i = 20; i < 70; i++) {
+        store.recordFrame(RealtimeFrame.text(
+          id: 'f-$i',
+          sessionId: 'ws-grow',
+          direction: FrameDirection.incoming,
+          text: 'msg-$i',
+        ));
+      }
+      expect(frames.length, equals(64));
+      expect(frames.first.id, equals('f-6')); // 70 - 64 = 6
+      expect(frames.last.id, equals('f-69'));
+    });
+
+    test('getRealtimeFrames returns live zero-allocation ListBase view', () {
+      final store = RealtimeStore(
+        maxFramesPerSession: 100,
+        onThrottledBatch: () {},
+      );
+      addTearDown(store.dispose);
+
+      final view1 = store.getRealtimeFrames('ws-view');
+      final view2 = store.getRealtimeFrames('ws-view');
+      expect(identical(view1, view2), isTrue, reason: 'Must return cached zero-alloc view');
+      expect(view1.length, equals(0));
+
+      store.recordFrame(RealtimeFrame.text(
+        id: 'f-1',
+        sessionId: 'ws-view',
+        direction: FrameDirection.incoming,
+        text: 'hello',
+      ));
+
+      // Live view updates immediately without re-calling getRealtimeFrames
+      expect(view1.length, equals(1));
+      expect(view1[0].id, equals('f-1'));
+      expect(() => view1[0] = view1[0], throwsUnsupportedError);
+    });
+
+    test('global coordinator prioritizes closed sessions during budget eviction', () {
+      final store = RealtimeStore(
+        maxFramesPerSession: 50,
+        maxTotalRealtimeFrames: 40,
+        onThrottledBatch: () {},
+      );
+      addTearDown(store.dispose);
+
+      // Session A (active): record 20 frames
+      for (var i = 0; i < 20; i++) {
+        store.recordFrame(RealtimeFrame.text(
+          id: 'a-$i',
+          sessionId: 'session-a',
+          direction: FrameDirection.incoming,
+          text: 'a-$i',
+        ));
+      }
+
+      // Session B (closed): record 20 frames, then mark closed
+      for (var i = 0; i < 20; i++) {
+        store.recordFrame(RealtimeFrame.text(
+          id: 'b-$i',
+          sessionId: 'session-b',
+          direction: FrameDirection.incoming,
+          text: 'b-$i',
+        ));
+      }
+      store.markSessionClosed('session-b');
+
+      expect(store.getRealtimeFrames('session-a').length, equals(20));
+      expect(store.getRealtimeFrames('session-b').length, equals(20));
+
+      // Now add 10 more frames to active Session A (total attempted = 50, cap = 40)
+      for (var i = 20; i < 30; i++) {
+        store.recordFrame(RealtimeFrame.text(
+          id: 'a-$i',
+          sessionId: 'session-a',
+          direction: FrameDirection.incoming,
+          text: 'a-$i',
+        ));
+      }
+
+      // Session B (closed) should be evicted first down to 10 frames to keep active Session A intact at 30 frames!
+      expect(store.getRealtimeFrames('session-a').length, equals(30),
+          reason: 'Active session frames must be protected');
+      expect(store.getRealtimeFrames('session-b').length, equals(10),
+          reason: 'Closed session frames must be prioritized for eviction');
+    });
+
+    test('frame arrival notifies only that session ValueNotifier<RealtimeFrameCounts>', () {
+      final store = RealtimeStore(
+        maxFramesPerSession: 100,
+        onThrottledBatch: () {},
+      );
+      addTearDown(store.dispose);
+
+      final notifierA = store.getFrameCountsNotifier('sess-a');
+      final notifierB = store.getFrameCountsNotifier('sess-b');
+
+      var aNotified = 0;
+      var bNotified = 0;
+
+      notifierA.addListener(() => aNotified++);
+      notifierB.addListener(() => bNotified++);
+
+      store.recordFrame(RealtimeFrame.text(
+        id: 'f-a1',
+        sessionId: 'sess-a',
+        direction: FrameDirection.incoming,
+        text: 'msg',
+      ));
+
+      expect(aNotified, equals(1));
+      expect(bNotified, equals(0), reason: 'Unrelated session must not be notified');
+      expect(notifierA.value.incoming, equals(1));
+    });
+  });
 }
+
 
