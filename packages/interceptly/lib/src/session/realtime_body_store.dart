@@ -30,6 +30,8 @@ class RealtimeBodyStore {
 
   Future<void>? _writeChain;
 
+  Future<void>? _initFuture;
+
   /// Current byte offset in the active file.
   int get currentOffset => _currentOffset;
 
@@ -49,8 +51,16 @@ class RealtimeBodyStore {
   Future<void> initForWrite(
     String dirPath, {
     String fileName = kDefaultFileName,
+  }) {
+    if (_isDisposed || _isInitialized) return Future<void>.value();
+    return _initFuture ??= _performInitForWrite(dirPath, fileName: fileName);
+  }
+
+  Future<void> _performInitForWrite(
+    String dirPath, {
+    String fileName = kDefaultFileName,
   }) async {
-    if (_isDisposed) return;
+    if (_isDisposed || _isInitialized) return;
     _file = File('$dirPath/$fileName');
     if (await _file.exists()) {
       await _file.delete();
@@ -87,6 +97,7 @@ class RealtimeBodyStore {
         final offset = _currentOffset;
         final length = bytes.length;
         await _raf!.writeFrom(bytes);
+        await _raf!.flush();
         _currentOffset += length;
         completer.complete((offset, length, _rotationCount));
       } catch (error, stackTrace) {
@@ -184,6 +195,18 @@ class RealtimeBodyStore {
     return completer.future;
   }
 
+  /// Waits for all currently enqueued write/rotate/reset operations to complete.
+  @visibleForTesting
+  Future<void> flushForTesting() async {
+    while (true) {
+      final current = _writeChain;
+      if (current == null) break;
+      await current;
+      if (identical(_writeChain, current)) break;
+    }
+    await _raf?.flush();
+  }
+
   /// Closes the write handle, flushes pending operations, and deletes the temporary file.
   Future<void> dispose() async {
     if (_isDisposed) return;
@@ -198,6 +221,7 @@ class RealtimeBodyStore {
 
     await _raf?.close();
     _raf = null;
+    _initFuture = null;
 
     if (_isInitialized) {
       _isInitialized = false;

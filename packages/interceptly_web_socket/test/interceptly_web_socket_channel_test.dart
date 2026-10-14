@@ -777,6 +777,12 @@ class _SpyRealtimeTrafficCollector implements RealtimeTrafficCollector {
   int get maxBodyBytes => session.settings.maxBodyBytes;
 
   @override
+  int get offloadThreshold => session.settings.realtimeBodyOffloadThreshold;
+
+  @override
+  bool shouldCapture(Uri? uri) => true;
+
+  @override
   RealtimeSessionScope openSession({
     Uri? uri,
     String? sessionId,
@@ -841,6 +847,8 @@ class _SpyRealtimeTrafficCollector implements RealtimeTrafficCollector {
     required dynamic payload,
     int? payloadSizeBytes,
     DateTime? timestamp,
+    String? shortPreview,
+    bool? shouldOffload,
   }) {
     if (throwOnFrame) throw Exception('Simulated recordFrame error');
     recordFrameCalls.add({
@@ -850,6 +858,8 @@ class _SpyRealtimeTrafficCollector implements RealtimeTrafficCollector {
       'payload': payload,
       'payloadSizeBytes': payloadSizeBytes,
       'timestamp': timestamp,
+      'shortPreview': shortPreview,
+      'shouldOffload': shouldOffload,
     });
   }
 

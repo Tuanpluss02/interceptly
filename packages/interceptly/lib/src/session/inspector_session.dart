@@ -107,6 +107,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   late final RealtimeBodyStore _realtimeBodyStore;
   late final DetailLoader _detailLoader;
   String? _realtimeDirPath;
+  Future<void>? _realtimeBodyStoreInitFuture;
 
   final InspectorPreferences _preferences = InspectorPreferences();
   final MasterSearchController _search = MasterSearchController();
@@ -233,7 +234,14 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   /// Initializes background workers and disk storage.
   Future<void> initialize() => _capturePipeline.initialize();
 
-  Future<void> _ensureRealtimeBodyStoreInitialized() async {
+  Future<void> _ensureRealtimeBodyStoreInitialized() {
+    if (_realtimeBodyStore.isInitialized || _isDisposed) {
+      return Future<void>.value();
+    }
+    return _realtimeBodyStoreInitFuture ??= _performRealtimeBodyStoreInit();
+  }
+
+  Future<void> _performRealtimeBodyStoreInit() async {
     if (_realtimeBodyStore.isInitialized || _isDisposed) return;
     String dirPath;
     if (_settings.persistToDisk) {
@@ -697,6 +705,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       if (_realtimeBodyStore.isInitialized && _realtimeDirPath != null) {
         await _realtimeBodyStore.resetFile(_realtimeDirPath!);
       }
+      _realtimeBodyStoreInitFuture = null;
     } finally {
       _clearFuture = null;
     }
@@ -711,6 +720,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     if (identical(_instance, this)) {
       _instance = null;
     }
+    _realtimeBodyStoreInitFuture = null;
     _coalesceNotifyTimer?.cancel();
     _coalesceNotifyTimer = null;
     _hasPendingCoalescedNotify = false;
@@ -742,4 +752,15 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   /// Underlying [RealtimeBodyStore] for testing.
   @visibleForTesting
   RealtimeBodyStore get realtimeBodyStoreForTesting => _realtimeBodyStore;
+
+  /// Total count of realtime frames currently retained across all sessions for testing.
+  @visibleForTesting
+  int get totalRealtimeFramesForTesting =>
+      _realtimeStore.totalFramesAcrossSessions;
+
+  /// Flushes pending operations in [RealtimeBodyStore] for testing.
+  @visibleForTesting
+  Future<void> flushRealtimeBodyStoreForTesting() =>
+      // ignore: invalid_use_of_visible_for_testing_member
+      _realtimeBodyStore.flushForTesting();
 }

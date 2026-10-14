@@ -1,6 +1,7 @@
 import 'dart:async';
-import 'dart:typed_data';
+import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
 import 'package:interceptly_web_socket/interceptly_web_socket.dart';
@@ -120,7 +121,10 @@ void main() {
         await InspectorSession.resetForTesting();
         final session = InspectorSession.instance;
         session.configureSession(
-          const InterceptlySettings(maxFramesPerSession: 1500),
+          const InterceptlySettings(
+            maxFramesPerSession: 1500,
+            maxTotalRealtimeFrames: 15000,
+          ),
         );
         addTearDown(() async {
           await session.dispose();
@@ -379,6 +383,374 @@ void main() {
             expect(entry.hasError, isTrue); // 1006 is abnormal error closure
           }
         }
+      },
+    );
+
+    test(
+      'Test 3: Massive multi-connection stress test (25 active + 15 closed, mixed payloads 100B - 200KB, zero offset corruption, closed session eviction priority)',
+      () async {
+        await InspectorSession.resetForTesting();
+        final session = InspectorSession.instance;
+
+        const maxTotalRealtimeFrames = 400;
+        session.configureSession(
+          const InterceptlySettings(
+            maxFramesPerSession: 200,
+            maxTotalRealtimeFrames: maxTotalRealtimeFrames,
+            realtimeBodyOffloadThreshold: 32 * 1024,
+            persistToDisk: true,
+          ),
+        );
+        addTearDown(() async {
+          await session.dispose();
+          await InspectorSession.resetForTesting();
+        });
+
+        const closedCount = 15;
+        const activeCount = 25;
+
+        // Deterministic text generator with embedded key and target size
+        String makeTextPayload(String key, int targetBytes) {
+          final prefix = 'TAG:$key:LEN:$targetBytes:';
+          if (targetBytes <= prefix.length) {
+            return prefix.substring(0, targetBytes);
+          }
+          final fill = 'X' * (targetBytes - prefix.length);
+          return '$prefix$fill';
+        }
+
+        // Deterministic binary generator with magic header and embedded key
+        Uint8List makeBinaryPayload(String key, int targetBytes) {
+          final data = Uint8List(targetBytes);
+          final bd = ByteData.sublistView(data);
+          data[0] = 0xAA;
+          data[1] = 0xBB;
+          data[2] = 0xCC;
+          data[3] = 0xDD;
+          bd.setUint32(4, targetBytes);
+          final keyBytes = utf8.encode(key);
+          data[8] = keyBytes.length;
+          for (var i = 0; i < keyBytes.length && i < 20; i++) {
+            data[9 + i] = keyBytes[i];
+          }
+          final seed = key.hashCode.abs() & 0xFF;
+          for (var i = 29; i < targetBytes; i++) {
+            data[i] = (seed + (i * 17)) & 0xFF;
+          }
+          return data;
+        }
+
+        // Mixed payload sizes spanning 100 B to 200 KB (crossing the 32 KB threshold)
+        final mixedSizes = <int>[
+          100, // 100 B (in-memory)
+          500, // 500 B (in-memory)
+          2 * 1024, // 2 KB (in-memory)
+          8 * 1024, // 8 KB (in-memory)
+          16 * 1024, // 16 KB (in-memory)
+          35 * 1024, // 35 KB (offloaded to disk)
+          48 * 1024, // 48 KB (offloaded to disk)
+          64 * 1024, // 64 KB (offloaded to disk)
+          100 * 1024, // 100 KB (offloaded to disk)
+          130 * 1024, // 130 KB (offloaded to disk)
+          160 * 1024, // 160 KB (offloaded to disk)
+          200 * 1024, // 200 KB (offloaded to disk)
+        ];
+
+        final payloadStore = <String, dynamic>{};
+        final subs = <StreamSubscription>[];
+        addTearDown(() async {
+          for (final sub in subs) {
+            await sub.cancel();
+          }
+        });
+
+        // ==========================================
+        // Phase A: Setup and traffic 15 closed connections
+        // ==========================================
+        final closedFakes = <StressFakeWebSocketChannel>[];
+        final closedChannels = <InterceptlyWebSocketChannel>[];
+        var closedIncomingCount = 0;
+        final closedIncomingCompleter = Completer<void>();
+        const closedMessagesPerChannel = 6;
+        const closedIncomingExpected =
+            closedCount * (closedMessagesPerChannel ~/ 2);
+
+        for (var c = 0; c < closedCount; c++) {
+          final fake = StressFakeWebSocketChannel(protocol: 'closed-$c');
+          closedFakes.add(fake);
+          final channel = InterceptlyWebSocketChannel(
+            fake,
+            uri: Uri.parse('wss://stress.interceptly.dev/closed/$c'),
+            sessionId: 'ws-closed-$c',
+          );
+          closedChannels.add(channel);
+          subs.add(channel.stream.listen((_) {
+            closedIncomingCount++;
+            if (closedIncomingCount >= closedIncomingExpected &&
+                !closedIncomingCompleter.isCompleted) {
+              closedIncomingCompleter.complete();
+            }
+          }, onError: (_) {}));
+        }
+
+        // Send initial traffic through the 15 connections (6 messages each = 90 frames total)
+        await Future.wait(
+          List.generate(closedCount, (c) async {
+            final channel = closedChannels[c];
+            final fake = closedFakes[c];
+            for (var m = 0; m < closedMessagesPerChannel; m++) {
+              final size = mixedSizes[m % mixedSizes.length];
+              final isText = m.isEven;
+              final key = 'closed-c$c-m$m';
+              if (m % 2 == 0) {
+                final dynamic payload = isText
+                    ? makeTextPayload(key, size)
+                    : makeBinaryPayload(key, size);
+                payloadStore[key] = payload;
+                channel.sink.add(payload);
+              } else {
+                final dynamic payload = isText
+                    ? makeTextPayload(key, size)
+                    : makeBinaryPayload(key, size);
+                payloadStore[key] = payload;
+                fake.emitIncoming(payload);
+              }
+            }
+          }),
+        );
+
+        await closedIncomingCompleter.future;
+        await session.flushRealtimeBodyStoreForTesting();
+        await pumpEventQueue();
+
+        // Verify initial frames were recorded
+        var closedInitialTotal = 0;
+        for (var c = 0; c < closedCount; c++) {
+          final count = session.getRealtimeFrames('ws-closed-$c').length;
+          expect(count, equals(closedMessagesPerChannel));
+          closedInitialTotal += count;
+        }
+        expect(
+          closedInitialTotal,
+          equals(closedCount * closedMessagesPerChannel),
+        );
+        expect(session.totalRealtimeFramesForTesting, equals(closedInitialTotal));
+
+        // Close all 15 connections (half via client sink, half via server stream)
+        await Future.wait(
+          List.generate(closedCount, (c) async {
+            if (c.isEven) {
+              await closedChannels[c].sink.close(1000, 'client closed');
+            } else {
+              await closedFakes[c].closeServer(code: 1000, reason: 'server closed');
+            }
+          }),
+        );
+
+        await pumpEventQueue();
+
+        // ==========================================
+        // Phase B: Concurrently bombard 25 active connections
+        // ==========================================
+        final activeFakes = <StressFakeWebSocketChannel>[];
+        final activeChannels = <InterceptlyWebSocketChannel>[];
+        var activeIncomingCount = 0;
+        final activeIncomingCompleter = Completer<void>();
+        const activeMessagesPerDirection = 12;
+        const activeIncomingExpected = activeCount * activeMessagesPerDirection;
+
+        for (var c = 0; c < activeCount; c++) {
+          final fake = StressFakeWebSocketChannel(protocol: 'active-$c');
+          activeFakes.add(fake);
+          final channel = InterceptlyWebSocketChannel(
+            fake,
+            uri: Uri.parse('wss://stress.interceptly.dev/active/$c'),
+            sessionId: 'ws-active-$c',
+          );
+          activeChannels.add(channel);
+          subs.add(channel.stream.listen((_) {
+            activeIncomingCount++;
+            if (activeIncomingCount >= activeIncomingExpected &&
+                !activeIncomingCompleter.isCompleted) {
+              activeIncomingCompleter.complete();
+            }
+          }, onError: (_) {}));
+        }
+
+        // Bombard across all 25 active channels concurrently
+        // 24 messages per channel (12 out + 12 in) = 600 frames total.
+        // 90 (closed) + 600 (active) = 690 total frames attempted.
+        // Cap is 400. This exerts heavy eviction pressure!
+        await Future.wait(
+          List.generate(activeCount, (c) async {
+            final channel = activeChannels[c];
+            final fake = activeFakes[c];
+
+            await Future.wait([
+              // Outgoing bombardment
+              () async {
+                for (var m = 0; m < activeMessagesPerDirection; m++) {
+                  final size = mixedSizes[m % mixedSizes.length];
+                  final isText = m.isEven;
+                  final key = 'active-c$c-out-m$m';
+                  final dynamic payload = isText
+                      ? makeTextPayload(key, size)
+                      : makeBinaryPayload(key, size);
+                  payloadStore[key] = payload;
+                  channel.sink.add(payload);
+                  if (m % 3 == 0) {
+                    await Future<void>.delayed(Duration.zero);
+                  }
+                }
+              }(),
+              // Incoming bombardment
+              () async {
+                for (var m = 0; m < activeMessagesPerDirection; m++) {
+                  final size = mixedSizes[(m + 6) % mixedSizes.length];
+                  final isText = m.isOdd;
+                  final key = 'active-c$c-in-m$m';
+                  final dynamic payload = isText
+                      ? makeTextPayload(key, size)
+                      : makeBinaryPayload(key, size);
+                  payloadStore[key] = payload;
+                  fake.emitIncoming(payload);
+                  if (m % 3 == 0) {
+                    await Future<void>.delayed(Duration.zero);
+                  }
+                }
+              }(),
+            ]);
+          }),
+        );
+
+        // Allow microtasks and sequential disk offloading queue to settle
+        await activeIncomingCompleter.future;
+        await session.flushRealtimeBodyStoreForTesting();
+        await pumpEventQueue();
+        await session.flushRealtimeBodyStoreForTesting();
+
+        // ==========================================
+        // Phase C: Assertions
+        // ==========================================
+
+        // 1. Total frame count across the system is strictly capped at maxTotalRealtimeFrames
+        expect(
+          session.totalRealtimeFramesForTesting,
+          lessThanOrEqualTo(maxTotalRealtimeFrames),
+          reason:
+              'Global frame count must never exceed coordinator budget ($maxTotalRealtimeFrames)',
+        );
+
+        var countedAcrossBuffers = 0;
+        for (var c = 0; c < closedCount; c++) {
+          countedAcrossBuffers +=
+              session.getRealtimeFrames('ws-closed-$c').length;
+        }
+        for (var c = 0; c < activeCount; c++) {
+          countedAcrossBuffers +=
+              session.getRealtimeFrames('ws-active-$c').length;
+        }
+        expect(countedAcrossBuffers, equals(session.totalRealtimeFramesForTesting));
+
+        // 2. Closed sessions are evicted first under global memory pressure
+        // Because 690 > 400, all 90 frames of the 15 closed sessions must be fully evicted
+        for (var c = 0; c < closedCount; c++) {
+          final frames = session.getRealtimeFrames('ws-closed-$c');
+          expect(
+            frames.isEmpty,
+            isTrue,
+            reason:
+                'Closed session ws-closed-$c must be prioritized for eviction under memory pressure',
+          );
+        }
+
+        // Active sessions retain frames
+        for (var c = 0; c < activeCount; c++) {
+          final frames = session.getRealtimeFrames('ws-active-$c');
+          expect(
+            frames.isNotEmpty,
+            isTrue,
+            reason: 'Active session ws-active-$c must retain frames',
+          );
+        }
+
+        // 3. Zero offset corruption in RealtimeBodyStore:
+        // Reading payloads back via session.loadRealtimePayload yields exact data for all retained frames.
+        var memoryFramesVerified = 0;
+        var offloadedFramesVerified = 0;
+
+        for (var c = 0; c < activeCount; c++) {
+          final frames = session.getRealtimeFrames('ws-active-$c');
+          for (final frame in frames) {
+            String? foundKey;
+            final loaded = await session.loadRealtimePayload(frame);
+
+            expect(
+              loaded,
+              isNotNull,
+              reason: 'Payload must load cleanly without failure',
+            );
+            expect(
+              loaded.toString().startsWith('[Error'),
+              isFalse,
+              reason: 'Payload loading must not fail with error: $loaded',
+            );
+            expect(
+              loaded.toString().startsWith('[Payload expired'),
+              isFalse,
+              reason: 'Payload must not expire prematurely: $loaded',
+            );
+
+            if (frame.type == FrameType.text) {
+              expect(loaded, isA<String>());
+              final text = loaded as String;
+              expect(text.length, equals(frame.payloadSizeBytes));
+              if (text.startsWith('TAG:')) {
+                final endIdx = text.indexOf(':LEN:');
+                if (endIdx != -1) {
+                  foundKey = text.substring(4, endIdx);
+                }
+              }
+              expect(foundKey, isNotNull);
+              final expected = payloadStore[foundKey];
+              expect(expected, isNotNull);
+              expect(text, equals(expected));
+            } else if (frame.type == FrameType.binary) {
+              expect(loaded, isA<Uint8List>());
+              final bytes = loaded as Uint8List;
+              expect(bytes.length, equals(frame.payloadSizeBytes));
+              expect(bytes[0], equals(0xAA));
+              expect(bytes[1], equals(0xBB));
+              expect(bytes[2], equals(0xCC));
+              expect(bytes[3], equals(0xDD));
+              final keyLen = bytes[8];
+              foundKey = utf8.decode(bytes.sublist(9, 9 + keyLen));
+              final expected = payloadStore[foundKey];
+              expect(expected, isNotNull);
+              expect(listEquals(bytes, expected as Uint8List), isTrue);
+            }
+
+            if (frame.location == BodyLocation.file) {
+              offloadedFramesVerified++;
+              expect(frame.fileOffset, isNotNull);
+              expect(frame.fileLength, isNotNull);
+              expect(frame.fileLength, equals(frame.payloadSizeBytes));
+            } else {
+              memoryFramesVerified++;
+            }
+          }
+        }
+
+        expect(
+          offloadedFramesVerified,
+          greaterThan(50),
+          reason: 'Must have verified substantial offloaded payloads crossing 32 KB threshold',
+        );
+        expect(
+          memoryFramesVerified,
+          greaterThan(50),
+          reason: 'Must have verified in-memory payloads < 32 KB',
+        );
       },
     );
   });
