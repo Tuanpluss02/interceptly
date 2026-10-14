@@ -19,7 +19,7 @@ void main() {
     });
 
     test('connects to /ws/chat and receives welcome + agent greeting', () async {
-      final wsUrl = '${server.baseUrl!.replaceFirst('http', 'ws')}/ws/chat';
+      final wsUrl = '${server.baseUrl.replaceFirst('http', 'ws')}/ws/chat';
       final socket = await WebSocket.connect(wsUrl);
 
       final messages = <Map<String, dynamic>>[];

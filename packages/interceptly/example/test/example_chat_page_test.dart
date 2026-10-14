@@ -20,7 +20,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ExampleChatPage(
-            baseUrl: server.baseUrl!,
+            baseUrl: server.baseUrl,
             autoConnect: false,
           ),
         ),
@@ -36,7 +36,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ExampleChatPage(
-            baseUrl: server.baseUrl!,
+            baseUrl: server.baseUrl,
             autoConnect: false,
           ),
         ),
@@ -53,7 +53,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: ExampleChatPage(
-            baseUrl: server.baseUrl!,
+            baseUrl: server.baseUrl,
             autoConnect: true,
           ),
         ),

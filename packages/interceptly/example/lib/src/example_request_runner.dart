@@ -745,7 +745,7 @@ mutation UpdateUserStatus(\$id: ID!, \$status: String!) {
   Future<ExampleRequestResult> runWebSocketEcho() async {
     final sw = Stopwatch()..start();
     try {
-      final wsUri = Uri.parse('$baseUrl/ws/echo'.replaceFirst('http', 'ws'));
+      final wsUri = Uri.parse('$baseUrl/ws/chat'.replaceFirst('http', 'ws'));
       final channel = InterceptlyWebSocketChannel.connect(wsUri);
 
       final completer = Completer<String>();
@@ -754,8 +754,8 @@ mutation UpdateUserStatus(\$id: ID!, \$status: String!) {
       final sub = channel.stream.listen(
         (dynamic message) {
           receivedMessages.add(message.toString());
-          if (receivedMessages.length >= 2 && !completer.isCompleted) {
-            completer.complete('Received 2 echo messages');
+          if (receivedMessages.length >= 3 && !completer.isCompleted) {
+            completer.complete('Received chat stream messages');
           }
         },
         onError: (Object error) {
@@ -765,22 +765,19 @@ mutation UpdateUserStatus(\$id: ID!, \$status: String!) {
         },
       );
 
-      // Send text frame
-      channel.sink.add('Hello Interceptly WebSocket!');
-
-      // Send JSON frame
+      // Send chat message
       channel.sink.add(
         jsonEncode({
-          'type': 'ping',
-          'client': 'interceptly_example',
+          'type': 'chat',
+          'message': 'ping',
           'timestamp': DateTime.now().toIso8601String(),
         }),
       );
 
-      // Await echo responses (up to 3 seconds)
+      // Await responses (welcome, agent greeting, typing/pong)
       await completer.future.timeout(
-        const Duration(seconds: 3),
-        onTimeout: () => 'Timeout waiting for echoes',
+        const Duration(seconds: 4),
+        onTimeout: () => 'Timeout waiting for chat messages',
       );
 
       await channel.sink.close(1000, 'Normal closure');
@@ -788,10 +785,10 @@ mutation UpdateUserStatus(\$id: ID!, \$status: String!) {
       sw.stop();
 
       final preview =
-          'WebSocket Echo Test Completed:\n'
-          '• Sent: 2 frames (Text & JSON)\n'
-          '• Received: ${receivedMessages.length} frames\n'
-          '• Frames: ${receivedMessages.join(", ")}';
+          'WebSocket Live Chat Test Completed:\n'
+          '• Endpoint: /ws/chat\n'
+          '• Received: ${receivedMessages.length} frames (System welcome, Sarah greeting, Pong)\n'
+          '• Frames: ${receivedMessages.join("\n")}';
 
       return ExampleRequestResult(
         statusCode: 101,

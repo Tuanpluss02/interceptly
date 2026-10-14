@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:interceptly/interceptly.dart';
 
+import 'example_chat_page.dart';
 import 'example_local_server.dart';
 import 'example_request_runner.dart';
 import 'example_truncation_presets.dart';
@@ -295,22 +296,38 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
               ],
             ),
             _buildSectionHeader(
-              title: 'Realtime WebSocket Traffic',
+              title: 'Realtime WebSocket: Live Support Chat',
               subtitle:
-                  'Test bidirectional WebSocket connection, live frame streaming (Text & JSON), and connection teardown.',
+                  'Trải nghiệm phòng chat hỗ trợ khách hàng realtime với bot tư vấn tự động (Sarah), typing indicators, và Interceptly realtime frame inspection.',
               color: Colors.indigo,
             ),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                FilledButton.tonalIcon(
+                FilledButton.icon(
+                  key: const ValueKey('open_support_chat_button'),
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ExampleChatPage(baseUrl: widget.server.baseUrl),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                  label: const Text('Mở Live Support Chat (Full Demo)'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.indigo,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+                OutlinedButton.icon(
                   onPressed: _isLoading
                       ? null
                       : () => _runRequest(
-                          'WebSocket Echo', _runner.runWebSocketEcho),
+                          'WebSocket Chat Test', _runner.runWebSocketEcho),
                   icon: const Icon(Icons.sync_alt, size: 18),
-                  label: const Text('WebSocket Echo (Connect & Stream)'),
+                  label: const Text('Test nhanh (Quick Run)'),
                 ),
               ],
             ),
