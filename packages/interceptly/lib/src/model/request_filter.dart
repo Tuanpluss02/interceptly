@@ -24,6 +24,12 @@ class RequestFilter {
   /// Free-text query matched against URL and error message.
   final String? query;
 
+  /// If true, only requests with errors (hasError: true or statusCode >= 400) match.
+  final bool onlyErrors;
+
+  /// Whether pending in-flight requests (statusCode == 0, !hasError) are included.
+  final bool includePending;
+
   RequestFilter({
     Set<String> methods = const {},
     this.include2xx = true,
@@ -33,12 +39,16 @@ class RequestFilter {
     Set<String> domains = const {},
     this.host,
     this.query,
+    this.onlyErrors = false,
+    this.includePending = true,
   })  : methods = Set.unmodifiable(methods.map((m) => m.toUpperCase()).toSet()),
         domains = Set.unmodifiable(domains);
 
   /// True when all fields are at their default — no filtering applied.
   bool get isEmpty {
-    return methods.isEmpty &&
+    return !onlyErrors &&
+        includePending &&
+        methods.isEmpty &&
         include2xx &&
         include3xx &&
         include4xx &&
@@ -50,17 +60,26 @@ class RequestFilter {
 
   /// Returns true if [entry] satisfies every active filter criterion.
   bool matches(RequestSummary entry) {
-    if (methods.isNotEmpty) {
-      if (!methods.contains(entry.method.toUpperCase())) return false;
+    if (onlyErrors) {
+      final isErr = entry.hasError || entry.statusCode >= 400;
+      if (!isErr) return false;
     }
 
     final statusCode = entry.statusCode;
-    if (statusCode > 0) {
+    if (statusCode == 0) {
+      if (!entry.hasError && !includePending) {
+        return false;
+      }
+    } else {
       final included = (statusCode >= 200 && statusCode < 300 && include2xx) ||
           (statusCode >= 300 && statusCode < 400 && include3xx) ||
           (statusCode >= 400 && statusCode < 500 && include4xx) ||
           (statusCode >= 500 && statusCode < 600 && include5xx);
       if (!included) return false;
+    }
+
+    if (methods.isNotEmpty) {
+      if (!methods.contains(entry.method.toUpperCase())) return false;
     }
 
     if (domains.isNotEmpty) {
@@ -101,6 +120,8 @@ class RequestFilter {
   /// Number of distinct filter groups that are currently active.
   int get activeFilterCount {
     int count = 0;
+    if (onlyErrors) count++;
+    if (!includePending) count++;
     if (methods.isNotEmpty) count++;
     if (!include2xx || !include3xx || !include4xx || !include5xx) count++;
     if (domains.isNotEmpty) count++;
@@ -118,6 +139,8 @@ class RequestFilter {
     Set<String>? domains,
     String? host,
     String? query,
+    bool? onlyErrors,
+    bool? includePending,
     bool clearHost = false,
     bool clearQuery = false,
   }) {
@@ -130,6 +153,8 @@ class RequestFilter {
       domains: domains ?? this.domains,
       host: clearHost ? null : (host ?? this.host),
       query: clearQuery ? null : (query ?? this.query),
+      onlyErrors: onlyErrors ?? this.onlyErrors,
+      includePending: includePending ?? this.includePending,
     );
   }
 
@@ -140,6 +165,8 @@ class RequestFilter {
       identical(this, other) ||
       other is RequestFilter &&
           runtimeType == other.runtimeType &&
+          onlyErrors == other.onlyErrors &&
+          includePending == other.includePending &&
           _setsEqual(methods, other.methods) &&
           include2xx == other.include2xx &&
           include3xx == other.include3xx &&
@@ -151,6 +178,8 @@ class RequestFilter {
 
   @override
   int get hashCode => Object.hash(
+        onlyErrors,
+        includePending,
         Object.hashAll(methods.toList()..sort()),
         include2xx,
         include3xx,

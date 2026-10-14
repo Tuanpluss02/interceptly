@@ -179,10 +179,13 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
 
   @override
   List<RequestSummary> get entries {
-    if (_search.isActive) {
-      return (_search.results ?? const <IndexEntry>[]).cast<RequestSummary>();
+    final baseList = _search.isActive
+        ? (_search.results ?? const <IndexEntry>[])
+        : _memoryIndex.entries;
+    if (_filter.isEmpty) {
+      return baseList.cast<RequestSummary>();
     }
-    return _memoryIndex.filtered(_filter).cast<RequestSummary>();
+    return baseList.where(_filter.matches).toList().cast<RequestSummary>();
   }
 
   @override
