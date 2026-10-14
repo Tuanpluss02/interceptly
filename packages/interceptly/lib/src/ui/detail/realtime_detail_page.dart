@@ -1,12 +1,10 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:interceptly/src/ui/format.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
 
 import '../../model/index_entry.dart';
-import '../../model/realtime_frame.dart';
 import '../../model/request_record.dart';
 import '../../model/request_summary.dart';
 import '../../session/inspector_session_view.dart';
@@ -21,7 +19,6 @@ class RealtimeDetailPage extends StatefulWidget {
   final InspectorSessionView session;
 
   /// Optional time provider for deterministic testing of live duration ticking.
-  @visibleForTesting
   final DateTime Function()? nowProvider;
 
   /// Creates a detail page for a realtime connection.
@@ -29,7 +26,7 @@ class RealtimeDetailPage extends StatefulWidget {
     super.key,
     required this.entry,
     required this.session,
-    @visibleForTesting this.nowProvider,
+    this.nowProvider,
   });
 
   @override

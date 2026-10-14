@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:interceptly/src/ui/detail/realtime_detail_page.dart';
 import 'package:interceptly/src/ui/detail/request_detail_page.dart';
 import 'package:interceptly/src/ui/detail/share_handler.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
@@ -7,6 +10,8 @@ import 'package:interceptly/src/ui/widgets/domain_group_header.dart';
 import 'package:interceptly/src/ui/widgets/error_summary.dart';
 import 'package:interceptly/src/ui/widgets/interceptly_text_field.dart';
 import 'package:interceptly/src/ui/widgets/toast_notification.dart';
+
+import '../format.dart';
 
 import '../../model/domain_group.dart';
 import '../../model/network_protocol.dart';
@@ -19,18 +24,21 @@ import 'quick_filter_bar.dart';
 part 'network_tab_widgets.dart';
 
 class NetworkTab extends StatefulWidget {
+  final InspectorSessionView session;
+  final bool groupingEnabled;
+  final NetworkProtocol protocol;
+  final VoidCallback? onShowFilterPanel;
+  @visibleForTesting
+  final DateTime Function()? nowProvider;
+
   const NetworkTab({
     super.key,
     required this.session,
     this.groupingEnabled = false,
     this.protocol = NetworkProtocol.all,
     this.onShowFilterPanel,
+    @visibleForTesting this.nowProvider,
   });
-
-  final InspectorSessionView session;
-  final bool groupingEnabled;
-  final NetworkProtocol protocol;
-  final VoidCallback? onShowFilterPanel;
 
   @override
   State<NetworkTab> createState() => _NetworkTabState();
@@ -44,6 +52,7 @@ class _NetworkTabState extends State<NetworkTab> {
   bool _isExporting = false;
   final Map<String, String> _displayUrlCache = {};
   bool? _cachedUrlDecodeSetting;
+  Timer? _liveTicker;
 
   @override
   void initState() {
@@ -51,13 +60,46 @@ class _NetworkTabState extends State<NetworkTab> {
     _searchController = TextEditingController(
       text: widget.session.masterQuery ?? '',
     );
+    widget.session.addListener(_onSessionUpdated);
+    _updateLiveTicker();
+  }
+
+  @override
+  void didUpdateWidget(covariant NetworkTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.session != oldWidget.session) {
+      oldWidget.session.removeListener(_onSessionUpdated);
+      widget.session.addListener(_onSessionUpdated);
+      _updateLiveTicker();
+    }
   }
 
   @override
   void dispose() {
+    _liveTicker?.cancel();
+    _liveTicker = null;
+    widget.session.removeListener(_onSessionUpdated);
     _displayUrlCache.clear();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onSessionUpdated() {
+    _updateLiveTicker();
+  }
+
+  void _updateLiveTicker() {
+    final hasActiveRealtime = widget.session.entries.any(
+      (e) => e.isRealtime && e.statusCode == 0 && !e.hasError,
+    );
+    if (hasActiveRealtime) {
+      _liveTicker ??= Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    } else {
+      _liveTicker?.cancel();
+      _liveTicker = null;
+    }
   }
 
   String _getDisplayUrl(RequestSummary entry) {
@@ -275,11 +317,17 @@ class _NetworkTabState extends State<NetworkTab> {
             entry: req,
             onTapNavigate: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => RequestDetailPage(
-                  entry: req,
-                  session: widget.session,
-                  initialQuery: widget.session.masterQuery,
-                ),
+                builder: (_) => req.isRealtime
+                    ? RealtimeDetailPage(
+                        entry: req,
+                        session: widget.session,
+                        nowProvider: widget.nowProvider,
+                      )
+                    : RequestDetailPage(
+                        entry: req,
+                        session: widget.session,
+                        initialQuery: widget.session.masterQuery,
+                      ),
               ),
             ),
           ),
@@ -389,11 +437,17 @@ class _NetworkTabState extends State<NetworkTab> {
                 entry: entry,
                 onTapNavigate: () => Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => RequestDetailPage(
-                      entry: entry,
-                      session: widget.session,
-                      initialQuery: widget.session.masterQuery,
-                    ),
+                    builder: (_) => entry.isRealtime
+                        ? RealtimeDetailPage(
+                            entry: entry,
+                            session: widget.session,
+                            nowProvider: widget.nowProvider,
+                          )
+                        : RequestDetailPage(
+                            entry: entry,
+                            session: widget.session,
+                            initialQuery: widget.session.masterQuery,
+                          ),
                   ),
                 ),
               ),
@@ -416,6 +470,27 @@ class _NetworkTabState extends State<NetworkTab> {
       errorType: entry.errorType,
       errorMessage: entry.errorMessage,
     );
+    final isRealtime = entry.isRealtime;
+    final realtimeCounts =
+        isRealtime ? widget.session.getRealtimeFrameCounts(entry.id) : null;
+    final String durationText;
+    if (isRealtime) {
+      if (isPending) {
+        final currentNow = (widget.nowProvider ?? DateTime.now)();
+        final elapsed = currentNow.difference(entry.timestamp);
+        durationText = formatDuration(elapsed);
+      } else {
+        durationText =
+            formatDuration(Duration(milliseconds: entry.durationMs));
+      }
+    } else if (isPending) {
+      durationText = 'loading…';
+    } else if (isErrorWithoutStatus) {
+      durationText = shortError;
+    } else {
+      durationText = '${entry.durationMs}ms';
+    }
+
     final time =
         '${entry.timestamp.hour.toString().padLeft(2, '0')}:${entry.timestamp.minute.toString().padLeft(2, '0')}:${entry.timestamp.second.toString().padLeft(2, '0')}';
 
@@ -430,11 +505,7 @@ class _NetworkTabState extends State<NetworkTab> {
       method: entry.method,
       url: displayUrl,
       time: time,
-      duration: isPending
-          ? 'loading…'
-          : isErrorWithoutStatus
-              ? shortError
-              : '${entry.durationMs}ms',
+      duration: durationText,
       status: entry.statusCode,
       hasError: entry.hasError,
       isPending: isPending,
@@ -443,6 +514,8 @@ class _NetworkTabState extends State<NetworkTab> {
       isSelected: _selectedIds.contains(entry.id),
       searchScopes: scopes,
       highlightQuery: activeQuery,
+      isRealtime: isRealtime,
+      realtimeFrameCounts: realtimeCounts,
       onLongPress: () => _enterSelectionMode(entry.id),
       onTap: () {
         if (_isSelectionMode) {
