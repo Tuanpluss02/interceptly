@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
@@ -78,6 +79,28 @@ class InterceptlyDioInterceptor extends Interceptor {
     response.requestOptions.extra.remove('interceptly_req_bytes');
 
     final resContentType = response.headers.value(Headers.contentTypeHeader);
+
+    if (response.data is ResponseBody) {
+      final responseBody = response.data as ResponseBody;
+      final boundStream = scope.bindResponseStream(
+        responseBody.stream,
+        statusCode: response.statusCode ?? 200,
+        headers: normalizeHeaders(response.headers.map),
+        contentType: resContentType,
+      );
+      response.data = ResponseBody(
+        boundStream.map(
+            (chunk) => chunk is Uint8List ? chunk : Uint8List.fromList(chunk)),
+        responseBody.statusCode,
+        headers: responseBody.headers,
+        statusMessage: responseBody.statusMessage,
+        isRedirect: responseBody.isRedirect,
+        redirects: responseBody.redirects,
+      );
+      handler.next(response);
+      return;
+    }
+
     final resBytes = await guardCaptureAsync(
       () => _toBytesAsync(response.data, resContentType),
     );
@@ -117,14 +140,17 @@ class InterceptlyDioInterceptor extends Interceptor {
     final response = err.response;
     if (err.type == DioExceptionType.badResponse && response != null) {
       final resContentType = response.headers.value(Headers.contentTypeHeader);
-      _toBytesAsync(response.data, resContentType).then((resBytes) {
-        scope.complete(
-          statusCode: response.statusCode ?? 0,
-          headers: normalizeHeaders(response.headers.map),
-          bodyBytes: resBytes,
-          contentType: resContentType,
-        );
-      });
+      unawaited(
+        guardCaptureAsync(() async {
+          final resBytes = await _toBytesAsync(response.data, resContentType);
+          await scope.complete(
+            statusCode: response.statusCode ?? 0,
+            headers: normalizeHeaders(response.headers.map),
+            bodyBytes: resBytes,
+            contentType: resContentType,
+          );
+        }),
+      );
     } else {
       final resContentType = response?.headers.value(Headers.contentTypeHeader);
       final responseBodyBytes =

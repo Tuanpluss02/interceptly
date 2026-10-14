@@ -461,5 +461,33 @@ void main() {
       expect(entry.hasError, isTrue);
       expect(entry.errorType, equals('SimulatedNetworkException'));
     });
+
+    test('captures and tees ResponseType.stream response chunks', () async {
+      final dio = Dio()
+        ..httpClientAdapter =
+            _FixedAdapter(responseBody: 'streaming-chunk-data');
+      dio.interceptors.add(InterceptlyDioInterceptor());
+
+      final response = await dio.get<ResponseBody>(
+        'https://api.example.com/stream',
+        options: Options(responseType: ResponseType.stream),
+      );
+
+      final chunks = await response.data!.stream.toList();
+      final text = utf8.decode(chunks.expand((e) => e).toList());
+      expect(text, equals('streaming-chunk-data'));
+
+      await _waitFor(
+        () =>
+            session.entries.isNotEmpty &&
+            session.entries.first.statusCode == 200,
+      );
+
+      expect(session.entries.length, equals(1));
+      final entry = session.entries.first;
+      expect(entry.statusCode, equals(200));
+      final detail = await session.loadDetail(entry);
+      expect(detail.responseBodyPreview, contains('streaming-chunk-data'));
+    });
   });
 }
