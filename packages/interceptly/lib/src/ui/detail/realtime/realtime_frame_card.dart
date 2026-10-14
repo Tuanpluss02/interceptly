@@ -296,6 +296,7 @@ class RealtimeFrameCard extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.all(12.0),
             child: RealtimePayloadView(
+              key: ValueKey('realtime_payload_${frame.id}'),
               frame: frame,
               isInspected: isInspected,
               parsedJson: parsedJson,

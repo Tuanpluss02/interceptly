@@ -12,8 +12,11 @@ class BoundedLruCache<K, V> with MapMixin<K, V> {
   final LinkedHashMap<K, V> _map = LinkedHashMap<K, V>();
 
   /// Creates a [BoundedLruCache] with the specified [capacity] (defaults to 30).
-  BoundedLruCache({this.capacity = 30})
-      : assert(capacity > 0, 'Capacity must be greater than zero');
+  BoundedLruCache({this.capacity = 30}) {
+    if (capacity <= 0) {
+      throw ArgumentError.value(capacity, 'capacity', 'Must be > 0');
+    }
+  }
 
   @override
   V? operator [](Object? key) {

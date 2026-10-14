@@ -42,6 +42,7 @@ class RealtimePayloadView extends StatefulWidget {
 
 class _RealtimePayloadViewState extends State<RealtimePayloadView> {
   bool _isLoading = false;
+  bool _hasLoaded = false;
   dynamic _loadedPayload;
   dynamic _loadedJson;
 
@@ -58,6 +59,7 @@ class _RealtimePayloadViewState extends State<RealtimePayloadView> {
       _loadedPayload = null;
       _loadedJson = null;
       _isLoading = false;
+      _hasLoaded = false;
     }
     _checkLoadPayload();
   }
@@ -65,7 +67,7 @@ class _RealtimePayloadViewState extends State<RealtimePayloadView> {
   void _checkLoadPayload() {
     if (widget.isInspected &&
         widget.frame.location == BodyLocation.file &&
-        _loadedPayload == null &&
+        !_hasLoaded &&
         !_isLoading) {
       _fetchPayload();
     }
@@ -73,9 +75,12 @@ class _RealtimePayloadViewState extends State<RealtimePayloadView> {
 
   void _fetchPayload() {
     final session = widget.session;
+    final requestedFrameId = widget.frame.id;
+
     if (session == null) {
       setState(() {
         _isLoading = false;
+        _hasLoaded = true;
         _loadedPayload = '[Payload unavailable: no session]';
         _loadedJson = null;
       });
@@ -87,30 +92,32 @@ class _RealtimePayloadViewState extends State<RealtimePayloadView> {
     });
 
     session.loadRealtimePayload(widget.frame).then((payload) {
-      if (!mounted) return;
+      if (!mounted || widget.frame.id != requestedFrameId) return;
       dynamic parsed;
       if (payload is String && payload.trim().isNotEmpty) {
         if (widget.jsonCache != null &&
-            widget.jsonCache!.containsKey(widget.frame.id)) {
-          parsed = widget.jsonCache![widget.frame.id];
+            widget.jsonCache!.containsKey(requestedFrameId)) {
+          parsed = widget.jsonCache![requestedFrameId];
         } else {
           try {
             parsed = jsonDecode(payload);
-            widget.jsonCache?[widget.frame.id] = parsed;
+            widget.jsonCache?[requestedFrameId] = parsed;
           } catch (_) {
-            widget.jsonCache?[widget.frame.id] = null;
+            widget.jsonCache?[requestedFrameId] = null;
           }
         }
       }
       setState(() {
         _isLoading = false;
+        _hasLoaded = true;
         _loadedPayload = payload;
         _loadedJson = parsed;
       });
     }).catchError((e) {
-      if (!mounted) return;
+      if (!mounted || widget.frame.id != requestedFrameId) return;
       setState(() {
         _isLoading = false;
+        _hasLoaded = true;
         _loadedPayload = '[Error loading payload: $e]';
         _loadedJson = null;
       });

@@ -15,6 +15,11 @@ void main() {
       expect(cache.capacity, equals(5));
     });
 
+    test('throws ArgumentError if capacity is <= 0', () {
+      expect(() => BoundedLruCache<String, int>(capacity: 0), throwsArgumentError);
+      expect(() => BoundedLruCache<String, int>(capacity: -1), throwsArgumentError);
+    });
+
     test('stores entries up to capacity without eviction', () {
       final cache = BoundedLruCache<int, String>(capacity: 3);
       cache[1] = 'one';

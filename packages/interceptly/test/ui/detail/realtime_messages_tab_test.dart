@@ -8,7 +8,9 @@ import 'package:interceptly/interceptly.dart';
 import 'package:interceptly/src/model/domain_group.dart';
 import 'package:interceptly/src/model/index_entry.dart';
 import 'package:interceptly/src/session/inspector_preferences.dart';
+import 'package:interceptly/src/ui/detail/realtime/bounded_lru_cache.dart';
 import 'package:interceptly/src/ui/detail/realtime/realtime_filter_header.dart';
+import 'package:interceptly/src/ui/detail/realtime/realtime_payload_view.dart';
 import 'package:interceptly/src/ui/detail/realtime_detail_page.dart';
 import 'package:interceptly/src/ui/detail/realtime_messages_tab.dart';
 import 'package:interceptly/src/ui/tabs/network_tab.dart';
@@ -916,6 +918,100 @@ void main() {
 
         // Drain any throttle timer scheduled by RealtimeStore
         await tester.pump(const Duration(milliseconds: 150));
+      });
+
+      testWidgets('late async payload response for recycled RealtimePayloadView is discarded and does not corrupt cache', (tester) async {
+        final session = _MockSession();
+        final completerA = Completer<dynamic>();
+        final completerB = Completer<dynamic>();
+        session.customLoadPayload = (frame) {
+          if (frame.id == 'frame_A') return completerA.future;
+          return completerB.future;
+        };
+
+        final frameA = RealtimeFrame.offloaded(
+          id: 'frame_A',
+          sessionId: 'sess_race',
+          direction: FrameDirection.incoming,
+          type: FrameType.text,
+          payloadSizeBytes: 500,
+          shortPreview: 'preview A',
+          fileOffset: 0,
+          fileLength: 500,
+          rotationCount: 0,
+        );
+
+        final frameB = RealtimeFrame.offloaded(
+          id: 'frame_B',
+          sessionId: 'sess_race',
+          direction: FrameDirection.incoming,
+          type: FrameType.text,
+          payloadSizeBytes: 600,
+          shortPreview: 'preview B',
+          fileOffset: 500,
+          fileLength: 600,
+          rotationCount: 0,
+        );
+
+        final cache = BoundedLruCache<String, dynamic>(capacity: 30);
+
+        // Mount RealtimePayloadView directly with frameA
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: StatefulBuilder(
+                builder: (context, setState) {
+                  return RealtimePayloadView(
+                    frame: frameA,
+                    isInspected: true,
+                    parsedJson: null,
+                    session: session,
+                    jsonCache: cache,
+                    onToggleInspect: () {},
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        // Frame A is now loading
+        expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+        // Rebuild with frameB before completerA finishes
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: StatefulBuilder(
+                builder: (context, setState) {
+                  return RealtimePayloadView(
+                    frame: frameB,
+                    isInspected: true,
+                    parsedJson: null,
+                    session: session,
+                    jsonCache: cache,
+                    onToggleInspect: () {},
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        // Now frame A completes late
+        completerA.complete('{"payload":"late_A"}');
+        await tester.pump();
+
+        // Cache must NOT have frame_B mapped to late_A payload
+        expect(cache.containsKey('frame_B'), isFalse);
+
+        // Now frame B completes
+        completerB.complete('{"payload":"correct_B"}');
+        await tester.pumpAndSettle();
+
+        expect(find.textContaining('correct_B'), findsOneWidget);
+        expect(cache['frame_B'], equals({'payload': 'correct_B'}));
       });
     });
   });
