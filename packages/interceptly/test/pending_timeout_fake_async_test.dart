@@ -45,6 +45,7 @@ void main() {
         expect(entry.hasError, isTrue);
         expect(entry.errorType, equals('TimeoutException'));
         expect(entry.statusCode, equals(0));
+        expect((entry as IndexEntry).domain, equals('api.example.com'));
       });
     });
 
@@ -77,6 +78,7 @@ void main() {
         expect(entry.statusCode, equals(1000));
         expect(entry.hasError, isFalse);
         expect(entry.errorType, isNull);
+        expect((entry as IndexEntry).domain, equals('echo.websocket.events'));
       });
     });
 

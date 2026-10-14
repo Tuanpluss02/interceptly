@@ -93,30 +93,12 @@ class PendingTracker {
     if (current == null) return;
 
     _memoryIndex.add(
-      IndexEntry(
-        id: current.id,
-        method: current.method,
-        url: current.url,
+      current.copyWith(
         statusCode: closeCode,
         durationMs:
             DateTime.now().difference(current.timestamp).inMilliseconds,
-        requestSizeBytes: current.requestSizeBytes,
-        responseSizeBytes: current.responseSizeBytes,
-        timestamp: current.timestamp,
         hasError: closeCode > 1000 && closeCode != 1005,
-        bodyLocation: current.bodyLocation,
-        inlineRequestBody: current.inlineRequestBody,
-        inlineResponseBody: current.inlineResponseBody,
-        requestHeaders: current.requestHeaders,
-        responseHeaders: current.responseHeaders,
-        requestContentType: current.requestContentType,
-        responseContentType: current.responseContentType,
-        errorType: current.errorType,
         errorMessage: closeReason ?? current.errorMessage,
-        requestTruncation: current.requestTruncation,
-        responseTruncation: current.responseTruncation,
-        fileOffset: current.fileOffset,
-        fileLength: current.fileLength,
       ),
     );
   }
@@ -131,30 +113,11 @@ class PendingTracker {
       if (current == null) return;
       if (current.statusCode != 0 || current.hasError) return;
 
-      final timedOutEntry = IndexEntry(
-        id: current.id,
-        method: current.method,
-        url: current.url,
-        statusCode: 0,
-        durationMs: current.durationMs,
-        requestSizeBytes: current.requestSizeBytes,
-        responseSizeBytes: current.responseSizeBytes,
-        timestamp: current.timestamp,
+      final timedOutEntry = current.copyWith(
         hasError: true,
-        bodyLocation: current.bodyLocation,
-        inlineRequestBody: current.inlineRequestBody,
-        inlineResponseBody: current.inlineResponseBody,
-        requestHeaders: current.requestHeaders,
-        responseHeaders: current.responseHeaders,
-        requestContentType: current.requestContentType,
-        responseContentType: current.responseContentType,
         errorType: 'TimeoutException',
         errorMessage:
             'Request timed out while waiting for response or terminal error.',
-        requestTruncation: current.requestTruncation,
-        responseTruncation: current.responseTruncation,
-        fileOffset: current.fileOffset,
-        fileLength: current.fileLength,
       );
 
       _memoryIndex.add(timedOutEntry);

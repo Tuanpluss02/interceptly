@@ -1,3 +1,4 @@
+import 'index_entry.dart';
 import 'request_summary.dart';
 
 /// Unified filter applied to the inspector request list.
@@ -63,7 +64,9 @@ class RequestFilter {
     }
 
     if (domains.isNotEmpty) {
-      if (!domains.contains(extractDomain(entry.url))) return false;
+      final domain =
+          entry is IndexEntry ? entry.domain : extractDomain(entry.url);
+      if (!domains.contains(domain)) return false;
     }
 
     final h = host?.trim().toLowerCase();
