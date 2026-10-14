@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/model/body_location.dart';
+import 'package:interceptly/src/model/body_truncation.dart';
 import 'package:interceptly/src/model/domain_group.dart';
+import 'package:interceptly/src/model/index_entry.dart';
 import 'package:interceptly/src/session/inspector_preferences.dart';
 import 'package:interceptly/src/ui/detail/detail_tabs_builder.dart';
 import 'package:interceptly/src/ui/detail/realtime/realtime_filter_header.dart';
+import 'package:interceptly/src/ui/detail/realtime_detail_page.dart';
 import 'package:interceptly/src/ui/detail/realtime_messages_tab.dart';
 import 'package:interceptly/src/ui/widgets/json_viewer/json_viewer.dart';
 
@@ -62,13 +66,15 @@ class _MockSession extends ChangeNotifier implements InspectorSessionView {
   @override
   RequestSummary? byId(String id) => null;
 
-  @override
-  Future<RequestRecord> loadDetailById(String id) =>
-      throw UnimplementedError();
+  RequestRecord? recordToReturn;
 
   @override
-  Future<RequestRecord> loadDetail(RequestSummary summary) =>
-      throw UnimplementedError();
+  Future<RequestRecord> loadDetailById(String id) async =>
+      recordToReturn ?? (throw UnimplementedError());
+
+  @override
+  Future<RequestRecord> loadDetail(RequestSummary summary) async =>
+      recordToReturn ?? (throw UnimplementedError());
 
   @override
   void enable() {}
@@ -112,6 +118,21 @@ class _MockSession extends ChangeNotifier implements InspectorSessionView {
   @override
   List<RealtimeFrame> getRealtimeFrames(String sessionId) =>
       List.unmodifiable(framesBySession[sessionId] ?? const <RealtimeFrame>[]);
+
+  @override
+  RealtimeFrameCounts getRealtimeFrameCounts(String sessionId) {
+    final frames = framesBySession[sessionId] ?? const <RealtimeFrame>[];
+    var incoming = 0;
+    var outgoing = 0;
+    for (final f in frames) {
+      if (f.direction == FrameDirection.incoming) {
+        incoming++;
+      } else {
+        outgoing++;
+      }
+    }
+    return RealtimeFrameCounts(incoming: incoming, outgoing: outgoing);
+  }
 
   bool activeCanSend = false;
   RealtimeProtocolType? protocol;
@@ -459,7 +480,7 @@ void main() {
       expect(find.byType(JsonViewer), findsNothing);
     });
 
-    testWidgets('DetailTabsBuilder.buildMessagesTab integrates RealtimeMessagesTab seamlessly',
+    testWidgets('RealtimeDetailPage integrates RealtimeMessagesTab seamlessly',
         (tester) async {
       final session = _MockSession();
       session.addFrame(
@@ -483,21 +504,30 @@ void main() {
         responseHeaders: const {},
         timestamp: DateTime(2026, 1, 1),
       );
+      session.recordToReturn = record;
 
-      final builder = DetailTabsBuilder(
-        record: record,
-        matches: const [],
-        activeGlobalIndex: null,
-        query: '',
-        urlDecodeEnabled: false,
-        tryParseJson: (_) => null,
-        session: session,
+      final entry = IndexEntry(
+        id: 'ws-record-1',
+        method: 'WS',
+        url: 'wss://example.com/socket',
+        statusCode: 101,
+        durationMs: 50,
+        requestSizeBytes: 0,
+        responseSizeBytes: 0,
+        requestHeaders: const {},
+        responseHeaders: const {},
+        timestamp: DateTime(2026, 1, 1),
+        hasError: false,
+        requestTruncation: const BodyTruncation.complete(0),
+        responseTruncation: const BodyTruncation.complete(0),
+        bodyLocation: BodyLocation.memory,
       );
 
       await tester.pumpWidget(
         MaterialApp(
-          home: Scaffold(
-            body: builder.buildMessagesTab(),
+          home: RealtimeDetailPage(
+            entry: entry,
+            session: session,
           ),
         ),
       );

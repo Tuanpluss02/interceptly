@@ -4,10 +4,11 @@ import 'package:interceptly/src/ui/interceptly_theme.dart';
 import 'package:interceptly/src/ui/widgets/error_summary.dart';
 import 'package:interceptly/src/ui/widgets/json_viewer/json_viewer.dart';
 
+import '../format.dart';
+
 import '../../model/body_truncation.dart';
 import '../../model/request_record.dart';
 import 'detail_search.dart';
-import 'realtime_messages_tab.dart';
 
 class DetailTabsBuilder {
   final RequestRecord record;
@@ -19,6 +20,7 @@ class DetailTabsBuilder {
   final Map<DetailSection, GlobalKey>? sectionKeys;
   final int? scrollTrigger;
   final InspectorSessionView? session;
+  final DateTime Function()? now;
 
   DetailTabsBuilder({
     required this.record,
@@ -30,6 +32,7 @@ class DetailTabsBuilder {
     this.sectionKeys,
     this.scrollTrigger,
     this.session,
+    this.now,
   });
 
   Widget buildOverviewTab() {
@@ -46,6 +49,22 @@ class DetailTabsBuilder {
       try {
         displayUrl = Uri.decodeFull(record.url);
       } catch (_) {}
+    }
+
+    final String statusValue;
+    if (isPending) {
+      statusValue = 'Loading';
+    } else if (isErrorWithoutStatus) {
+      statusValue = 'Error';
+    } else {
+      statusValue = '${record.statusCode}';
+    }
+
+    final String durationValue;
+    if (isPending) {
+      durationValue = 'loading…';
+    } else {
+      durationValue = '${record.durationMs} ms';
     }
 
     return ListView(
@@ -65,17 +84,13 @@ class DetailTabsBuilder {
         const SizedBox(height: 16),
         _buildOverviewRow(
           'Status',
-          isPending
-              ? 'Loading'
-              : isErrorWithoutStatus
-                  ? 'Error'
-                  : '${record.statusCode}',
+          statusValue,
           DetailSection.overviewStatus,
         ),
         const SizedBox(height: 16),
         _buildOverviewRow(
           'Duration',
-          isPending ? 'loading…' : '${record.durationMs} ms',
+          durationValue,
           DetailSection.overviewDuration,
         ),
         const SizedBox(height: 16),
@@ -248,13 +263,6 @@ class DetailTabsBuilder {
           DetailSection.errorMessage,
         ),
       ],
-    );
-  }
-
-  Widget buildMessagesTab() {
-    return RealtimeMessagesTab(
-      sessionId: record.id,
-      session: session,
     );
   }
 

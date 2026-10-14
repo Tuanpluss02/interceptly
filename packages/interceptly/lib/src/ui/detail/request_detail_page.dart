@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -13,6 +14,7 @@ import '../../session/inspector_session.dart';
 import '../../session/inspector_session_view.dart';
 import 'detail_search.dart';
 import 'detail_tabs_builder.dart';
+import 'realtime_detail_page.dart';
 import 'replay_handler.dart';
 import 'share_handler.dart';
 
@@ -27,12 +29,17 @@ class RequestDetailPage extends StatefulWidget {
   /// Optional initial query carried over from master list search.
   final String? initialQuery;
 
+  /// Optional time provider for testing live duration ticking.
+  @visibleForTesting
+  final DateTime Function()? nowProvider;
+
   /// Creates a detail page for [entry] using [session].
   const RequestDetailPage({
     super.key,
     required this.entry,
     required this.session,
     this.initialQuery,
+    @visibleForTesting this.nowProvider,
   });
 
   @override
@@ -85,8 +92,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
         _recomputeMatchesAsync();
       }
     });
-    final isRealtime = _currentEntry.isRealtime;
-    _tabController = TabController(length: isRealtime ? 2 : 4, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _tabController.addListener(_onTabChanged);
   }
 
@@ -164,13 +170,12 @@ class _RequestDetailPageState extends State<RequestDetailPage>
       _cachedMatches = const [];
       return;
     }
-    final isRealtime = widget.entry.isRealtime;
     final gen = ++_matchesGeneration;
     List<DetailMatch> next;
     try {
-      next = await computeMatchesAsync(record, _query, isRealtime);
+      next = await computeMatchesAsync(record, _query, false);
     } catch (_) {
-      next = computeMatches(record, _query, isRealtime, _tryParseJson);
+      next = computeMatches(record, _query, false, _tryParseJson);
     }
     if (!mounted || gen != _matchesGeneration) return;
     setState(() {
@@ -322,6 +327,14 @@ class _RequestDetailPageState extends State<RequestDetailPage>
 
   @override
   Widget build(BuildContext context) {
+    if (_currentEntry.isRealtime) {
+      return RealtimeDetailPage(
+        entry: _currentEntry,
+        session: widget.session,
+        nowProvider: widget.nowProvider,
+      );
+    }
+
     final themeMode = widget.session.preferences.themeMode;
     final urlDecodeEnabled = widget.session.preferences.urlDecodeEnabled;
 
@@ -331,15 +344,17 @@ class _RequestDetailPageState extends State<RequestDetailPage>
     );
 
     final entry = _currentEntry;
-    final isRealtime = entry.isRealtime;
     final isPending = entry.statusCode == 0 && !entry.hasError;
     final isErrorWithoutStatus = entry.statusCode == 0 && entry.hasError;
-    final sStyle = isErrorWithoutStatus
-        ? const StatusStyle(
-            bg: InterceptlyTheme.red500,
-            text: InterceptlyGlobalColor.white,
-          )
-        : InterceptlyTheme.getStatusStyle(entry.statusCode);
+    final StatusStyle sStyle;
+    if (isErrorWithoutStatus) {
+      sStyle = const StatusStyle(
+        bg: InterceptlyTheme.red500,
+        text: InterceptlyGlobalColor.white,
+      );
+    } else {
+      sStyle = InterceptlyTheme.getStatusStyle(entry.statusCode);
+    }
 
     String displayUrl = entry.url;
     if (urlDecodeEnabled) {
@@ -463,17 +478,12 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                         labelColor: InterceptlyTheme.indigo400,
                         unselectedLabelColor: InterceptlyTheme.textQuaternary,
                         dividerColor: InterceptlyGlobalColor.transparent,
-                        tabs: isRealtime
-                            ? const [
-                                Tab(text: 'Overview'),
-                                Tab(text: 'Messages')
-                              ]
-                            : const [
-                                Tab(text: 'Overview'),
-                                Tab(text: 'Request'),
-                                Tab(text: 'Response'),
-                                Tab(text: 'Error'),
-                              ],
+                        tabs: const [
+                          Tab(text: 'Overview'),
+                          Tab(text: 'Request'),
+                          Tab(text: 'Response'),
+                          Tab(text: 'Error'),
+                        ],
                       ),
                       Expanded(
                         child: AnimatedBuilder(
@@ -493,32 +503,24 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                               sectionKeys: _sectionKeys,
                               scrollTrigger: _scrollNavGeneration,
                               session: widget.session,
+                              now: widget.nowProvider,
                             );
                             return IndexedStack(
                               index: tabIndex,
-                              children: isRealtime
-                                  ? [
-                                      _visitedTabs.contains(0)
-                                          ? tabsBuilder.buildOverviewTab()
-                                          : const SizedBox.shrink(),
-                                      _visitedTabs.contains(1)
-                                          ? tabsBuilder.buildMessagesTab()
-                                          : const SizedBox.shrink(),
-                                    ]
-                                  : [
-                                      _visitedTabs.contains(0)
-                                          ? tabsBuilder.buildOverviewTab()
-                                          : const SizedBox.shrink(),
-                                      _visitedTabs.contains(1)
-                                          ? tabsBuilder.buildRequestTab()
-                                          : const SizedBox.shrink(),
-                                      _visitedTabs.contains(2)
-                                          ? tabsBuilder.buildResponseTab()
-                                          : const SizedBox.shrink(),
-                                      _visitedTabs.contains(3)
-                                          ? tabsBuilder.buildErrorTab()
-                                          : const SizedBox.shrink(),
-                                    ],
+                              children: [
+                                _visitedTabs.contains(0)
+                                    ? tabsBuilder.buildOverviewTab()
+                                    : const SizedBox.shrink(),
+                                _visitedTabs.contains(1)
+                                    ? tabsBuilder.buildRequestTab()
+                                    : const SizedBox.shrink(),
+                                _visitedTabs.contains(2)
+                                    ? tabsBuilder.buildResponseTab()
+                                    : const SizedBox.shrink(),
+                                _visitedTabs.contains(3)
+                                    ? tabsBuilder.buildErrorTab()
+                                    : const SizedBox.shrink(),
+                              ],
                             );
                           },
                         ),
@@ -541,24 +543,21 @@ class _RequestDetailPageState extends State<RequestDetailPage>
               );
             },
           ),
-          floatingActionButton: isRealtime
-              ? null
-              : FloatingActionButton.extended(
-                  key: _fabKey,
-                  heroTag: null,
-                  onPressed: () => _showShareMenu(themedContext),
-                  backgroundColor: InterceptlyTheme.indigo500,
-                  foregroundColor: InterceptlyGlobalColor.white,
-                  icon: const Icon(Icons.share, size: 18),
-                  label: Text(
-                    'Share',
-                    style:
-                        InterceptlyTheme.typography.bodyMediumMedium.copyWith(
-                      color: InterceptlyGlobalColor.white,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
+          floatingActionButton: FloatingActionButton.extended(
+            key: _fabKey,
+            heroTag: null,
+            onPressed: () => _showShareMenu(themedContext),
+            backgroundColor: InterceptlyTheme.indigo500,
+            foregroundColor: InterceptlyGlobalColor.white,
+            icon: const Icon(Icons.share, size: 18),
+            label: Text(
+              'Share',
+              style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
+                color: InterceptlyGlobalColor.white,
+                fontSize: 13,
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -602,7 +601,8 @@ class _RequestDetailPageState extends State<RequestDetailPage>
     required bool isErrorWithoutStatus,
     required StatusStyle statusStyle,
   }) {
-    final label = isPending
+    final showSpinner = isPending;
+    final String label = isPending
         ? 'PENDING'
         : isErrorWithoutStatus
             ? 'ERR'
@@ -618,7 +618,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (isPending)
+          if (showSpinner)
             SizedBox(
               width: 10,
               height: 10,
