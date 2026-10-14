@@ -85,8 +85,8 @@ class _RequestDetailPageState extends State<RequestDetailPage>
         _recomputeMatchesAsync();
       }
     });
-    final isWs = _currentEntry.method == 'WS';
-    _tabController = TabController(length: isWs ? 2 : 4, vsync: this);
+    final isRealtime = _currentEntry.isRealtime;
+    _tabController = TabController(length: isRealtime ? 2 : 4, vsync: this);
     _tabController.addListener(_onTabChanged);
   }
 
@@ -164,13 +164,13 @@ class _RequestDetailPageState extends State<RequestDetailPage>
       _cachedMatches = const [];
       return;
     }
-    final isWs = widget.entry.method == 'WS';
+    final isRealtime = widget.entry.isRealtime;
     final gen = ++_matchesGeneration;
     List<DetailMatch> next;
     try {
-      next = await computeMatchesAsync(record, _query, isWs);
+      next = await computeMatchesAsync(record, _query, isRealtime);
     } catch (_) {
-      next = computeMatches(record, _query, isWs, _tryParseJson);
+      next = computeMatches(record, _query, isRealtime, _tryParseJson);
     }
     if (!mounted || gen != _matchesGeneration) return;
     setState(() {
@@ -331,7 +331,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
     );
 
     final entry = _currentEntry;
-    final isWs = entry.method == 'WS';
+    final isRealtime = entry.isRealtime;
     final isPending = entry.statusCode == 0 && !entry.hasError;
     final isErrorWithoutStatus = entry.statusCode == 0 && entry.hasError;
     final sStyle = isErrorWithoutStatus
@@ -463,7 +463,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                         labelColor: InterceptlyTheme.indigo400,
                         unselectedLabelColor: InterceptlyTheme.textQuaternary,
                         dividerColor: InterceptlyGlobalColor.transparent,
-                        tabs: isWs
+                        tabs: isRealtime
                             ? const [
                                 Tab(text: 'Overview'),
                                 Tab(text: 'Messages')
@@ -496,7 +496,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                             );
                             return IndexedStack(
                               index: tabIndex,
-                              children: isWs
+                              children: isRealtime
                                   ? [
                                       _visitedTabs.contains(0)
                                           ? tabsBuilder.buildOverviewTab()
@@ -541,7 +541,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
               );
             },
           ),
-          floatingActionButton: isWs
+          floatingActionButton: isRealtime
               ? null
               : FloatingActionButton.extended(
                   key: _fabKey,

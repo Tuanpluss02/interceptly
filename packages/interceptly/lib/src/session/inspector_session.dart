@@ -163,7 +163,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       return _settings.enableRealtime!;
     }
     return _realtimeExplicitlyEnabled ||
-        _memoryIndex.entries.any((e) => e.method == 'WS');
+        _memoryIndex.entries.any((e) => e.isRealtime);
   }
 
   /// Explicitly marks realtime capability as active and notifies listeners.

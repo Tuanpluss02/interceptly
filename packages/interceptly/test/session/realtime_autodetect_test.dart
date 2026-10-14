@@ -72,5 +72,16 @@ void main() {
       session.clear();
       expect(session.isRealtimeActive, isTrue);
     });
+
+    test('isRealtimeActive detects other realtime protocols like SIO or SSE in entries', () {
+      expect(session.isRealtimeActive, isFalse);
+      session.recordPending(
+        id: 'sio_1',
+        method: 'SIO',
+        url: 'https://example.com/socket.io',
+        timestamp: DateTime.now(),
+      );
+      expect(session.isRealtimeActive, isTrue);
+    });
   });
 }

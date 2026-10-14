@@ -228,9 +228,9 @@ class _NetworkTabState extends State<NetworkTab> {
   List<RequestSummary> _filterByProtocol(List<RequestSummary> list) {
     switch (widget.protocol) {
       case NetworkProtocol.rest:
-        return list.where((e) => e.method != 'WS').toList();
+        return list.where((e) => !e.isRealtime).toList();
       case NetworkProtocol.realtime:
-        return list.where((e) => e.method == 'WS').toList();
+        return list.where((e) => e.isRealtime).toList();
       case NetworkProtocol.all:
         return list;
     }
