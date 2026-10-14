@@ -114,5 +114,55 @@ void main() {
       expect(errorFilter.matches(pending), isFalse);
       expect(errorFilter.matches(netErr), isTrue);
     });
+
+    test('statusCode 0 entries (network error or pending) do not leak into 2xx/3xx filters', () {
+      final base = IndexEntry(
+        id: '1',
+        method: 'GET',
+        url: 'https://a.com',
+        statusCode: 0,
+        durationMs: 0,
+        requestSizeBytes: 0,
+        responseSizeBytes: 0,
+        timestamp: DateTime(2026, 1, 1),
+        hasError: false,
+        requestTruncation: const BodyTruncation.complete(0),
+        responseTruncation: const BodyTruncation.complete(0),
+        bodyLocation: BodyLocation.memory,
+      );
+      final pending = base;
+      final netErr = base.copyWith(id: '2', hasError: true);
+
+      // Filtering for 2xx only without pending
+      final filter2xxNoPending = RequestFilter(
+        include2xx: true,
+        include3xx: false,
+        include4xx: false,
+        include5xx: false,
+        includePending: false,
+      );
+      expect(filter2xxNoPending.matches(pending), isFalse);
+      expect(filter2xxNoPending.matches(netErr), isFalse);
+
+      // Filtering for 2xx only with default includePending (netErr must never leak into 2xx)
+      final filter2xx = RequestFilter(
+        include2xx: true,
+        include3xx: false,
+        include4xx: false,
+        include5xx: false,
+      );
+      expect(filter2xx.matches(pending), isTrue);
+      expect(filter2xx.matches(netErr), isFalse);
+
+      // Filtering for 4xx only
+      final filter4xx = RequestFilter(
+        include2xx: false,
+        include3xx: false,
+        include4xx: true,
+        include5xx: false,
+      );
+      expect(filter4xx.matches(pending), isTrue);
+      expect(filter4xx.matches(netErr), isTrue);
+    });
   });
 }

@@ -121,5 +121,53 @@ void main() {
       expect(applied!.onlyErrors, isFalse);
       expect(applied!.methods, isEmpty);
     });
+
+    testWidgets('prevents deselecting all status codes and disables Apply when no domains selected', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () => FilterPanel.show(
+                  context: ctx,
+                  currentFilter: RequestFilter(),
+                  availableDomains: {'api.com', 'web.com'},
+                  onFilterChanged: (_) {},
+                ),
+                child: const Text('Open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+
+      // Tap 3xx, 4xx, 5xx to uncheck them
+      await tester.tap(find.text('3xx Redirect'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('4xx Client Err'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('5xx Server Err'));
+      await tester.pumpAndSettle();
+
+      // Now 2xx is the only one selected. Tapping 2xx should NOT deselect it
+      await tester.tap(find.text('2xx Success'));
+      await tester.pumpAndSettle();
+
+      // Tap "Deselect All" on domains
+      await tester.tap(find.text('Deselect All'));
+      await tester.pumpAndSettle();
+
+      // Apply button should be disabled
+      final applyButton = tester.widget<FilledButton>(
+        find.descendant(
+          of: find.byType(FilterPanel),
+          matching: find.byType(FilledButton),
+        ),
+      );
+      expect(applyButton.onPressed, isNull);
+    });
   });
 }

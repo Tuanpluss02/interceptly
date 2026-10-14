@@ -77,7 +77,13 @@ class QuickFilterBar extends StatelessWidget {
                   if (isErrorsActive) {
                     session.applyFilter(filter.copyWith(onlyErrors: false));
                   } else {
-                    session.applyFilter(filter.copyWith(onlyErrors: true));
+                    session.applyFilter(filter.copyWith(
+                      onlyErrors: true,
+                      include2xx: true,
+                      include3xx: true,
+                      include4xx: true,
+                      include5xx: true,
+                    ));
                   }
                 },
               ),

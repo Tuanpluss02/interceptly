@@ -81,6 +81,21 @@ class _FilterPanelState extends State<FilterPanel> {
     super.dispose();
   }
 
+  int get _activeStatusCount =>
+      (include2xx ? 1 : 0) +
+      (include3xx ? 1 : 0) +
+      (include4xx ? 1 : 0) +
+      (include5xx ? 1 : 0);
+
+  bool get _canApply {
+    if (selectedMethods.isEmpty) return false;
+    if (_activeStatusCount == 0) return false;
+    if (widget.availableDomains.isNotEmpty && selectedDomains.isEmpty) {
+      return false;
+    }
+    return true;
+  }
+
   int get _activeFilterCount {
     int count = 0;
     if (onlyErrors) count++;
@@ -91,8 +106,9 @@ class _FilterPanelState extends State<FilterPanel> {
     if (!include2xx || !include3xx || !include4xx || !include5xx) {
       count++;
     }
-    if (!selectedDomains.containsAll(widget.availableDomains) ||
-        selectedDomains.length < widget.availableDomains.length) {
+    if (selectedDomains.isNotEmpty &&
+        (!selectedDomains.containsAll(widget.availableDomains) ||
+            selectedDomains.length < widget.availableDomains.length)) {
       count++;
     }
     return count;
@@ -270,10 +286,12 @@ class _FilterPanelState extends State<FilterPanel> {
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: _applyFilters,
+                  onPressed: _canApply ? _applyFilters : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: colors.actionPrimary,
                     foregroundColor: colors.textOnAction,
+                    disabledBackgroundColor: InterceptlyTheme.controlMuted,
+                    disabledForegroundColor: colors.textTertiary,
                     elevation: 0,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
@@ -281,8 +299,11 @@ class _FilterPanelState extends State<FilterPanel> {
                     ),
                   ),
                   child: Text(
-                    'Apply Filter${_activeFilterCount > 0 ? ' ($_activeFilterCount)' : ''}',
+                    _canApply
+                        ? 'Apply Filter${_activeFilterCount > 0 ? ' ($_activeFilterCount)' : ''}'
+                        : 'Select at least one domain',
                     style: InterceptlyTheme.typography.labelMediumMedium.copyWith(
+                      color: _canApply ? colors.textOnAction : colors.textTertiary,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -388,7 +409,10 @@ class _FilterPanelState extends State<FilterPanel> {
                 label: '2xx Success',
                 isIncluded: include2xx,
                 color: InterceptlyTheme.getStatusStyle(200).bg,
-                onTap: () => setState(() => include2xx = !include2xx),
+                onTap: () {
+                  if (include2xx && _activeStatusCount <= 1) return;
+                  setState(() => include2xx = !include2xx);
+                },
               ),
             ),
             const SizedBox(width: 8),
@@ -397,7 +421,10 @@ class _FilterPanelState extends State<FilterPanel> {
                 label: '3xx Redirect',
                 isIncluded: include3xx,
                 color: InterceptlyTheme.getStatusStyle(301).bg,
-                onTap: () => setState(() => include3xx = !include3xx),
+                onTap: () {
+                  if (include3xx && _activeStatusCount <= 1) return;
+                  setState(() => include3xx = !include3xx);
+                },
               ),
             ),
           ],
@@ -410,7 +437,10 @@ class _FilterPanelState extends State<FilterPanel> {
                 label: '4xx Client Err',
                 isIncluded: include4xx,
                 color: InterceptlyTheme.getStatusStyle(400).bg,
-                onTap: () => setState(() => include4xx = !include4xx),
+                onTap: () {
+                  if (include4xx && _activeStatusCount <= 1) return;
+                  setState(() => include4xx = !include4xx);
+                },
               ),
             ),
             const SizedBox(width: 8),
@@ -419,7 +449,10 @@ class _FilterPanelState extends State<FilterPanel> {
                 label: '5xx Server Err',
                 isIncluded: include5xx,
                 color: InterceptlyTheme.getStatusStyle(500).bg,
-                onTap: () => setState(() => include5xx = !include5xx),
+                onTap: () {
+                  if (include5xx && _activeStatusCount <= 1) return;
+                  setState(() => include5xx = !include5xx);
+                },
               ),
             ),
           ],
