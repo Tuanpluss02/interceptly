@@ -1,27 +1,24 @@
-import 'dart:async';
-import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:interceptly/adapter.dart';
 
-import 'package:interceptly/interceptly.dart';
+/// An HTTP client exception thrown when requests are aborted due to simulated network profiles.
+class InterceptlySimulatedClientException extends http.ClientException
+    implements SimulatedNetworkException {
+  /// Creates a simulated client exception.
+  InterceptlySimulatedClientException(super.message, [super.uri]);
+}
 
-/// A drop-in [http.BaseClient] wrapper that captures all requests.
-///
-/// Usage:
-/// ```dart
-/// final client = InterceptlyHttpClient(http.Client());
-/// // or
-/// final client = InterceptlyHttpClient.wrap(http.Client());
-/// ```
-class InterceptlyHttpClient extends http.BaseClient
-    implements HttpCaptureAdapter {
+/// A drop-in [http.BaseClient] wrapper that captures requests and streaming responses for Interceptly.
+class InterceptlyHttpClient extends http.BaseClient {
+  /// Wraps [inner] with Interceptly capture.
   InterceptlyHttpClient(
     this._inner, [
     HttpTrafficCollector? collector,
-  ]) : collector = collector ?? DefaultHttpTrafficCollector();
+  ]) : collector = collector ?? HttpTrafficCollector.instance;
 
+  /// Convenience constructor wrapping an existing [http.Client].
   factory InterceptlyHttpClient.wrap(
     http.Client inner, [
     HttpTrafficCollector? collector,
@@ -30,62 +27,40 @@ class InterceptlyHttpClient extends http.BaseClient
 
   final http.Client _inner;
 
-  @override
-  InspectorSession get session => InspectorSession.instance;
-
-  @override
+  /// The traffic collector coordinating capture.
   final HttpTrafficCollector collector;
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     final bodyBytes = _extractRequestBody(request);
 
-    final reqHeaders = Map<String, String>.fromEntries(
-      request.headers.entries.map((e) => MapEntry(e.key, e.value)),
-    );
-
-    HttpRequestContext? context;
+    final HttpCaptureScope scope;
     try {
-      context = await collector.startRequest(
+      scope = await collector.begin(
         method: request.method,
         uri: request.url,
-        headers: reqHeaders,
+        headers: request.headers,
         bodyBytes: bodyBytes,
         contentType: request.headers['content-type'],
       );
-    } on SimulatedNetworkException {
-      rethrow;
-    } catch (e, st) {
-      if (kDebugMode) {
-        debugPrint('[Interceptly] startRequest capture failed: $e\n$st');
-      }
+    } on SimulatedNetworkException catch (e) {
+      throw InterceptlySimulatedClientException(e.message, request.url);
     }
 
-    http.StreamedResponse response;
+    final http.StreamedResponse response;
     try {
       response = await _inner.send(request);
-    } catch (e) {
-      if (context != null) {
-        collector.failRequest(
-          context: context,
-          error: e,
-          errorType: e.runtimeType.toString(),
-          errorMessage: e.toString(),
-        );
-      }
+    } catch (e, st) {
+      scope.fail(e, stackTrace: st);
       rethrow;
     }
 
-    final resHeaders = Map<String, String>.fromEntries(
-      response.headers.entries.map((e) => MapEntry(e.key, e.value)),
-    );
-
     return http.StreamedResponse(
-      _teeResponseStream(
-        source: response.stream,
-        context: context,
-        response: response,
-        resHeaders: resHeaders,
+      scope.bindResponseStream(
+        response.stream,
+        statusCode: response.statusCode,
+        headers: response.headers,
+        contentType: response.headers['content-type'],
       ),
       response.statusCode,
       contentLength: response.contentLength,
@@ -97,183 +72,26 @@ class InterceptlyHttpClient extends http.BaseClient
     );
   }
 
-  /// Tees [source] into a new stream that:
-  /// - forwards every chunk to the caller unchanged and immediately, and
-  /// - accumulates up to [InterceptlySettings.maxBodyBytes] bytes into a
-  ///   [BytesBuilder] for capture — then stops accumulating (never buffers
-  ///   more than the cap regardless of how large the response is).
-  ///
-  /// [collector.completeResponse] is called once when the stream ends successfully,
-  /// and [collector.failRequest] when it encounters an error or cancellation.
-  Stream<List<int>> _teeResponseStream({
-    required Stream<List<int>> source,
-    required HttpRequestContext? context,
-    required http.StreamedResponse response,
-    required Map<String, String> resHeaders,
-  }) {
-    final maxCapture = session.settings.maxBodyBytes;
-    final captureBuffer = BytesBuilder();
-    bool captureStopped = false;
-    bool recorded = false;
-
-    void recordResponse() {
-      if (recorded || context == null) return;
-      recorded = true;
-      final captured = captureBuffer.isEmpty ? null : captureBuffer.toBytes();
-      guardCapture(() {
-        unawaited(
-          collector.completeResponse(
-            context: context,
-            statusCode: response.statusCode,
-            headers: resHeaders,
-            bodyBytes: captured,
-            responseContentType: response.headers['content-type'],
-          ),
-        );
-      });
-    }
-
-    void recordFailure({
-      required Object error,
-      String? errorType,
-      String? errorMessage,
-    }) {
-      if (recorded || context == null) return;
-      recorded = true;
-      final captured = captureBuffer.isEmpty ? null : captureBuffer.toBytes();
-      guardCapture(() {
-        collector.failRequest(
-          context: context,
-          error: error,
-          errorType: errorType,
-          errorMessage: errorMessage,
-          statusCode: response.statusCode,
-          responseHeaders: resHeaders,
-          responseBodyBytes: captured,
-        );
-      });
-    }
-
-    late StreamSubscription<List<int>> sub;
-    late final StreamController<List<int>> controller;
-    bool isCanceled = false;
-
-    controller = StreamController<List<int>>(
-      onListen: () {
-        void handleChunk(List<int> chunk) {
-          if (recorded || controller.isClosed) return;
-          controller.add(chunk);
-          if (!captureStopped) {
-            final remaining = maxCapture - captureBuffer.length;
-            if (chunk.length <= remaining) {
-              captureBuffer.add(chunk);
-            } else {
-              if (remaining > 0) captureBuffer.add(chunk.sublist(0, remaining));
-              captureStopped = true;
-            }
-          }
-        }
-
-        sub = source.listen(
-          (chunk) {
-            final delay = session.throughputDelayForChunk(chunk.length);
-            if (delay > Duration.zero) {
-              try {
-                if (!isCanceled) sub.pause();
-              } catch (_) {}
-              Future<void>.delayed(delay, () {
-                handleChunk(chunk);
-                if (!controller.isClosed && !isCanceled) {
-                  try {
-                    if (sub.isPaused) {
-                      sub.resume();
-                    }
-                  } catch (_) {}
-                }
-              });
-              return;
-            }
-            handleChunk(chunk);
-          },
-          onDone: () {
-            recordResponse();
-            controller.close();
-          },
-          onError: (Object e, StackTrace st) {
-            recordFailure(
-              error: e,
-              errorType: e.runtimeType.toString(),
-              errorMessage: e.toString(),
-            );
-            controller.addError(e, st);
-            controller.close();
-          },
-          cancelOnError: false,
-        );
-      },
-      onPause: () {
-        if (!isCanceled) {
-          try {
-            sub.pause();
-          } catch (_) {}
-        }
-      },
-      onResume: () {
-        if (!isCanceled) {
-          try {
-            if (sub.isPaused) {
-              sub.resume();
-            }
-          } catch (_) {}
-        }
-      },
-      onCancel: () {
-        isCanceled = true;
-        recordFailure(
-          error: 'CancellationException',
-          errorType: 'CancellationException',
-          errorMessage: 'Stream subscription was canceled by client.',
-        );
-        return sub.cancel();
-      },
-    );
-
-    return controller.stream;
-  }
-
   @override
   void close() => _inner.close();
 
-  /// Extracts a human-readable body snapshot without consuming any stream.
-  ///
-  /// - [http.Request]: returns the already-buffered body bytes as-is.
-  /// - [http.MultipartRequest]: builds a text summary of fields and file
-  ///   metadata from the request's public properties — safe to call before
-  ///   [send] because it never touches the underlying multipart stream.
-  /// - [http.StreamedRequest] and other subtypes: returns null. Tee-ing an
-  ///   arbitrary [Stream<List<int>>] would require buffering the entire upload
-  ///   in memory, which is unsafe for large files.
   static Uint8List? _extractRequestBody(http.BaseRequest request) {
     if (request is http.Request) {
       return Uint8List.fromList(request.bodyBytes);
     }
     if (request is http.MultipartRequest) {
-      return _summarizeMultipart(request);
+      return summarizeMultipart(
+        fields: request.fields.entries,
+        files: request.files.map(
+          (f) => MultipartFileInfo(
+            field: f.field,
+            filename: f.filename,
+            contentType: f.contentType.mimeType,
+            length: f.length,
+          ),
+        ),
+      );
     }
     return null;
-  }
-
-  static Uint8List _summarizeMultipart(http.MultipartRequest request) {
-    final parts = <String>[];
-    for (final entry in request.fields.entries) {
-      parts.add('[field] ${entry.key}=${entry.value}');
-    }
-    for (final file in request.files) {
-      final ct = file.contentType.mimeType;
-      final size = ', ${file.length} bytes';
-      final name = file.filename ?? 'blob';
-      parts.add('[file] ${file.field}: $name ($ct$size)');
-    }
-    return utf8.encode(parts.join('\n'));
   }
 }

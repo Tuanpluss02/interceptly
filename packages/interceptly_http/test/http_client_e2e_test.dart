@@ -58,8 +58,7 @@ void main() {
     expect(response.statusCode, equals(200));
 
     final deadline = DateTime.now().add(const Duration(seconds: 3));
-    while (
-        session.entries.isEmpty || session.entries.first.statusCode != 200) {
+    while (session.entries.isEmpty || session.entries.first.statusCode != 200) {
       if (DateTime.now().isAfter(deadline)) {
         fail(
             'Timed out waiting for intercepted entry to settle in InspectorSession');

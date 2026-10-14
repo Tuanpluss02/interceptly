@@ -24,7 +24,6 @@ class _CapturingChain<BodyType> implements Chain<BodyType> {
   }
 }
 
-
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -56,7 +55,6 @@ void main() {
       }
     } catch (_) {}
   });
-
 
   group('Challenger M2 Instance 2 - Chopper Interceptor Adversarial Tests', () {
     test(
@@ -296,5 +294,4 @@ void main() {
       }
     });
   });
-
 }

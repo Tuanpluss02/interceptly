@@ -48,7 +48,8 @@ void main() {
   late Directory tempDir;
 
   setUp(() async {
-    tempDir = await Directory.systemTemp.createTemp('interceptly_chopper_robustness');
+    tempDir =
+        await Directory.systemTemp.createTemp('interceptly_chopper_robustness');
     _mockTempDir(() async => tempDir.path);
   });
 

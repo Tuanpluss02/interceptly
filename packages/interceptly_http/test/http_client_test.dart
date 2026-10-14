@@ -5,7 +5,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/adapter.dart';
 import 'package:interceptly_http/interceptly_http.dart';
 
 class _StreamingMockClient extends http.BaseClient {
@@ -65,6 +65,33 @@ class _SpyHttpTrafficCollector implements HttpTrafficCollector {
   final List<Map<String, dynamic>> startRequestCalls = [];
   final List<Map<String, dynamic>> completeResponseCalls = [];
   final List<Map<String, dynamic>> failRequestCalls = [];
+
+  @override
+  int get maxBodyBytes => session.settings.maxBodyBytes;
+
+  @override
+  Duration delayForChunk(int chunkBytes) =>
+      session.throughputDelayForChunk(chunkBytes);
+
+  @override
+  Future<HttpCaptureScope> begin({
+    required String method,
+    required Uri uri,
+    Map<String, String>? headers,
+    Uint8List? bodyBytes,
+    String? contentType,
+    String? requestId,
+  }) async {
+    final context = await startRequest(
+      method: method,
+      uri: uri,
+      headers: headers,
+      bodyBytes: bodyBytes,
+      contentType: contentType,
+      requestId: requestId,
+    );
+    return HttpCaptureScope(collector: this, context: context);
+  }
 
   @override
   Future<HttpRequestContext?> startRequest({
@@ -159,13 +186,11 @@ Future<void> _waitFor(bool Function() condition) async {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('HttpCaptureAdapter Contract & Constructors', () {
-    test('implements HttpCaptureAdapter and provides default collector and session', () {
+  group('Constructors and Collector Delegation', () {
+    test('provides default collector', () {
       final inner = _FixedMockClient();
       final client = InterceptlyHttpClient(inner);
 
-      expect(client, isA<HttpCaptureAdapter>());
-      expect(client.session, same(InspectorSession.instance));
       expect(client.collector, isA<DefaultHttpTrafficCollector>());
       expect(
         (client.collector as DefaultHttpTrafficCollector).session,
@@ -179,16 +204,15 @@ void main() {
       final client = InterceptlyHttpClient(inner, spy);
 
       expect(client.collector, same(spy));
-      expect(client.session, same(InspectorSession.instance));
     });
 
-    test('wrap factory creates InterceptlyHttpClient with provided collector', () {
+    test('wrap factory creates InterceptlyHttpClient with provided collector',
+        () {
       final inner = _FixedMockClient();
       final spy = _SpyHttpTrafficCollector();
       final client = InterceptlyHttpClient.wrap(inner, spy);
 
       expect(client, isA<InterceptlyHttpClient>());
-      expect(client, isA<HttpCaptureAdapter>());
       expect(client.collector, same(spy));
     });
   });
@@ -220,18 +244,23 @@ void main() {
       expect(spy.startRequestCalls.length, equals(1));
       final startCall = spy.startRequestCalls.first;
       expect(startCall['method'], equals('POST'));
-      expect(startCall['uri'], equals(Uri.parse('https://api.example.com/items')));
-      expect((startCall['headers'] as Map<String, String>)['authorization'], equals('Bearer token123'));
+      expect(
+          startCall['uri'], equals(Uri.parse('https://api.example.com/items')));
+      expect((startCall['headers'] as Map<String, String>)['authorization'],
+          equals('Bearer token123'));
       expect(startCall['contentType'], equals('text/plain; charset=utf-8'));
-      expect(utf8.decode(startCall['bodyBytes'] as Uint8List), equals('hello payload'));
+      expect(utf8.decode(startCall['bodyBytes'] as Uint8List),
+          equals('hello payload'));
 
       expect(spy.completeResponseCalls.length, equals(1));
       final completeCall = spy.completeResponseCalls.first;
       expect(completeCall['statusCode'], equals(201));
       expect(completeCall['context'], isA<HttpRequestContext>());
-      expect((completeCall['headers'] as Map<String, String>)['x-custom-res'], equals('header-val'));
+      expect((completeCall['headers'] as Map<String, String>)['x-custom-res'],
+          equals('header-val'));
       expect(completeCall['responseContentType'], equals('application/json'));
-      expect(utf8.decode(completeCall['bodyBytes'] as Uint8List), equals('{"created":true}'));
+      expect(utf8.decode(completeCall['bodyBytes'] as Uint8List),
+          equals('{"created":true}'));
     });
 
     test('delegates inner client failure to collector.failRequest', () async {
@@ -301,11 +330,14 @@ void main() {
       final failCall = spy.failRequestCalls.first;
       expect(failCall['context'], isA<HttpRequestContext>());
       expect(failCall['errorType'], equals('CancellationException'));
-      expect(failCall['errorMessage'], equals('Stream subscription was canceled by client.'));
+      expect(failCall['errorMessage'],
+          equals('Stream subscription was canceled by client.'));
       expect(failCall['statusCode'], equals(200));
     });
 
-    test('rethrows SimulatedNetworkException when startRequest throws SimulatedNetworkException', () async {
+    test(
+        'rethrows SimulatedNetworkException when startRequest throws SimulatedNetworkException',
+        () async {
       final spy = _SpyHttpTrafficCollector()..throwSimulatedException = true;
       final inner = _FixedMockClient();
       final client = InterceptlyHttpClient(inner, spy);
@@ -319,12 +351,15 @@ void main() {
       expect(spy.completeResponseCalls, isEmpty);
     });
 
-    test('proceeds normally without recording when collector returns null context', () async {
+    test(
+        'proceeds normally without recording when collector returns null context',
+        () async {
       final spy = _SpyHttpTrafficCollector()..returnNullContext = true;
       final inner = _FixedMockClient(responseBody: 'test-payload');
       final client = InterceptlyHttpClient(inner, spy);
 
-      final response = await client.get(Uri.parse('https://api.example.com/null-context'));
+      final response =
+          await client.get(Uri.parse('https://api.example.com/null-context'));
 
       expect(response.statusCode, equals(200));
       expect(response.body, equals('test-payload'));
@@ -402,7 +437,8 @@ void main() {
         final client = InterceptlyHttpClient(innerClient);
 
         final response = await client.send(
-          http.Request('GET', Uri.parse('https://api.example.com/throttle-cancel')),
+          http.Request(
+              'GET', Uri.parse('https://api.example.com/throttle-cancel')),
         );
 
         streamCtrl.add(List.filled(100, 1));
@@ -419,7 +455,8 @@ void main() {
       },
     );
 
-    test('records successful response when stream completes normally', () async {
+    test('records successful response when stream completes normally',
+        () async {
       final streamCtrl = StreamController<List<int>>();
       final innerClient = _StreamingMockClient(streamCtrl);
       final client = InterceptlyHttpClient(innerClient);
@@ -440,7 +477,8 @@ void main() {
       await streamCtrl.close();
       await completer.future;
 
-      await _waitFor(() => session.entries.isNotEmpty && session.entries.first.statusCode != 0);
+      await _waitFor(() =>
+          session.entries.isNotEmpty && session.entries.first.statusCode != 0);
 
       final entry = session.entries.first;
       expect(entry.statusCode, 200);
@@ -489,7 +527,8 @@ void main() {
         throwsA(isA<http.ClientException>()),
       );
 
-      await _waitFor(() => session.entries.isNotEmpty && session.entries.first.hasError);
+      await _waitFor(
+          () => session.entries.isNotEmpty && session.entries.first.hasError);
 
       final entry = session.entries.first;
       expect(entry.hasError, isTrue);
@@ -497,7 +536,9 @@ void main() {
       expect(entry.errorMessage, contains('Simulated network failure'));
     });
 
-    test('offline simulation aborts request with SimulatedNetworkException and records failure in session', () async {
+    test(
+        'offline simulation aborts request with SimulatedNetworkException and records failure in session',
+        () async {
       session.setNetworkSimulation(NetworkSimulationProfile.offlineProfile);
 
       final client = InterceptlyHttpClient(_FixedMockClient());
@@ -507,7 +548,8 @@ void main() {
         throwsA(isA<SimulatedNetworkException>()),
       );
 
-      await _waitFor(() => session.entries.isNotEmpty && session.entries.first.hasError);
+      await _waitFor(
+          () => session.entries.isNotEmpty && session.entries.first.hasError);
 
       final entry = session.entries.first;
       expect(entry.hasError, isTrue);

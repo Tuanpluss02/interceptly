@@ -185,7 +185,8 @@ void main() {
       expect(caught, isNotNull);
       expect(caught!.type, equals(DioExceptionType.connectionTimeout));
 
-      await _waitFor(() => session.entries.isNotEmpty && session.entries.first.hasError);
+      await _waitFor(
+          () => session.entries.isNotEmpty && session.entries.first.hasError);
       expect(session.entries.length, equals(1));
       final entry = session.entries.first;
       expect(entry.hasError, isTrue);
@@ -216,7 +217,8 @@ void main() {
       expect(caught, isNotNull);
       expect(caught!.type, equals(DioExceptionType.cancel));
 
-      await _waitFor(() => session.entries.isNotEmpty && session.entries.first.hasError);
+      await _waitFor(
+          () => session.entries.isNotEmpty && session.entries.first.hasError);
       expect(session.entries.length, equals(1));
       final entry = session.entries.first;
       expect(entry.hasError, isTrue);
@@ -251,7 +253,8 @@ void main() {
       expect(caught, isNotNull);
       expect(caught!.type, equals(DioExceptionType.cancel));
 
-      await _waitFor(() => session.entries.isNotEmpty && session.entries.first.hasError);
+      await _waitFor(
+          () => session.entries.isNotEmpty && session.entries.first.hasError);
       expect(session.entries.length, equals(1));
       final entry = session.entries.first;
       expect(entry.hasError, isTrue);
@@ -275,7 +278,8 @@ void main() {
       );
       expect(response.statusCode, equals(200));
 
-      await _waitFor(() => session.entries.isNotEmpty && session.entries.first.statusCode != 0);
+      await _waitFor(() =>
+          session.entries.isNotEmpty && session.entries.first.statusCode != 0);
       expect(session.entries.length, equals(1));
       final entry = session.entries.first;
       expect(entry.requestSizeBytes, greaterThanOrEqualTo(60 * 1024));
@@ -298,16 +302,19 @@ void main() {
         );
       dio.interceptors.add(InterceptlyDioInterceptor());
 
-      final response = await dio.get<dynamic>('https://api.example.com/large-res');
+      final response =
+          await dio.get<dynamic>('https://api.example.com/large-res');
       expect(response.statusCode, equals(200));
 
-      await _waitFor(() => session.entries.isNotEmpty && session.entries.first.statusCode != 0);
+      await _waitFor(() =>
+          session.entries.isNotEmpty && session.entries.first.statusCode != 0);
       expect(session.entries.length, equals(1));
       final entry = session.entries.first;
       expect(entry.responseSizeBytes, greaterThanOrEqualTo(64 * 1024));
     });
 
-    test('cleans up _contextKey and _reqBytesKey from RequestOptions.extra after request',
+    test(
+        'cleans up _contextKey and _reqBytesKey from RequestOptions.extra after request',
         () async {
       final options = Options(
         extra: <String, dynamic>{
@@ -328,9 +335,16 @@ void main() {
       );
       expect(response.statusCode, equals(200));
 
-      expect(response.requestOptions.extra.containsKey('interceptly_http_context'), isFalse);
-      expect(response.requestOptions.extra.containsKey('interceptly_req_bytes'), isFalse);
-      expect(response.requestOptions.extra['custom_user_key'], equals('keep_me'));
+      expect(
+          response.requestOptions.extra.containsKey('interceptly_http_scope'),
+          isFalse);
+      expect(
+          response.requestOptions.extra.containsKey('interceptly_http_context'),
+          isFalse);
+      expect(response.requestOptions.extra.containsKey('interceptly_req_bytes'),
+          isFalse);
+      expect(
+          response.requestOptions.extra['custom_user_key'], equals('keep_me'));
     });
   });
 }

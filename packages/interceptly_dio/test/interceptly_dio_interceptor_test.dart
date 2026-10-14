@@ -5,7 +5,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/adapter.dart';
 import 'package:interceptly_dio/interceptly_dio.dart';
 
 const _pathProviderChannel = MethodChannel('plugins.flutter.io/path_provider');
@@ -86,6 +86,33 @@ class _SpyHttpTrafficCollector implements HttpTrafficCollector {
   final List<Map<String, dynamic>> startRequestCalls = [];
   final List<Map<String, dynamic>> completeResponseCalls = [];
   final List<Map<String, dynamic>> failRequestCalls = [];
+
+  @override
+  int get maxBodyBytes => session.settings.maxBodyBytes;
+
+  @override
+  Duration delayForChunk(int chunkBytes) =>
+      session.throughputDelayForChunk(chunkBytes);
+
+  @override
+  Future<HttpCaptureScope> begin({
+    required String method,
+    required Uri uri,
+    Map<String, String>? headers,
+    Uint8List? bodyBytes,
+    String? contentType,
+    String? requestId,
+  }) async {
+    final context = await startRequest(
+      method: method,
+      uri: uri,
+      headers: headers,
+      bodyBytes: bodyBytes,
+      contentType: contentType,
+      requestId: requestId,
+    );
+    return HttpCaptureScope(collector: this, context: context);
+  }
 
   @override
   Future<HttpRequestContext?> startRequest({
@@ -169,14 +196,8 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('InterceptlyDioInterceptor contracts and injection', () {
-    test('implements HttpCaptureAdapter', () {
+    test('uses DefaultHttpTrafficCollector by default', () {
       final interceptor = InterceptlyDioInterceptor();
-      expect(interceptor, isA<HttpCaptureAdapter>());
-    });
-
-    test('uses shared session and DefaultHttpTrafficCollector by default', () {
-      final interceptor = InterceptlyDioInterceptor();
-      expect(interceptor.session, same(InspectorSession.instance));
       expect(interceptor.collector, isA<DefaultHttpTrafficCollector>());
       final defaultCollector =
           interceptor.collector as DefaultHttpTrafficCollector;
@@ -186,7 +207,6 @@ void main() {
     test('constructs with custom HttpTrafficCollector', () {
       final spyCollector = _SpyHttpTrafficCollector();
       final interceptor = InterceptlyDioInterceptor(spyCollector);
-      expect(interceptor.session, same(InspectorSession.instance));
       expect(interceptor.collector, same(spyCollector));
     });
   });
@@ -281,8 +301,8 @@ void main() {
       expect(call['statusCode'], equals(404));
       expect(call['context'], isA<HttpRequestContext>());
       expect(call['bodyBytes'], isNotNull);
-      expect(utf8.decode(call['bodyBytes'] as Uint8List),
-          contains('not found'));
+      expect(
+          utf8.decode(call['bodyBytes'] as Uint8List), contains('not found'));
     });
 
     test('onError creates fallback context when missing from extra', () async {

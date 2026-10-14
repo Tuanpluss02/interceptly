@@ -36,4 +36,23 @@ class HttpRequestContext {
 
   /// String representation of [uri].
   String get url => uri.toString();
+
+  /// Creates a copy of this context with updated properties.
+  HttpRequestContext copyWith({
+    String? method,
+    Uri? uri,
+    Map<String, String>? requestHeaders,
+    Uint8List? requestBodyBytes,
+    String? requestContentType,
+  }) {
+    return HttpRequestContext(
+      id: id,
+      method: method ?? this.method,
+      uri: uri ?? this.uri,
+      startedAt: startedAt,
+      requestHeaders: requestHeaders ?? this.requestHeaders,
+      requestBodyBytes: requestBodyBytes ?? this.requestBodyBytes,
+      requestContentType: requestContentType ?? this.requestContentType,
+    );
+  }
 }

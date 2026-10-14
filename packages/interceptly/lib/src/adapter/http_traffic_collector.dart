@@ -5,6 +5,7 @@ import '../model/network_simulation.dart';
 import '../model/raw_capture.dart';
 import '../session/inspector_session.dart';
 import '../session/request_id.dart';
+import 'http_capture_scope.dart';
 import 'http_request_context.dart';
 
 /// Contract for coordinating HTTP traffic capture lifecycle events.
@@ -12,6 +13,35 @@ import 'http_request_context.dart';
 /// Implementations handle pending record creation, network simulation,
 /// duration calculation, and finalized capture recording into an [InspectorSession].
 abstract interface class HttpTrafficCollector {
+  static HttpTrafficCollector? _instance;
+
+  /// The active global [HttpTrafficCollector] instance.
+  static HttpTrafficCollector get instance =>
+      _instance ??= DefaultHttpTrafficCollector();
+
+  /// Overrides the global [HttpTrafficCollector] instance (e.g. for testing).
+  static set instance(HttpTrafficCollector collector) {
+    _instance = collector;
+  }
+
+  /// Maximum byte capacity for captured request/response bodies.
+  int get maxBodyBytes;
+
+  /// Calculates simulated throughput delay for streaming response chunks.
+  Duration delayForChunk(int chunkBytes);
+
+  /// Initiates an HTTP exchange capture, returning an [HttpCaptureScope].
+  ///
+  /// Throws [SimulatedNetworkException] if pre-request simulation rejects the request.
+  Future<HttpCaptureScope> begin({
+    required String method,
+    required Uri uri,
+    Map<String, String>? headers,
+    Uint8List? bodyBytes,
+    String? contentType,
+    String? requestId,
+  });
+
   /// Records an initiated request and applies pre-request network simulation.
   ///
   /// Returns an [HttpRequestContext] tracking this request lifecycle, or `null`
@@ -57,11 +87,41 @@ abstract interface class HttpTrafficCollector {
 
 /// Default implementation of [HttpTrafficCollector] backed by [InspectorSession].
 class DefaultHttpTrafficCollector implements HttpTrafficCollector {
-  /// Creates a collector backed by [InspectorSession.instance].
-  DefaultHttpTrafficCollector();
+  /// Creates a collector backed by [session] or [InspectorSession.instance].
+  DefaultHttpTrafficCollector({InspectorSession? session})
+      : _customSession = session;
+
+  final InspectorSession? _customSession;
 
   /// The underlying [InspectorSession] used for storing captured traffic.
-  InspectorSession get session => InspectorSession.instance;
+  InspectorSession get session => _customSession ?? InspectorSession.instance;
+
+  @override
+  int get maxBodyBytes => session.settings.maxBodyBytes;
+
+  @override
+  Duration delayForChunk(int chunkBytes) =>
+      session.throughputDelayForChunk(chunkBytes);
+
+  @override
+  Future<HttpCaptureScope> begin({
+    required String method,
+    required Uri uri,
+    Map<String, String>? headers,
+    Uint8List? bodyBytes,
+    String? contentType,
+    String? requestId,
+  }) async {
+    final context = await startRequest(
+      method: method,
+      uri: uri,
+      headers: headers,
+      bodyBytes: bodyBytes,
+      contentType: contentType,
+      requestId: requestId,
+    );
+    return HttpCaptureScope(collector: this, context: context);
+  }
 
   @override
   Future<HttpRequestContext?> startRequest({

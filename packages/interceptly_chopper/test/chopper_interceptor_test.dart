@@ -6,7 +6,7 @@ import 'package:chopper/chopper.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/adapter.dart';
 import 'package:interceptly_chopper/interceptly_chopper.dart';
 
 class _FakeChain<BodyType> implements Chain<BodyType> {
@@ -36,6 +36,33 @@ class _SpyHttpTrafficCollector implements HttpTrafficCollector {
   final List<Map<String, dynamic>> startRequestCalls = [];
   final List<Map<String, dynamic>> completeResponseCalls = [];
   final List<Map<String, dynamic>> failRequestCalls = [];
+
+  @override
+  int get maxBodyBytes => session.settings.maxBodyBytes;
+
+  @override
+  Duration delayForChunk(int chunkBytes) =>
+      session.throughputDelayForChunk(chunkBytes);
+
+  @override
+  Future<HttpCaptureScope> begin({
+    required String method,
+    required Uri uri,
+    Map<String, String>? headers,
+    Uint8List? bodyBytes,
+    String? contentType,
+    String? requestId,
+  }) async {
+    final context = await startRequest(
+      method: method,
+      uri: uri,
+      headers: headers,
+      bodyBytes: bodyBytes,
+      contentType: contentType,
+      requestId: requestId,
+    );
+    return HttpCaptureScope(collector: this, context: context);
+  }
 
   @override
   Future<HttpRequestContext?> startRequest({
@@ -149,14 +176,8 @@ void main() {
   });
 
   group('InterceptlyChopperInterceptor contracts and injection', () {
-    test('implements HttpCaptureAdapter', () {
+    test('uses DefaultHttpTrafficCollector by default', () {
       final interceptor = InterceptlyChopperInterceptor();
-      expect(interceptor, isA<HttpCaptureAdapter>());
-    });
-
-    test('uses shared session and DefaultHttpTrafficCollector by default', () {
-      final interceptor = InterceptlyChopperInterceptor();
-      expect(interceptor.session, same(InspectorSession.instance));
       expect(interceptor.collector, isA<DefaultHttpTrafficCollector>());
       final defaultCollector =
           interceptor.collector as DefaultHttpTrafficCollector;
@@ -166,7 +187,6 @@ void main() {
     test('constructs with custom HttpTrafficCollector', () {
       final spyCollector = _SpyHttpTrafficCollector();
       final interceptor = InterceptlyChopperInterceptor(spyCollector);
-      expect(interceptor.session, same(InspectorSession.instance));
       expect(interceptor.collector, same(spyCollector));
     });
   });
@@ -208,13 +228,15 @@ void main() {
       expect(startCall['headers'], request.headers);
       expect(startCall['contentType'], 'application/json');
       expect(startCall['bodyBytes'], isNotNull);
-      expect(utf8.decode(startCall['bodyBytes'] as Uint8List), '{"name":"book"}');
+      expect(
+          utf8.decode(startCall['bodyBytes'] as Uint8List), '{"name":"book"}');
 
       // Verify collector.completeResponse
       expect(spy.completeResponseCalls.length, 1);
       final completeCall = spy.completeResponseCalls.first;
       expect(completeCall['statusCode'], 200);
-      expect(completeCall['headers'], {'content-type': 'application/json', 'x-resp': 'ok'});
+      expect(completeCall['headers'],
+          {'content-type': 'application/json', 'x-resp': 'ok'});
       expect(completeCall['responseContentType'], 'application/json');
       expect(utf8.decode(completeCall['bodyBytes'] as Uint8List), '{"id":123}');
 
@@ -355,7 +377,9 @@ void main() {
     });
   });
 
-  group('End-to-end capture with DefaultHttpTrafficCollector and InspectorSession', () {
+  group(
+      'End-to-end capture with DefaultHttpTrafficCollector and InspectorSession',
+      () {
     test(
       'InterceptlyChopperInterceptor does not alter outbound request.parameters',
       () async {

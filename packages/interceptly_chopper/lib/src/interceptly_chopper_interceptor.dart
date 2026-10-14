@@ -1,23 +1,24 @@
 import 'dart:async';
 
 import 'package:chopper/chopper.dart';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:interceptly/adapter.dart';
 
-import 'package:interceptly/interceptly.dart';
+/// A client exception thrown when requests are aborted due to simulated offline profiles.
+class InterceptlySimulatedChopperException extends http.ClientException
+    implements SimulatedNetworkException {
+  /// Creates a simulated client exception.
+  InterceptlySimulatedChopperException(super.message, [super.uri]);
+}
 
-/// A Chopper interceptor that captures all requests and responses.
-class InterceptlyChopperInterceptor
-    implements Interceptor, HttpCaptureAdapter {
+/// A Chopper interceptor that captures all requests and responses for Interceptly.
+class InterceptlyChopperInterceptor implements Interceptor {
   /// Creates an interceptor backed by [collector].
   InterceptlyChopperInterceptor([
     HttpTrafficCollector? collector,
-  ]) : collector = collector ?? DefaultHttpTrafficCollector();
+  ]) : collector = collector ?? HttpTrafficCollector.instance;
 
-  @override
-  InspectorSession get session => InspectorSession.instance;
-
-  @override
+  /// The traffic collector coordinating capture.
   final HttpTrafficCollector collector;
 
   @override
@@ -25,76 +26,50 @@ class InterceptlyChopperInterceptor
     Chain<BodyType> chain,
   ) async {
     final request = chain.request;
-
-    final reqBody = guardCapture(() => _encodeBody(request.body));
+    final reqBody = encodeBodyBytes(request.body);
     final reqContentType = headerValue(request.headers, 'content-type');
 
-    HttpRequestContext? context;
+    final HttpCaptureScope scope;
     try {
-      context = await collector.startRequest(
+      scope = await collector.begin(
         method: request.method,
         uri: request.url,
         headers: request.headers,
         bodyBytes: reqBody,
         contentType: reqContentType,
       );
-    } on SimulatedNetworkException {
-      rethrow;
-    } catch (e, st) {
-      if (kDebugMode) {
-        debugPrint('[Interceptly] startRequest capture failed: $e\n$st');
-      }
+    } on SimulatedNetworkException catch (e) {
+      throw InterceptlySimulatedChopperException(e.message, request.url);
     }
 
     final Response<BodyType> response;
     try {
       response = await chain.proceed(request);
-    } catch (e) {
-      if (context != null) {
-        collector.failRequest(
-          context: context,
-          error: e,
-          errorType: e.runtimeType.toString(),
-          errorMessage: e.toString(),
-        );
-      }
+    } catch (e, st) {
+      scope.fail(e, stackTrace: st);
       rethrow;
     }
 
-    final resBody = guardCapture(() => response.bodyBytes);
+    final resBody = response.bodyBytes;
     final sent = response.base.request;
     final sentHeaders = sent?.headers ?? request.headers;
     final sentBody = sent is http.Request ? sent.bodyBytes : reqBody;
 
-    final effectiveContext = context == null
-        ? null
-        : HttpRequestContext(
-            id: context.id,
-            method: sent?.method ?? context.method,
-            uri: sent?.url ?? context.uri,
-            startedAt: context.startedAt,
-            requestHeaders: sentHeaders,
-            requestBodyBytes: sentBody ?? context.requestBodyBytes,
-            requestContentType:
-                headerValue(sentHeaders, 'content-type') ??
-                context.requestContentType,
-          );
+    scope.amendRequest(
+      method: sent?.method,
+      uri: sent?.url,
+      headers: sentHeaders,
+      bodyBytes: sentBody,
+      contentType: headerValue(sentHeaders, 'content-type'),
+    );
 
-    if (effectiveContext != null) {
-      await guardCaptureAsync(() async {
-        await collector.completeResponse(
-          context: effectiveContext,
-          statusCode: response.statusCode,
-          headers: response.base.headers,
-          bodyBytes: resBody,
-          responseContentType:
-              headerValue(response.base.headers, 'content-type'),
-        );
-      });
-    }
+    await scope.complete(
+      statusCode: response.statusCode,
+      headers: response.base.headers,
+      bodyBytes: resBody,
+      contentType: headerValue(response.base.headers, 'content-type'),
+    );
 
     return response;
   }
-
-  static Uint8List? _encodeBody(Object? body) => encodeBodyBytes(body);
 }

@@ -4,8 +4,6 @@ library;
 export 'src/adapter/http_request_context.dart' show HttpRequestContext;
 export 'src/adapter/http_traffic_collector.dart'
     show DefaultHttpTrafficCollector, HttpTrafficCollector;
-export 'src/adapter/network_capture_adapter.dart'
-    show HttpCaptureAdapter, RealtimeCaptureAdapter;
 export 'src/adapter/realtime_traffic_collector.dart'
     show DefaultRealtimeTrafficCollector, RealtimeTrafficCollector;
 export 'src/capture/body_bytes.dart'

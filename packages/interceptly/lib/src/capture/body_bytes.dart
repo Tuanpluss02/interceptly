@@ -59,3 +59,19 @@ List<Map<String, String>> mapHeaderEntries(
       .map((entry) => {keyName: entry.key, valueName: entry.value})
       .toList();
 }
+
+/// Safely truncates [text] to at most [maxBytes] bytes in UTF-8 encoding
+/// without splitting multi-byte characters or Unicode code points.
+String truncateUtf8(String text, int maxBytes) {
+  if (maxBytes <= 0) return text;
+  final bytes = utf8.encode(text);
+  if (bytes.length <= maxBytes) return text;
+
+  int cutIndex = maxBytes;
+  if ((bytes[cutIndex] & 0xC0) == 0x80) {
+    while (cutIndex > 0 && (bytes[cutIndex] & 0xC0) == 0x80) {
+      cutIndex--;
+    }
+  }
+  return utf8.decode(bytes.sublist(0, cutIndex), allowMalformed: true);
+}

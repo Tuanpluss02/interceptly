@@ -2,24 +2,19 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/adapter.dart';
 
 /// A Dio interceptor that captures requests and responses for Interceptly.
-class InterceptlyDioInterceptor extends Interceptor
-    implements HttpCaptureAdapter {
+class InterceptlyDioInterceptor extends Interceptor {
   /// Creates an interceptor backed by [collector].
   InterceptlyDioInterceptor([
     HttpTrafficCollector? collector,
-  ]) : collector = collector ?? DefaultHttpTrafficCollector();
+  ]) : collector = collector ?? HttpTrafficCollector.instance;
 
-  @override
-  InspectorSession get session => InspectorSession.instance;
-
-  @override
+  /// The traffic collector coordinating capture.
   final HttpTrafficCollector collector;
 
-  static const String _contextKey = 'interceptly_http_context';
-  static const String _reqBytesKey = 'interceptly_req_bytes';
+  static const String _scopeKey = 'interceptly_http_scope';
 
   /// Captures a pending request and applies pre-request simulation.
   @override
@@ -32,15 +27,15 @@ class InterceptlyDioInterceptor extends Interceptor
     );
 
     try {
-      final context = await collector.startRequest(
+      final scope = await collector.begin(
         method: options.method,
         uri: options.uri,
-        headers: _mapHeaders(options.headers),
+        headers: normalizeHeaders(options.headers),
         bodyBytes: reqBytes,
         contentType: options.contentType,
       );
-      if (context != null) {
-        options.extra[_contextKey] = context;
+      if (scope.isActive) {
+        options.extra[_scopeKey] = scope;
       }
     } on SimulatedNetworkException catch (e) {
       handler.reject(
@@ -67,113 +62,87 @@ class InterceptlyDioInterceptor extends Interceptor
     Response<dynamic> response,
     ResponseInterceptorHandler handler,
   ) async {
-    final extraContext =
-        response.requestOptions.extra[_contextKey] as HttpRequestContext?;
-    final context = extraContext ??
-        (session.isEnabled
-            ? HttpRequestContext(
-                id: RequestId.generate(),
-                method: response.requestOptions.method,
-                uri: response.requestOptions.uri,
-                startedAt: DateTime.now(),
-                requestHeaders: _mapHeaders(response.requestOptions.headers),
-              )
-            : null);
-
-    if (context != null) {
-      final resContentType =
-          response.headers.value(Headers.contentTypeHeader);
-      final resBytes = await guardCaptureAsync(
-        () => _toBytesAsync(response.data, resContentType),
-      );
-      try {
-        await collector.completeResponse(
-          context: context,
-          statusCode: response.statusCode ?? 200,
-          headers: _mapHeaders(response.headers.map),
-          bodyBytes: resBytes,
-          responseContentType: resContentType,
+    final scope = (response.requestOptions.extra.remove(_scopeKey)
+            as HttpCaptureScope?) ??
+        HttpCaptureScope(
+          collector: collector,
+          context: HttpRequestContext(
+            id: RequestId.generate(),
+            method: response.requestOptions.method,
+            uri: response.requestOptions.uri,
+            startedAt: DateTime.now(),
+            requestHeaders: normalizeHeaders(response.requestOptions.headers),
+          ),
         );
-      } catch (e, st) {
-        if (kDebugMode) {
-          debugPrint('[Interceptly] completeResponse capture failed: $e\n$st');
-        }
-      } finally {
-        response.requestOptions.extra.remove(_contextKey);
-        response.requestOptions.extra.remove(_reqBytesKey);
-      }
-    }
+    response.requestOptions.extra.remove('interceptly_http_context');
+    response.requestOptions.extra.remove('interceptly_req_bytes');
+
+    final resContentType = response.headers.value(Headers.contentTypeHeader);
+    final resBytes = await guardCaptureAsync(
+      () => _toBytesAsync(response.data, resContentType),
+    );
+    await scope.complete(
+      statusCode: response.statusCode ?? 200,
+      headers: normalizeHeaders(response.headers.map),
+      bodyBytes: resBytes,
+      contentType: resContentType,
+    );
 
     handler.next(response);
   }
 
   /// Captures a Dio failure response or transport error.
   @override
-  void onError(DioException err, ErrorInterceptorHandler handler) async {
+  void onError(DioException err, ErrorInterceptorHandler handler) {
     if (err.error is SimulatedNetworkException) {
       handler.next(err);
       return;
     }
 
-    try {
-      final extraContext =
-          err.requestOptions.extra[_contextKey] as HttpRequestContext?;
-      final context = extraContext ??
-          HttpRequestContext(
-            id: RequestId.generate(),
-            method: err.requestOptions.method,
-            uri: err.requestOptions.uri,
-            startedAt: DateTime.now(),
-            requestHeaders: _mapHeaders(err.requestOptions.headers),
-          );
+    final scope =
+        (err.requestOptions.extra.remove(_scopeKey) as HttpCaptureScope?) ??
+            HttpCaptureScope(
+              collector: collector,
+              context: HttpRequestContext(
+                id: RequestId.generate(),
+                method: err.requestOptions.method,
+                uri: err.requestOptions.uri,
+                startedAt: DateTime.now(),
+                requestHeaders: normalizeHeaders(err.requestOptions.headers),
+              ),
+            );
+    err.requestOptions.extra.remove('interceptly_http_context');
+    err.requestOptions.extra.remove('interceptly_req_bytes');
 
-      final response = err.response;
-      if (err.type == DioExceptionType.badResponse && response != null) {
-        final resContentType =
-            response.headers.value(Headers.contentTypeHeader);
-        final resBytes = await guardCaptureAsync(
-          () => _toBytesAsync(response.data, resContentType),
-        );
-        await collector.completeResponse(
-          context: context,
+    final response = err.response;
+    if (err.type == DioExceptionType.badResponse && response != null) {
+      final resContentType = response.headers.value(Headers.contentTypeHeader);
+      _toBytesAsync(response.data, resContentType).then((resBytes) {
+        scope.complete(
           statusCode: response.statusCode ?? 0,
-          headers: _mapHeaders(response.headers.map),
+          headers: normalizeHeaders(response.headers.map),
           bodyBytes: resBytes,
-          responseContentType: resContentType,
+          contentType: resContentType,
         );
-      } else {
-        guardCapture(() {
-          final resContentType =
-              response?.headers.value(Headers.contentTypeHeader);
-          final responseBodyBytes =
-              response != null ? _toBytes(response.data, resContentType) : null;
-          final responseHeaders =
-              response != null ? _mapHeaders(response.headers.map) : null;
+      });
+    } else {
+      final resContentType = response?.headers.value(Headers.contentTypeHeader);
+      final responseBodyBytes =
+          response != null ? _toBytes(response.data, resContentType) : null;
+      final responseHeaders =
+          response != null ? normalizeHeaders(response.headers.map) : null;
 
-          collector.failRequest(
-            context: context,
-            error: err.error ?? err,
-            errorType: err.type.name,
-            errorMessage: err.message ?? err.error?.toString(),
-            statusCode: response?.statusCode,
-            responseHeaders: responseHeaders,
-            responseBodyBytes: responseBodyBytes,
-          );
-        });
-      }
-    } catch (e, st) {
-      if (kDebugMode) {
-        debugPrint('[Interceptly] onError capture failed: $e\n$st');
-      }
-    } finally {
-      err.requestOptions.extra.remove(_contextKey);
-      err.requestOptions.extra.remove(_reqBytesKey);
-      handler.next(err);
+      scope.fail(
+        err.error ?? err,
+        errorType: err.type.name,
+        errorMessage: err.message ?? err.error?.toString(),
+        statusCode: response?.statusCode,
+        responseHeaders: responseHeaders,
+        responseBodyBytes: responseBodyBytes,
+      );
     }
-  }
 
-  static Map<String, String> _mapHeaders(Map<String, dynamic> headers) {
-    return normalizeHeaders(headers);
+    handler.next(err);
   }
 
   /// Serializes arbitrary data to UTF-8 bytes in an isolate when appropriate.
@@ -205,7 +174,7 @@ class InterceptlyDioInterceptor extends Interceptor
     return encodeBodyBytes(data) ?? Uint8List(0);
   }
 
-  /// Converts request/response data to raw bytes for the capture synchronously.
+  /// Converts request/response data to raw bytes for capture synchronously.
   static Uint8List? _toBytes(Object? data, [String? contentType]) {
     if (data == null) return null;
 
@@ -214,16 +183,17 @@ class InterceptlyDioInterceptor extends Interceptor
     }
 
     if (data is FormData) {
-      final parts = <String>[];
-      if (data.fields.isNotEmpty) {
-        parts.add(data.fields.map((e) => '${e.key}=${e.value}').join('&'));
-      }
-      for (final entry in data.files) {
-        final meta = entry.value;
-        final type = meta.contentType?.mimeType ?? 'application/octet-stream';
-        parts.add('[file] ${entry.key}: ${meta.filename ?? 'blob'} ($type)');
-      }
-      return utf8.encode(parts.join('\n'));
+      return summarizeMultipart(
+        fields: data.fields,
+        files: data.files.map(
+          (e) => MultipartFileInfo(
+            field: e.key,
+            filename: e.value.filename,
+            contentType: e.value.contentType?.mimeType,
+            length: e.value.length,
+          ),
+        ),
+      );
     }
 
     return encodeBodyBytes(data);

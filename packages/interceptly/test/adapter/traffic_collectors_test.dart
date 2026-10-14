@@ -20,7 +20,8 @@ Future<IndexEntry> _waitForEntry(InspectorSession session, String id) async {
   throw StateError('entry $id never completed with non-zero status code');
 }
 
-Future<IndexEntry> _waitForFailedEntry(InspectorSession session, String id) async {
+Future<IndexEntry> _waitForFailedEntry(
+    InspectorSession session, String id) async {
   final end = DateTime.now().add(const Duration(seconds: 10));
   while (DateTime.now().isBefore(end)) {
     for (final entry in session.entries) {
@@ -58,7 +59,9 @@ void main() {
   });
 
   group('DefaultHttpTrafficCollector', () {
-    test('startRequest creates HttpRequestContext and records pending request in session', () async {
+    test(
+        'startRequest creates HttpRequestContext and records pending request in session',
+        () async {
       final session = InspectorSession.instance;
       await session.initialize();
 
@@ -130,7 +133,9 @@ void main() {
       expect(session.entries, isEmpty);
     });
 
-    test('completeResponse calculates duration and records completed RawCapture into session', () async {
+    test(
+        'completeResponse calculates duration and records completed RawCapture into session',
+        () async {
       final session = InspectorSession.instance;
       await session.initialize();
 
@@ -144,7 +149,10 @@ void main() {
       expect(context, isNotNull);
 
       final responseBytes = Uint8List.fromList([10, 20, 30]);
-      final responseHeaders = {'content-type': 'application/json', 'x-resp': 'ok'};
+      final responseHeaders = {
+        'content-type': 'application/json',
+        'x-resp': 'ok'
+      };
 
       await collector.completeResponse(
         context: context!,
@@ -161,7 +169,8 @@ void main() {
       expect(entry.durationMs, greaterThanOrEqualTo(0));
     });
 
-    test('completeResponse respects explicit durationMs when provided', () async {
+    test('completeResponse respects explicit durationMs when provided',
+        () async {
       final session = InspectorSession.instance;
       await session.initialize();
 
@@ -185,7 +194,9 @@ void main() {
       expect(entry.durationMs, equals(456));
     });
 
-    test('failRequest records failed RawCapture with error details and duration', () async {
+    test(
+        'failRequest records failed RawCapture with error details and duration',
+        () async {
       final session = InspectorSession.instance;
       await session.initialize();
 
@@ -215,7 +226,9 @@ void main() {
       expect(entry.durationMs, greaterThanOrEqualTo(0));
     });
 
-    test('failRequest infers errorType and errorMessage when omitted and respects custom statusCode', () async {
+    test(
+        'failRequest infers errorType and errorMessage when omitted and respects custom statusCode',
+        () async {
       final session = InspectorSession.instance;
       await session.initialize();
 
@@ -245,7 +258,9 @@ void main() {
       expect(entry.durationMs, equals(120));
     });
 
-    test('startRequest rethrows SimulatedNetworkException and records failure when offline simulation is active', () async {
+    test(
+        'startRequest rethrows SimulatedNetworkException and records failure when offline simulation is active',
+        () async {
       final session = InspectorSession.instance;
       await session.initialize();
 
@@ -267,12 +282,15 @@ void main() {
 
       // Verify that the failed capture was recorded in session
       expect(session.entries.length, equals(1));
-      final failedEntry = await _waitForFailedEntry(session, session.entries.first.id);
+      final failedEntry =
+          await _waitForFailedEntry(session, session.entries.first.id);
       expect(failedEntry.hasError, isTrue);
       expect(failedEntry.errorType, equals('SimulatedNetworkException'));
     });
 
-    test('collector operations never throw unexpected errors outwards (guardCapture resilience)', () async {
+    test(
+        'collector operations never throw unexpected errors outwards (guardCapture resilience)',
+        () async {
       final session = InspectorSession.instance;
       await session.initialize();
 
@@ -306,14 +324,18 @@ void main() {
   });
 
   group('DefaultRealtimeTrafficCollector', () {
-    test('recordConnection records WebSocket connection handshake in session', () async {
+    test('recordConnection records WebSocket connection handshake in session',
+        () async {
       final session = InspectorSession.instance;
 
       final collector = DefaultRealtimeTrafficCollector();
       expect(collector.session, equals(session));
 
       final uri = Uri.parse('wss://stream.example.com/feed');
-      final headers = {'upgrade': 'websocket', 'sec-websocket-protocol': 'chat'};
+      final headers = {
+        'upgrade': 'websocket',
+        'sec-websocket-protocol': 'chat'
+      };
 
       collector.recordConnection(
         sessionId: 'ws-conn-1',
@@ -329,7 +351,9 @@ void main() {
       expect(entry.statusCode, equals(0));
     });
 
-    test('recordFrame records text frame with correct direction and payload into session buffer', () async {
+    test(
+        'recordFrame records text frame with correct direction and payload into session buffer',
+        () async {
       final session = InspectorSession.instance;
 
       final collector = DefaultRealtimeTrafficCollector();
@@ -346,11 +370,14 @@ void main() {
       expect(frames.first.sessionId, equals('ws-frames-1'));
       expect(frames.first.direction, equals(FrameDirection.incoming));
       expect(frames.first.type, equals(FrameType.text));
-      expect(frames.first.textPayload, equals('{"type":"greet","msg":"hello"}'));
+      expect(
+          frames.first.textPayload, equals('{"type":"greet","msg":"hello"}'));
       expect(frames.first.payloadSizeBytes, greaterThan(0));
     });
 
-    test('recordFrame records binary frame with Uint8List and List<int> payloads', () async {
+    test(
+        'recordFrame records binary frame with Uint8List and List<int> payloads',
+        () async {
       final session = InspectorSession.instance;
 
       final collector = DefaultRealtimeTrafficCollector();
@@ -385,7 +412,8 @@ void main() {
       expect(frames[1].payloadSizeBytes, equals(3));
     });
 
-    test('recordClose updates connection status with closeCode and closeReason', () async {
+    test('recordClose updates connection status with closeCode and closeReason',
+        () async {
       final session = InspectorSession.instance;
 
       final collector = DefaultRealtimeTrafficCollector();
@@ -404,7 +432,8 @@ void main() {
       final entry = session.entries.first;
       expect(entry.statusCode, equals(1001));
       expect(entry.errorMessage, equals('Going away'));
-      expect(entry.hasError, isTrue); // closeCode 1001 > 1000 is marked as error
+      expect(
+          entry.hasError, isTrue); // closeCode 1001 > 1000 is marked as error
     });
 
     test('recordClose defaults to closeCode 1000 when omitted', () async {
@@ -424,7 +453,8 @@ void main() {
       expect(entry.hasError, isFalse);
     });
 
-    test('realtime collector operations never throw when session is disposed', () {
+    test('realtime collector operations never throw when session is disposed',
+        () {
       final session = InspectorSession.instance;
       session.dispose();
 
@@ -455,40 +485,65 @@ void main() {
     });
   });
 
-  group('HttpCaptureAdapter and RealtimeCaptureAdapter contracts', () {
-    test('adapter implementations fulfill contract interfaces', () {
-      final session = InspectorSession.instance;
+  group('Scope and Collector contracts', () {
+    test('collector supports custom session injection and global instance', () {
+      final customSession = InspectorSession(
+          settings: const InterceptlySettings(maxBodyBytes: 1234));
+      final httpCollector = DefaultHttpTrafficCollector(session: customSession);
+      final realtimeCollector =
+          DefaultRealtimeTrafficCollector(session: customSession);
 
-      final httpCollector = DefaultHttpTrafficCollector();
-      final realtimeCollector = DefaultRealtimeTrafficCollector();
+      expect(httpCollector.session, equals(customSession));
+      expect(httpCollector.maxBodyBytes, equals(1234));
+      expect(realtimeCollector.session, equals(customSession));
+      expect(realtimeCollector.maxBodyBytes, equals(1234));
 
-      final httpAdapter = _TestHttpCaptureAdapter(httpCollector, session);
-      final realtimeAdapter = _TestRealtimeCaptureAdapter(realtimeCollector, session);
+      expect(HttpTrafficCollector.instance, isA<DefaultHttpTrafficCollector>());
+      expect(RealtimeTrafficCollector.instance,
+          isA<DefaultRealtimeTrafficCollector>());
+    });
 
-      expect(httpAdapter.collector, equals(httpCollector));
-      expect(httpAdapter.session, equals(session));
-      expect(realtimeAdapter.collector, equals(realtimeCollector));
-      expect(realtimeAdapter.session, equals(session));
+    test('HttpTrafficCollector.begin returns HttpCaptureScope', () async {
+      final collector = DefaultHttpTrafficCollector();
+      final scope = await collector.begin(
+        method: 'GET',
+        uri: Uri.parse('https://example.com/api'),
+      );
+
+      expect(scope.isActive, isTrue);
+      expect(scope.isSettled, isFalse);
+      expect(scope.method, equals('GET'));
+      expect(scope.uri, equals(Uri.parse('https://example.com/api')));
+
+      await scope.complete(statusCode: 200);
+      expect(scope.isSettled, isTrue);
+
+      // Calling complete or fail again should be a no-op
+      await scope.complete(statusCode: 500);
+      scope.fail('Late error');
+      expect(scope.isSettled, isTrue);
+    });
+
+    test('RealtimeTrafficCollector.openSession returns RealtimeSessionScope',
+        () {
+      final collector = DefaultRealtimeTrafficCollector();
+      final scope = collector.openSession(
+        uri: Uri.parse('wss://example.com/socket'),
+      );
+
+      expect(scope.isClosed, isFalse);
+      expect(scope.uri, equals(Uri.parse('wss://example.com/socket')));
+      expect(scope.sessionId, isNotEmpty);
+
+      scope.send('hello');
+      scope.receive('world');
+
+      scope.close(code: 1000, reason: 'normal');
+      expect(scope.isClosed, isTrue);
+
+      // Calling close or send/receive again should be safe no-op
+      scope.close();
+      scope.send('after close');
     });
   });
-}
-
-class _TestHttpCaptureAdapter implements HttpCaptureAdapter {
-  _TestHttpCaptureAdapter(this.collector, this.session);
-
-  @override
-  final HttpTrafficCollector collector;
-
-  @override
-  final InspectorSession session;
-}
-
-class _TestRealtimeCaptureAdapter implements RealtimeCaptureAdapter {
-  _TestRealtimeCaptureAdapter(this.collector, this.session);
-
-  @override
-  final RealtimeTrafficCollector collector;
-
-  @override
-  final InspectorSession session;
 }

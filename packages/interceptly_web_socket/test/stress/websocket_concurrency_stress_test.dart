@@ -128,7 +128,8 @@ void main() {
         });
 
         const channelCount = 10;
-        const messagesPerDirection = 500; // 500 out + 500 in = 1,000 per channel
+        const messagesPerDirection =
+            500; // 500 out + 500 in = 1,000 per channel
 
         final fakes = <StressFakeWebSocketChannel>[];
         final channels = <InterceptlyWebSocketChannel>[];
@@ -213,7 +214,8 @@ void main() {
           expect(
             frames.length,
             equals(1000),
-            reason: 'Channel $chIndex must have recorded all 1,000 frames without loss',
+            reason:
+                'Channel $chIndex must have recorded all 1,000 frames without loss',
           );
 
           // 2. Exact balance of directions
@@ -237,7 +239,8 @@ void main() {
               expect(frame.type, equals(FrameType.binary));
               expect(
                 frame.binaryPayload,
-                equals(Uint8List.fromList([chIndex, m & 0xFF, (m >> 8) & 0xFF])),
+                equals(
+                    Uint8List.fromList([chIndex, m & 0xFF, (m >> 8) & 0xFF])),
               );
             }
           }
@@ -350,7 +353,8 @@ void main() {
         // Verify clean lifecycle termination for every channel
         for (var idx = 0; idx < channelCount; idx++) {
           final sessionId = 'ws-close-$idx';
-          final entries = session.entries.where((e) => e.id == sessionId).toList();
+          final entries =
+              session.entries.where((e) => e.id == sessionId).toList();
 
           expect(
             entries.length,

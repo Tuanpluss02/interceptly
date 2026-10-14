@@ -23,7 +23,6 @@ class _CapturingChain<BodyType> implements Chain<BodyType> {
   }
 }
 
-
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -317,5 +316,4 @@ void main() {
       expect(entry.errorMessage, contains('Network unreachable'));
     });
   });
-
 }

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/adapter.dart';
 import 'package:interceptly_web_socket/interceptly_web_socket.dart';
 import 'package:stream_channel/stream_channel.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -120,7 +120,8 @@ void main() {
       await InspectorSession.resetForTesting();
     });
 
-    test('initializes with custom sessionId, uri, headers and getters', () async {
+    test('initializes with custom sessionId, uri, headers and getters',
+        () async {
       final uri = Uri.parse('wss://example.com/socket');
       final channel = InterceptlyWebSocketChannel(
         fakeChannel,
@@ -134,7 +135,6 @@ void main() {
       expect(channel.headers, equals({'Authorization': 'Bearer test'}));
       expect(channel.protocol, equals('chat-v1'));
       expect(channel.inner, equals(fakeChannel));
-      expect(channel.interceptly, equals(Interceptly.instance));
       await expectLater(channel.ready, completes);
 
       // Verify connection recorded in session
@@ -310,7 +310,8 @@ void main() {
       expect(entry.errorMessage, equals('User logged out'));
     });
 
-    test('records closeRealtimeConnection on server stream completion', () async {
+    test('records closeRealtimeConnection on server stream completion',
+        () async {
       final uri = Uri.parse('wss://example.com/server-close-test');
       final channel = InterceptlyWebSocketChannel(
         fakeChannel,
@@ -351,8 +352,7 @@ void main() {
       await completer.future;
       await pumpEventQueue();
 
-      final entry =
-          session.entries.firstWhere((e) => e.id == 'ws-idempotent');
+      final entry = session.entries.firstWhere((e) => e.id == 'ws-idempotent');
       // Should retain client close status
       expect(entry.statusCode, equals(1000));
       expect(entry.errorMessage, equals('Client closed'));
@@ -392,7 +392,8 @@ void main() {
       expect(fakeChannel.sinkErrors.first, isA<FormatException>());
     });
 
-    test('wrap factory creates functional InterceptlyWebSocketChannel', () async {
+    test('wrap factory creates functional InterceptlyWebSocketChannel',
+        () async {
       final uri = Uri.parse('wss://example.com/wrapped');
       final channel = InterceptlyWebSocketChannel.wrap(
         fakeChannel,
@@ -522,17 +523,15 @@ void main() {
       await InspectorSession.resetForTesting();
     });
 
-    test('implements RealtimeCaptureAdapter contract and exposes getters', () {
+    test('exposes collector and scope getters', () {
       final channel = InterceptlyWebSocketChannel(
         fakeChannel,
         collector: spyCollector,
       );
 
-      expect(channel, isA<RealtimeCaptureAdapter>());
       expect(channel.collector, equals(spyCollector));
-      expect(channel.session, equals(InspectorSession.instance));
-      expect(channel.interceptly, equals(Interceptly.instance));
-      expect(channel.interceptly.session, equals(channel.session));
+      expect(channel.scope, isA<RealtimeSessionScope>());
+      expect(channel.sessionId, equals(channel.scope.sessionId));
     });
 
     test('binds custom collector via constructor and factories', () {
@@ -541,14 +540,12 @@ void main() {
         collector: spyCollector,
       );
 
-      expect(channel.session, equals(InspectorSession.instance));
       expect(channel.collector, equals(spyCollector));
 
       final wrapped = InterceptlyWebSocketChannel.wrap(
         fakeChannel,
         collector: spyCollector,
       );
-      expect(wrapped.session, equals(InspectorSession.instance));
       expect(wrapped.collector, equals(spyCollector));
     });
 
@@ -578,7 +575,9 @@ void main() {
       expect(spyCollector.recordConnectionCalls, isEmpty);
     });
 
-    test('delegates outgoing frames (text, binary, list) to collector.recordFrame', () async {
+    test(
+        'delegates outgoing frames (text, binary, list) to collector.recordFrame',
+        () async {
       final channel = InterceptlyWebSocketChannel(
         fakeChannel,
         sessionId: 'out-frames',
@@ -592,20 +591,31 @@ void main() {
 
       expect(spyCollector.recordFrameCalls.length, equals(3));
 
-      expect(spyCollector.recordFrameCalls[0]['sessionId'], equals('out-frames'));
-      expect(spyCollector.recordFrameCalls[0]['direction'], equals(FrameDirection.outgoing));
+      expect(
+          spyCollector.recordFrameCalls[0]['sessionId'], equals('out-frames'));
+      expect(spyCollector.recordFrameCalls[0]['direction'],
+          equals(FrameDirection.outgoing));
       expect(spyCollector.recordFrameCalls[0]['type'], equals(FrameType.text));
-      expect(spyCollector.recordFrameCalls[0]['payload'], equals('text payload'));
+      expect(
+          spyCollector.recordFrameCalls[0]['payload'], equals('text payload'));
 
-      expect(spyCollector.recordFrameCalls[1]['sessionId'], equals('out-frames'));
-      expect(spyCollector.recordFrameCalls[1]['direction'], equals(FrameDirection.outgoing));
-      expect(spyCollector.recordFrameCalls[1]['type'], equals(FrameType.binary));
-      expect(spyCollector.recordFrameCalls[1]['payload'], equals(Uint8List.fromList([1, 2, 3])));
+      expect(
+          spyCollector.recordFrameCalls[1]['sessionId'], equals('out-frames'));
+      expect(spyCollector.recordFrameCalls[1]['direction'],
+          equals(FrameDirection.outgoing));
+      expect(
+          spyCollector.recordFrameCalls[1]['type'], equals(FrameType.binary));
+      expect(spyCollector.recordFrameCalls[1]['payload'],
+          equals(Uint8List.fromList([1, 2, 3])));
 
-      expect(spyCollector.recordFrameCalls[2]['sessionId'], equals('out-frames'));
-      expect(spyCollector.recordFrameCalls[2]['direction'], equals(FrameDirection.outgoing));
-      expect(spyCollector.recordFrameCalls[2]['type'], equals(FrameType.binary));
-      expect(spyCollector.recordFrameCalls[2]['payload'], equals(<int>[4, 5, 6]));
+      expect(
+          spyCollector.recordFrameCalls[2]['sessionId'], equals('out-frames'));
+      expect(spyCollector.recordFrameCalls[2]['direction'],
+          equals(FrameDirection.outgoing));
+      expect(
+          spyCollector.recordFrameCalls[2]['type'], equals(FrameType.binary));
+      expect(
+          spyCollector.recordFrameCalls[2]['payload'], equals(<int>[4, 5, 6]));
     });
 
     test('delegates incoming frames to collector.recordFrame', () async {
@@ -626,16 +636,22 @@ void main() {
       expect(received.length, equals(2));
       expect(spyCollector.recordFrameCalls.length, equals(2));
 
-      expect(spyCollector.recordFrameCalls[0]['direction'], equals(FrameDirection.incoming));
+      expect(spyCollector.recordFrameCalls[0]['direction'],
+          equals(FrameDirection.incoming));
       expect(spyCollector.recordFrameCalls[0]['type'], equals(FrameType.text));
-      expect(spyCollector.recordFrameCalls[0]['payload'], equals('incoming text'));
+      expect(
+          spyCollector.recordFrameCalls[0]['payload'], equals('incoming text'));
 
-      expect(spyCollector.recordFrameCalls[1]['direction'], equals(FrameDirection.incoming));
-      expect(spyCollector.recordFrameCalls[1]['type'], equals(FrameType.binary));
-      expect(spyCollector.recordFrameCalls[1]['payload'], equals(Uint8List.fromList([7, 8, 9])));
+      expect(spyCollector.recordFrameCalls[1]['direction'],
+          equals(FrameDirection.incoming));
+      expect(
+          spyCollector.recordFrameCalls[1]['type'], equals(FrameType.binary));
+      expect(spyCollector.recordFrameCalls[1]['payload'],
+          equals(Uint8List.fromList([7, 8, 9])));
     });
 
-    test('delegates sink.close and server close to collector.recordClose', () async {
+    test('delegates sink.close and server close to collector.recordClose',
+        () async {
       final channel = InterceptlyWebSocketChannel(
         fakeChannel,
         sessionId: 'close-delegation',
@@ -646,12 +662,16 @@ void main() {
       await pumpEventQueue();
 
       expect(spyCollector.recordCloseCalls.length, equals(1));
-      expect(spyCollector.recordCloseCalls[0]['sessionId'], equals('close-delegation'));
+      expect(spyCollector.recordCloseCalls[0]['sessionId'],
+          equals('close-delegation'));
       expect(spyCollector.recordCloseCalls[0]['closeCode'], equals(1000));
-      expect(spyCollector.recordCloseCalls[0]['closeReason'], equals('Normal Client Close'));
+      expect(spyCollector.recordCloseCalls[0]['closeReason'],
+          equals('Normal Client Close'));
     });
 
-    test('resilient against collector exceptions without breaking socket traffic', () async {
+    test(
+        'resilient against collector exceptions without breaking socket traffic',
+        () async {
       spyCollector.throwOnConnection = true;
       spyCollector.throwOnFrame = true;
       spyCollector.throwOnClose = true;
@@ -717,6 +737,34 @@ class _SpyRealtimeTrafficCollector implements RealtimeTrafficCollector {
   bool throwOnClose = false;
 
   @override
+  int get maxBodyBytes => session.settings.maxBodyBytes;
+
+  @override
+  RealtimeSessionScope openSession({
+    Uri? uri,
+    String? sessionId,
+    Map<String, String>? headers,
+  }) {
+    final effectiveId = sessionId ?? RequestId.generate();
+
+    if (uri != null) {
+      try {
+        recordConnection(
+          sessionId: effectiveId,
+          uri: uri,
+          headers: headers,
+        );
+      } catch (_) {}
+    }
+
+    return RealtimeSessionScope(
+      collector: this,
+      sessionId: effectiveId,
+      uri: uri,
+    );
+  }
+
+  @override
   void recordConnection({
     required String sessionId,
     required Uri uri,
@@ -764,4 +812,3 @@ class _SpyRealtimeTrafficCollector implements RealtimeTrafficCollector {
     });
   }
 }
-
