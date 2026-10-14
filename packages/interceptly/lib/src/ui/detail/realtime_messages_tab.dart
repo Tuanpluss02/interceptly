@@ -37,6 +37,7 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _chatController = TextEditingController();
   final TextEditingController _eventController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   final Set<String> _inspectedFrameIds = <String>{};
   final Map<String, dynamic> _parsedJsonCache = <String, dynamic>{};
   Timer? _searchDebounceTimer;
@@ -44,19 +45,27 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
   String _searchQuery = '';
   FrameDirection? _directionFilter;
   FrameType? _typeFilter;
+  bool _showJumpToBottom = false;
+  int _previousFrameCount = 0;
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     widget.session?.addListener(_onSessionChanged);
+    _previousFrameCount =
+        widget.session?.getRealtimeFrames(widget.sessionId).length ?? 0;
   }
 
   @override
   void didUpdateWidget(covariant RealtimeMessagesTab oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.session != oldWidget.session) {
+    if (widget.session != oldWidget.session ||
+        widget.sessionId != oldWidget.sessionId) {
       oldWidget.session?.removeListener(_onSessionChanged);
       widget.session?.addListener(_onSessionChanged);
+      _previousFrameCount =
+          widget.session?.getRealtimeFrames(widget.sessionId).length ?? 0;
     }
   }
 
@@ -65,15 +74,58 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
     _searchDebounceTimer?.cancel();
     _parsedJsonCache.clear();
     widget.session?.removeListener(_onSessionChanged);
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     _searchController.dispose();
     _chatController.dispose();
     _eventController.dispose();
     super.dispose();
   }
 
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final isNearBottom = _isNearBottom();
+    final shouldShow = !isNearBottom;
+    if (shouldShow != _showJumpToBottom) {
+      setState(() {
+        _showJumpToBottom = shouldShow;
+      });
+    }
+  }
+
+  bool _isNearBottom([double threshold = 120.0]) {
+    if (!_scrollController.hasClients) return true;
+    final max = _scrollController.position.maxScrollExtent;
+    final current = _scrollController.offset;
+    return (max - current) <= threshold;
+  }
+
+  void _scrollToBottom({bool animate = true}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      final max = _scrollController.position.maxScrollExtent;
+      if (animate) {
+        _scrollController.animateTo(
+          max,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      } else {
+        _scrollController.jumpTo(max);
+      }
+    });
+  }
+
   void _onSessionChanged() {
-    if (mounted) {
-      setState(() {});
+    if (!mounted) return;
+    final frames =
+        widget.session?.getRealtimeFrames(widget.sessionId) ?? const [];
+    final wasNearBottom = _isNearBottom();
+    final hasNewFrames = frames.length > _previousFrameCount;
+    _previousFrameCount = frames.length;
+    setState(() {});
+    if (hasNewFrames && wasNearBottom) {
+      _scrollToBottom(animate: true);
     }
   }
 
@@ -146,6 +198,7 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
     try {
       await widget.session?.sendRealtimeMessage(widget.sessionId, draft);
       _chatController.clear();
+      _scrollToBottom(animate: true);
     } catch (e) {
       if (mounted) {
         ToastNotification.show('Failed to send message: $e',
@@ -269,23 +322,59 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
                         ],
                       ),
                     )
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16.0, vertical: 12.0),
-                      itemCount: filteredFrames.length,
-                      itemBuilder: (context, index) {
-                        final frame = filteredFrames[index];
-                        return RealtimeFrameCard(
-                          frame: frame,
-                          isInspected: _inspectedFrameIds.contains(frame.id),
-                          parsedJson:
-                              tryParseJsonPayload(frame, _parsedJsonCache),
-                          onToggleInspect: () => _toggleInspect(frame.id),
-                          onCopy: () => _copyPayload(frame),
-                          onEdit: () => _onEditFrame(frame),
-                          onResend: () => _onResendFrame(frame),
-                        );
-                      },
+                  : Stack(
+                      children: [
+                        ListView.builder(
+                          controller: _scrollController,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0, vertical: 12.0),
+                          itemCount: filteredFrames.length,
+                          itemBuilder: (context, index) {
+                            final frame = filteredFrames[index];
+                            return RealtimeFrameCard(
+                              frame: frame,
+                              isInspected: _inspectedFrameIds.contains(frame.id),
+                              parsedJson:
+                                  tryParseJsonPayload(frame, _parsedJsonCache),
+                              onToggleInspect: () => _toggleInspect(frame.id),
+                              onCopy: () => _copyPayload(frame),
+                              onEdit: () => _onEditFrame(frame),
+                              onResend: () => _onResendFrame(frame),
+                            );
+                          },
+                        ),
+                        if (_showJumpToBottom)
+                          Positioned(
+                            right: 16,
+                            bottom: 12,
+                            child: Material(
+                              key: const ValueKey('realtime_jump_to_bottom'),
+                              color: InterceptlyTheme.surfaceContainer,
+                              shape: const CircleBorder(),
+                              elevation: 4,
+                              shadowColor: Colors.black26,
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: () => _scrollToBottom(animate: true),
+                                child: Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: InterceptlyTheme.dividerSubtle,
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.keyboard_arrow_down_rounded,
+                                    size: 22,
+                                    color: InterceptlyTheme.indigo400,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
             ),
           ],

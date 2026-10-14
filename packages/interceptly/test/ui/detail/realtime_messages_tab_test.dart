@@ -654,5 +654,122 @@ void main() {
         expect(session.sentDrafts.first.payload, 'hello server');
       });
     });
+
+    group('Auto-scroll & Scroll-to-bottom Behavior', () {
+      testWidgets('auto-scrolls to bottom when new frame arrives and user is near bottom', (tester) async {
+        final session = _MockSession();
+        for (var i = 0; i < 3; i++) {
+          session.addFrame(
+            RealtimeFrame.text(
+              id: 'frame_$i',
+              sessionId: 'sess_scroll',
+              timestamp: DateTime(2026, 1, 1, 10, i),
+              direction: i.isEven ? FrameDirection.incoming : FrameDirection.outgoing,
+              text: 'Message $i initial text',
+            ),
+          );
+        }
+
+        await tester.pumpWidget(buildTestWidget(sessionId: 'sess_scroll', session: session));
+        await tester.pumpAndSettle();
+
+        // Initially frame_2 is in view
+        expect(find.byKey(const ValueKey('frame_card_frame_2')), findsOneWidget);
+
+        // Add 15 more frames so it extends downwards and auto-scrolls
+        for (var i = 3; i < 18; i++) {
+          session.addFrame(
+            RealtimeFrame.text(
+              id: 'frame_$i',
+              sessionId: 'sess_scroll',
+              timestamp: DateTime(2026, 1, 1, 10, i),
+              direction: FrameDirection.incoming,
+              text: 'Message $i payload that extends the list downwards',
+            ),
+          );
+        }
+        await tester.pumpAndSettle();
+
+        // The latest frame_17 should be in view at bottom
+        expect(find.byKey(const ValueKey('frame_card_frame_17')), findsOneWidget);
+        expect(find.byKey(const ValueKey('realtime_jump_to_bottom')), findsNothing);
+      });
+
+      testWidgets('shows jump to bottom button when scrolled up, and tapping it scrolls down', (tester) async {
+        final session = _MockSession();
+        for (var i = 0; i < 20; i++) {
+          session.addFrame(
+            RealtimeFrame.text(
+              id: 'frame_$i',
+              sessionId: 'sess_scroll_btn',
+              timestamp: DateTime(2026, 1, 1, 10, i),
+              direction: i.isEven ? FrameDirection.incoming : FrameDirection.outgoing,
+              text: 'Message $i content line',
+            ),
+          );
+        }
+
+        await tester.pumpWidget(buildTestWidget(sessionId: 'sess_scroll_btn', session: session));
+        await tester.pumpAndSettle();
+
+        // Drag up to scroll to bottom
+        await tester.drag(find.byType(ListView), const Offset(0, -1500));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const ValueKey('frame_card_frame_19')), findsOneWidget);
+
+        // Drag down to scroll up away from bottom
+        await tester.drag(find.byType(ListView), const Offset(0, 600));
+        await tester.pumpAndSettle();
+
+        // When scrolled up, jump to bottom button appears
+        expect(find.byKey(const ValueKey('realtime_jump_to_bottom')), findsOneWidget);
+
+        // Tap jump to bottom
+        await tester.tap(find.byKey(const ValueKey('realtime_jump_to_bottom')));
+        await tester.pumpAndSettle();
+
+        // Now frame_19 is in view again and jump button disappears
+        expect(find.byKey(const ValueKey('frame_card_frame_19')), findsOneWidget);
+        expect(find.byKey(const ValueKey('realtime_jump_to_bottom')), findsNothing);
+      });
+
+      testWidgets('sending message automatically scrolls to bottom', (tester) async {
+        final session = _MockSession();
+        session.activeCanSend = true;
+        session.protocol = RealtimeProtocolType.webSocket;
+        for (var i = 0; i < 20; i++) {
+          session.addFrame(
+            RealtimeFrame.text(
+              id: 'frame_$i',
+              sessionId: 'sess_send_scroll',
+              timestamp: DateTime(2026, 1, 1, 10, i),
+              direction: FrameDirection.incoming,
+              text: 'Message $i content line',
+            ),
+          );
+        }
+
+        await tester.pumpWidget(buildTestWidget(sessionId: 'sess_send_scroll', session: session));
+        await tester.pumpAndSettle();
+
+        // Drag up to scroll to bottom
+        await tester.drag(find.byType(ListView), const Offset(0, -1500));
+        await tester.pumpAndSettle();
+
+        // Drag down to scroll up away from bottom
+        await tester.drag(find.byType(ListView), const Offset(0, 600));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const ValueKey('realtime_jump_to_bottom')), findsOneWidget);
+
+        // Send a message
+        await tester.enterText(find.byKey(const ValueKey('realtime_chat_input')), 'my new message');
+        await tester.pump();
+        await tester.tap(find.byKey(const ValueKey('realtime_chat_send_button')));
+        await tester.pumpAndSettle();
+
+        // Should have scrolled to bottom and jump button should disappear
+        expect(find.byKey(const ValueKey('realtime_jump_to_bottom')), findsNothing);
+      });
+    });
   });
 }
