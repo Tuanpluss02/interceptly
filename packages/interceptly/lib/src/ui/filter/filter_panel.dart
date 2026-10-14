@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:interceptly/src/model/request_filter.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
+import 'package:interceptly/src/ui/widgets/interceptly_text_field.dart';
 
 /// Filter bottom sheet for network request filtering.
 ///
-/// Call [show] to present it as a modal bottom sheet.
+/// Designed exclusively with [InterceptlyTheme] tokens to prevent theme
+/// leakage from the host application.
 class FilterPanel extends StatefulWidget {
   final RequestFilter currentFilter;
   final Set<String> availableDomains;
@@ -46,12 +48,17 @@ class _FilterPanelState extends State<FilterPanel> {
   late bool include3xx;
   late bool include4xx;
   late bool include5xx;
+  late bool onlyErrors;
   late Set<String> selectedDomains;
 
-  static const _allMethods = {'GET', 'POST', 'PUT', 'DELETE', 'PATCH'};
+  String _domainSearchQuery = '';
+  final TextEditingController _domainSearchController = TextEditingController();
+
+  static const _allMethods = {'GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD'};
 
   @override
   void initState() {
+    super.initState();
     selectedMethods = widget.currentFilter.methods.isEmpty
         ? Set.from(_allMethods)
         : Set.from(widget.currentFilter.methods);
@@ -59,52 +66,49 @@ class _FilterPanelState extends State<FilterPanel> {
     include3xx = widget.currentFilter.include3xx;
     include4xx = widget.currentFilter.include4xx;
     include5xx = widget.currentFilter.include5xx;
+    onlyErrors = widget.currentFilter.onlyErrors;
 
     if (widget.currentFilter.domains.isEmpty) {
       selectedDomains = Set.from(widget.availableDomains);
     } else {
       selectedDomains = Set.from(widget.currentFilter.domains);
     }
-    super.initState();
   }
 
-  bool get _hasChanges {
-    final allMethodsSelected = selectedMethods.containsAll(_allMethods) &&
-        selectedMethods.length == _allMethods.length;
-    final allDomainsSelected =
-        selectedDomains.length == widget.availableDomains.length;
-    return !allMethodsSelected ||
-        !allDomainsSelected ||
-        !include2xx ||
-        !include3xx ||
-        !include4xx ||
-        !include5xx;
+  @override
+  void dispose() {
+    _domainSearchController.dispose();
+    super.dispose();
   }
 
   int get _activeFilterCount {
     int count = 0;
+    if (onlyErrors) count++;
     if (!selectedMethods.containsAll(_allMethods) ||
         selectedMethods.length < _allMethods.length) {
-      count += 1;
+      count++;
     }
     if (!include2xx || !include3xx || !include4xx || !include5xx) {
-      count += 1;
+      count++;
     }
     if (!selectedDomains.containsAll(widget.availableDomains) ||
         selectedDomains.length < widget.availableDomains.length) {
-      count += 1;
+      count++;
     }
     return count;
   }
 
   void _resetFilters() {
     setState(() {
+      onlyErrors = false;
       selectedMethods = Set.from(_allMethods);
       include2xx = true;
       include3xx = true;
       include4xx = true;
       include5xx = true;
       selectedDomains = Set.from(widget.availableDomains);
+      _domainSearchQuery = '';
+      _domainSearchController.clear();
     });
   }
 
@@ -114,12 +118,13 @@ class _FilterPanelState extends State<FilterPanel> {
     final allDomainsSelected =
         selectedDomains.length == widget.availableDomains.length;
 
-    widget.onFilterChanged(RequestFilter(
+    widget.onFilterChanged(widget.currentFilter.copyWith(
       methods: allMethodsSelected ? <String>{} : selectedMethods,
       include2xx: include2xx,
       include3xx: include3xx,
       include4xx: include4xx,
       include5xx: include5xx,
+      onlyErrors: onlyErrors,
       domains: allDomainsSelected ? <String>{} : selectedDomains,
     ));
     Navigator.pop(context);
@@ -136,35 +141,36 @@ class _FilterPanelState extends State<FilterPanel> {
     return Theme(
       data: theme,
       child: Container(
-        margin: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 40),
+        margin: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 36),
         decoration: BoxDecoration(
           color: InterceptlyTheme.surface,
           borderRadius: BorderRadius.vertical(
-            top: Radius.circular(radius.lg * 2),
+            top: Radius.circular(radius.lg * 1.5),
           ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Handle bar
             Padding(
-              padding: const EdgeInsets.only(top: 12, bottom: 4),
+              padding: const EdgeInsets.only(top: 10, bottom: 4),
               child: Container(
-                width: 40,
-                height: 5,
+                width: 36,
+                height: 4,
                 decoration: BoxDecoration(
                   color: colors.textTertiary.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2.5),
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ),
 
+            // Header
             Padding(
-              padding:
-                  EdgeInsets.fromLTRB(spacing.lg, spacing.sm, spacing.lg, 0),
+              padding: EdgeInsets.fromLTRB(spacing.lg, spacing.sm, spacing.lg, spacing.sm),
               child: Row(
                 children: [
                   Text(
-                    'Filter',
+                    'Filter Requests',
                     style: InterceptlyTheme.typography.titleSmallBold.copyWith(
                       color: colors.textPrimary,
                     ),
@@ -172,16 +178,14 @@ class _FilterPanelState extends State<FilterPanel> {
                   if (_activeFilterCount > 0) ...[
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 7, vertical: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                       decoration: BoxDecoration(
                         color: colors.actionPrimary,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
                         '$_activeFilterCount',
-                        style: InterceptlyTheme.typography.labelSmallMedium
-                            .copyWith(
+                        style: InterceptlyTheme.typography.labelSmallMedium.copyWith(
                           color: colors.textOnAction,
                           fontSize: 11,
                         ),
@@ -189,76 +193,54 @@ class _FilterPanelState extends State<FilterPanel> {
                     ),
                   ],
                   const Spacer(),
-                  if (_hasChanges)
-                    GestureDetector(
-                      onTap: _resetFilters,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 4, vertical: 2),
-                        child: Text(
-                          'Reset',
-                          style: InterceptlyTheme.typography.bodySmallMedium
-                              .copyWith(
-                            color: colors.actionPrimary,
-                          ),
+                  GestureDetector(
+                    onTap: _resetFilters,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      child: Text(
+                        'Reset All',
+                        style: InterceptlyTheme.typography.bodySmallMedium.copyWith(
+                          color: colors.actionPrimary,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
+                  ),
                 ],
               ),
             ),
 
+            Divider(height: 1, color: InterceptlyTheme.dividerSubtle),
+
+            // Filter content
             Flexible(
               child: SingleChildScrollView(
                 padding: EdgeInsets.fromLTRB(
                   spacing.lg,
-                  spacing.lg,
+                  spacing.md,
                   spacing.lg,
                   bottomPadding + spacing.md,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Section 1: Quick Preset - Show errors only
+                    _buildErrorsOnlyPreset(colors, radius),
+                    SizedBox(height: spacing.lg),
+
+                    // Section 2: HTTP Methods
                     _SectionHeader(label: 'HTTP Methods'),
                     SizedBox(height: spacing.sm),
-                    _MethodChips(
-                      selected: selectedMethods,
-                      onToggle: (m) => setState(() {
-                        if (selectedMethods.contains(m)) {
-                          selectedMethods.remove(m);
-                        } else {
-                          selectedMethods.add(m);
-                        }
-                      }),
-                    ),
-                    SizedBox(height: spacing.xl),
+                    _buildMethodChips(),
+                    SizedBox(height: spacing.lg),
 
-                    _SectionHeader(label: 'Status Codes'),
+                    // Section 3: Status Codes
+                    _SectionHeader(label: 'Status Code Ranges'),
                     SizedBox(height: spacing.sm),
-                    _StatusRow(
-                      include2xx: include2xx,
-                      include3xx: include3xx,
-                      include4xx: include4xx,
-                      include5xx: include5xx,
-                      onToggle: (key) => setState(() {
-                        switch (key) {
-                          case '2xx':
-                            include2xx = !include2xx;
-                            break;
-                          case '3xx':
-                            include3xx = !include3xx;
-                            break;
-                          case '4xx':
-                            include4xx = !include4xx;
-                            break;
-                          case '5xx':
-                            include5xx = !include5xx;
-                            break;
-                        }
-                      }),
-                    ),
-                    SizedBox(height: spacing.xl),
+                    _buildStatusGrid(radius),
+                    SizedBox(height: spacing.lg),
 
+                    // Section 4: Domains
                     if (widget.availableDomains.isNotEmpty) ...[
                       _SectionHeader(
                         label: 'Domains',
@@ -266,26 +248,14 @@ class _FilterPanelState extends State<FilterPanel> {
                             '${selectedDomains.length} of ${widget.availableDomains.length} selected',
                       ),
                       SizedBox(height: spacing.sm),
-                      _DomainList(
-                        domains: widget.availableDomains,
-                        selected: selectedDomains,
-                        onToggle: (d) => setState(() {
-                          if (selectedDomains.contains(d)) {
-                            selectedDomains.remove(d);
-                          } else {
-                            selectedDomains.add(d);
-                          }
-                        }),
-                        onSelectAll: () => setState(() {
-                          selectedDomains = Set.from(widget.availableDomains);
-                        }),
-                      ),
+                      _buildDomainSection(radius, colors, spacing),
                     ],
                   ],
                 ),
               ),
             ),
 
+            // Footer Apply Button
             Container(
               padding: EdgeInsets.fromLTRB(
                 spacing.lg,
@@ -295,9 +265,7 @@ class _FilterPanelState extends State<FilterPanel> {
               ),
               decoration: BoxDecoration(
                 color: InterceptlyTheme.surface,
-                border: Border(
-                  top: BorderSide(color: InterceptlyTheme.dividerSubtle),
-                ),
+                border: Border(top: BorderSide(color: InterceptlyTheme.dividerSubtle)),
               ),
               child: SizedBox(
                 width: double.infinity,
@@ -314,7 +282,9 @@ class _FilterPanelState extends State<FilterPanel> {
                   ),
                   child: Text(
                     'Apply Filter${_activeFilterCount > 0 ? ' ($_activeFilterCount)' : ''}',
-                    style: InterceptlyTheme.typography.labelMediumMedium,
+                    style: InterceptlyTheme.typography.labelMediumMedium.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
@@ -322,6 +292,273 @@ class _FilterPanelState extends State<FilterPanel> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildErrorsOnlyPreset(InterceptlyColors colors, InterceptlyRadius radius) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: onlyErrors
+            ? colors.errorDefault.withValues(alpha: 0.12)
+            : InterceptlyTheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(radius.md),
+        border: Border.all(
+          color: onlyErrors
+              ? colors.errorDefault.withValues(alpha: 0.5)
+              : InterceptlyTheme.dividerSubtle,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.error_outline_rounded,
+            size: 20,
+            color: onlyErrors ? colors.errorDefault : colors.textSecondary,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Show errors only',
+                  style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
+                    color: onlyErrors ? colors.errorDefault : colors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  '4xx, 5xx, or network failure',
+                  style: InterceptlyTheme.typography.bodySmallRegular.copyWith(
+                    color: colors.textTertiary,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: onlyErrors,
+            activeThumbColor: colors.errorDefault,
+            activeTrackColor: colors.errorDefault.withValues(alpha: 0.5),
+            onChanged: (val) => setState(() => onlyErrors = val),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMethodChips() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: _allMethods.map((method) {
+        final style = InterceptlyTheme.getMethodStyle(method);
+        final isSelected = selectedMethods.contains(method);
+
+        return _MethodChip(
+          label: method,
+          isSelected: isSelected,
+          style: style,
+          onTap: () {
+            setState(() {
+              if (isSelected) {
+                // Ensure at least 1 method remains selected
+                if (selectedMethods.length > 1) {
+                  selectedMethods.remove(method);
+                }
+              } else {
+                selectedMethods.add(method);
+              }
+            });
+          },
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildStatusGrid(InterceptlyRadius radius) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _StatusCard(
+                label: '2xx Success',
+                isIncluded: include2xx,
+                color: InterceptlyTheme.getStatusStyle(200).bg,
+                onTap: () => setState(() => include2xx = !include2xx),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _StatusCard(
+                label: '3xx Redirect',
+                isIncluded: include3xx,
+                color: InterceptlyTheme.getStatusStyle(301).bg,
+                onTap: () => setState(() => include3xx = !include3xx),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: _StatusCard(
+                label: '4xx Client Err',
+                isIncluded: include4xx,
+                color: InterceptlyTheme.getStatusStyle(400).bg,
+                onTap: () => setState(() => include4xx = !include4xx),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _StatusCard(
+                label: '5xx Server Err',
+                isIncluded: include5xx,
+                color: InterceptlyTheme.getStatusStyle(500).bg,
+                onTap: () => setState(() => include5xx = !include5xx),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDomainSection(
+    InterceptlyRadius radius,
+    InterceptlyColors colors,
+    InterceptlySpacing spacing,
+  ) {
+    final allSelected = selectedDomains.containsAll(widget.availableDomains) &&
+        selectedDomains.length == widget.availableDomains.length;
+    final sortedDomains = widget.availableDomains.toList()..sort();
+    final filteredDomains = _domainSearchQuery.isEmpty
+        ? sortedDomains
+        : sortedDomains
+            .where((d) => d.toLowerCase().contains(_domainSearchQuery))
+            .toList();
+
+    return Column(
+      children: [
+        if (widget.availableDomains.length > 4) ...[
+          InterceptlySearchField(
+            controller: _domainSearchController,
+            hintText: 'Search domains...',
+            onChanged: (q) => setState(() => _domainSearchQuery = q.trim().toLowerCase()),
+          ),
+          SizedBox(height: spacing.sm),
+        ],
+
+        // Select All row
+        Row(
+          children: [
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  if (allSelected) {
+                    selectedDomains.clear();
+                  } else {
+                    selectedDomains = Set.from(widget.availableDomains);
+                  }
+                });
+              },
+              child: Text(
+                allSelected ? 'Deselect All' : 'Select All',
+                style: InterceptlyTheme.typography.bodySmallMedium.copyWith(
+                  color: colors.actionPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: spacing.sm),
+
+        // Domain list card
+        Container(
+          decoration: BoxDecoration(
+            color: InterceptlyTheme.surfaceContainer,
+            borderRadius: BorderRadius.circular(radius.md),
+            border: Border.all(color: InterceptlyTheme.dividerSubtle),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: filteredDomains.isEmpty
+              ? Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Center(
+                    child: Text(
+                      'No matching domains',
+                      style: InterceptlyTheme.typography.bodySmallRegular.copyWith(
+                        color: colors.textTertiary,
+                      ),
+                    ),
+                  ),
+                )
+              : ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: filteredDomains.length,
+                  separatorBuilder: (_, __) => Divider(
+                    height: 1,
+                    color: InterceptlyTheme.dividerSubtle,
+                    indent: 40,
+                  ),
+                  itemBuilder: (context, index) {
+                    final domain = filteredDomains[index];
+                    final isChecked = selectedDomains.contains(domain);
+
+                    return InkWell(
+                      onTap: () {
+                        setState(() {
+                          if (isChecked) {
+                            selectedDomains.remove(domain);
+                          } else {
+                            selectedDomains.add(domain);
+                          }
+                        });
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        child: Row(
+                          children: [
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              width: 18,
+                              height: 18,
+                              decoration: BoxDecoration(
+                                color: isChecked ? colors.actionPrimary : Colors.transparent,
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: isChecked ? colors.actionPrimary : colors.textTertiary,
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: isChecked
+                                  ? Icon(Icons.check, size: 12, color: colors.textOnAction)
+                                  : null,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                domain,
+                                style: InterceptlyTheme.typography.bodySmallMedium.copyWith(
+                                  color: isChecked ? colors.textPrimary : colors.textSecondary,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
     );
   }
 }
@@ -345,6 +582,7 @@ class _SectionHeader extends StatelessWidget {
             color: colors.textTertiary,
             letterSpacing: 0.8,
             fontSize: 11,
+            fontWeight: FontWeight.w600,
           ),
         ),
         if (subtitle != null) ...[
@@ -353,6 +591,7 @@ class _SectionHeader extends StatelessWidget {
             subtitle!,
             style: InterceptlyTheme.typography.bodySmallRegular.copyWith(
               color: colors.textTertiary,
+              fontSize: 12,
             ),
           ),
         ],
@@ -361,87 +600,57 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-class _MethodChips extends StatelessWidget {
-  const _MethodChips({required this.selected, required this.onToggle});
-
-  final Set<String> selected;
-  final void Function(String) onToggle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: {'GET', 'POST', 'PUT', 'DELETE', 'PATCH'}.map((method) {
-        final style = InterceptlyTheme.getMethodStyle(method);
-        final isSelected = selected.contains(method);
-
-        return _Chip(
-          label: method,
-          isSelected: isSelected,
-          activeColor: style.text,
-          activeBgColor: style.bg,
-          activeBorderColor: style.border,
-          onTap: () => onToggle(method),
-        );
-      }).toList(),
-    );
-  }
-}
-
-class _StatusRow extends StatelessWidget {
-  const _StatusRow({
-    required this.include2xx,
-    required this.include3xx,
-    required this.include4xx,
-    required this.include5xx,
-    required this.onToggle,
+class _MethodChip extends StatelessWidget {
+  const _MethodChip({
+    required this.label,
+    required this.isSelected,
+    required this.style,
+    required this.onTap,
   });
 
-  final bool include2xx;
-  final bool include3xx;
-  final bool include4xx;
-  final bool include5xx;
-  final void Function(String) onToggle;
+  final String label;
+  final bool isSelected;
+  final MethodStyle style;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        _StatusToggle(
-          label: '2xx',
-          isIncluded: include2xx,
-          color: InterceptlyTheme.getStatusStyle(200).bg,
-          onTap: () => onToggle('2xx'),
+    final colors = InterceptlyTheme.colors;
+
+    final bg = isSelected ? style.bg : InterceptlyTheme.surfaceContainer;
+    final border = isSelected
+        ? Border.all(color: style.border, width: 1.2)
+        : Border.all(color: InterceptlyTheme.dividerSubtle, width: 1.0);
+    final textColor = isSelected ? style.text : colors.textSecondary;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(InterceptlyTheme.radius.md),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(InterceptlyTheme.radius.md),
+            border: border,
+          ),
+          child: Text(
+            label,
+            style: InterceptlyTheme.typography.labelMediumMedium.copyWith(
+              color: textColor,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+            ),
+          ),
         ),
-        const SizedBox(width: 8),
-        _StatusToggle(
-          label: '3xx',
-          isIncluded: include3xx,
-          color: InterceptlyTheme.getStatusStyle(301).bg,
-          onTap: () => onToggle('3xx'),
-        ),
-        const SizedBox(width: 8),
-        _StatusToggle(
-          label: '4xx',
-          isIncluded: include4xx,
-          color: InterceptlyTheme.getStatusStyle(400).bg,
-          onTap: () => onToggle('4xx'),
-        ),
-        const SizedBox(width: 8),
-        _StatusToggle(
-          label: '5xx',
-          isIncluded: include5xx,
-          color: InterceptlyTheme.getStatusStyle(500).bg,
-          onTap: () => onToggle('5xx'),
-        ),
-      ],
+      ),
     );
   }
 }
 
-class _StatusToggle extends StatelessWidget {
-  const _StatusToggle({
+class _StatusCard extends StatelessWidget {
+  const _StatusCard({
     required this.label,
     required this.isIncluded,
     required this.color,
@@ -458,297 +667,49 @@ class _StatusToggle extends StatelessWidget {
     final colors = InterceptlyTheme.colors;
     final radius = InterceptlyTheme.radius;
 
-    return Expanded(
-      child: Semantics(
-        button: true,
-        selected: isIncluded,
-        label: '$label status filter',
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 48),
-          child: InkWell(
-            onTap: onTap,
+    final bg = isIncluded
+        ? color.withValues(alpha: 0.14)
+        : InterceptlyTheme.surfaceContainer;
+    final border = isIncluded
+        ? Border.all(color: color.withValues(alpha: 0.6), width: 1.2)
+        : Border.all(color: InterceptlyTheme.dividerSubtle, width: 1.0);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(radius.md),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: bg,
             borderRadius: BorderRadius.circular(radius.md),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeInOut,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              decoration: BoxDecoration(
-                color: isIncluded
-                    ? color.withValues(alpha: 0.12)
-                    : InterceptlyTheme.controlMuted,
-                borderRadius: BorderRadius.circular(radius.md),
-                border: Border.all(
-                  color: isIncluded
-                      ? color.withValues(alpha: 0.35)
-                      : InterceptlyTheme.dividerSubtle,
-                  width: 1.2,
-                ),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isIncluded ? color : colors.textTertiary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    label,
-                    style: InterceptlyTheme.typography.labelSmallMedium.copyWith(
-                      color: isIncluded ? color : colors.textSecondary,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            border: border,
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DomainList extends StatelessWidget {
-  const _DomainList({
-    required this.domains,
-    required this.selected,
-    required this.onToggle,
-    required this.onSelectAll,
-  });
-
-  final Set<String> domains;
-  final Set<String> selected;
-  final void Function(String) onToggle;
-  final VoidCallback onSelectAll;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = InterceptlyTheme.colors;
-    final radius = InterceptlyTheme.radius;
-    final allSelected =
-        selected.containsAll(domains) && selected.length == domains.length;
-    final sorted = domains.toList()..sort();
-
-    return Column(
-      children: [
-        Semantics(
-          button: true,
-          selected: allSelected,
-          label: 'Select all domains',
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 48),
-            child: InkWell(
-              onTap: onSelectAll,
-              borderRadius: BorderRadius.circular(radius.md),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: 10,
+                height: 10,
                 decoration: BoxDecoration(
-                  color: allSelected
-                      ? colors.actionPrimary.withValues(alpha: 0.1)
-                      : InterceptlyTheme.controlMuted,
-                  borderRadius: BorderRadius.circular(radius.md),
-                  border: Border.all(
-                    color: allSelected
-                        ? colors.actionPrimary.withValues(alpha: 0.3)
-                        : InterceptlyTheme.dividerSubtle,
+                  shape: BoxShape.circle,
+                  color: isIncluded ? color : colors.textTertiary,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: InterceptlyTheme.typography.labelSmallMedium.copyWith(
+                    color: isIncluded ? color : colors.textSecondary,
+                    fontWeight: isIncluded ? FontWeight.w600 : FontWeight.w500,
                   ),
-                ),
-                child: Row(
-                  children: [
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: 18,
-                      height: 18,
-                      decoration: BoxDecoration(
-                        color:
-                            allSelected ? colors.actionPrimary : Colors.transparent,
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(
-                          color: allSelected
-                              ? colors.actionPrimary
-                              : colors.textTertiary,
-                          width: 1.5,
-                        ),
-                      ),
-                      child: allSelected
-                          ? Icon(Icons.check, size: 12, color: colors.textOnAction)
-                          : null,
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      'All domains',
-                      style: InterceptlyTheme.typography.bodySmallMedium.copyWith(
-                        color: allSelected
-                            ? colors.actionPrimary
-                            : colors.textSecondary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      '${sorted.length}',
-                      style: InterceptlyTheme.typography.bodySmallRegular.copyWith(
-                        color: colors.textTertiary,
-                      ),
-                    ),
-                  ],
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-            ),
-          ),
-        ),
-
-        if (!allSelected && sorted.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Container(
-            decoration: BoxDecoration(
-              color: InterceptlyTheme.surface,
-              borderRadius: BorderRadius.circular(radius.md),
-              border: Border.all(color: InterceptlyTheme.dividerSubtle),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Column(
-              children: sorted.asMap().entries.map((entry) {
-                final idx = entry.key;
-                final domain = entry.value;
-                final isSelected = selected.contains(domain);
-
-                return Column(
-                  children: [
-                    Semantics(
-                      button: true,
-                      selected: isSelected,
-                      label: domain,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(minHeight: 48),
-                        child: InkWell(
-                          onTap: () => onToggle(domain),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 11,
-                            ),
-                            child: Row(
-                              children: [
-                                AnimatedContainer(
-                                  duration: const Duration(milliseconds: 200),
-                                  width: 18,
-                                  height: 18,
-                                  decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? colors.actionPrimary
-                                        : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: Border.all(
-                                      color: isSelected
-                                          ? colors.actionPrimary
-                                          : colors.textTertiary,
-                                      width: 1.5,
-                                    ),
-                                  ),
-                                  child: isSelected
-                                      ? Icon(
-                                          Icons.check,
-                                          size: 12,
-                                          color: colors.textOnAction,
-                                        )
-                                      : null,
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    domain,
-                                    style: InterceptlyTheme
-                                        .typography.bodySmallMedium
-                                        .copyWith(
-                                      color: isSelected
-                                          ? colors.actionPrimary
-                                          : colors.textSecondary,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (idx < sorted.length - 1)
-                      Divider(
-                        height: 1,
-                        color: InterceptlyTheme.dividerSubtle,
-                        indent: 42,
-                      ),
-                  ],
-                );
-              }).toList(),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _Chip extends StatelessWidget {
-  const _Chip({
-    required this.label,
-    required this.isSelected,
-    required this.activeColor,
-    required this.activeBgColor,
-    required this.activeBorderColor,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool isSelected;
-  final Color activeColor;
-  final Color activeBgColor;
-  final Color activeBorderColor;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = InterceptlyTheme.colorsOf(context);
-
-    return Semantics(
-      button: true,
-      selected: isSelected,
-      label: '$label filter',
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 48, minWidth: 48),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(InterceptlyTheme.radius.md),
-          child: Center(
-            widthFactor: 1.0,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeInOut,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: isSelected ? activeBgColor : InterceptlyTheme.controlMuted,
-                borderRadius: BorderRadius.circular(InterceptlyTheme.radius.md),
-                border: Border.all(
-                  color:
-                      isSelected ? activeBorderColor : InterceptlyTheme.dividerSubtle,
-                  width: 1.2,
-                ),
-              ),
-              child: Text(
-                label,
-                style: InterceptlyTheme.typography.labelMediumMedium.copyWith(
-                  color: isSelected ? activeColor : colors.textSecondary,
-                ),
-              ),
-            ),
+            ],
           ),
         ),
       ),
