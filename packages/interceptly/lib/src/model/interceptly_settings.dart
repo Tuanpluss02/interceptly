@@ -12,7 +12,24 @@ class InterceptlySettings {
     this.pendingTimeout = const Duration(seconds: 45),
     this.shouldCapture,
     this.persistToDisk = true,
-  });
+  })  : assert(maxEntries > 0, 'maxEntries must be greater than 0'),
+        assert(maxQueuedEvents > 0, 'maxQueuedEvents must be greater than 0'),
+        assert(
+          maxFramesPerSession > 0,
+          'maxFramesPerSession must be greater than 0',
+        ),
+        assert(
+          previewTruncationBytes >= 0,
+          'previewTruncationBytes must be non-negative',
+        ),
+        assert(
+          bodyOffloadThreshold >= 0,
+          'bodyOffloadThreshold must be non-negative',
+        ),
+        assert(
+          maxUiPreviewBytes >= 0,
+          'maxUiPreviewBytes must be non-negative',
+        );
 
   /// Body size (bytes) above which data is offloaded to the temp file.
   /// Below this threshold the raw bytes are kept inline in RAM.

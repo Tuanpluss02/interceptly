@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/src/model/body_truncation.dart';
 import 'package:interceptly/src/model/body_location.dart';
 import 'package:interceptly/src/model/index_entry.dart';
-import 'package:interceptly/src/model/interceptly_settings.dart';
 import 'package:interceptly/src/model/raw_capture.dart';
 import 'package:interceptly/src/session/bounded_event_queue.dart';
 import 'package:interceptly/src/session/inspector_session.dart';
@@ -183,14 +182,11 @@ void main() {
       expect(queue.length, 1);
     });
 
-    test('InspectorSession with maxEntries 0 still records', () async {
-      final session = InspectorSession(
-        settings: const InterceptlySettings(maxEntries: 0),
-      );
-      addTearDown(session.dispose);
-      await session.initialize();
-      session.record(_capture('clamped-1'));
-      expect(await _waitForId(session, 'clamped-1'), isTrue);
+    test('MemoryIndex with maxEntries 0 still records', () {
+      final index = MemoryIndex(maxEntries: 0);
+      index.add(_memoryEntry('clamped-1'));
+      expect(index.length, 1);
+      expect(index.entries.single.id, 'clamped-1');
     });
   });
 }
