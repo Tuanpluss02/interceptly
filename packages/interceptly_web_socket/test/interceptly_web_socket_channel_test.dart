@@ -718,6 +718,43 @@ void main() {
         equals(['must be sent despite collector throwing']),
       );
     });
+
+    test('attaches RealtimeConnectionSender to scope and transmits messages', () async {
+      final channel = InterceptlyWebSocketChannel(
+        fakeChannel,
+        sessionId: 'ws-sender-test',
+        collector: spyCollector,
+      );
+
+      expect(channel.scope.canSend, isTrue);
+      expect(
+        channel.scope.sender?.protocolType,
+        equals(RealtimeProtocolType.webSocket),
+      );
+
+      const draft = RealtimeMessageDraft(payload: 'Hello from Interceptly UI');
+      await channel.scope.sendToServer(draft);
+      await pumpEventQueue();
+
+      expect(fakeChannel.sentData, contains('Hello from Interceptly UI'));
+      expect(
+        spyCollector.recordFrameCalls.any(
+          (c) =>
+              c['direction'] == FrameDirection.outgoing &&
+              c['payload'] == 'Hello from Interceptly UI',
+        ),
+        isTrue,
+      );
+
+      await channel.sink.close(1000, 'Normal');
+      await pumpEventQueue();
+
+      expect(channel.scope.canSend, isFalse);
+      expect(
+        () => channel.scope.sendToServer(draft),
+        throwsStateError,
+      );
+    });
   });
 }
 
@@ -730,6 +767,7 @@ class _SpyRealtimeTrafficCollector implements RealtimeTrafficCollector {
   final List<Map<String, dynamic>> recordConnectionCalls = [];
   final List<Map<String, dynamic>> recordFrameCalls = [];
   final List<Map<String, dynamic>> recordCloseCalls = [];
+  final Map<String, RealtimeSessionScope> _activeScopes = {};
 
   bool throwOnConnection = false;
   bool throwOnFrame = false;
@@ -743,6 +781,7 @@ class _SpyRealtimeTrafficCollector implements RealtimeTrafficCollector {
     Uri? uri,
     String? sessionId,
     Map<String, String>? headers,
+    RealtimeProtocolType protocolType = RealtimeProtocolType.webSocket,
   }) {
     final effectiveId = sessionId ?? RequestId.generate();
 
@@ -756,11 +795,28 @@ class _SpyRealtimeTrafficCollector implements RealtimeTrafficCollector {
       } catch (_) {}
     }
 
-    return RealtimeSessionScope(
+    final scope = RealtimeSessionScope(
       collector: this,
       sessionId: effectiveId,
       uri: uri,
+      protocolType: protocolType,
     );
+    _activeScopes[effectiveId] = scope;
+    return scope;
+  }
+
+  @override
+  bool canSend(String sessionId) => _activeScopes[sessionId]?.canSend ?? false;
+
+  @override
+  RealtimeConnectionSender? getSender(String sessionId) =>
+      _activeScopes[sessionId]?.sender;
+
+  @override
+  Future<void> sendMessage(String sessionId, RealtimeMessageDraft draft) async {
+    final scope = _activeScopes[sessionId];
+    if (scope == null) throw StateError('No scope found for session $sessionId');
+    await scope.sendToServer(draft);
   }
 
   @override

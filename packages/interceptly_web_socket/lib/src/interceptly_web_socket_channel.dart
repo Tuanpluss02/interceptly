@@ -39,6 +39,7 @@ class InterceptlyWebSocketChannel extends StreamChannelMixin
           sessionId: sessionId,
           headers: headers,
         ) {
+    scope.attachSender(_WebSocketChannelSender(this));
     unawaited(
       _inner.ready.then(
         (_) => null,
@@ -143,4 +144,20 @@ class _InterceptlyWebSocketSink implements WebSocketSink {
 
   @override
   Future<dynamic> get done => _innerSink.done;
+}
+
+class _WebSocketChannelSender implements RealtimeConnectionSender {
+  final InterceptlyWebSocketChannel _channel;
+  _WebSocketChannelSender(this._channel);
+
+  @override
+  RealtimeProtocolType get protocolType => RealtimeProtocolType.webSocket;
+
+  @override
+  bool get canSend => !_channel.scope.isClosed;
+
+  @override
+  Future<void> send(RealtimeMessageDraft draft) async {
+    _channel.sink.add(draft.payload);
+  }
 }
