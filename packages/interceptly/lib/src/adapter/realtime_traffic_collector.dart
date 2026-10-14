@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import '../capture/capture_guard.dart';
+import '../model/interceptly_settings.dart';
 import '../model/realtime_frame.dart';
+import '../session/capture_pipeline.dart';
 import '../session/inspector_session.dart';
 import '../session/request_id.dart';
 
@@ -68,17 +71,21 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
     DateTime? timestamp,
   }) {
     guardCapture(() {
+      final BodyRedactor? redactor = _session.settings.bodyRedactor;
       String? textPayload;
       Uint8List? binaryPayload;
 
       if (payload is String) {
-        textPayload = payload;
+        textPayload = _redactText(payload, redactor);
       } else if (payload is Uint8List) {
-        binaryPayload = payload;
+        binaryPayload = CapturePipeline.redactInlineBytes(payload, redactor);
       } else if (payload is List<int>) {
-        binaryPayload = Uint8List.fromList(payload);
+        binaryPayload = CapturePipeline.redactInlineBytes(
+          Uint8List.fromList(payload),
+          redactor,
+        );
       } else if (payload != null) {
-        textPayload = payload.toString();
+        textPayload = _redactText(payload.toString(), redactor);
       }
 
       final frame = RealtimeFrame(
@@ -88,7 +95,7 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
         type: type,
         textPayload: textPayload,
         binaryPayload: binaryPayload,
-        payloadSizeBytes: payloadSizeBytes,
+        payloadSizeBytes: redactor == null ? payloadSizeBytes : null,
         timestamp: timestamp,
       );
 
@@ -109,5 +116,23 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
         closeReason: closeReason,
       );
     });
+  }
+}
+
+/// Encodes [text] to bytes, applies [redactor], and decodes tolerantly.
+///
+/// Returns the original [text] when no redactor is set or any step fails.
+/// A null redactor result propagates as null so stripped bodies stay stripped.
+String? _redactText(String text, BodyRedactor? redactor) {
+  if (redactor == null) return text;
+  try {
+    final Uint8List? redacted = CapturePipeline.redactInlineBytes(
+      Uint8List.fromList(utf8.encode(text)),
+      redactor,
+    );
+    if (redacted == null) return null;
+    return utf8.decode(redacted, allowMalformed: true);
+  } catch (_) {
+    return text;
   }
 }

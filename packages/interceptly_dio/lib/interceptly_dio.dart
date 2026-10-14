@@ -1,4 +1,4 @@
-// ignore: unnecessary_library_name
-library interceptly_dio;
+/// Dio adapter for the Interceptly network inspector.
+library;
 
 export 'src/interceptly_dio_interceptor.dart';

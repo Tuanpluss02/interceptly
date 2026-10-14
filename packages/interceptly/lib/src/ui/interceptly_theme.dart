@@ -13,6 +13,20 @@ class InterceptlyTheme {
 
   static Brightness get brightness => brightnessNotifier.value;
 
+  /// Resolves brightness from [context].
+  static Brightness brightnessOf(BuildContext context) =>
+      Theme.of(context).brightness;
+
+  /// Returns the color palette resolved for [context].
+  static InterceptlyColors colorsOf(BuildContext context) =>
+      colorsFor(Theme.of(context).brightness);
+
+  /// Returns the color palette resolved for [brightness].
+  static InterceptlyColors colorsFor(Brightness brightness) =>
+      brightness == Brightness.dark
+          ? const _DarkColors()
+          : const _LightColors();
+
   static void bind({BuildContext? context, ThemeMode? themeMode}) {
     final nextBrightness = _resolveBrightness(
       context: context,
@@ -27,7 +41,7 @@ class InterceptlyTheme {
   static InterceptlySpacing get spacing => const InterceptlySpacing();
   static InterceptlyRadius get radius => const InterceptlyRadius();
   static InterceptlyColors get colors =>
-      brightness == Brightness.dark ? _DarkColors() : _LightColors();
+      brightness == Brightness.dark ? const _DarkColors() : const _LightColors();
 
   static Brightness _resolveBrightness({
     BuildContext? context,
@@ -99,9 +113,14 @@ class InterceptlyTheme {
     return _buildThemeData(brightness: Brightness.dark, palette: palette);
   }
 
-  static ThemeData themeData({BuildContext? context, ThemeMode? themeMode}) {
-    bind(context: context, themeMode: themeMode);
-    return brightness == Brightness.dark ? darkTheme : lightTheme;
+  static ThemeData themeData({
+    BuildContext? context,
+    ThemeMode? themeMode,
+    Brightness? brightness,
+  }) {
+    final resolvedBrightness = brightness ??
+        _resolveBrightness(context: context, themeMode: themeMode);
+    return resolvedBrightness == Brightness.dark ? darkTheme : lightTheme;
   }
 
   static ThemeData _buildThemeData({
@@ -110,7 +129,6 @@ class InterceptlyTheme {
   }) {
     return ThemeData(
       brightness: brightness,
-      fontFamily: fontFamily,
       scaffoldBackgroundColor: palette.surfacePrimary,
       primaryColor: palette.actionPrimary,
       colorScheme: ColorScheme(
@@ -398,10 +416,22 @@ class InterceptlyTypography {
 
   TextStyle _base(double size, FontWeight weight) {
     return TextStyle(
-      fontFamily: InterceptlyTheme.fontFamily,
-      package: InterceptlyTheme.fontPackage,
       fontSize: size,
       fontWeight: weight,
+    );
+  }
+
+  /// Monospace text style intended for code, JSON payloads, URLs, and numeric data.
+  TextStyle monospace([TextStyle? base]) {
+    if (base != null) {
+      return base.copyWith(
+        fontFamily: InterceptlyTheme.fontFamily,
+        package: InterceptlyTheme.fontPackage,
+      );
+    }
+    return const TextStyle(
+      fontFamily: InterceptlyTheme.fontFamily,
+      package: InterceptlyTheme.fontPackage,
     );
   }
 }

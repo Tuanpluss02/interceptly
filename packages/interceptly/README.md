@@ -28,7 +28,7 @@ The core `interceptly` package contains the inspection UI overlay, background is
 - **Network Simulation**: Global simulation profiles for Offline, Slow 3G, Fast 4G, or custom latency/bandwidth.
 - **Advanced Formatters**: Specialized views for GraphQL operations, Multipart FormData, cURL generation, and Binary data.
 - **Master Search**: Filter across URLs, headers, bodies, frames, and errors with instant highlight navigation.
-- **Safe by Default**: Sensitive headers (`authorization`, `cookie`, `x-api-key`, etc.) are redacted before storage; custom `shouldCapture` predicate filters endpoints.
+- **Opt-in Redaction**: Capture stores everything by default; pass `redactedHeaders`, `redactedQueryParams`, or `bodyRedactor` to scrub secrets before storage, and use the custom `shouldCapture` predicate to filter endpoints.
 - **Export**: Share or export traffic sessions as HAR, cURL commands, or Postman collections.
 
 ---
@@ -86,7 +86,10 @@ void main() {
       navigatorKey: _navKey,
       settings: const InterceptlySettings(
         maxEntries: 1000,
-        maxFramesPerSession: 500,
+        maxFramesPerSession: 1000,
+        // Opt-in: redaction is off by default, so list every sensitive
+        // header explicitly. Captured traffic may contain PII — keep the
+        // inspector debug-only and consider redactedQueryParams/bodyRedactor.
         redactedHeaders: {'authorization', 'cookie', 'set-cookie', 'x-api-key'},
       ),
       showFloatingButton: true, // Floating overlay bug button
@@ -323,13 +326,18 @@ All capture parameters and limits are configured via `InterceptlySettings`:
 | `previewTruncationBytes` | `16 KB` | Inline byte budget for pending request rows awaiting a response |
 | `maxBodyBytes` | `5 MB` | Hard cap before payload truncation; `<= 0` means unlimited |
 | `maxUiPreviewBytes` | `2 MB` | Max bytes decoded for UI detail display; `<= 0` means unlimited |
-| `maxFramesPerSession` | `500` | Max realtime frames retained per WebSocket connection session |
+| `maxFramesPerSession` | `1000` | Max realtime frames retained per WebSocket connection session |
 | `maxQueuedEvents` | `500` | Pending capture events buffered before the background isolate is ready |
 | `maxEntries` | `5000` | Maximum network requests/sessions retained in history |
 | `pendingTimeout` | `45 s` | Duration after which an unfinished request is marked as timed out |
 | `urlDecodeEnabled` | `true` | Decode URL percent-encodings in inspector views |
-| `redactedHeaders` | 4 auth headers | Header names replaced with `[REDACTED]` (case-insensitive) |
+| `redactedHeaders` | `{}` (opt-in) | Header names replaced with `[REDACTED]` (case-insensitive); empty means capture stores all headers |
+| `redactedQueryParams` | `{}` (opt-in) | Query parameter names masked as `[REDACTED]` in stored URLs (case-insensitive) |
+| `bodyRedactor` | `null` (opt-in) | Optional `Uint8List? Function(Uint8List?)` hook transforming bodies before persist; `null` leaves bytes untouched |
 | `shouldCapture` | `null` | Optional predicate `bool Function(String url)`; returns `false` to skip capture |
+
+> [!NOTE]
+> **`shouldCapture` Execution Limits**: Evaluated synchronously on each request URL before dispatch and before queuing to background storage. The predicate must be lightweight and non-blocking. If it returns `false`, capture is completely bypassed, saving CPU and storage overhead.
 
 ---
 
@@ -357,22 +365,40 @@ Interceptly.instance.clearNetworkSimulation();
 
 ---
 
-## Overlay & Trigger Controls
+## Entry-Point Configuration & Triggers
 
-Control the floating overlay trigger dynamically:
+### `Interceptly.init` Configuration Table
 
-```dart
-// Open inspector programmatically
-Interceptly.showInspector(context);
+| Parameter | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `navigatorKey` | `GlobalKey<NavigatorState>` | *Required* | Global navigator key used to mount overlay and push inspector screen |
+| `showFloatingButton` | `bool` | `true` | Whether to display the draggable floating action button overlay |
+| `fabChild` | `Widget?` | `null` | Optional custom widget rendered inside the floating action button |
+| `customTrigger` | `Stream<void>?` | `null` | External event stream to trigger opening the inspector (e.g. shake detector, volume keys, gesture) |
+| `settings` | `InterceptlySettings?` | Default settings | Storage thresholds, body caps, redactions, and timeout durations |
+| `allowInRelease` | `bool` | `false` | Security guard preventing accidental release-mode exposure unless set to `true` |
 
-// Temporarily hide or show the floating action button
-Interceptly.hideFloatingButtonForSession();
-Interceptly.showFloatingButtonForSession();
-final isHidden = Interceptly.isFloatingButtonHiddenForSession;
+### Overlay & Navigation Triggers
 
-// Clear all recorded history
-await Interceptly.instance.clear();
-```
+- **Route Transition Observer**: Set `navigatorObservers: [Interceptly.navigatorObserver]` on your `MaterialApp` to ensure the floating overlay button always remains on top across route transitions.
+- **Custom Trigger Stream**: Supply `customTrigger: shakeSensorStream` to open the inspector on device shake or hardware buttons.
+- **Custom Button Icon**: Pass `fabChild: Icon(Icons.bug_report, color: Colors.amber)` to customize button appearance.
+- **Programmatic Control**:
+  ```dart
+  // Open inspector programmatically
+  Interceptly.showInspector(context);
+
+  // Temporarily hide or show the floating action button
+  Interceptly.hideFloatingButtonForSession();
+  Interceptly.showFloatingButtonForSession();
+  final isHidden = Interceptly.isFloatingButtonHiddenForSession;
+
+  // Clear all recorded history
+  await Interceptly.instance.clear();
+
+  // Remove overlay and cancel trigger subscriptions
+  Interceptly.detach();
+  ```
 
 ---
 
@@ -382,6 +408,15 @@ await Interceptly.instance.clear();
 - **Large Payloads**: Offloaded to temporary files via a background worker isolate.
 - **Lazy Loading**: Payloads are read from disk only when a record is viewed.
 - **Multi-tiered Limits**: Separate caps protect memory footprint during pending requests, stored history, and UI rendering.
+
+## Example Application
+
+An interactive Flutter showcase application demonstrating all adapters (Dio, HTTP, Chopper, WebSocket) is provided in the [`example`](example) directory:
+
+```bash
+cd packages/interceptly/example
+flutter run
+```
 
 ---
 

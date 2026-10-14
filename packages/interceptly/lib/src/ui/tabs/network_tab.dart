@@ -37,6 +37,8 @@ class _NetworkTabState extends State<NetworkTab> {
   bool _isSelectionMode = false;
   final Set<String> _selectedIds = {};
   bool _isExporting = false;
+  final Map<String, String> _displayUrlCache = {};
+  bool? _cachedUrlDecodeSetting;
 
   @override
   void initState() {
@@ -48,8 +50,28 @@ class _NetworkTabState extends State<NetworkTab> {
 
   @override
   void dispose() {
+    _displayUrlCache.clear();
     _searchController.dispose();
     super.dispose();
+  }
+
+  String _getDisplayUrl(RequestSummary entry) {
+    final decodeEnabled = widget.session.preferences.urlDecodeEnabled;
+    if (_cachedUrlDecodeSetting != decodeEnabled) {
+      _displayUrlCache.clear();
+      _cachedUrlDecodeSetting = decodeEnabled;
+    }
+    final cached = _displayUrlCache[entry.id];
+    if (cached != null) return cached;
+
+    String displayUrl = entry.url;
+    if (decodeEnabled) {
+      try {
+        displayUrl = Uri.decodeFull(entry.url);
+      } catch (_) {}
+    }
+    _displayUrlCache[entry.id] = displayUrl;
+    return displayUrl;
   }
 
   void _enterSelectionMode(String id) {
@@ -98,9 +120,17 @@ class _NetworkTabState extends State<NetworkTab> {
       final selectedEntries =
           allEntries.where((e) => _selectedIds.contains(e.id)).toList();
 
-      final List<RequestRecord> records = await Future.wait(
-        selectedEntries.map((entry) => widget.session.loadDetail(entry)),
-      );
+      final List<RequestRecord> records = [];
+      for (var i = 0; i < selectedEntries.length; i += 10) {
+        final end = (i + 10 < selectedEntries.length)
+            ? i + 10
+            : selectedEntries.length;
+        final chunk = selectedEntries.sublist(i, end);
+        final chunkRecords = await Future.wait(
+          chunk.map((entry) => widget.session.loadDetailById(entry.id)),
+        );
+        records.addAll(chunkRecords);
+      }
 
       if (!mounted) return;
 
@@ -121,8 +151,12 @@ class _NetworkTabState extends State<NetworkTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (_searchController.text != (widget.session.masterQuery ?? '')) {
-      _searchController.text = widget.session.masterQuery ?? '';
+    final queryText = widget.session.masterQuery ?? '';
+    if (_searchController.text != queryText) {
+      _searchController.value = TextEditingValue(
+        text: queryText,
+        selection: TextSelection.collapsed(offset: queryText.length),
+      );
     }
 
     final colors = InterceptlyTheme.colors;
@@ -201,15 +235,18 @@ class _NetworkTabState extends State<NetworkTab> {
       separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         final req = entries[index];
-        return _buildRequestItem(
-          context: context,
-          entry: req,
-          onTapNavigate: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => RequestDetailPage(
-                entry: req,
-                session: widget.session,
-                initialQuery: widget.session.masterQuery,
+        return KeyedSubtree(
+          key: ValueKey(req.id),
+          child: _buildRequestItem(
+            context: context,
+            entry: req,
+            onTapNavigate: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => RequestDetailPage(
+                  entry: req,
+                  session: widget.session,
+                  initialQuery: widget.session.masterQuery,
+                ),
               ),
             ),
           ),
@@ -232,34 +269,64 @@ class _NetworkTabState extends State<NetworkTab> {
       );
     }
 
+    final flatItems = <_GroupedItem>[];
+    for (final group in groups) {
+      final groupIds = group.requests.map((r) => r.id).toList();
+      final allGroupSelected = groupIds.isNotEmpty &&
+          groupIds.every((id) => _selectedIds.contains(id));
+      final someGroupSelected = !allGroupSelected &&
+          groupIds.any((id) => _selectedIds.contains(id));
+
+      flatItems.add(_GroupHeaderItem(
+        group: group,
+        groupIds: groupIds,
+        allSelected: allGroupSelected,
+        someSelected: someGroupSelected,
+      ));
+
+      if (group.isExpanded) {
+        for (var i = 0; i < group.requests.length; i++) {
+          flatItems.add(_GroupRequestItem(
+            entry: group.requests[i],
+            isLastInGroup: i == group.requests.length - 1,
+          ));
+        }
+      }
+
+      flatItems.add(const _GroupDividerItem());
+    }
+
     final bottomInset = MediaQuery.paddingOf(context).bottom + 88;
-    const groupItemsPadding = EdgeInsets.fromLTRB(14, 12, 14, 10);
 
     return ListView.builder(
       padding: EdgeInsets.fromLTRB(0, 10, 0, bottomInset),
-      itemCount: groups.length,
-      itemBuilder: (context, groupIndex) {
-        final group = groups[groupIndex];
-        final groupIds = group.requests.map((r) => r.id).toList();
-        final allGroupSelected = groupIds.isNotEmpty &&
-            groupIds.every((id) => _selectedIds.contains(id));
-        final someGroupSelected = !allGroupSelected &&
-            groupIds.any((id) => _selectedIds.contains(id));
-
-        return Column(
-          children: [
-            if (_isSelectionMode)
-              _SelectableGroupHeader(
-                group: group,
-                groupIds: groupIds,
-                allSelected: allGroupSelected,
-                someSelected: someGroupSelected,
-                onToggleExpand: () =>
-                    widget.session.toggleDomainExpanded(group.domain),
-                onToggleGroupSelection: _toggleGroupSelection,
-              )
-            else
-              GestureDetector(
+      itemCount: flatItems.length,
+      itemBuilder: (context, index) {
+        final item = flatItems[index];
+        switch (item) {
+          case _GroupHeaderItem(
+              :final group,
+              :final groupIds,
+              :final allSelected,
+              :final someSelected
+            ):
+            if (_isSelectionMode) {
+              return KeyedSubtree(
+                key: ValueKey('group_header_${group.domain}'),
+                child: _SelectableGroupHeader(
+                  group: group,
+                  groupIds: groupIds,
+                  allSelected: allSelected,
+                  someSelected: someSelected,
+                  onToggleExpand: () =>
+                      widget.session.toggleDomainExpanded(group.domain),
+                  onToggleGroupSelection: _toggleGroupSelection,
+                ),
+              );
+            }
+            return KeyedSubtree(
+              key: ValueKey('group_header_${group.domain}'),
+              child: GestureDetector(
                 onTap: () => widget.session.toggleDomainExpanded(group.domain),
                 child: DomainGroupHeader(
                   group: group,
@@ -267,38 +334,29 @@ class _NetworkTabState extends State<NetworkTab> {
                       widget.session.toggleDomainExpanded(group.domain),
                 ),
               ),
-            if (group.isExpanded)
-              Padding(
-                padding: groupItemsPadding,
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: group.requests.length,
-                  itemBuilder: (context, index) {
-                    final record = group.requests[index];
-                    return Padding(
-                      padding: EdgeInsets.only(
-                          bottom: index < group.requests.length - 1 ? 8.0 : 0),
-                      child: _buildRequestItem(
-                        context: context,
-                        entry: record,
-                        onTapNavigate: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => RequestDetailPage(
-                              entry: record,
-                              session: widget.session,
-                              initialQuery: widget.session.masterQuery,
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
+            );
+          case _GroupRequestItem(:final entry, :final isLastInGroup):
+            return Padding(
+              key: ValueKey(entry.id),
+              padding:
+                  EdgeInsets.fromLTRB(14, 0, 14, isLastInGroup ? 10.0 : 8.0),
+              child: _buildRequestItem(
+                context: context,
+                entry: entry,
+                onTapNavigate: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => RequestDetailPage(
+                      entry: entry,
+                      session: widget.session,
+                      initialQuery: widget.session.masterQuery,
+                    ),
+                  ),
                 ),
               ),
-            Divider(height: 1, color: InterceptlyTheme.dividerSubtle),
-          ],
-        );
+            );
+          case _GroupDividerItem():
+            return Divider(height: 1, color: InterceptlyTheme.dividerSubtle);
+        }
       },
     );
   }
@@ -317,12 +375,7 @@ class _NetworkTabState extends State<NetworkTab> {
     final time =
         '${entry.timestamp.hour.toString().padLeft(2, '0')}:${entry.timestamp.minute.toString().padLeft(2, '0')}:${entry.timestamp.second.toString().padLeft(2, '0')}';
 
-    String displayUrl = entry.url;
-    if (widget.session.preferences.urlDecodeEnabled) {
-      try {
-        displayUrl = Uri.decodeFull(entry.url);
-      } catch (_) {}
-    }
+    final displayUrl = _getDisplayUrl(entry);
 
     final activeQuery = widget.session.masterQuery;
     final scopes = activeQuery != null && activeQuery.isNotEmpty
@@ -356,4 +409,36 @@ class _NetworkTabState extends State<NetworkTab> {
       },
     );
   }
+}
+
+sealed class _GroupedItem {
+  const _GroupedItem();
+}
+
+final class _GroupHeaderItem extends _GroupedItem {
+  final DomainGroup group;
+  final List<String> groupIds;
+  final bool allSelected;
+  final bool someSelected;
+
+  _GroupHeaderItem({
+    required this.group,
+    required this.groupIds,
+    required this.allSelected,
+    required this.someSelected,
+  });
+}
+
+final class _GroupRequestItem extends _GroupedItem {
+  final RequestSummary entry;
+  final bool isLastInGroup;
+
+  _GroupRequestItem({
+    required this.entry,
+    required this.isLastInGroup,
+  });
+}
+
+final class _GroupDividerItem extends _GroupedItem {
+  const _GroupDividerItem();
 }

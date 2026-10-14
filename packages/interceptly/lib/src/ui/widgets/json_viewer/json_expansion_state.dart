@@ -40,8 +40,21 @@ class JsonExpansionState {
     }
   }
 
+  /// Set of paths explicitly collapsed by the user.
+  Set<String> get userCollapsedPaths => Set.unmodifiable(_userCollapsedPaths);
+
+  /// Explicit expand/collapse states set by the user.
+  Map<String, bool> get explicitState => Map.unmodifiable(_expandState);
+
   /// Whether the user has explicitly collapsed the node at [path].
   bool isUserCollapsed(String path) => _userCollapsedPaths.contains(path);
+
+  /// Marks the node at [path] as explicitly collapsed by the user.
+  void markUserCollapsed(String path) => _userCollapsedPaths.add(path);
+
+  /// Sets an explicit expansion state for [path].
+  void setExplicitState(String path, bool expanded) =>
+      _expandState[path] = expanded;
 
   /// Auto-expands the node at [path] to reveal an active search match.
   void markAutoExpanded(String path) {

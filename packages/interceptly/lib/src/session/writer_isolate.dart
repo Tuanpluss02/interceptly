@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 
@@ -14,6 +15,7 @@ class _InitMessage {
     required this.replyPort,
     required this.tempDirPath,
     this.fileName = BodyStore.kFileName,
+    this.maxFileBytes = BodyStore.kMaxFileBytes,
   });
 
   final SendPort replyPort;
@@ -24,6 +26,7 @@ class _InitMessage {
   /// channels are not available in background isolates without additional setup.
   final String tempDirPath;
   final String fileName;
+  final int maxFileBytes;
 }
 
 class _WriteMessage {
@@ -31,6 +34,7 @@ class _WriteMessage {
     required this.capture,
     required this.bodyOffloadThreshold,
     required this.maxBodyBytes,
+    this.persistToDisk = true,
   });
 
   final RawCapture capture;
@@ -39,6 +43,7 @@ class _WriteMessage {
   /// background isolate stays stateless and always honors current settings.
   final int bodyOffloadThreshold;
   final int maxBodyBytes;
+  final bool persistToDisk;
 }
 
 class _ClearMessage {
@@ -76,6 +81,7 @@ class WriterIsolate {
     _settings = settings;
   }
 
+  String? _activeTempFilePath;
   Isolate? _isolate;
   SendPort? _sendPort;
   ReceivePort? _receivePort;
@@ -96,7 +102,9 @@ class WriterIsolate {
   Future<void> start({
     required String tempDirPath,
     String fileName = BodyStore.kFileName,
+    int maxFileBytes = BodyStore.kMaxFileBytes,
   }) async {
+    _activeTempFilePath = '$tempDirPath/$fileName';
     _receivePort = ReceivePort();
     _errorPort = ReceivePort();
     _exitPort = ReceivePort();
@@ -140,6 +148,7 @@ class WriterIsolate {
         replyPort: _receivePort!.sendPort,
         tempDirPath: tempDirPath,
         fileName: fileName,
+        maxFileBytes: maxFileBytes,
       ),
       onError: _errorPort!.sendPort,
       onExit: _exitPort!.sendPort,
@@ -154,6 +163,7 @@ class WriterIsolate {
       capture: capture,
       bodyOffloadThreshold: _settings.bodyOffloadThreshold,
       maxBodyBytes: _settings.maxBodyBytes,
+      persistToDisk: _settings.persistToDisk,
     ));
   }
 
@@ -189,6 +199,17 @@ class WriterIsolate {
     _exitPort?.close();
     _exitPort = null;
     await _resultController.close();
+
+    final filePath = _activeTempFilePath;
+    _activeTempFilePath = null;
+    if (filePath != null) {
+      try {
+        final file = File(filePath);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (_) {}
+    }
   }
 }
 
@@ -196,7 +217,7 @@ Future<void> _isolateEntry(_InitMessage init) async {
   final receivePort = ReceivePort();
   init.replyPort.send(receivePort.sendPort);
 
-  final bodyStore = BodyStore();
+  final bodyStore = BodyStore(maxFileBytes: init.maxFileBytes);
 
   try {
     await bodyStore.initForWrite(init.tempDirPath, fileName: init.fileName);
@@ -210,6 +231,7 @@ Future<void> _isolateEntry(_InitMessage init) async {
           bodyStore,
           message.bodyOffloadThreshold,
           message.maxBodyBytes,
+          persistToDisk: message.persistToDisk,
         );
         init.replyPort.send(entry);
       } else if (message is _ClearMessage) {
@@ -288,8 +310,9 @@ Future<IndexEntry> _processCapture(
   RawCapture capture,
   BodyStore bodyStore,
   int threshold,
-  int maxBody,
-) async {
+  int maxBody, {
+  bool persistToDisk = true,
+}) async {
   final reqRaw = capture.requestBodyBytes?.materialize().asUint8List();
   final resRaw = capture.responseBodyBytes?.materialize().asUint8List();
 
@@ -297,7 +320,7 @@ Future<IndexEntry> _processCapture(
   final resSize = resRaw?.length ?? 0;
 
   final largestSize = reqSize > resSize ? reqSize : resSize;
-  var useFile = largestSize >= threshold;
+  var useFile = persistToDisk && largestSize >= threshold;
 
   Uint8List? inlineReq;
   Uint8List? inlineRes;

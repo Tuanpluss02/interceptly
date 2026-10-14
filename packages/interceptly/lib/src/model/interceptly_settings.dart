@@ -1,3 +1,8 @@
+import 'dart:typed_data';
+
+/// Transforms a captured body before it is persisted.
+typedef BodyRedactor = Uint8List? Function(Uint8List? body);
+
 /// Configuration for Interceptly capture and storage behavior.
 class InterceptlySettings {
   const InterceptlySettings({
@@ -11,7 +16,10 @@ class InterceptlySettings {
     this.urlDecodeEnabled = true,
     this.pendingTimeout = const Duration(seconds: 45),
     this.redactedHeaders = const {},
+    this.redactedQueryParams = const {},
+    this.bodyRedactor,
     this.shouldCapture,
+    this.persistToDisk = true,
   });
 
   /// Body size (bytes) above which data is offloaded to the temp file.
@@ -50,17 +58,57 @@ class InterceptlySettings {
   /// Duration after which an uncompleted pending request is marked as timed out.
   final Duration pendingTimeout;
 
-  /// Header names (case-insensitive) whose values should be redacted with `[REDACTED]`.
+  /// Header names (case-insensitive) whose values are replaced with `[REDACTED]`.
+  /// Empty by default: redaction is opt-in, pass explicit names to enable it.
   final Set<String> redactedHeaders;
 
+  /// Query parameter names (case-insensitive) masked as `[REDACTED]` in stored URLs.
+  /// Empty by default: redaction is opt-in, pass explicit names to enable it.
+  final Set<String> redactedQueryParams;
+
+  /// Optional hook transforming bodies before they are persisted.
+  /// Null by default, which leaves every byte untouched.
+  /// Note: [copyWith] treats a null [bodyRedactor] argument as keep the
+  /// existing value, so clearing a redactor requires constructing a new
+  /// [InterceptlySettings] instead of calling `copyWith(bodyRedactor: null)`.
+  final BodyRedactor? bodyRedactor;
+
   static final Expando<Set<String>> _normalizedCache = Expando<Set<String>>();
+
+  static final Expando<Set<String>> _normalizedQueryCache =
+      Expando<Set<String>>();
 
   /// Pre-normalized lowercase set of [redactedHeaders] for fast case-insensitive lookup.
   Set<String> get normalizedRedactedHeaders => _normalizedCache[this] ??=
       Set<String>.unmodifiable(redactedHeaders.map((k) => k.toLowerCase()));
 
+  /// Pre-normalized lowercase set of [redactedQueryParams] for fast case-insensitive lookup.
+  Set<String> get normalizedRedactedQueryParams =>
+      _normalizedQueryCache[this] ??= Set<String>.unmodifiable(
+          redactedQueryParams.map((k) => k.toLowerCase()));
+
   /// Optional predicate to exclude URLs or requests from being captured.
+  ///
+  /// Evaluated synchronously on every request URL before capture processing.
+  /// If [shouldCapture] returns `false`, the request is completely ignored and
+  /// not stored in memory, pending tracker, or background storage.
+  ///
+  /// Note: The predicate must be lightweight and fast to avoid adding latency
+  /// to request initiation. It receives the request URL string before sanitization.
   final bool Function(String url)? shouldCapture;
+
+  /// Whether to persist offloaded request/response bodies to a temporary file on disk.
+  ///
+  /// When `true` (the default), payloads exceeding [bodyOffloadThreshold] are
+  /// streamed to a session-scoped temporary file to conserve RAM.
+  ///
+  /// When `false` (memory-only mode), all captured payloads are retained inline in
+  /// memory up to [maxBodyBytes], and no disk writes or temporary files are created.
+  final bool persistToDisk;
+
+  /// Convenience getter indicating whether memory-only mode is active.
+  /// Equivalent to `!persistToDisk`.
+  bool get memoryOnly => !persistToDisk;
 
   InterceptlySettings copyWith({
     int? bodyOffloadThreshold,
@@ -73,7 +121,10 @@ class InterceptlySettings {
     bool? urlDecodeEnabled,
     Duration? pendingTimeout,
     Set<String>? redactedHeaders,
+    Set<String>? redactedQueryParams,
+    BodyRedactor? bodyRedactor,
     bool Function(String url)? shouldCapture,
+    bool? persistToDisk,
   }) {
     return InterceptlySettings(
       bodyOffloadThreshold: bodyOffloadThreshold ?? this.bodyOffloadThreshold,
@@ -87,7 +138,10 @@ class InterceptlySettings {
       urlDecodeEnabled: urlDecodeEnabled ?? this.urlDecodeEnabled,
       pendingTimeout: pendingTimeout ?? this.pendingTimeout,
       redactedHeaders: redactedHeaders ?? this.redactedHeaders,
+      redactedQueryParams: redactedQueryParams ?? this.redactedQueryParams,
+      bodyRedactor: bodyRedactor ?? this.bodyRedactor,
       shouldCapture: shouldCapture ?? this.shouldCapture,
+      persistToDisk: persistToDisk ?? this.persistToDisk,
     );
   }
 }

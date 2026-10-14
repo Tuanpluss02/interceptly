@@ -208,63 +208,88 @@ class MasterSearchController extends ChangeNotifier {
         RandomAccessFile? raf;
         try {
           raf = await BodyStore.openReadHandle(filePath);
-          const batchSize = 4;
-          for (var start = 0; start < fileEntries.length; start += batchSize) {
-            if (gen != _generation || _isDisposed) return;
-            final batch = fileEntries.sublist(
-              start,
-              (start + batchSize).clamp(0, fileEntries.length),
-            );
-
-            final batchPayloads = <(IndexEntry, Uint8List)?>[];
-            for (final item in batch) {
+          if (fileEntries.length <= 8) {
+            var hasNewMatch = false;
+            for (final (e, offset, length) in fileEntries) {
               if (gen != _generation || _isDisposed) return;
               try {
-                final (e, offset, length) = item;
                 final raw = await BodyStore.readWithHandle(raf, offset, length);
-                batchPayloads.add((e, raw));
-              } catch (e) {
-                if (kDebugMode) {
-                  debugPrint('[Interceptly] master search file read error: $e');
-                }
-                batchPayloads.add(null);
-              }
-            }
-
-            final futures = batchPayloads.map((payload) async {
-              if (payload == null) return (false, null);
-              final (e, raw) = payload;
-              try {
-                final decoded = raw.length > BodyDecodeService.computeThreshold
-                    ? await compute(BodyDecodeService.unpackToText, raw)
-                    : BodyDecodeService.unpackToText(raw);
+                final decoded = BodyDecodeService.unpackToText(raw);
                 final combined =
                     '${decoded.$1 ?? ''}\n${decoded.$2 ?? ''}'.toLowerCase();
-                if (combined.contains(q)) return (true, e);
-              } catch (e) {
-                if (kDebugMode) {
-                  debugPrint('[Interceptly] master search decode error: $e');
+                if (combined.contains(q)) {
+                  if (!matchedIds.contains(e.id)) {
+                    matchedIds.add(e.id);
+                    _results?.add(e);
+                    hasNewMatch = true;
+                  }
+                  (_matchScopes[e.id] ??= <SearchMatchScope>{})
+                      .add(SearchMatchScope.body);
                 }
-              }
-              return (false, null);
-            });
-
-            final results = await Future.wait(futures);
-            if (gen != _generation || _isDisposed) return;
-            var hasNewMatch = false;
-            for (final (matched, e) in results) {
-              if (matched && e != null) {
-                if (!matchedIds.contains(e.id)) {
-                  matchedIds.add(e.id);
-                  _results?.add(e);
-                  hasNewMatch = true;
-                }
-                (_matchScopes[e.id] ??= <SearchMatchScope>{})
-                    .add(SearchMatchScope.body);
-              }
+              } catch (_) {}
             }
             if (hasNewMatch) {
               _notifyThrottled();
+            }
+          } else {
+            final batchSize = fileEntries.length > 100 ? 32 : 16;
+            for (var start = 0; start < fileEntries.length; start += batchSize) {
+              if (gen != _generation || _isDisposed) return;
+              final batch = fileEntries.sublist(
+                start,
+                (start + batchSize).clamp(0, fileEntries.length),
+              );
+
+              final batchPayloads = <(IndexEntry, Uint8List)?>[];
+              for (final item in batch) {
+                if (gen != _generation || _isDisposed) return;
+                try {
+                  final (e, offset, length) = item;
+                  final raw = await BodyStore.readWithHandle(raf, offset, length);
+                  batchPayloads.add((e, raw));
+                } catch (e) {
+                  if (kDebugMode) {
+                    debugPrint('[Interceptly] master search file read error: $e');
+                  }
+                  batchPayloads.add(null);
+                }
+              }
+
+              final futures = batchPayloads.map((payload) async {
+                if (payload == null) return (false, null);
+                final (e, raw) = payload;
+                try {
+                  final decoded = raw.length > BodyDecodeService.computeThreshold
+                      ? await compute(BodyDecodeService.unpackToText, raw)
+                      : BodyDecodeService.unpackToText(raw);
+                  final combined =
+                      '${decoded.$1 ?? ''}\n${decoded.$2 ?? ''}'.toLowerCase();
+                  if (combined.contains(q)) return (true, e);
+                } catch (e) {
+                  if (kDebugMode) {
+                    debugPrint('[Interceptly] master search decode error: $e');
+                  }
+                }
+                return (false, null);
+              });
+
+              final results = await Future.wait(futures);
+              if (gen != _generation || _isDisposed) return;
+              var hasNewMatch = false;
+              for (final (matched, e) in results) {
+                if (matched && e != null) {
+                  if (!matchedIds.contains(e.id)) {
+                    matchedIds.add(e.id);
+                    _results?.add(e);
+                    hasNewMatch = true;
+                  }
+                  (_matchScopes[e.id] ??= <SearchMatchScope>{})
+                      .add(SearchMatchScope.body);
+                }
+              }
+              if (hasNewMatch) {
+                _notifyThrottled();
+              }
             }
           }
         } catch (e) {

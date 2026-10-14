@@ -71,9 +71,17 @@ class InterceptlyWebSocketChannel extends StreamChannelMixin
           headers: headers,
         );
       } catch (_) {
-        // Prevent inspector failures from interrupting application traffic.
+        /// Prevent inspector failures from interrupting application traffic.
       }
     }
+    unawaited(
+      _inner.ready.then(
+        (_) => null,
+        onError: (Object error, StackTrace? _) {
+          _closeConnection(1006, error.toString());
+        },
+      ),
+    );
   }
 
   /// Convenience wrapper around an existing [WebSocketChannel].
@@ -151,6 +159,7 @@ class InterceptlyWebSocketChannel extends StreamChannelMixin
       },
       handleError:
           (Object error, StackTrace stackTrace, EventSink<dynamic> sink) {
+        _closeConnection(1006, error.toString());
         sink.addError(error, stackTrace);
       },
       handleDone: (EventSink<dynamic> sink) {
@@ -162,21 +171,47 @@ class InterceptlyWebSocketChannel extends StreamChannelMixin
 
   void _recordFrame(dynamic data, FrameDirection direction) {
     try {
+      final dynamic payload;
       final FrameType type;
-      if (data is Uint8List || data is List<int>) {
+      if (data is Uint8List) {
         type = FrameType.binary;
+        payload = _truncateBinary(data);
+      } else if (data is ByteData) {
+        type = FrameType.binary;
+        payload = _truncateBinary(
+          data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+        );
+      } else if (data is List<int>) {
+        type = FrameType.binary;
+        payload = _truncateBinary(Uint8List.fromList(data));
+      } else if (data is String) {
+        type = FrameType.text;
+        payload = _truncateText(data);
       } else {
         type = FrameType.text;
+        payload = data != null ? _truncateText(data.toString()) : null;
       }
       collector.recordFrame(
         sessionId: sessionId,
         direction: direction,
         type: type,
-        payload: data,
+        payload: payload,
       );
     } catch (_) {
-      // Prevent inspector failures from interrupting application traffic.
+      /// Prevent inspector failures from interrupting application traffic.
     }
+  }
+
+  Uint8List _truncateBinary(Uint8List bytes) {
+    final maxBytes = session.settings.maxBodyBytes;
+    if (maxBytes <= 0 || bytes.length <= maxBytes) return bytes;
+    return Uint8List.sublistView(bytes, 0, maxBytes);
+  }
+
+  String _truncateText(String text) {
+    final maxBytes = session.settings.maxBodyBytes;
+    if (maxBytes <= 0 || text.length <= maxBytes) return text;
+    return text.substring(0, maxBytes);
   }
 
   void _closeConnection([int? closeCode, String? closeReason]) {
@@ -189,7 +224,7 @@ class InterceptlyWebSocketChannel extends StreamChannelMixin
         closeReason: closeReason ?? _inner.closeReason,
       );
     } catch (_) {
-      // Prevent inspector failures from interrupting application traffic.
+      /// Prevent inspector failures from interrupting application traffic.
     }
   }
 }
@@ -203,8 +238,8 @@ class _InterceptlyWebSocketSink implements WebSocketSink {
 
   @override
   void add(dynamic data) {
-    _channel._recordFrame(data, FrameDirection.outgoing);
     _innerSink.add(data);
+    _channel._recordFrame(data, FrameDirection.outgoing);
   }
 
   @override

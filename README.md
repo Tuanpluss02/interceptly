@@ -39,17 +39,24 @@ Interceptly is organized as a modular monorepo managed with [Melos](https://melo
 
 Add the core package and the adapter(s) corresponding to your network client:
 
+```bash
+flutter pub add interceptly
+
+# Add the adapter(s) you need:
+flutter pub add interceptly_dio
+flutter pub add interceptly_http
+flutter pub add interceptly_chopper
+flutter pub add interceptly_web_socket
+```
+
+For local monorepo development, path dependencies can also be used:
+
 ```yaml
 dependencies:
-  flutter:
-    sdk: flutter
-  interceptly: ^2.0.3
-
-  # Choose one or more adapters:
-  interceptly_dio: ^1.0.0
-  interceptly_http: ^1.0.0
-  interceptly_chopper: ^1.0.0
-  interceptly_web_socket: ^1.0.0
+  interceptly:
+    path: packages/interceptly
+  interceptly_dio:
+    path: packages/interceptly_dio
 ```
 
 ### 2. Initialize Interceptly
@@ -72,7 +79,11 @@ void main() {
       navigatorKey: navigatorKey,
       settings: const InterceptlySettings(
         maxEntries: 1000,
-        maxFramesPerSession: 500,
+        maxFramesPerSession: 1000,
+        // Opt-in: redaction is off by default, so list every sensitive
+        // header explicitly. Captured traffic may contain PII — keep the
+        // inspector debug-only and consider redactedQueryParams/bodyRedactor.
+        redactedHeaders: {'authorization', 'cookie', 'set-cookie', 'x-api-key'},
       ),
     );
   }
@@ -122,6 +133,51 @@ channel.sink.add('Hello Interceptly!');
 
 ---
 
+## Entry-Point Configuration & Triggers
+
+### `Interceptly.init` Parameters
+
+| Parameter | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `navigatorKey` | `GlobalKey<NavigatorState>` | *Required* | Global navigator key used to mount overlay and push inspector screen |
+| `showFloatingButton` | `bool` | `true` | Whether to display the draggable floating action button overlay |
+| `fabChild` | `Widget?` | `null` | Optional custom widget rendered inside the floating action button |
+| `customTrigger` | `Stream<void>?` | `null` | Stream triggering inspector opening (e.g. shake detector, volume keys, gesture) |
+| `settings` | `InterceptlySettings?` | Default settings | Storage thresholds, body caps, redactions, and timeout durations |
+| `allowInRelease` | `bool` | `false` | Security guard preventing accidental release-mode exposure unless set to `true` |
+
+### Overlay & Navigation Triggers
+
+- **Route Transition Observer**: Set `navigatorObservers: [Interceptly.navigatorObserver]` on `MaterialApp` to ensure the floating overlay button always remains on top across route changes.
+- **Custom Trigger Stream**: Supply `customTrigger: shakeSensorStream` to open the inspector on device shake or hardware buttons.
+- **Custom Button Icon**: Pass `fabChild: Icon(Icons.bug_report, color: Colors.amber)` to customize button appearance.
+- **Programmatic Control**:
+  ```dart
+  Interceptly.showInspector(context); // Open inspector view directly
+  Interceptly.hideFloatingButtonForSession(); // Hide floating button for session
+  Interceptly.showFloatingButtonForSession(); // Restore floating button
+  final isHidden = Interceptly.isFloatingButtonHiddenForSession;
+  Interceptly.detach(); // Remove overlay and cancel subscriptions
+  ```
+
+### Filtering Requests with `shouldCapture`
+
+You can pass a custom filter predicate to `InterceptlySettings.shouldCapture`:
+
+```dart
+InterceptlySettings(
+  shouldCapture: (url) {
+    // Return false to skip capture entirely
+    return !url.contains('/health-check') && !url.contains('/analytics');
+  },
+)
+```
+
+> [!NOTE]
+> `shouldCapture` is executed synchronously on every outbound request before dispatch. It must be fast, non-blocking, and lightweight. Requests returning `false` are completely ignored and consume zero memory or disk storage.
+
+---
+
 ## Architecture: Bridge Pattern & Traffic Collectors SPI
 
 All satellite adapters in Interceptly follow a unified **Bridge & SPI** pattern, delegating coordination to core collectors:
@@ -158,6 +214,17 @@ melos run test
 
 # Clean build artifacts across all packages
 melos run clean
+```
+
+---
+
+## Example Application
+
+An interactive Flutter showcase application demonstrating all adapters (Dio, HTTP, Chopper, WebSocket) is provided in [`packages/interceptly/example`](packages/interceptly/example):
+
+```bash
+cd packages/interceptly/example
+flutter run
 ```
 
 ---

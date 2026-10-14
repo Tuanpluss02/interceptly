@@ -19,6 +19,10 @@ abstract class InspectorSessionView extends ChangeNotifier {
   InspectorPreferences get preferences;
 
   List<RequestSummary> get entries;
+
+  /// Monotonically increasing counter incremented on every entry addition, update, or clear.
+  int get entriesVersion => 0;
+
   RequestFilter get filter;
   bool get isEnabled;
   int get droppedCount;
@@ -33,6 +37,24 @@ abstract class InspectorSessionView extends ChangeNotifier {
   /// Returns the scopes that matched the active master search query for the given record ID.
   Set<SearchMatchScope> getSearchScopes(String id) =>
       const <SearchMatchScope>{};
+
+  /// Looks up an entry by its unique [id] in O(1) time on concrete sessions,
+  /// with an O(N) fallback over [entries] on the base view interface.
+  RequestSummary? byId(String id) {
+    for (final e in entries) {
+      if (e.id == id) return e;
+    }
+    return null;
+  }
+
+  /// Loads full details for the request record with [id].
+  Future<RequestRecord> loadDetailById(String id) async {
+    final summary = byId(id);
+    if (summary != null) {
+      return loadDetail(summary);
+    }
+    throw StateError('Record not found for id: $id');
+  }
 
   Future<RequestRecord> loadDetail(RequestSummary summary);
 

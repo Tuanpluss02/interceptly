@@ -247,7 +247,7 @@ void main() {
     });
 
     test(
-        'delegates unsuccessful HTTP response (isSuccessful = false) to collector.failRequest',
+        'delegates unsuccessful HTTP response (isSuccessful = false) to collector.completeResponse',
         () async {
       final spy = _SpyHttpTrafficCollector(session);
       final interceptor = InterceptlyChopperInterceptor(session, spy);
@@ -277,17 +277,14 @@ void main() {
       expect(response.isSuccessful, isFalse);
 
       expect(spy.startRequestCalls.length, 1);
-      expect(spy.completeResponseCalls, isEmpty);
+      expect(spy.failRequestCalls, isEmpty);
 
-      expect(spy.failRequestCalls.length, 1);
-      final failCall = spy.failRequestCalls.first;
-      expect(failCall['statusCode'], 404);
-      expect(failCall['error'], 'Resource not found');
-      expect(failCall['errorType'], 'ChopperError');
-      expect(failCall['errorMessage'], 'Resource not found');
-      expect(failCall['responseHeaders'], {'content-type': 'application/json'});
-      expect(failCall['responseBodyBytes'], isNotNull);
-      expect(utf8.decode(failCall['responseBodyBytes'] as Uint8List),
+      expect(spy.completeResponseCalls.length, 1);
+      final completeCall = spy.completeResponseCalls.first;
+      expect(completeCall['statusCode'], 404);
+      expect(completeCall['headers'], {'content-type': 'application/json'});
+      expect(completeCall['bodyBytes'], isNotNull);
+      expect(utf8.decode(completeCall['bodyBytes'] as Uint8List),
           '{"error":"not_found"}');
     });
 
@@ -561,8 +558,8 @@ void main() {
       expect(session.entries.length, 1);
       final entry = session.entries.first;
       expect(entry.statusCode, 404);
-      expect(entry.hasError, isTrue);
-      expect(entry.errorType, 'ChopperError');
+      expect(entry.hasError, isFalse);
+      expect(entry.errorType, isNull);
     });
 
     test(

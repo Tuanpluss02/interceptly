@@ -278,7 +278,7 @@ void main() {
     });
 
     test(
-        'onError delegates to collector.failRequest with context, error, and response',
+        'onError delegates to collector.completeResponse on badResponse with response',
         () async {
       final spy = _SpyHttpTrafficCollector();
       final interceptor = InterceptlyDioInterceptor(null, spy);
@@ -305,13 +305,12 @@ void main() {
         throwsA(isA<DioException>()),
       );
 
-      expect(spy.failRequestCalls.length, equals(1));
-      final call = spy.failRequestCalls.first;
+      expect(spy.completeResponseCalls.length, equals(1));
+      final call = spy.completeResponseCalls.first;
       expect(call['statusCode'], equals(404));
-      expect(call['errorType'], equals(DioExceptionType.badResponse.name));
       expect(call['context'], isA<HttpRequestContext>());
-      expect(call['responseBodyBytes'], isNotNull);
-      expect(utf8.decode(call['responseBodyBytes'] as Uint8List),
+      expect(call['bodyBytes'], isNotNull);
+      expect(utf8.decode(call['bodyBytes'] as Uint8List),
           contains('not found'));
     });
 

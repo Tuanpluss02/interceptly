@@ -63,29 +63,32 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: widget.session,
+    return ListenableBuilder(
+      listenable: widget.session.preferences,
       builder: (context, _) {
-        InterceptlyTheme.bind(
-            context: context, themeMode: widget.session.preferences.themeMode);
+        final themeMode = widget.session.preferences.themeMode;
+        InterceptlyTheme.bind(context: context, themeMode: themeMode);
 
         return Theme(
           data: InterceptlyTheme.themeData(
             context: context,
-            themeMode: widget.session.preferences.themeMode,
+            themeMode: themeMode,
           ),
           child: Builder(
             builder: (themedContext) => Scaffold(
               appBar: AppBar(
                 title: const Text('Interceptly'),
                 actions: [
-                  IconButton(
-                    icon: Icon(widget.session.groupingEnabled
-                        ? Icons.group_work
-                        : Icons.public),
-                    onPressed: () => widget.session
-                        .toggleGrouping(!widget.session.groupingEnabled),
-                    tooltip: 'Group by domain',
+                  ListenableBuilder(
+                    listenable: widget.session,
+                    builder: (context, _) => IconButton(
+                      icon: Icon(widget.session.groupingEnabled
+                          ? Icons.group_work
+                          : Icons.public),
+                      onPressed: () => widget.session
+                          .toggleGrouping(!widget.session.groupingEnabled),
+                      tooltip: 'Group by domain',
+                    ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.delete_outline),
@@ -101,13 +104,18 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
                 bottom: PreferredSize(
                   preferredSize: const Size.fromHeight(1.0),
                   child: Container(
-                      color: InterceptlyTheme.dividerSubtle, height: 1.0),
+                    color: InterceptlyTheme.dividerSubtle,
+                    height: 1.0,
+                  ),
                 ),
               ),
-              body: NetworkTab(
-                session: widget.session,
-                groupingEnabled: widget.session.groupingEnabled,
-                onShowFilterPanel: () => _showFilterPanel(themedContext),
+              body: ListenableBuilder(
+                listenable: widget.session,
+                builder: (context, _) => NetworkTab(
+                  session: widget.session,
+                  groupingEnabled: widget.session.groupingEnabled,
+                  onShowFilterPanel: () => _showFilterPanel(themedContext),
+                ),
               ),
             ),
           ),

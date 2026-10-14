@@ -35,13 +35,20 @@ class FakeWebSocketChannel extends StreamChannelMixin
     this.protocol,
     this.closeCode,
     this.closeReason,
+    bool autoReady = true,
   })  : _streamController = streamController ?? StreamController<dynamic>(),
         _sinkController = sinkController ?? StreamController<dynamic>() {
-    _readyCompleter.complete();
+    if (autoReady) {
+      _readyCompleter.complete();
+    }
     _sinkController.stream.listen(
       sentData.add,
       onError: sinkErrors.add,
     );
+  }
+
+  void completeReadyError(Object error, [StackTrace? stackTrace]) {
+    _readyCompleter.completeError(error, stackTrace);
   }
 
   @override
@@ -436,6 +443,88 @@ void main() {
       await channel.sink.close();
       await expectLater(doneFuture, completes);
     });
+
+    test('closes connection with 1006 when ready future rejects', () async {
+      final fake = FakeWebSocketChannel(autoReady: false);
+      final channel = InterceptlyWebSocketChannel(
+        fake,
+        uri: Uri.parse('wss://example.com/ready-fail'),
+        sessionId: 'ws-ready-fail',
+        interceptly: interceptly,
+      );
+      expect(channel, isNotNull);
+
+      fake.completeReadyError(StateError('Handshake failure'));
+      await pumpEventQueue();
+
+      final entry = session.entries.firstWhere((e) => e.id == 'ws-ready-fail');
+      expect(entry.statusCode, equals(1006));
+      expect(entry.hasError, isTrue);
+      expect(entry.errorMessage, contains('Handshake failure'));
+    });
+
+    test('closes connection with 1006 when stream emits error', () async {
+      final channel = InterceptlyWebSocketChannel(
+        fakeChannel,
+        uri: Uri.parse('wss://example.com/stream-err'),
+        sessionId: 'ws-stream-err',
+        interceptly: interceptly,
+      );
+
+      Object? receivedError;
+      final sub = channel.stream.listen(
+        (_) {},
+        onError: (Object err) {
+          receivedError = err;
+        },
+      );
+
+      fakeChannel.emitIncomingError(StateError('Unexpected connection reset'));
+      await pumpEventQueue();
+
+      expect(receivedError, isA<StateError>());
+      final entry = session.entries.firstWhere((e) => e.id == 'ws-stream-err');
+      expect(entry.statusCode, equals(1006));
+      expect(entry.hasError, isTrue);
+      expect(entry.errorMessage, contains('Unexpected connection reset'));
+      await sub.cancel();
+    });
+
+    test('captures ByteData payload as binary frame', () async {
+      final channel = InterceptlyWebSocketChannel(
+        fakeChannel,
+        sessionId: 'ws-bytedata',
+        interceptly: interceptly,
+      );
+
+      final bd = ByteData(4)..setUint32(0, 0x12345678);
+      channel.sink.add(bd);
+      await pumpEventQueue();
+
+      expect(fakeChannel.sentData.first, equals(bd));
+      final frames = session.getRealtimeFrames('ws-bytedata');
+      expect(frames.length, equals(1));
+      expect(frames.first.type, equals(FrameType.binary));
+      expect(frames.first.binaryPayload, isNotNull);
+      expect(frames.first.payloadSizeBytes, equals(4));
+    });
+
+    test('truncates payload according to session maxBodyBytes', () async {
+      session.configureSession(session.settings.copyWith(maxBodyBytes: 32));
+      final channel = InterceptlyWebSocketChannel(
+        fakeChannel,
+        sessionId: 'ws-truncate',
+        interceptly: interceptly,
+      );
+
+      final bigText = 'A' * 100;
+      channel.sink.add(bigText);
+      await pumpEventQueue();
+
+      final frames = session.getRealtimeFrames('ws-truncate');
+      expect(frames.length, equals(1));
+      expect(frames.first.textPayload!.length, equals(32));
+    });
   });
 
   group('RealtimeCaptureAdapter and TrafficCollector Delegation', () {
@@ -611,6 +700,23 @@ void main() {
       await channel.sink.close(1000, 'Safe close');
       await pumpEventQueue();
       expect(fakeChannel.sinkClosed, isTrue);
+    });
+
+    test('sink.add forwards to underlying sink before recording', () async {
+      spyCollector.throwOnFrame = true;
+      final channel = InterceptlyWebSocketChannel(
+        fakeChannel,
+        sessionId: 'ws-forward-first',
+        collector: spyCollector,
+      );
+
+      channel.sink.add('must be sent despite collector throwing');
+      await pumpEventQueue();
+
+      expect(
+        fakeChannel.sentData,
+        equals(['must be sent despite collector throwing']),
+      );
     });
   });
 }

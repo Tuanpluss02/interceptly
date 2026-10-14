@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:chopper/chopper.dart';
 import 'package:flutter/foundation.dart';
@@ -91,44 +90,19 @@ class InterceptlyChopperInterceptor
 
     if (effectiveContext != null) {
       await guardCaptureAsync(() async {
-        if (response.isSuccessful) {
-          await collector.completeResponse(
-            context: effectiveContext,
-            statusCode: response.statusCode,
-            headers: response.base.headers,
-            bodyBytes: resBody,
-            responseContentType:
-                headerValue(response.base.headers, 'content-type'),
-          );
-        } else {
-          await session.applyNetworkSimulationAfterResponse(
-            downloadBytes: resBody?.length ?? 0,
-          );
-          collector.failRequest(
-            context: effectiveContext,
-            error: response.error ?? 'ChopperError',
-            errorType: 'ChopperError',
-            errorMessage: response.error?.toString(),
-            statusCode: response.statusCode,
-            responseHeaders: response.base.headers,
-            responseBodyBytes: resBody,
-          );
-        }
+        await collector.completeResponse(
+          context: effectiveContext,
+          statusCode: response.statusCode,
+          headers: response.base.headers,
+          bodyBytes: resBody,
+          responseContentType:
+              headerValue(response.base.headers, 'content-type'),
+        );
       });
     }
 
     return response;
   }
 
-  static Uint8List? _encodeBody(Object? body) {
-    if (body == null) return null;
-    if (body is Uint8List) return body;
-    if (body is List<int>) return Uint8List.fromList(body);
-    if (body is String) return utf8.encode(body);
-    try {
-      return utf8.encode(jsonEncode(body));
-    } catch (_) {
-      return utf8.encode(body.toString());
-    }
-  }
+  static Uint8List? _encodeBody(Object? body) => encodeBodyBytes(body);
 }

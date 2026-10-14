@@ -74,7 +74,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
       _query = initial;
       _searchController.text = initial;
     }
-    _recordFuture = widget.session.loadDetail(_currentEntry);
+    _recordFuture = _loadDetailForEntry(_currentEntry);
     widget.session.addListener(_onSessionChanged);
     _recordFuture.then((record) {
       if (mounted) {
@@ -90,14 +90,16 @@ class _RequestDetailPageState extends State<RequestDetailPage>
     _tabController.addListener(_onTabChanged);
   }
 
-  void _onSessionChanged() {
-    RequestSummary? latest;
-    for (final entry in widget.session.entries) {
-      if (entry.id == _currentEntry.id) {
-        latest = entry;
-        break;
-      }
+  Future<RequestRecord> _loadDetailForEntry(RequestSummary entry) async {
+    try {
+      return await widget.session.loadDetailById(entry.id);
+    } catch (_) {
+      return await widget.session.loadDetail(entry);
     }
+  }
+
+  void _onSessionChanged() {
+    final latest = widget.session.byId(_currentEntry.id);
     if (latest == null) return;
 
     if (_entryChanged(_currentEntry, latest)) {
@@ -110,22 +112,25 @@ class _RequestDetailPageState extends State<RequestDetailPage>
   }
 
   bool _entryChanged(RequestSummary prev, RequestSummary next) {
-    final prevI = prev as IndexEntry;
-    final nextI = next as IndexEntry;
-    return prev.statusCode != next.statusCode ||
+    if (prev.statusCode != next.statusCode ||
         prev.durationMs != next.durationMs ||
         prev.responseSizeBytes != next.responseSizeBytes ||
         prev.hasError != next.hasError ||
         prev.errorType != next.errorType ||
-        prev.errorMessage != next.errorMessage ||
-        prevI.bodyLocation != nextI.bodyLocation ||
-        prevI.fileOffset != nextI.fileOffset ||
-        prevI.fileLength != nextI.fileLength;
+        prev.errorMessage != next.errorMessage) {
+      return true;
+    }
+    if (prev is IndexEntry && next is IndexEntry) {
+      return prev.bodyLocation != next.bodyLocation ||
+          prev.fileOffset != next.fileOffset ||
+          prev.fileLength != next.fileLength;
+    }
+    return false;
   }
 
   Future<void> _refreshDetail(RequestSummary entry) async {
     final generation = ++_detailLoadGeneration;
-    final future = widget.session.loadDetail(entry);
+    final future = _loadDetailForEntry(entry);
     _recordFuture = future;
     final record = await future;
     if (!mounted || generation != _detailLoadGeneration) return;

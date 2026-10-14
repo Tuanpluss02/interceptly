@@ -22,6 +22,9 @@ class _MockSession extends ChangeNotifier implements InspectorSessionView {
   List<RequestSummary> get entries => const [];
 
   @override
+  int get entriesVersion => 0;
+
+  @override
   RequestFilter get filter => RequestFilter();
 
   @override
@@ -51,6 +54,13 @@ class _MockSession extends ChangeNotifier implements InspectorSessionView {
 
   @override
   Set<SearchMatchScope> getSearchScopes(String id) => const {};
+
+  @override
+  RequestSummary? byId(String id) => null;
+
+  @override
+  Future<RequestRecord> loadDetailById(String id) =>
+      throw UnimplementedError();
 
   @override
   Future<RequestRecord> loadDetail(RequestSummary summary) =>

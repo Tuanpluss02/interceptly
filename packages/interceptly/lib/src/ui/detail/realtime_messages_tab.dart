@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -32,6 +33,8 @@ class RealtimeMessagesTab extends StatefulWidget {
 class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
   final TextEditingController _searchController = TextEditingController();
   final Set<String> _inspectedFrameIds = <String>{};
+  final Map<String, dynamic> _parsedJsonCache = <String, dynamic>{};
+  Timer? _searchDebounceTimer;
 
   String _searchQuery = '';
   FrameDirection? _directionFilter;
@@ -54,6 +57,8 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
 
   @override
   void dispose() {
+    _searchDebounceTimer?.cancel();
+    _parsedJsonCache.clear();
     widget.session?.removeListener(_onSessionChanged);
     _searchController.dispose();
     super.dispose();
@@ -117,11 +122,18 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
     return '[binary: ${bytes.length} bytes] $sample$suffix';
   }
 
-  dynamic _tryParseJson(String? text) {
+  dynamic _tryParseJson(RealtimeFrame frame) {
+    final text = frame.textPayload;
     if (text == null || text.trim().isEmpty) return null;
+    if (_parsedJsonCache.containsKey(frame.id)) {
+      return _parsedJsonCache[frame.id];
+    }
     try {
-      return jsonDecode(text);
+      final parsed = jsonDecode(text);
+      _parsedJsonCache[frame.id] = parsed;
+      return parsed;
     } catch (_) {
+      _parsedJsonCache[frame.id] = null;
       return null;
     }
   }
@@ -152,22 +164,26 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
     }
 
     final query = _searchQuery.trim().toLowerCase();
-    final filteredFrames = allFrames.where((frame) {
-      if (_directionFilter != null && frame.direction != _directionFilter) {
-        return false;
-      }
-      if (_typeFilter != null && frame.type != _typeFilter) {
-        return false;
-      }
-      if (query.isNotEmpty) {
-        final payloadText = _getPayloadString(frame).toLowerCase();
-        final typeText = frame.type.name.toLowerCase();
-        if (!payloadText.contains(query) && !typeText.contains(query)) {
-          return false;
-        }
-      }
-      return true;
-    }).toList();
+    final bool hasFilter =
+        _directionFilter != null || _typeFilter != null || query.isNotEmpty;
+    final List<RealtimeFrame> filteredFrames = hasFilter
+        ? allFrames.where((frame) {
+            if (_directionFilter != null && frame.direction != _directionFilter) {
+              return false;
+            }
+            if (_typeFilter != null && frame.type != _typeFilter) {
+              return false;
+            }
+            if (query.isNotEmpty) {
+              final payloadText = _getPayloadString(frame).toLowerCase();
+              final typeText = frame.type.name.toLowerCase();
+              if (!payloadText.contains(query) && !typeText.contains(query)) {
+                return false;
+              }
+            }
+            return true;
+          }).toList()
+        : allFrames;
 
     return Column(
       children: [
@@ -245,6 +261,7 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
                         color: InterceptlyTheme.textMuted,
                       ),
                       onPressed: () {
+                        _searchDebounceTimer?.cancel();
                         _searchController.clear();
                         setState(() {
                           _searchQuery = '';
@@ -272,8 +289,14 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
               ),
             ),
             onChanged: (val) {
-              setState(() {
-                _searchQuery = val;
+              _searchDebounceTimer?.cancel();
+              _searchDebounceTimer =
+                  Timer(const Duration(milliseconds: 180), () {
+                if (mounted) {
+                  setState(() {
+                    _searchQuery = val;
+                  });
+                }
               });
             },
           ),
@@ -417,7 +440,7 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
     final dirLabel = isIncoming ? '↓ IN' : '↑ OUT';
 
     final isInspected = _inspectedFrameIds.contains(frame.id);
-    final parsedJson = _tryParseJson(frame.textPayload);
+    final parsedJson = _tryParseJson(frame);
 
     return Container(
       key: ValueKey('frame_card_${frame.id}'),
@@ -430,7 +453,6 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header Bar
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
             decoration: BoxDecoration(
@@ -444,7 +466,6 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
             ),
             child: Row(
               children: [
-                // Direction Badge
                 Container(
                   key: ValueKey('frame_direction_${frame.id}'),
                   padding: const EdgeInsets.symmetric(
@@ -468,7 +489,6 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                // Type Badge
                 Container(
                   key: ValueKey('frame_type_${frame.id}'),
                   padding: const EdgeInsets.symmetric(
@@ -493,7 +513,6 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                // Payload Size Badge
                 Text(
                   formatBytes(frame.payloadSizeBytes),
                   key: ValueKey('frame_size_${frame.id}'),
@@ -503,7 +522,6 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
                   ),
                 ),
                 const Spacer(),
-                // Timestamp
                 Text(
                   _formatTimestamp(frame.timestamp),
                   key: ValueKey('frame_time_${frame.id}'),
@@ -513,7 +531,6 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
                   ),
                 ),
                 const SizedBox(width: 4),
-                // Inspect / Expand Toggle Button
                 IconButton(
                   key: ValueKey('frame_inspect_${frame.id}'),
                   tooltip: isInspected ? 'Collapse payload' : 'Inspect payload',
@@ -529,7 +546,6 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
                   onPressed: () => _toggleInspect(frame.id),
                 ),
                 const SizedBox(width: 2),
-                // Copy Button
                 IconButton(
                   key: ValueKey('frame_copy_${frame.id}'),
                   tooltip: 'Copy payload',
@@ -545,7 +561,6 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
               ],
             ),
           ),
-          // Payload Content
           Padding(
             padding: const EdgeInsets.all(12.0),
             child: isInspected

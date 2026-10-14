@@ -32,6 +32,13 @@ class Interceptly extends ChangeNotifier {
   /// Single entrypoint to initialize Interceptly: attaches the UI to [navigatorKey]
   /// and applies all desired configuration options in one clean call.
   ///
+  /// Release build checklist:
+  /// - Ensure sensitive headers (tokens, cookies, auth keys) are configured in
+  ///   [InterceptlySettings.redactedHeaders].
+  /// - Configure payload size caps via [InterceptlySettings.maxBodyBytes] and
+  ///   [InterceptlySettings.maxEntries] to avoid memory overhead.
+  /// - Keep the floating overlay hidden or restricted to internal users when shipping.
+  ///
   /// Pass [settings] only to (re)configure capture behavior; when omitted the
   /// session keeps whatever configuration it already has.
   ///

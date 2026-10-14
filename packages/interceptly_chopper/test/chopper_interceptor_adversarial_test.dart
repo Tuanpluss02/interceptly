@@ -289,9 +289,8 @@ void main() {
 
         expect(entry, isNotNull);
         expect(entry!.statusCode, code);
-        expect(entry.hasError, isTrue);
-        expect(entry.errorType, 'ChopperError');
-        expect(entry.errorMessage, contains('HTTP $code Error'));
+        expect(entry.hasError, isFalse);
+        expect(entry.errorType, isNull);
       }
     });
   });

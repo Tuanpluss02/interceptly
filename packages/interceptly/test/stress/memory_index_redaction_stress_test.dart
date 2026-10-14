@@ -307,12 +307,14 @@ void main() {
       expect(singleIndex.entries.first.statusCode, 304);
 
       final zeroIndex = MemoryIndex(maxEntries: 0);
-      expect(() => zeroIndex.add(_createIndexEntry('item')),
-          throwsA(isA<RangeError>()));
+      zeroIndex.add(_createIndexEntry('item'));
+      expect(zeroIndex.length, 1);
+      expect(zeroIndex.entries.single.id, 'item');
 
       final negativeIndex = MemoryIndex(maxEntries: -10);
-      expect(() => negativeIndex.add(_createIndexEntry('item')),
-          throwsA(isA<RangeError>()));
+      negativeIndex.add(_createIndexEntry('item'));
+      expect(negativeIndex.length, 1);
+      expect(negativeIndex.entries.single.id, 'item');
 
       singleIndex.clear();
       expect(singleIndex.length, 0);

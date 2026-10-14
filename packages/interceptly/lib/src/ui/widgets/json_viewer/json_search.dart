@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 
 import 'json_viewer_style.dart';
@@ -32,6 +33,24 @@ abstract final class JsonSearch {
       return data.toString();
     }
   }
+
+  /// Asynchronously formats [data] into pretty-printed JSON,
+  /// offloading to [compute] when [data] size or node count exceeds 5,000.
+  static Future<String> formatDataAsync(dynamic data) async {
+    if (data == null) return 'null';
+    if (data is String && data.length > 5000) {
+      return compute(_formatWorker, data);
+    }
+    if (data is List && data.length > 5000) {
+      return compute(_formatWorker, data);
+    }
+    if (data is Map && data.length > 5000) {
+      return compute(_formatWorker, data);
+    }
+    return formatData(data);
+  }
+
+  static String _formatWorker(dynamic data) => formatData(data);
 
   /// Counts case-insensitive [query] matches within structured JSON data.
   static int countMatches(dynamic data, String query) {

@@ -11,7 +11,7 @@ Chopper interceptor adapter for the [Interceptly](https://pub.dev/packages/inter
 
 ## Installation
 
-Add both `interceptly` (the core inspector) and `interceptly_chopper` to your `pubspec.yaml`:
+Add both `interceptly` (the core inspector) and `interceptly_chopper` to your project:
 
 ```bash
 flutter pub add interceptly
@@ -62,16 +62,27 @@ void main() {
 
 ---
 
-## Custom Interceptly Controller
+## Configuration Options & SPI Injection
 
-To link with a custom `Interceptly` instance:
+`InterceptlyChopperInterceptor` implements `HttpCaptureAdapter`. By default it attaches to `InspectorSession.instance` and `DefaultHttpTrafficCollector`, but you can pass custom instances:
 
 ```dart
-final customInterceptly = Interceptly();
+// Custom session:
+final customSession = InspectorSession(
+  settings: const InterceptlySettings(maxEntries: 1000),
+);
 
 final chopper = ChopperClient(
   interceptors: [
-    InterceptlyChopperInterceptor(interceptly: customInterceptly),
+    InterceptlyChopperInterceptor(customSession),
+  ],
+);
+
+// Or custom collector:
+final collector = DefaultHttpTrafficCollector(customSession);
+final customChopper = ChopperClient(
+  interceptors: [
+    InterceptlyChopperInterceptor(customSession, collector),
   ],
 );
 ```

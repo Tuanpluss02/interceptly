@@ -1,4 +1,4 @@
-// ignore: unnecessary_library_name
-library interceptly_http;
+/// HTTP client adapter for the Interceptly network inspector.
+library;
 
 export 'src/interceptly_http_client.dart';

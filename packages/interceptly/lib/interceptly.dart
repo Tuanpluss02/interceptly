@@ -1,4 +1,4 @@
-/// Flutter network inspector for Dio, HTTP, and Chopper with overlay UI, replay tools, and HAR/cURL export.
+/// Client-agnostic network and realtime inspector for Flutter with overlay UI, replay tools, WebSocket inspection, and HAR/cURL/Postman export.
 library;
 
 export 'src/adapter/http_request_context.dart' show HttpRequestContext;
@@ -8,12 +8,14 @@ export 'src/adapter/network_capture_adapter.dart'
     show HttpCaptureAdapter, RealtimeCaptureAdapter;
 export 'src/adapter/realtime_traffic_collector.dart'
     show DefaultRealtimeTrafficCollector, RealtimeTrafficCollector;
+export 'src/capture/body_bytes.dart'
+    show encodeBodyBytes, mapHeaderEntries, normalizeHeaders;
 export 'src/capture/capture_guard.dart';
 export 'src/core/interceptly_controller.dart' show Interceptly;
 export 'src/export/curl_generator.dart' show CurlGenerator;
 export 'src/export/har_exporter.dart' show HarExporter;
 export 'src/export/postman_exporter.dart' show PostmanExporter;
-export 'src/model/interceptly_settings.dart' show InterceptlySettings;
+export 'src/model/interceptly_settings.dart' show BodyRedactor, InterceptlySettings;
 export 'src/model/network_simulation.dart'
     show NetworkSimulationProfile, SimulatedNetworkException;
 export 'src/model/request_filter.dart' show RequestFilter;
@@ -27,4 +29,4 @@ export 'src/model/search_match_scope.dart' show SearchMatchScope;
 export 'src/session/inspector_session.dart' show InspectorSession;
 export 'src/session/inspector_session_view.dart' show InspectorSessionView;
 export 'src/session/request_id.dart' show RequestId;
-export 'src/session/ring_buffer.dart' show RingBuffer;
+export 'src/ui/format.dart' show formatBytes;

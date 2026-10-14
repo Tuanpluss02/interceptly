@@ -11,7 +11,7 @@
 
 ## Installation
 
-Add both `interceptly` (the core inspector) and `interceptly_web_socket` to your `pubspec.yaml`:
+Add both `interceptly` (the core inspector) and `interceptly_web_socket` to your project:
 
 ```bash
 flutter pub add interceptly
@@ -42,7 +42,7 @@ void main() {
     Interceptly.init(
       navigatorKey: navigatorKey,
       settings: const InterceptlySettings(
-        maxFramesPerSession: 500, // Retain up to 500 frames per connection
+        maxFramesPerSession: 1000, // Retain up to 1000 frames per connection
       ),
     );
   }
@@ -88,9 +88,29 @@ final inspectedChannel = InterceptlyWebSocketChannel.wrap(
 - **Text & Binary Frames**: Inspect UTF-8 text, formatted JSON, and binary `Uint8List` frames with byte counters.
 - **Connection Lifecycle**: Tracks connection establishment, active durations, and close handshake codes/reasons (e.g. `1000 Normal Closure`, `1006 Abnormal`).
 - **High Frequency Flood Protection**:
-  - **FIFO Ring Buffer**: Enforces `maxFramesPerSession` cap (default 500) per connection, dropping the oldest frames when exceeded to eliminate memory bloat.
+  - **FIFO Ring Buffer**: Enforces `maxFramesPerSession` cap (default 1000) per connection, dropping the oldest frames when exceeded to eliminate memory bloat.
   - **60fps UI Throttling**: Batch-updates the UI viewer smoothly so 1,000+ frames/sec floods never trigger Flutter UI jank.
 - **Fail-Safe**: Framing errors or inspector exceptions are non-intrusively caught and will never terminate or alter your live socket stream.
+
+---
+
+## Configuration Options & SPI Injection
+
+`InterceptlyWebSocketChannel` implements `RealtimeCaptureAdapter`. By default it attaches to `InspectorSession.instance` and `DefaultRealtimeTrafficCollector`, but you can inject custom instances:
+
+```dart
+final customSession = InspectorSession(
+  settings: const InterceptlySettings(maxFramesPerSession: 1000),
+);
+
+final collector = DefaultRealtimeTrafficCollector(customSession);
+
+final channel = InterceptlyWebSocketChannel.connect(
+  Uri.parse('wss://echo.websocket.events'),
+  session: customSession,
+  collector: collector,
+);
+```
 
 ---
 

@@ -29,14 +29,7 @@ class _FloatingOverlayNavigatorObserver extends NavigatorObserver {
   }
 
   void _scheduleBringToTop() {
-    if (_manager.isAttached &&
-        !_manager._inspectorIsOpen &&
-        !_manager._hiddenForSession &&
-        _manager._showFloatingButton) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _manager.bringToTop();
-      });
-    }
+    _manager.scheduleBringToTopPostFrame();
   }
 }
 
@@ -80,6 +73,8 @@ class FloatingOverlayManager {
   bool _isAttached = false;
   bool _observerRegistered = false;
   bool _hiddenForSession = false;
+  bool _navObserverAttached = false;
+  bool _bringToTopPostFrameScheduled = false;
 
   late final _FloatingOverlayNavigatorObserver _navigatorObserver =
       _FloatingOverlayNavigatorObserver(this);
@@ -106,12 +101,49 @@ class FloatingOverlayManager {
     }
   }
 
+  /// Schedules a debounced bring-to-top execution on the next frame callback.
+  void scheduleBringToTopPostFrame() {
+    if (!_isAttached ||
+        _inspectorIsOpen ||
+        _hiddenForSession ||
+        !_showFloatingButton) {
+      return;
+    }
+    if (_bringToTopPostFrameScheduled) return;
+    _bringToTopPostFrameScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _bringToTopPostFrameScheduled = false;
+      bringToTop();
+    });
+  }
+
   void attach({
     required GlobalKey<NavigatorState> navigatorKey,
     bool showFloatingButton = true,
     Widget? fabChild,
     VoidCallback? onFabTap,
   }) {
+    if (_isAttached && _navigatorKey == navigatorKey) {
+      final configChanged = _showFloatingButton != showFloatingButton ||
+          _fabChild != fabChild ||
+          _onFabTap != onFabTap;
+      _showFloatingButton = showFloatingButton;
+      _fabChild = fabChild;
+      _onFabTap = onFabTap;
+      if (_hiddenForSession && showFloatingButton) {
+        _hiddenForSession = false;
+        if (!_inspectorIsOpen) {
+          _tryInsertOverlays();
+        }
+      } else if (configChanged) {
+        _fabEntry?.markNeedsBuild();
+      }
+      if (!_showFloatingButton) {
+        setHiddenForSession(true);
+      }
+      return;
+    }
+
     if (_isAttached) {
       detach();
     }
@@ -225,8 +257,8 @@ class FloatingOverlayManager {
               securityBottom: mq.padding.bottom,
               securityTop: mq.padding.top,
               child: SizedBox(
-                width: 44,
-                height: 44,
+                width: 48,
+                height: 48,
                 child: Theme(
                   data: InterceptlyTheme.themeData(context: context),
                   child: Material(
@@ -237,7 +269,11 @@ class FloatingOverlayManager {
                     child: InkWell(
                       onTap: _onFabTap,
                       customBorder: const CircleBorder(),
-                      child: Center(child: fabChild),
+                      child: Semantics(
+                        button: true,
+                        label: 'Open Interceptly inspector',
+                        child: Center(child: fabChild),
+                      ),
                     ),
                   ),
                 ),
@@ -251,6 +287,7 @@ class FloatingOverlayManager {
   }
 
   void _tryAttachNavigatorObserver() {
+    if (_navObserverAttached) return;
     final navState = _navigatorKey?.currentState;
     if (navState == null) return;
     try {
@@ -258,7 +295,18 @@ class FloatingOverlayManager {
       if (!observers.contains(_navigatorObserver)) {
         observers.add(_navigatorObserver);
       }
+      _navObserverAttached = true;
     } catch (_) {}
+  }
+
+  void _detachNavigatorObserver() {
+    if (_navObserverAttached) {
+      try {
+        final navState = _navigatorKey?.currentState;
+        navState?.widget.observers.remove(_navigatorObserver);
+      } catch (_) {}
+      _navObserverAttached = false;
+    }
   }
 
   void onInspectorOpened() {
@@ -276,6 +324,8 @@ class FloatingOverlayManager {
       _observerRegistered = false;
     }
 
+    _detachNavigatorObserver();
+
     try {
       _fabEntry?.remove();
     } catch (_) {}
@@ -287,6 +337,7 @@ class FloatingOverlayManager {
     _inspectorIsOpen = false;
     _isAttached = false;
     _hiddenForSession = false;
+    _bringToTopPostFrameScheduled = false;
     persistentPosition.value = null;
   }
 }

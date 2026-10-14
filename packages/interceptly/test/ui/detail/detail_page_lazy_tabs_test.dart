@@ -188,13 +188,16 @@ void main() {
       expect(index.get('2')?.durationMs, 99);
     });
 
-    test('throws RangeError when maxEntries <= 0 on add', () {
+    test('clamps maxEntries <= 0 to 1 on add', () {
       final zeroIndex = MemoryIndex(maxEntries: 0);
-      expect(() => zeroIndex.add(_buildEntry('x')), throwsA(isA<RangeError>()));
+      expect(() => zeroIndex.add(_buildEntry('x')), returnsNormally);
+      expect(zeroIndex.length, 1);
+      expect(zeroIndex.entries.single.id, 'x');
 
       final negativeIndex = MemoryIndex(maxEntries: -5);
-      expect(() => negativeIndex.add(_buildEntry('y')),
-          throwsA(isA<RangeError>()));
+      expect(() => negativeIndex.add(_buildEntry('y')), returnsNormally);
+      expect(negativeIndex.length, 1);
+      expect(negativeIndex.entries.single.id, 'y');
     });
 
     test('clear resets count, head, and direct lookup map', () {

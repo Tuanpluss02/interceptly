@@ -5,13 +5,13 @@
 
 Dio HTTP interceptor adapter for the [Interceptly](https://pub.dev/packages/interceptly) network inspector in Flutter.
 
-Interceptly Dio Interceptor seamlessly captures outgoing HTTP requests, incoming responses, error details, and multipart data without impacting UI performance or interfering with your application logic.
+`InterceptlyDioInterceptor` seamlessly captures outgoing HTTP requests, incoming responses, error details, and multipart data without impacting UI performance or interfering with your application logic.
 
 ---
 
 ## Installation
 
-Add both `interceptly` (the core inspector) and `interceptly_dio` to your `pubspec.yaml`:
+Add both `interceptly` (the core inspector) and `interceptly_dio` to your project:
 
 ```bash
 flutter pub add interceptly
@@ -42,7 +42,12 @@ void main() {
   runApp(MyApp(navigatorKey: navigatorKey));
 
   if (kDebugMode || kProfileMode) {
-    Interceptly.init(navigatorKey: navigatorKey);
+    Interceptly.init(
+      navigatorKey: navigatorKey,
+      settings: const InterceptlySettings(
+        redactedHeaders: {'authorization', 'cookie', 'x-api-key'},
+      ),
+    );
   }
 }
 ```
@@ -51,23 +56,32 @@ void main() {
 
 ## Features
 
-- **Non-Intrusive**: Network errors or serialization quirks never break your application flow.
+- **Non-Intrusive**: Network errors or serialization quirks never break your application flow; all original errors pass through untouched.
+- **CancelToken Support**: Cancelled requests via `CancelToken` are recorded with `errorType: 'cancel'` and marked as errors.
 - **Rich Payload Support**: Captures JSON, URL-encoded forms, `FormData` multipart uploads, and binary responses.
-- **Error Capture**: Preserves full error messages, stack traces, and HTTP status codes.
+- **Error Capture**: Preserves full error messages, stack traces, and HTTP status codes (such as 4xx/5xx responses).
 - **Replay Ready**: Recorded Dio requests can be edited and re-sent directly from the Interceptly UI.
 - **Network Simulation**: Fully honors global latency, throttling, and offline profiles set in Interceptly.
 
 ---
 
-## Custom Interceptly Instance
+## Configuration Options & SPI Injection
 
-If you are using a custom `Interceptly` controller instance rather than the default singleton:
+`InterceptlyDioInterceptor` implements `HttpCaptureAdapter`. By default it attaches to `InspectorSession.instance` and `DefaultHttpTrafficCollector`, but you can inject a custom session or custom `HttpTrafficCollector`:
 
 ```dart
-final customInterceptly = Interceptly();
-
+// Custom session
+final customSession = InspectorSession(
+  settings: const InterceptlySettings(maxEntries: 1000),
+);
 final dio = Dio()..interceptors.add(
-  InterceptlyDioInterceptor(interceptly: customInterceptly),
+  InterceptlyDioInterceptor(customSession),
+);
+
+// Or custom collector:
+final collector = DefaultHttpTrafficCollector(customSession);
+final customDio = Dio()..interceptors.add(
+  InterceptlyDioInterceptor(customSession, collector),
 );
 ```
 

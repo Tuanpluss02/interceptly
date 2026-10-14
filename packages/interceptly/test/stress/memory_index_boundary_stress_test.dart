@@ -156,7 +156,7 @@ void main() {
 
   group('Adversarial Group 1: MemoryIndex Boundary maxEntries = 0 and Negative',
       () {
-    test('maxEntries = 0: initial properties, accessors, and RangeError on add',
+    test('maxEntries = 0: initial properties, accessors, and clamp on add',
         () {
       final index = MemoryIndex(maxEntries: 0);
 
@@ -170,13 +170,12 @@ void main() {
       expect(index.length, 0);
       expect(index.entries, isEmpty);
 
-      expect(
-        () => index.add(_createEntry('e1')),
-        throwsA(isA<RangeError>()),
-      );
+      expect(() => index.add(_createEntry('e1')), returnsNormally);
+      expect(index.length, 1);
+      expect(index.entries.single.id, 'e1');
     });
 
-    test('maxEntries < 0: initial properties and RangeError on add', () {
+    test('maxEntries < 0: initial properties and clamp on add', () {
       for (final cap in [-1, -5, -999]) {
         final index = MemoryIndex(maxEntries: cap);
         expect(index.length, 0);
@@ -184,10 +183,9 @@ void main() {
         expect(index.byId('any'), isNull);
         expect(index.get('any'), isNull);
         expect(() => index.clear(), returnsNormally);
-        expect(
-          () => index.add(_createEntry('neg')),
-          throwsA(isA<RangeError>()),
-        );
+        expect(() => index.add(_createEntry('neg')), returnsNormally);
+        expect(index.length, 1);
+        expect(index.entries.single.id, 'neg');
       }
     });
 

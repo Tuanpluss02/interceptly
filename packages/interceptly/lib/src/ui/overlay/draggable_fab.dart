@@ -28,7 +28,7 @@ class DraggableFab extends StatefulWidget {
 
 class _DraggableFabState extends State<DraggableFab>
     with SingleTickerProviderStateMixin {
-  Size _widgetSize = const Size(44, 44);
+  Size _widgetSize = const Size(48, 48);
   final GlobalKey _childKey = GlobalKey();
 
   late final AnimationController _snapController;
@@ -179,7 +179,14 @@ class _DraggableFabState extends State<DraggableFab>
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
             _updateWidgetSize();
-            _adjustPositionToSize(parentSize);
+            if (savedPos != null) {
+              _relativeY = parentSize.height > 0
+                  ? ((savedPos.dy + _widgetSize.height / 2) / parentSize.height)
+                      .clamp(0.0, 1.0)
+                  : 0.5;
+            } else {
+              _adjustPositionToSize(parentSize);
+            }
           });
         } else if (_lastParentSize != null &&
             (_lastParentSize!.width != parentSize.width ||

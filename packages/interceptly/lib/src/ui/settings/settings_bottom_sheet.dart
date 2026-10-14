@@ -271,7 +271,9 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                           latencyMs: v.round(),
                         );
                         setState(() => _networkSimulation = next);
-                        widget.session.setNetworkSimulation(next);
+                      },
+                      onChangeEnd: (v) {
+                        widget.session.setNetworkSimulation(_networkSimulation);
                       },
                     ),
                     const SizedBox(height: 8),
@@ -286,7 +288,9 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                           downloadKbps: v.round(),
                         );
                         setState(() => _networkSimulation = next);
-                        widget.session.setNetworkSimulation(next);
+                      },
+                      onChangeEnd: (v) {
+                        widget.session.setNetworkSimulation(_networkSimulation);
                       },
                     ),
                     const SizedBox(height: 8),
@@ -301,7 +305,9 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                           uploadKbps: v.round(),
                         );
                         setState(() => _networkSimulation = next);
-                        widget.session.setNetworkSimulation(next);
+                      },
+                      onChangeEnd: (v) {
+                        widget.session.setNetworkSimulation(_networkSimulation);
                       },
                     ),
                   ],
@@ -322,6 +328,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
     required double max,
     required String unit,
     required ValueChanged<double> onChanged,
+    ValueChanged<double>? onChangeEnd,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -363,6 +370,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
               max: max,
               divisions: 100,
               onChanged: onChanged,
+              onChangeEnd: onChangeEnd,
             ),
           ),
         ],
@@ -433,38 +441,41 @@ class _SettingsTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       hoverColor: InterceptlyTheme.hoverOverlay,
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Row(
-          children: [
-            Icon(icon, color: colors.textTertiary, size: 20),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: typography.bodyMediumMedium.copyWith(
-                      fontSize: 14,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 2),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 48),
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Row(
+            children: [
+              Icon(icon, color: colors.textTertiary, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      subtitle!,
-                      style: typography.bodySmallRegular.copyWith(
-                        fontSize: 11,
-                        color: colors.textTertiary,
+                      title,
+                      style: typography.bodyMediumMedium.copyWith(
+                        fontSize: 14,
+                        color: colors.textPrimary,
                       ),
                     ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle!,
+                        style: typography.bodySmallRegular.copyWith(
+                          fontSize: 11,
+                          color: colors.textTertiary,
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-            trailing,
-          ],
+              trailing,
+            ],
+          ),
         ),
       ),
     );
@@ -484,39 +495,49 @@ class _CustomSwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => onChanged(!value),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeIn,
-        width: 44,
-        height: 24,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12.0),
-          color: value ? activeColor : InterceptlyTheme.controlMuted,
-        ),
-        child: AnimatedAlign(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeIn,
-          alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 2.0),
-            width: 20,
-            height: 20,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: InterceptlyGlobalColor.white,
-              border: Border.all(
-                color: InterceptlyGlobalColor.black12,
-                width: 0.5,
+    return Semantics(
+      toggled: value,
+      button: true,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+        child: Center(
+          child: GestureDetector(
+            onTap: () => onChanged(!value),
+            behavior: HitTestBehavior.opaque,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeIn,
+              width: 44,
+              height: 24,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12.0),
+                color: value ? activeColor : InterceptlyTheme.controlMuted,
               ),
-              boxShadow: const [
-                BoxShadow(
-                  color: InterceptlyGlobalColor.black26,
-                  blurRadius: 4,
-                  offset: Offset(0, 2),
+              child: AnimatedAlign(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeIn,
+                alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 2.0),
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: InterceptlyGlobalColor.white,
+                    border: Border.all(
+                      color: InterceptlyGlobalColor.black12,
+                      width: 0.5,
+                    ),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: InterceptlyGlobalColor.black26,
+                        blurRadius: 4,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
                 ),
-              ],
+              ),
             ),
           ),
         ),

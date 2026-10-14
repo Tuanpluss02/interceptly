@@ -11,7 +11,7 @@ Standard `http.Client` wrapper adapter for the [Interceptly](https://pub.dev/pac
 
 ## Installation
 
-Add both `interceptly` (the core inspector) and `interceptly_http` to your `pubspec.yaml`:
+Add both `interceptly` (the core inspector) and `interceptly_http` to your project:
 
 ```bash
 flutter pub add interceptly
@@ -61,14 +61,26 @@ void main() async {
 
 ---
 
-## Custom Configuration
+## Configuration Options & SPI Injection
 
-You can also instantiate `InterceptlyHttpClient` directly with a custom inner client or custom controller:
+`InterceptlyHttpClient` implements `HttpCaptureAdapter`. By default it attaches to `InspectorSession.instance` and `DefaultHttpTrafficCollector`, but you can pass custom instances:
 
 ```dart
-final client = InterceptlyHttpClient(
+// Wrap with a custom InspectorSession:
+final customSession = InspectorSession(
+  settings: const InterceptlySettings(maxEntries: 1000),
+);
+final client = InterceptlyHttpClient.wrap(
   http.Client(),
-  interceptly: Interceptly.instance,
+  customSession,
+);
+
+// Or provide a custom HttpTrafficCollector:
+final collector = DefaultHttpTrafficCollector(customSession);
+final customClient = InterceptlyHttpClient(
+  http.Client(),
+  customSession,
+  collector,
 );
 ```
 

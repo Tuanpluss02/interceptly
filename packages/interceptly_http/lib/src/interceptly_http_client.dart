@@ -165,6 +165,8 @@ class InterceptlyHttpClient extends http.BaseClient
 
     late StreamSubscription<List<int>> sub;
     late final StreamController<List<int>> controller;
+    bool isCanceled = false;
+
     controller = StreamController<List<int>>(
       onListen: () {
         void handleChunk(List<int> chunk) {
@@ -185,10 +187,18 @@ class InterceptlyHttpClient extends http.BaseClient
           (chunk) {
             final delay = session.throughputDelayForChunk(chunk.length);
             if (delay > Duration.zero) {
-              sub.pause();
+              try {
+                if (!isCanceled) sub.pause();
+              } catch (_) {}
               Future<void>.delayed(delay, () {
                 handleChunk(chunk);
-                if (!controller.isClosed) sub.resume();
+                if (!controller.isClosed && !isCanceled) {
+                  try {
+                    if (sub.isPaused) {
+                      sub.resume();
+                    }
+                  } catch (_) {}
+                }
               });
               return;
             }
@@ -210,9 +220,24 @@ class InterceptlyHttpClient extends http.BaseClient
           cancelOnError: false,
         );
       },
-      onPause: () => sub.pause(),
-      onResume: () => sub.resume(),
+      onPause: () {
+        if (!isCanceled) {
+          try {
+            sub.pause();
+          } catch (_) {}
+        }
+      },
+      onResume: () {
+        if (!isCanceled) {
+          try {
+            if (sub.isPaused) {
+              sub.resume();
+            }
+          } catch (_) {}
+        }
+      },
       onCancel: () {
+        isCanceled = true;
         recordFailure(
           error: 'CancellationException',
           errorType: 'CancellationException',

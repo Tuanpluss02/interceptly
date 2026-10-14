@@ -414,6 +414,32 @@ void main() {
       },
     );
 
+    test(
+      'cancellation during simulated throughput delay does not throw unhandled StateError',
+      () async {
+        session.setNetworkSimulation(NetworkSimulationProfile.slow3G);
+        final streamCtrl = StreamController<List<int>>();
+        final innerClient = _StreamingMockClient(streamCtrl);
+        final client = InterceptlyHttpClient(innerClient, session);
+
+        final response = await client.send(
+          http.Request('GET', Uri.parse('https://api.example.com/throttle-cancel')),
+        );
+
+        streamCtrl.add(List.filled(100, 1));
+        final sub = response.stream.listen((chunk) {});
+        await sub.cancel();
+        await streamCtrl.close();
+
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+
+        await _waitFor(() => session.entries.first.hasError);
+        final entry = session.entries.first;
+        expect(entry.hasError, isTrue);
+        expect(entry.errorType, 'CancellationException');
+      },
+    );
+
     test('records successful response when stream completes normally', () async {
       final streamCtrl = StreamController<List<int>>();
       final innerClient = _StreamingMockClient(streamCtrl);

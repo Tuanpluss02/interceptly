@@ -91,9 +91,9 @@ void main() {
   });
 
   group('RingBuffer boundaries and errors', () {
-    test('asserts capacity > 0', () {
-      expect(() => RingBuffer<int>(capacity: 0), throwsA(isA<AssertionError>()));
-      expect(() => RingBuffer<int>(capacity: -1), throwsA(isA<AssertionError>()));
+    test('clamps capacity <= 0 to 1', () {
+      expect(RingBuffer<int>(capacity: 0).capacity, 1);
+      expect(RingBuffer<int>(capacity: -1).capacity, 1);
     });
 
     test('throws RangeError on invalid index', () {

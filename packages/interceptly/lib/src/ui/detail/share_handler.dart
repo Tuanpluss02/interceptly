@@ -12,20 +12,26 @@ import '../../share/interceptly_share.dart';
 import '../interceptly_theme.dart';
 import '../widgets/toast_notification.dart';
 
+/// Coordinates sharing and exporting requests as cURL, HAR, or Postman files.
 class ShareHandler {
-  ShareHandler({required this.context, required this.fabKey})
-      : _share = InterceptlyShare();
+  ShareHandler({
+    required this.context,
+    required this.fabKey,
+    this.redactOnExport = true,
+  }) : _share = InterceptlyShare();
 
   @visibleForTesting
   ShareHandler.withShare({
     required this.context,
     required this.fabKey,
     required InterceptlyShare share,
+    this.redactOnExport = true,
   }) : _share = share;
 
   final BuildContext context;
   final GlobalKey fabKey;
   final InterceptlyShare _share;
+  final bool redactOnExport;
 
   void showShareMenu(RequestRecord record) {
     showModalBottomSheet(
@@ -124,7 +130,10 @@ class ShareHandler {
 
   void shareCurlCommand(RequestRecord record) {
     try {
-      final curl = CurlGenerator.fromRecord(record);
+      final curl = CurlGenerator.fromRecord(
+        record,
+        redactOnExport: redactOnExport,
+      );
       Clipboard.setData(ClipboardData(text: curl));
       ToastNotification.show('cURL command copied', contextHint: context);
     } catch (e) {
@@ -141,13 +150,17 @@ class ShareHandler {
   }
 
   Future<void> _exportPostmanRecords(List<RequestRecord> records) async {
+    File? file;
     try {
-      final collectionJson = PostmanExporter.toJson(records);
+      final collectionJson = PostmanExporter.toJson(
+        records,
+        redactOnExport: redactOnExport,
+      );
 
       final directory = await getTemporaryDirectory();
       final fileName =
           'interceptly_${DateTime.now().millisecondsSinceEpoch}.postman_collection.json';
-      final file = File('${directory.path}/$fileName');
+      file = File('${directory.path}/$fileName');
 
       await file.writeAsString(collectionJson);
 
@@ -160,18 +173,30 @@ class ShareHandler {
       );
     } catch (e) {
       ToastNotification.show('Error exporting Postman collection: $e');
+    } finally {
+      if (file != null) {
+        try {
+          if (await file.exists()) {
+            await file.delete();
+          }
+        } catch (_) {}
+      }
     }
   }
 
-  void exportHarFile(RequestRecord record) async {
+  Future<void> exportHarFile(RequestRecord record) async {
+    File? file;
     try {
-      final harJson = HarExporter.toJson([record]);
+      final harJson = HarExporter.toJson(
+        [record],
+        redactOnExport: redactOnExport,
+      );
 
       final directory = await getTemporaryDirectory();
       final sanitizedMethod = _sanitizeFilename(record.method);
       final fileName =
           'request_${sanitizedMethod}_${DateTime.now().millisecondsSinceEpoch}.har';
-      final file = File('${directory.path}/$fileName');
+      file = File('${directory.path}/$fileName');
 
       await file.writeAsString(harJson);
 
@@ -184,6 +209,14 @@ class ShareHandler {
       );
     } catch (e) {
       ToastNotification.show('Error exporting HAR: $e');
+    } finally {
+      if (file != null) {
+        try {
+          if (await file.exists()) {
+            await file.delete();
+          }
+        } catch (_) {}
+      }
     }
   }
 
@@ -194,20 +227,25 @@ class ShareHandler {
     String mimeType = 'application/json',
     Rect? origin,
   }) async {
-    final presented = await _share.shareFile(
-      filePath: file.path,
-      subject: subject,
-      text: text,
-      mimeType: mimeType,
-      origin: origin,
-    );
-    if (!presented) {
-      await Clipboard.setData(ClipboardData(text: file.path));
+    try {
+      final presented = await _share.shareFile(
+        filePath: file.path,
+        subject: subject,
+        text: text,
+        mimeType: mimeType,
+        origin: origin,
+      );
+      if (!presented) {
+        if (context.mounted) {
+          ToastNotification.show(
+            'Share unavailable',
+            contextHint: context,
+          );
+        }
+      }
+    } catch (_) {
       if (context.mounted) {
-        ToastNotification.show(
-          'Share unavailable — file path copied: ${file.path}',
-          contextHint: context,
-        );
+        ToastNotification.show('Share failed', contextHint: context);
       }
     }
   }

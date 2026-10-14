@@ -67,6 +67,12 @@ class JsonViewer extends StatefulWidget {
   /// Delegates to [JsonSearch.formatData].
   static String formatData(dynamic data) => JsonSearch.formatData(data);
 
+  /// Asynchronously format any data into a pretty-printed JSON string.
+  ///
+  /// Delegates to [JsonSearch.formatDataAsync].
+  static Future<String> formatDataAsync(dynamic data) =>
+      JsonSearch.formatDataAsync(data);
+
   /// Counts case-insensitive query matches within structured JSON data.
   ///
   /// Delegates to [JsonSearch.countMatches].
@@ -194,14 +200,14 @@ class _JsonViewerState extends State<JsonViewer> {
       return;
     }
     _lineCountMemo ??= Expando<int>('json_line_counts');
-    _expansion.forceCollapse = JsonLineFlattener.countExpandedLines(
-          widget.data,
-          _lineCountMemo,
-        ) >
-        JsonViewerMetrics.largeDocLineThreshold;
-    _memoMatchCounts = effectiveQuery == null
-        ? null
-        : JsonSearch.matchCountsByPath(widget.data, effectiveQuery);
+    final analysis = JsonLineFlattener.countLinesAndMatches(
+      widget.data,
+      effectiveQuery,
+      _lineCountMemo,
+    );
+    _expansion.forceCollapse =
+        analysis.lineCount > JsonViewerMetrics.largeDocLineThreshold;
+    _memoMatchCounts = effectiveQuery == null ? null : analysis.matchCounts;
 
     final flattener = JsonLineFlattener(
       expansion: _expansion,
@@ -243,8 +249,9 @@ class _JsonViewerState extends State<JsonViewer> {
     }
   }
 
-  void _copyToClipboard() {
-    final formatted = JsonViewer.formatData(widget.data);
+  void _copyToClipboard() async {
+    final formatted = await JsonViewer.formatDataAsync(widget.data);
+    if (!mounted) return;
     Clipboard.setData(ClipboardData(text: formatted)).then((_) {
       if (mounted) {
         ToastNotification.show('Copied to clipboard', contextHint: context);
@@ -280,7 +287,7 @@ class _JsonViewerState extends State<JsonViewer> {
       fontSize: 12,
       height: 1.5,
     );
-    const lineHeight = 18.0;
+    final lineHeight = JsonViewerMetrics.lineHeightOf(context);
 
     final maxChars = _memoMaxChars;
     int? activeLineIndex;

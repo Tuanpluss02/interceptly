@@ -53,6 +53,40 @@ abstract final class CaptureGuard {
       return MapEntry(k, v);
     });
   }
+
+  /// Masks query parameter values listed in [redactedQueryParams] with `[REDACTED]`.
+  ///
+  /// Matching is case-insensitive. An empty set returns [url] unchanged, so
+  /// default settings keep capture behavior byte-identical. URLs without a
+  /// matching parameter are returned unchanged to avoid re-encoding drift.
+  static String sanitizeUrl(
+    String url, [
+    Set<String> redactedQueryParams = const {},
+  ]) {
+    if (redactedQueryParams.isEmpty) return url;
+    final normalized =
+        redactedQueryParams.map((k) => k.toLowerCase()).toSet();
+    Uri? uri;
+    try {
+      uri = Uri.parse(url);
+    } catch (_) {
+      return url;
+    }
+    if (!uri.hasQuery) return url;
+    final params = uri.queryParametersAll;
+    var matched = false;
+    final masked = <String, List<String>>{};
+    for (final entry in params.entries) {
+      if (normalized.contains(entry.key.toLowerCase())) {
+        matched = true;
+        masked[entry.key] = entry.value.map((_) => '[REDACTED]').toList();
+      } else {
+        masked[entry.key] = entry.value;
+      }
+    }
+    if (!matched) return url;
+    return uri.replace(queryParameters: masked).toString();
+  }
 }
 
 /// Redacts sensitive headers defined in [redactedKeys] (compared case-insensitively).
@@ -63,3 +97,12 @@ Map<String, String> redactHeaders(
   Set<String> redactedKeys,
 ) =>
     CaptureGuard.redactHeaders(headers, redactedKeys);
+
+/// Masks query parameter values listed in [redactedQueryParams] with `[REDACTED]`.
+///
+/// Matching is case-insensitive. An empty set returns [url] unchanged.
+String sanitizeUrl(
+  String url, [
+  Set<String> redactedQueryParams = const {},
+]) =>
+    CaptureGuard.sanitizeUrl(url, redactedQueryParams);

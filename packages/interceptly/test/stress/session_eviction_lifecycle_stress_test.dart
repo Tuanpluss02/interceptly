@@ -84,13 +84,11 @@ void main() {
       expect(index.entries.first.id, 'p1');
     });
 
-    test('Boundary: maxEntries = 0 behavior', () {
+    test('Boundary: maxEntries = 0 clamps to 1', () {
       final index = MemoryIndex(maxEntries: 0);
-      try {
-        index.add(_makeEntry('item1'));
-      } catch (e) {
-        expect(e, isA<RangeError>());
-      }
+      index.add(_makeEntry('item1'));
+      expect(index.length, 1);
+      expect(index.entries.single.id, 'item1');
     });
 
     test(

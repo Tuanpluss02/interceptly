@@ -459,44 +459,54 @@ class _StatusToggle extends StatelessWidget {
     final radius = InterceptlyTheme.radius;
 
     return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeInOut,
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: isIncluded
-                ? color.withValues(alpha: 0.12)
-                : InterceptlyTheme.controlMuted,
+      child: Semantics(
+        button: true,
+        selected: isIncluded,
+        label: '$label status filter',
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48),
+          child: InkWell(
+            onTap: onTap,
             borderRadius: BorderRadius.circular(radius.md),
-            border: Border.all(
-              color: isIncluded
-                  ? color.withValues(alpha: 0.35)
-                  : InterceptlyTheme.dividerSubtle,
-              width: 1.2,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: isIncluded
+                    ? color.withValues(alpha: 0.12)
+                    : InterceptlyTheme.controlMuted,
+                borderRadius: BorderRadius.circular(radius.md),
+                border: Border.all(
+                  color: isIncluded
+                      ? color.withValues(alpha: 0.35)
+                      : InterceptlyTheme.dividerSubtle,
+                  width: 1.2,
+                ),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isIncluded ? color : colors.textTertiary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    label,
+                    style: InterceptlyTheme.typography.labelSmallMedium.copyWith(
+                      color: isIncluded ? color : colors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          child: Column(
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isIncluded ? color : colors.textTertiary,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: InterceptlyTheme.typography.labelSmallMedium.copyWith(
-                  color: isIncluded ? color : colors.textSecondary,
-                  fontSize: 12,
-                ),
-              ),
-            ],
           ),
         ),
       ),
@@ -527,60 +537,69 @@ class _DomainList extends StatelessWidget {
 
     return Column(
       children: [
-        GestureDetector(
-          onTap: onSelectAll,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: allSelected
-                  ? colors.actionPrimary.withValues(alpha: 0.1)
-                  : InterceptlyTheme.controlMuted,
+        Semantics(
+          button: true,
+          selected: allSelected,
+          label: 'Select all domains',
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48),
+            child: InkWell(
+              onTap: onSelectAll,
               borderRadius: BorderRadius.circular(radius.md),
-              border: Border.all(
-                color: allSelected
-                    ? colors.actionPrimary.withValues(alpha: 0.3)
-                    : InterceptlyTheme.dividerSubtle,
-              ),
-            ),
-            child: Row(
-              children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  width: 18,
-                  height: 18,
-                  decoration: BoxDecoration(
-                    color:
-                        allSelected ? colors.actionPrimary : Colors.transparent,
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: allSelected
-                          ? colors.actionPrimary
-                          : colors.textTertiary,
-                      width: 1.5,
-                    ),
-                  ),
-                  child: allSelected
-                      ? Icon(Icons.check, size: 12, color: colors.textOnAction)
-                      : null,
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  'All domains',
-                  style: InterceptlyTheme.typography.bodySmallMedium.copyWith(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: allSelected
+                      ? colors.actionPrimary.withValues(alpha: 0.1)
+                      : InterceptlyTheme.controlMuted,
+                  borderRadius: BorderRadius.circular(radius.md),
+                  border: Border.all(
                     color: allSelected
-                        ? colors.actionPrimary
-                        : colors.textSecondary,
-                    fontWeight: FontWeight.w500,
+                        ? colors.actionPrimary.withValues(alpha: 0.3)
+                        : InterceptlyTheme.dividerSubtle,
                   ),
                 ),
-                const Spacer(),
-                Text(
-                  '${sorted.length}',
-                  style: InterceptlyTheme.typography.bodySmallRegular.copyWith(
-                    color: colors.textTertiary,
-                  ),
+                child: Row(
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 18,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color:
+                            allSelected ? colors.actionPrimary : Colors.transparent,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: allSelected
+                              ? colors.actionPrimary
+                              : colors.textTertiary,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: allSelected
+                          ? Icon(Icons.check, size: 12, color: colors.textOnAction)
+                          : null,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      'All domains',
+                      style: InterceptlyTheme.typography.bodySmallMedium.copyWith(
+                        color: allSelected
+                            ? colors.actionPrimary
+                            : colors.textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${sorted.length}',
+                      style: InterceptlyTheme.typography.bodySmallRegular.copyWith(
+                        color: colors.textTertiary,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -602,55 +621,62 @@ class _DomainList extends StatelessWidget {
 
                 return Column(
                   children: [
-                    GestureDetector(
-                      onTap: () => onToggle(domain),
-                      behavior: HitTestBehavior.opaque,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 11,
-                        ),
-                        child: Row(
-                          children: [
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              width: 18,
-                              height: 18,
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? colors.actionPrimary
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(
-                                  color: isSelected
-                                      ? colors.actionPrimary
-                                      : colors.textTertiary,
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: isSelected
-                                  ? Icon(
-                                      Icons.check,
-                                      size: 12,
-                                      color: colors.textOnAction,
-                                    )
-                                  : null,
+                    Semantics(
+                      button: true,
+                      selected: isSelected,
+                      label: domain,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(minHeight: 48),
+                        child: InkWell(
+                          onTap: () => onToggle(domain),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 11,
                             ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                domain,
-                                style: InterceptlyTheme
-                                    .typography.bodySmallMedium
-                                    .copyWith(
-                                  color: isSelected
-                                      ? colors.actionPrimary
-                                      : colors.textSecondary,
+                            child: Row(
+                              children: [
+                                AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  width: 18,
+                                  height: 18,
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? colors.actionPrimary
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? colors.actionPrimary
+                                          : colors.textTertiary,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: isSelected
+                                      ? Icon(
+                                          Icons.check,
+                                          size: 12,
+                                          color: colors.textOnAction,
+                                        )
+                                      : null,
                                 ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    domain,
+                                    style: InterceptlyTheme
+                                        .typography.bodySmallMedium
+                                        .copyWith(
+                                      color: isSelected
+                                          ? colors.actionPrimary
+                                          : colors.textSecondary,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
@@ -690,27 +716,39 @@ class _Chip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = InterceptlyTheme.colors;
+    final colors = InterceptlyTheme.colorsOf(context);
 
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? activeBgColor : InterceptlyTheme.controlMuted,
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: '$label filter',
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 48, minWidth: 48),
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(InterceptlyTheme.radius.md),
-          border: Border.all(
-            color:
-                isSelected ? activeBorderColor : InterceptlyTheme.dividerSubtle,
-            width: 1.2,
-          ),
-        ),
-        child: Text(
-          label,
-          style: InterceptlyTheme.typography.labelMediumMedium.copyWith(
-            color: isSelected ? activeColor : colors.textSecondary,
+          child: Center(
+            widthFactor: 1.0,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: isSelected ? activeBgColor : InterceptlyTheme.controlMuted,
+                borderRadius: BorderRadius.circular(InterceptlyTheme.radius.md),
+                border: Border.all(
+                  color:
+                      isSelected ? activeBorderColor : InterceptlyTheme.dividerSubtle,
+                  width: 1.2,
+                ),
+              ),
+              child: Text(
+                label,
+                style: InterceptlyTheme.typography.labelMediumMedium.copyWith(
+                  color: isSelected ? activeColor : colors.textSecondary,
+                ),
+              ),
+            ),
           ),
         ),
       ),

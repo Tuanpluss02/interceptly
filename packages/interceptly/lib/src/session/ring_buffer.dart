@@ -4,9 +4,12 @@ import 'dart:collection';
 ///
 /// When the buffer reaches [capacity], adding a new item automatically evicts
 /// the oldest item.
+///
+/// Capacities below 1 are clamped to 1 so misconfiguration degrades to a
+/// single-slot buffer instead of crashing.
 class RingBuffer<T> {
-  RingBuffer({required this.capacity})
-      : assert(capacity > 0, 'capacity must be > 0'),
+  RingBuffer({required int capacity})
+      : capacity = capacity < 1 ? 1 : capacity,
         _items = ListQueue<T>();
 
   /// Maximum number of items this buffer can hold before evicting the oldest.
@@ -39,9 +42,10 @@ class RingBuffer<T> {
   }
 
   /// Updates capacity, evicting the oldest items if shrinking below current size.
+  ///
+  /// Values below 1 are clamped to 1 instead of throwing.
   void updateCapacity(int newCapacity) {
-    assert(newCapacity > 0, 'capacity must be > 0');
-    capacity = newCapacity;
+    capacity = newCapacity < 1 ? 1 : newCapacity;
     while (_items.length > capacity) {
       _items.removeFirst();
       _droppedCount++;

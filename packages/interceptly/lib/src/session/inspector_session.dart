@@ -1,10 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:path_provider/path_provider.dart';
 
-import '../model/body_location.dart';
-import '../model/body_truncation.dart';
 import '../model/domain_group.dart';
 import '../model/index_entry.dart';
 import '../model/interceptly_settings.dart';
@@ -15,40 +12,55 @@ import '../model/request_filter.dart';
 import '../model/request_record.dart';
 import '../model/request_summary.dart';
 import '../model/search_match_scope.dart';
-import '../session/bounded_event_queue.dart';
 import '../simulation/network_simulation_service.dart';
-import 'body_decode_service.dart';
-import 'body_store.dart';
+import 'capture_pipeline.dart';
+import 'detail_loader.dart';
 import 'grouping_controller.dart';
 import 'inspector_preferences.dart';
 import 'inspector_session_view.dart';
 import 'master_search_controller.dart';
 import 'memory_index.dart';
-import 'ring_buffer.dart';
-import 'writer_isolate.dart';
-import '../capture/capture_guard.dart';
+import 'pending_tracker.dart';
+import 'realtime_store.dart';
 
-/// Central lifecycle manager for the Interceptly session.
+/// Central lifecycle facade for an Interceptly inspection session.
 ///
-/// Owns the [MemoryIndex] (in-RAM list view data) and the [WriterIsolate]
-/// (serialised disk writer for large bodies).
-///
-/// All public methods are safe to call from the main isolate.
+/// Composes [CapturePipeline], [PendingTracker], [RealtimeStore], [DetailLoader],
+/// and [MemoryIndex] to provide a unified entry point.
 class InspectorSession extends ChangeNotifier implements InspectorSessionView {
+  /// Creates an inspector session configured with [settings].
   InspectorSession({InterceptlySettings? settings})
       : _settings = settings ?? _defaultSettings,
         sessionId = _generateSessionId() {
-    _normalizedRedactedHeaders = _settings.normalizedRedactedHeaders;
     _memoryIndex = MemoryIndex(maxEntries: _settings.maxEntries);
-    _writerIsolate = WriterIsolate(_settings);
-    _preInitQueue = BoundedEventQueue(maxSize: _settings.maxQueuedEvents);
-    _search.addListener(_onSearchChanged);
+    _pendingTracker = PendingTracker(
+      timeoutDuration: _settings.pendingTimeout,
+      memoryIndex: _memoryIndex,
+      onTimeout: _onPendingTimeout,
+    );
+    _capturePipeline = CapturePipeline(
+      settings: _settings,
+      sessionId: sessionId,
+      onEntryReady: _onCaptureReady,
+      onEntryReceived: _pendingTracker.cancel,
+    );
+    _realtimeStore = RealtimeStore(
+      maxFramesPerSession: _settings.maxFramesPerSession,
+      onThrottledBatch: notifyListeners,
+    );
+    _detailLoader = DetailLoader(
+      memoryIndex: _memoryIndex,
+      tempFilePathProvider: () => _capturePipeline.tempFilePath,
+      maxUiPreviewBytesProvider: () => _settings.maxUiPreviewBytes,
+    );
+    _search.addListener(notifyListeners);
     _grouping.addListener(_onGroupingChanged);
     _preferences.addListener(notifyListeners);
   }
 
   static InterceptlySettings _defaultSettings = const InterceptlySettings();
   static int _sessionCounter = 0;
+
   static String _generateSessionId() {
     final seq = ++_sessionCounter;
     final time = DateTime.now().microsecondsSinceEpoch;
@@ -63,99 +75,63 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
 
   static InspectorSession? _instance;
 
-  static InspectorSession get instance {
-    return _instance ??= InspectorSession(settings: _defaultSettings);
-  }
+  /// Returns the shared default session singleton.
+  static InspectorSession get instance =>
+      _instance ??= InspectorSession(settings: _defaultSettings);
 
   /// Unique ID for this session instance to isolate temporary files.
   final String sessionId;
 
   InterceptlySettings _settings;
-  late Set<String> _normalizedRedactedHeaders;
+  late final MemoryIndex _memoryIndex;
+  late final CapturePipeline _capturePipeline;
+  late final PendingTracker _pendingTracker;
+  late final RealtimeStore _realtimeStore;
+  late final DetailLoader _detailLoader;
+
+  final InspectorPreferences _preferences = InspectorPreferences();
+  final MasterSearchController _search = MasterSearchController();
+  final GroupingController _grouping = GroupingController();
+
+  RequestFilter _filter = RequestFilter();
+  NetworkSimulationProfile _networkSimulation = NetworkSimulationProfile.none;
+  Future<void>? _clearFuture;
+  bool _enabled = true;
+  bool _isDisposed = false;
+
+  Set<String>? _cachedAvailableDomains;
+  List<DomainGroup>? _cachedGroupedRecords;
+  int _cacheVersion = 0;
+  int _lastComputedCacheVersion = -1;
+  int _entriesVersion = 0;
+  Timer? _coalesceNotifyTimer;
+  bool _hasPendingCoalescedNotify = false;
 
   @override
   InterceptlySettings get settings => _settings;
-
-  void _applySettings(InterceptlySettings newSettings) {
-    if (newSettings.maxFramesPerSession != _settings.maxFramesPerSession) {
-      for (final buffer in _realtimeFramesBySession.values) {
-        buffer.updateCapacity(newSettings.maxFramesPerSession);
-      }
-    }
-    _settings = newSettings;
-    _normalizedRedactedHeaders = newSettings.normalizedRedactedHeaders;
-    _writerIsolate.updateSettings(newSettings);
-    _memoryIndex.updateMaxEntries(newSettings.maxEntries);
-    _preInitQueue.updateMaxSize(newSettings.maxQueuedEvents);
-    _preferences.setUrlDecodeEnabled(newSettings.urlDecodeEnabled);
-    notifyListeners();
-  }
-
-  /// Configures settings for this specific session instance.
-  void configureSession(InterceptlySettings newSettings) =>
-      _applySettings(newSettings);
-  late final MemoryIndex _memoryIndex;
-  late final WriterIsolate _writerIsolate;
-  late final BoundedEventQueue<RawCapture> _preInitQueue;
-  StreamSubscription<IndexEntry>? _resultSub;
-
-  final Map<String, RingBuffer<RealtimeFrame>> _realtimeFramesBySession = {};
-  Timer? _realtimeThrottleTimer;
-  bool _hasPendingRealtimeFrameNotification = false;
-
-  Future<void>? _initFuture;
-  bool _initialized = false;
-  bool _enabled = true;
-  bool _isDisposed = false;
 
   /// Whether this session has been disposed.
   bool get isDisposed => _isDisposed;
 
   @override
-  void notifyListeners() {
-    if (_isDisposed) return;
-    super.notifyListeners();
-  }
-  Future<void>? _clearFuture;
-  final InspectorPreferences _preferences = InspectorPreferences();
-  NetworkSimulationProfile _networkSimulation = NetworkSimulationProfile.none;
-  final Map<String, Timer> _pendingTimers = {};
-
-  /// Captures sent to the isolate but not yet returned as [IndexEntry].
-  int _inFlight = 0;
-  int _droppedCount = 0;
-
-  /// Pre-resolved temp file path (set during [initialize], main isolate only).
-  String? _tempFilePath;
-
-  RequestFilter _filter = RequestFilter();
-  final MasterSearchController _search = MasterSearchController();
-  final GroupingController _grouping = GroupingController();
-
-  @override
-  RequestFilter get filter => _filter;
-
-  @override
-  List<RequestSummary> get entries {
-    if (_search.isActive) {
-      return (_search.results ?? const <IndexEntry>[]).cast<RequestSummary>();
-    }
-    return _memoryIndex.filtered(_filter).cast<RequestSummary>();
-  }
-
-  int get totalEntries => _memoryIndex.length;
-
-  @override
-  int get droppedCount => _droppedCount;
+  int get entriesVersion => _entriesVersion;
 
   @override
   bool get isEnabled => _enabled;
+
+  @override
+  int get droppedCount => _capturePipeline.droppedCount;
 
   @override
   InspectorPreferences get preferences => _preferences;
 
   @override
   NetworkSimulationProfile get networkSimulation => _networkSimulation;
+
+  @override
+  RequestFilter get filter => _filter;
+
+  int get totalEntries => _memoryIndex.length;
 
   @override
   String? get masterQuery => _search.query;
@@ -170,12 +146,18 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   bool get isScanningFiles => _search.isScanningFiles;
 
   @override
+  bool get groupingEnabled => _grouping.enabled;
+
+  @override
   Set<SearchMatchScope> getSearchScopes(String id) => _search.getScopes(id);
 
   @override
-  bool get groupingEnabled => _grouping.enabled;
-
-  Set<String>? _cachedAvailableDomains;
+  List<RequestSummary> get entries {
+    if (_search.isActive) {
+      return (_search.results ?? const <IndexEntry>[]).cast<RequestSummary>();
+    }
+    return _memoryIndex.filtered(_filter).cast<RequestSummary>();
+  }
 
   @override
   Set<String> get availableDomains {
@@ -184,61 +166,82 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
         .toSet();
   }
 
-  void _invalidateAvailableDomainsCache() {
-    _cachedAvailableDomains = null;
+  @override
+  void notifyListeners() {
+    if (_isDisposed) return;
+    super.notifyListeners();
   }
 
-  Future<void> initialize() async {
-    _initFuture ??= _performInit();
-    return _initFuture;
+  void _applySettings(InterceptlySettings newSettings) {
+    _settings = newSettings;
+    _capturePipeline.updateSettings(newSettings);
+    _pendingTracker.updateTimeout(newSettings.pendingTimeout);
+    _realtimeStore.updateMaxFramesPerSession(newSettings.maxFramesPerSession);
+    _memoryIndex.updateMaxEntries(newSettings.maxEntries);
+    _preferences.setUrlDecodeEnabled(newSettings.urlDecodeEnabled);
+    notifyListeners();
   }
 
-  void _onSearchChanged() => notifyListeners();
+  /// Configures settings for this specific session instance.
+  void configureSession(InterceptlySettings newSettings) =>
+      _applySettings(newSettings);
+
+  /// Initializes background workers and disk storage.
+  Future<void> initialize() => _capturePipeline.initialize();
 
   void _onGroupingChanged() {
     _invalidateGroupedCache();
     notifyListeners();
   }
 
-  Future<void> _performInit() async {
-    if (_initialized) return;
+  void _onCaptureReady(IndexEntry entry) {
+    _entriesVersion++;
+    _memoryIndex.add(entry);
+    _invalidateGroupedCache();
+    _scheduleCoalescedNotify();
+  }
 
-    try {
-      final dir = await getTemporaryDirectory();
-      final fileName = 'interceptly_${sessionId}_session.tmp';
-      _tempFilePath = '${dir.path}/$fileName';
-
-      await BodyStore.purgeOrphanedTempFiles(
-        dir.path,
-        currentFileName: fileName,
-      );
-
-      await _writerIsolate.start(tempDirPath: dir.path, fileName: fileName);
-      _resultSub = _writerIsolate.results.listen(_onEntryReady);
-      _initialized = true;
-
-      _droppedCount += _preInitQueue.droppedCount;
-      _preferences.setUrlDecodeEnabled(settings.urlDecodeEnabled);
-      while (true) {
-        final pending = _preInitQueue.removeFirstOrNull();
-        if (pending == null) break;
-        _sendCapture(pending);
+  void _scheduleCoalescedNotify() {
+    if (_isDisposed) return;
+    _hasPendingCoalescedNotify = true;
+    _coalesceNotifyTimer ??= Timer(const Duration(milliseconds: 60), () {
+      _coalesceNotifyTimer = null;
+      if (_hasPendingCoalescedNotify && !_isDisposed) {
+        _hasPendingCoalescedNotify = false;
+        notifyListeners();
       }
-    } catch (_) {
-      _initFuture = null;
-      rethrow;
+    });
+  }
+
+  /// Immediately flushes any scheduled coalesced notifications.
+  void flushPendingNotifications() {
+    if (_coalesceNotifyTimer != null) {
+      _coalesceNotifyTimer?.cancel();
+      _coalesceNotifyTimer = null;
+      if (_hasPendingCoalescedNotify && !_isDisposed) {
+        _hasPendingCoalescedNotify = false;
+        notifyListeners();
+      }
     }
   }
 
-  void _onEntryReady(IndexEntry entry) {
-    _inFlight--;
-    _cancelPendingTimeout(entry.id);
-    _memoryIndex.add(entry);
+  /// Manually dispatches an incoming [entry] through the ingestion pipeline for testing.
+  @visibleForTesting
+  void handleEntryReadyForTesting(IndexEntry entry) => _onCaptureReady(entry);
+
+  void _onPendingTimeout(IndexEntry timedOutEntry) {
+    _entriesVersion++;
     _invalidateGroupedCache();
     notifyListeners();
   }
 
-  /// Enables capture. Capture is enabled by default.
+  void _invalidateGroupedCache() {
+    _cachedGroupedRecords = null;
+    _cacheVersion++;
+    _cachedAvailableDomains = null;
+  }
+
+  /// Enables traffic capture.
   @override
   void enable() {
     if (_enabled) return;
@@ -246,8 +249,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     notifyListeners();
   }
 
-  /// Disables capture. The interceptor still runs but all [record] calls are
-  /// silently dropped. Useful for hiding sensitive screens (e.g. payment flows).
+  /// Disables traffic capture, dropping new captures silently.
   @override
   void disable() {
     if (!_enabled) return;
@@ -280,23 +282,12 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     _invalidateGroupedCache();
   }
 
-  List<DomainGroup>? _cachedGroupedRecords;
-  int _cacheVersion = 0;
-  int _lastComputedCacheVersion = -1;
-
-  void _invalidateGroupedCache() {
-    _cachedGroupedRecords = null;
-    _cacheVersion++;
-    _invalidateAvailableDomainsCache();
-  }
-
   @override
   List<DomainGroup> getGroupedRecords() {
     if (_cachedGroupedRecords != null &&
         _lastComputedCacheVersion == _cacheVersion) {
       return _cachedGroupedRecords!;
     }
-
     final currentEntries = entries;
     final grouped = <String, List<RequestSummary>>{};
     for (final entry in currentEntries) {
@@ -316,84 +307,39 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     return _cachedGroupedRecords!;
   }
 
-  Future<void> applyNetworkSimulationBeforeRequest({
-    required int uploadBytes,
-  }) =>
+  /// Applies simulated upload network latency and bandwidth throttling.
+  Future<void> applyNetworkSimulationBeforeRequest({required int uploadBytes}) =>
       NetworkSimulationService.applyBeforeRequest(
         _networkSimulation,
         uploadBytes: uploadBytes,
       );
 
-  Future<void> applyNetworkSimulationAfterResponse({
-    required int downloadBytes,
-  }) =>
+  /// Applies simulated download network latency and bandwidth throttling.
+  Future<void> applyNetworkSimulationAfterResponse(
+          {required int downloadBytes}) =>
       NetworkSimulationService.applyAfterResponse(
         _networkSimulation,
         downloadBytes: downloadBytes,
       );
 
+  /// Computes simulated throughput delay for streaming [chunkBytes].
   Duration throughputDelayForChunk(int chunkBytes) =>
       NetworkSimulationService.throughputDelayForChunk(
         _networkSimulation,
         chunkBytes,
       );
 
-  /// Fire-and-forget: enqueue a [RawCapture] for background processing.
-  /// Returns immediately — never blocks the interceptor.
-  /// No-op when [isEnabled] is false or the queue is full.
+  /// Enqueues [capture] for asynchronous background processing.
   void record(RawCapture capture) {
     if (!_enabled) return;
-    if (settings.shouldCapture != null &&
-        !settings.shouldCapture!(capture.url)) {
+    if (_settings.shouldCapture != null &&
+        !_settings.shouldCapture!(capture.url)) {
       return;
     }
-
-    final sanitizedCapture = RawCapture(
-      id: capture.id,
-      method: capture.method,
-      url: capture.url,
-      requestHeaders:
-          redactHeaders(capture.requestHeaders, _normalizedRedactedHeaders),
-      responseHeaders:
-          redactHeaders(capture.responseHeaders, _normalizedRedactedHeaders),
-      statusCode: capture.statusCode,
-      durationMs: capture.durationMs,
-      timestamp: capture.timestamp,
-      requestBodyBytes: capture.requestBodyBytes,
-      responseBodyBytes: capture.responseBodyBytes,
-      requestContentType: capture.requestContentType,
-      responseContentType: capture.responseContentType,
-      errorType: capture.errorType,
-      errorMessage: capture.errorMessage,
-    );
-
-    if (!_initialized) {
-      _preInitQueue.add(sanitizedCapture);
-      initialize().catchError((Object error, StackTrace stackTrace) {
-        if (kDebugMode) {
-          debugPrint(
-              '[Interceptly] background init failed: $error\n$stackTrace');
-        }
-      });
-      return;
-    }
-    _sendCapture(sanitizedCapture);
+    _capturePipeline.record(capture);
   }
 
-  void _sendCapture(RawCapture capture) {
-    if (_inFlight >= settings.maxQueuedEvents) {
-      _droppedCount++;
-      return;
-    }
-    _inFlight++;
-    _writerIsolate.send(capture);
-  }
-
-  /// Inserts an immediate pending request entry so UI can render it before
-  /// the response arrives.
-  ///
-  /// The final capture should use the same [id] so it replaces this pending
-  /// row via [MemoryIndex.add] upsert.
+  /// Inserts an immediate pending request entry before response completion.
   void recordPending({
     required String id,
     required String method,
@@ -404,95 +350,48 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     String? requestContentType,
   }) {
     if (!_enabled) return;
-    if (settings.shouldCapture != null && !settings.shouldCapture!(url)) {
+    if (_settings.shouldCapture != null && !_settings.shouldCapture!(url)) {
       return;
     }
-
-    final sanitizedHeaders =
-        redactHeaders(requestHeaders, _normalizedRedactedHeaders);
-    final inlineRequestBody = BodyDecodeService.truncate(
-      requestBodyBytes,
-      settings.maxBodyBytes,
-      settings.previewTruncationBytes,
+    _entriesVersion++;
+    _pendingTracker.recordPending(
+      id: id,
+      method: method,
+      url: url,
+      timestamp: timestamp,
+      requestHeaders: requestHeaders,
+      requestBodyBytes: requestBodyBytes,
+      requestContentType: requestContentType,
+      settings: _settings,
     );
-    final requestSize = requestBodyBytes?.length ?? 0;
-    final requestTruncation = _pendingRequestTruncation(
-      originalBytes: requestSize,
-      inlineBytes: inlineRequestBody?.length ?? 0,
-    );
-
-    _memoryIndex.add(
-      IndexEntry(
-        id: id,
-        method: method,
-        url: url,
-        statusCode: 0,
-        durationMs: 0,
-        requestSizeBytes: requestSize,
-        responseSizeBytes: 0,
-        timestamp: timestamp,
-        hasError: false,
-        bodyLocation: BodyLocation.memory,
-        inlineRequestBody: inlineRequestBody,
-        inlineResponseBody: null,
-        requestHeaders: sanitizedHeaders,
-        responseHeaders: const {},
-        requestContentType: requestContentType,
-        responseContentType: null,
-        errorType: null,
-        errorMessage: null,
-        requestTruncation: requestTruncation,
-        responseTruncation: const BodyTruncation.complete(0),
-        fileOffset: null,
-        fileLength: null,
-      ),
-    );
-    _schedulePendingTimeout(id);
     _invalidateGroupedCache();
     notifyListeners();
   }
 
-  /// Records a captured [RealtimeFrame] into the session buffer and schedules
-  /// a throttled notification (~100ms interval) to avoid UI message storm thrashing.
+  /// Records a captured realtime frame into the session buffer.
+  ///
+  /// Frames belonging to connections rejected by [InterceptlySettings.shouldCapture]
+  /// are skipped, resolving the connection URL from the stored handshake entry.
+  /// Unknown session ids are skipped only while a capture predicate is active.
   void recordRealtimeFrame(RealtimeFrame frame) {
     if (!_enabled || _isDisposed) return;
-
-    final buffer = _realtimeFramesBySession.putIfAbsent(
-      frame.sessionId,
-      () => RingBuffer<RealtimeFrame>(capacity: settings.maxFramesPerSession),
-    );
-    buffer.add(frame);
-
-    _scheduleRealtimeNotification();
-  }
-
-  void _scheduleRealtimeNotification() {
-    if (_isDisposed) return;
-    _hasPendingRealtimeFrameNotification = true;
-    _realtimeThrottleTimer ??= Timer(const Duration(milliseconds: 100), () {
-      _realtimeThrottleTimer = null;
-      if (_hasPendingRealtimeFrameNotification && !_isDisposed) {
-        _hasPendingRealtimeFrameNotification = false;
-        notifyListeners();
-      }
-    });
+    final predicate = _settings.shouldCapture;
+    if (predicate != null) {
+      final String? url = _memoryIndex.byId(frame.sessionId)?.url;
+      if (url == null || !predicate(url)) return;
+    }
+    _realtimeStore.recordFrame(frame);
   }
 
   @override
-  List<RealtimeFrame> getRealtimeFrames(String sessionId) {
-    if (_isDisposed) return const <RealtimeFrame>[];
-    final buffer = _realtimeFramesBySession[sessionId];
-    if (buffer == null || buffer.isEmpty) {
-      return const <RealtimeFrame>[];
-    }
-    return buffer.toList();
-  }
+  List<RealtimeFrame> getRealtimeFrames(String sessionId) =>
+      _realtimeStore.getFrames(sessionId);
 
   @override
   List<RealtimeFrame> getFrames(String sessionId) =>
       getRealtimeFrames(sessionId);
 
-  /// Records opening of a realtime connection (e.g. WebSocket handshake).
+  /// Records opening of a realtime connection.
   void recordRealtimeConnection({
     required String id,
     required String url,
@@ -516,104 +415,14 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     String? closeReason,
   }) {
     if (_isDisposed) return;
-    _cancelPendingTimeout(id);
-    final current = _memoryIndex.byId(id);
-    if (current != null) {
-      _memoryIndex.add(
-        IndexEntry(
-          id: current.id,
-          method: current.method,
-          url: current.url,
-          statusCode: closeCode,
-          durationMs:
-              DateTime.now().difference(current.timestamp).inMilliseconds,
-          requestSizeBytes: current.requestSizeBytes,
-          responseSizeBytes: current.responseSizeBytes,
-          timestamp: current.timestamp,
-          hasError: closeCode > 1000 && closeCode != 1005,
-          bodyLocation: current.bodyLocation,
-          inlineRequestBody: current.inlineRequestBody,
-          inlineResponseBody: current.inlineResponseBody,
-          requestHeaders: current.requestHeaders,
-          responseHeaders: current.responseHeaders,
-          requestContentType: current.requestContentType,
-          responseContentType: current.responseContentType,
-          errorType: current.errorType,
-          errorMessage: closeReason ?? current.errorMessage,
-          requestTruncation: current.requestTruncation,
-          responseTruncation: current.responseTruncation,
-          fileOffset: current.fileOffset,
-          fileLength: current.fileLength,
-        ),
-      );
-      _invalidateGroupedCache();
-      notifyListeners();
-    }
-  }
-
-  /// Describes a pending row's request body.
-  ///
-  /// A pending row is trimmed to [InterceptlySettings.previewTruncationBytes]
-  /// only when the body already exceeded `maxBodyBytes`, so shrinking is a
-  /// preview-stage cut; storage itself is still intact and the real capture
-  /// will upsert over this row with the full body.
-  static BodyTruncation _pendingRequestTruncation({
-    required int originalBytes,
-    required int inlineBytes,
-  }) {
-    if (inlineBytes >= originalBytes) {
-      return BodyTruncation.complete(originalBytes);
-    }
-    return BodyTruncation(
-      originalBytes: originalBytes,
-      retainedBytes: inlineBytes,
-      stage: TruncationStage.preview,
+    _entriesVersion++;
+    _pendingTracker.closeRealtimeConnection(
+      id,
+      closeCode: closeCode,
+      closeReason: closeReason,
     );
-  }
-
-  void _schedulePendingTimeout(String id) {
-    _cancelPendingTimeout(id);
-    _pendingTimers[id] = Timer(settings.pendingTimeout, () {
-      _pendingTimers.remove(id);
-
-      final current = _memoryIndex.byId(id);
-      if (current == null) return;
-      if (current.statusCode != 0 || current.hasError) return;
-
-      _memoryIndex.add(
-        IndexEntry(
-          id: current.id,
-          method: current.method,
-          url: current.url,
-          statusCode: 0,
-          durationMs: current.durationMs,
-          requestSizeBytes: current.requestSizeBytes,
-          responseSizeBytes: current.responseSizeBytes,
-          timestamp: current.timestamp,
-          hasError: true,
-          bodyLocation: current.bodyLocation,
-          inlineRequestBody: current.inlineRequestBody,
-          inlineResponseBody: current.inlineResponseBody,
-          requestHeaders: current.requestHeaders,
-          responseHeaders: current.responseHeaders,
-          requestContentType: current.requestContentType,
-          responseContentType: current.responseContentType,
-          errorType: 'TimeoutException',
-          errorMessage:
-              'Request timed out while waiting for response or terminal error.',
-          requestTruncation: current.requestTruncation,
-          responseTruncation: current.responseTruncation,
-          fileOffset: current.fileOffset,
-          fileLength: current.fileLength,
-        ),
-      );
-      _invalidateGroupedCache();
-      notifyListeners();
-    });
-  }
-
-  void _cancelPendingTimeout(String id) {
-    _pendingTimers.remove(id)?.cancel();
+    _invalidateGroupedCache();
+    notifyListeners();
   }
 
   @override
@@ -631,150 +440,32 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     notifyListeners();
   }
 
-  /// Cancels any in-progress master search and restores normal filtered mode.
   @override
   void cancelMasterSearch() => _search.cancel();
 
-  /// Starts a progressive master search over all captures.
   @override
   Future<void> startMasterSearch(String query) => _search.start(
         query: query,
         allEntries: _memoryIndex.entries,
-        filePath: _tempFilePath,
+        filePath: _capturePipeline.tempFilePath,
       );
 
-  /// Load the full [RequestRecord] for [summary].
-  ///
-  /// - [BodyLocation.memory]: decodes inline bytes, zero I/O.
-  /// - [BodyLocation.file]: reads only the specific region via
-  ///   [BodyStore.readBytes] — never recreates or deletes the file.
+  /// Looks up an entry by its unique [id] in O(1) time.
   @override
-  Future<RequestRecord> loadDetail(RequestSummary summary) async {
-    if (summary is! IndexEntry) {
-      throw ArgumentError.value(
-        summary,
-        'summary',
-        'Expected an IndexEntry instance created by Interceptly',
-      );
+  RequestSummary? byId(String id) => _memoryIndex.byId(id);
+
+  /// Loads the full request record by request [id].
+  @override
+  Future<RequestRecord> loadDetailById(String id) =>
+      _detailLoader.loadDetailById(id);
+
+  /// Loads full details for [summary].
+  @override
+  Future<RequestRecord> loadDetail(RequestSummary summary) {
+    if (summary is IndexEntry) {
+      return _detailLoader.loadDetailByEntry(summary);
     }
-    final entry = summary;
-
-    String? reqPreview;
-    String? resPreview;
-    Uint8List? reqBytes;
-    Uint8List? resBytes;
-    var reqStorage = entry.requestTruncation;
-    var resStorage = entry.responseTruncation;
-
-    if (entry.bodyLocation == BodyLocation.memory) {
-      reqBytes = entry.inlineRequestBody;
-      resBytes = entry.inlineResponseBody;
-    } else {
-      final offset = entry.fileOffset;
-      final length = entry.fileLength;
-      final filePath = _tempFilePath;
-
-      if (offset != null && length != null && filePath != null) {
-        try {
-          final raw = await BodyStore.readBytes(filePath, offset, length);
-          final decoded = raw.length > BodyDecodeService.computeThreshold
-              ? await compute(BodyDecodeService.unpackToBytes, raw)
-              : BodyDecodeService.unpackToBytes(raw);
-          reqBytes = decoded.$1;
-          resBytes = decoded.$2;
-          if (decoded.$3) {
-            reqStorage = _markStorageCut(reqStorage, reqBytes?.length ?? 0);
-            resStorage = _markStorageCut(resStorage, resBytes?.length ?? 0);
-          }
-        } catch (_) {
-          reqPreview = BodyDecodeService.unavailablePlaceholder;
-          resPreview = BodyDecodeService.unavailablePlaceholder;
-        }
-      }
-    }
-
-    final maxUi = _settings.maxUiPreviewBytes;
-
-    if (reqPreview == null && reqBytes != null) {
-      final reqSlice = _limitForPreview(reqBytes, maxUi);
-      reqStorage =
-          _applyPreviewStage(reqStorage, reqBytes.length, reqSlice.length);
-      reqPreview = await BodyDecodeService.decodeAsync(
-        reqSlice,
-        entry.requestContentType,
-      );
-    }
-
-    if (resPreview == null && resBytes != null) {
-      final resSlice = _limitForPreview(resBytes, maxUi);
-      resStorage =
-          _applyPreviewStage(resStorage, resBytes.length, resSlice.length);
-      resPreview = await BodyDecodeService.decodeAsync(
-        resSlice,
-        entry.responseContentType,
-      );
-    }
-
-    return RequestRecord(
-      id: entry.id,
-      method: entry.method,
-      url: entry.url,
-      statusCode: entry.statusCode,
-      durationMs: entry.durationMs,
-      requestSizeBytes: entry.requestSizeBytes,
-      responseSizeBytes: entry.responseSizeBytes,
-      timestamp: entry.timestamp,
-      requestHeaders: entry.requestHeaders,
-      responseHeaders: entry.responseHeaders,
-      requestContentType: entry.requestContentType,
-      responseContentType: entry.responseContentType,
-      requestBodyPreview: reqPreview,
-      responseBodyPreview: resPreview,
-      requestBodyBytes: reqBytes,
-      responseBodyBytes: resBytes,
-      requestTruncation: reqStorage,
-      responseTruncation: resStorage,
-      errorType: entry.errorType,
-      errorMessage: entry.errorMessage,
-    );
-  }
-
-  Uint8List _limitForPreview(Uint8List bytes, int maxUi) =>
-      maxUi > 0 && bytes.length > maxUi ? bytes.sublist(0, maxUi) : bytes;
-
-  /// Marks [truncation] as storage-cut, preserving the original size the
-  /// network reported even when only the recovered slice is known here.
-  static BodyTruncation _markStorageCut(BodyTruncation truncation, int kept) {
-    return BodyTruncation(
-      originalBytes: truncation.originalBytes,
-      retainedBytes: kept,
-      stage: TruncationStage.storage,
-    );
-  }
-
-  /// Combines the storage verdict with what preview trimming just did.
-  ///
-  /// A body can lose bytes at both stages, so the two verdicts merge instead
-  /// of overwriting: preview loss on top of an existing storage cut yields
-  /// [TruncationStage.storageAndPreview].
-  static BodyTruncation _applyPreviewStage(
-    BodyTruncation truncation,
-    int availableBytes,
-    int previewBytes,
-  ) {
-    final previewCut = previewBytes < availableBytes;
-    final storageCut = truncation.stage == TruncationStage.storage ||
-        truncation.stage == TruncationStage.storageAndPreview;
-    if (!previewCut) {
-      return truncation;
-    }
-    return BodyTruncation(
-      originalBytes: truncation.originalBytes,
-      retainedBytes: previewBytes,
-      stage: storageCut
-          ? TruncationStage.storageAndPreview
-          : TruncationStage.preview,
-    );
+    return loadDetailById(summary.id);
   }
 
   @override
@@ -785,24 +476,21 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
 
   Future<void> _performClear() async {
     try {
-      if (_initialized) {
-        await _writerIsolate.clear();
+      _coalesceNotifyTimer?.cancel();
+      _coalesceNotifyTimer = null;
+      _hasPendingCoalescedNotify = false;
+      _entriesVersion++;
+      if (_capturePipeline.isInitialized) {
+        await _capturePipeline.clear();
       } else {
-        _preInitQueue.clear();
+        _capturePipeline.clearSync();
       }
-      _droppedCount = 0;
       _memoryIndex.clear();
+      _pendingTracker.clear();
+      _realtimeStore.clear();
       _invalidateGroupedCache();
       _filter = RequestFilter();
       _search.reset();
-      for (final timer in _pendingTimers.values) {
-        timer.cancel();
-      }
-      _pendingTimers.clear();
-      _realtimeThrottleTimer?.cancel();
-      _realtimeThrottleTimer = null;
-      _hasPendingRealtimeFrameNotification = false;
-      _realtimeFramesBySession.clear();
       if (!_isDisposed) {
         notifyListeners();
       }
@@ -814,29 +502,20 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   @override
   Future<void> dispose() async {
     _isDisposed = true;
+    _coalesceNotifyTimer?.cancel();
+    _coalesceNotifyTimer = null;
+    _hasPendingCoalescedNotify = false;
     _enabled = false;
-    _realtimeThrottleTimer?.cancel();
-    _realtimeThrottleTimer = null;
-    _hasPendingRealtimeFrameNotification = false;
-    _realtimeFramesBySession.clear();
-    for (final timer in _pendingTimers.values) {
-      timer.cancel();
-    }
-    _pendingTimers.clear();
+    _realtimeStore.dispose();
+    _pendingTracker.dispose();
     _memoryIndex.clear();
-    _preInitQueue.clear();
     _search.cancel();
-    _search.removeListener(_onSearchChanged);
     _search.dispose();
     _grouping.removeListener(_onGroupingChanged);
     _grouping.dispose();
     _preferences.removeListener(notifyListeners);
     _preferences.dispose();
-    await _resultSub?.cancel();
-    await _writerIsolate.dispose();
-    _initialized = false;
-    _inFlight = 0;
-    _initFuture = null;
+    await _capturePipeline.dispose();
     if (identical(_instance, this)) {
       _instance = null;
     }

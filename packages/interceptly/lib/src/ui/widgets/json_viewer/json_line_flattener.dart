@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
 
@@ -46,6 +47,121 @@ class JsonLineFlattener {
       output: lines,
     );
     return lines;
+  }
+
+  /// Computes both fully-expanded line count and search match counts per path
+  /// in a single unified traversal over [value].
+  static ({int lineCount, Map<String, int> matchCounts}) countLinesAndMatches(
+    dynamic value,
+    String? lowerQuery, [
+    Expando<int>? lineMemo,
+  ]) {
+    final matchCounts = <String, int>{};
+    final hasQuery = lowerQuery != null && lowerQuery.isNotEmpty;
+
+    int walk(dynamic val, String path) {
+      if (val == null || val is bool || val is num || val is String) {
+        if (hasQuery) {
+          final str = val == null
+              ? 'null'
+              : val is String
+                  ? '"$val"'
+                  : val.toString();
+          final matches = JsonSearch.countIn(str, lowerQuery);
+          matchCounts[path] = matches;
+        }
+        return 1;
+      }
+
+      if (lineMemo != null && (val is List || val is Map)) {
+        final cached = lineMemo[val];
+        if (cached != null && !hasQuery) return cached;
+      }
+
+      int lines = 1;
+      int subtreeMatches = 0;
+
+      if (val is List) {
+        if (val.isEmpty) {
+          lines = 1;
+        } else {
+          int total = 2;
+          for (var i = 0; i < val.length; i++) {
+            final childPath = '$path[$i]';
+            total += walk(val[i], childPath);
+            if (hasQuery) {
+              subtreeMatches += matchCounts[childPath] ?? 0;
+            }
+          }
+          lines = total;
+        }
+      } else if (val is Map) {
+        if (val.isEmpty) {
+          lines = 1;
+        } else {
+          int total = 2;
+          for (final entry in val.entries) {
+            final keyStr = '"${entry.key}"';
+            if (hasQuery) {
+              subtreeMatches += JsonSearch.countIn(keyStr, lowerQuery);
+            }
+            final childPath = '$path.${entry.key}';
+            total += walk(entry.value, childPath);
+            if (hasQuery) {
+              subtreeMatches += matchCounts[childPath] ?? 0;
+            }
+          }
+          lines = total;
+        }
+      }
+
+      if (hasQuery) {
+        matchCounts[path] = subtreeMatches;
+      }
+      if (lineMemo != null && (val is List || val is Map)) {
+        lineMemo[val] = lines;
+      }
+      return lines;
+    }
+
+    final totalLines = walk(value, r'$');
+    return (lineCount: totalLines, matchCounts: matchCounts);
+  }
+
+  /// Asynchronously flattens large JSON data (>5000 lines) using an isolate.
+  static Future<List<JsonLine>> flattenAsync({
+    required dynamic data,
+    required JsonExpansionState expansion,
+    required TextStyle baseTextStyle,
+    String? query,
+    int matchOffset = 0,
+    int? activeGlobalIndex,
+  }) async {
+    final lineCount = countExpandedLines(data);
+    if (lineCount > 5000) {
+      return compute(
+        _flattenWorker,
+        _FlattenWorkerParams(
+          data: data,
+          query: query,
+          matchOffset: matchOffset,
+          activeGlobalIndex: activeGlobalIndex,
+          forceCollapse: expansion.forceCollapse,
+          collapsedPaths: expansion.userCollapsedPaths,
+          explicitState: expansion.explicitState,
+          baseTextStyle: baseTextStyle,
+        ),
+      );
+    }
+    final analysis = countLinesAndMatches(data, query);
+    final flattener = JsonLineFlattener(
+      expansion: expansion,
+      activeGlobalIndex: activeGlobalIndex,
+      matchCounts: query == null ? null : analysis.matchCounts,
+      lineCountMemo: null,
+      baseTextStyle: baseTextStyle,
+    );
+    return flattener.flatten(data, query: query, matchOffset: matchOffset);
   }
 
   /// Counts how many lines [value] would occupy when **fully expanded**.
@@ -535,4 +651,52 @@ class _ChildEntry {
     this.isLast = false,
     required this.childPath,
   });
+}
+
+class _FlattenWorkerParams {
+  final dynamic data;
+  final String? query;
+  final int matchOffset;
+  final int? activeGlobalIndex;
+  final bool forceCollapse;
+  final Set<String> collapsedPaths;
+  final Map<String, bool> explicitState;
+  final TextStyle baseTextStyle;
+
+  const _FlattenWorkerParams({
+    required this.data,
+    required this.query,
+    required this.matchOffset,
+    required this.activeGlobalIndex,
+    required this.forceCollapse,
+    required this.collapsedPaths,
+    required this.explicitState,
+    required this.baseTextStyle,
+  });
+}
+
+List<JsonLine> _flattenWorker(_FlattenWorkerParams params) {
+  final expansion = JsonExpansionState()..forceCollapse = params.forceCollapse;
+  for (final path in params.collapsedPaths) {
+    expansion.markUserCollapsed(path);
+  }
+  for (final entry in params.explicitState.entries) {
+    expansion.setExplicitState(entry.key, entry.value);
+  }
+  final analysis = JsonLineFlattener.countLinesAndMatches(
+    params.data,
+    params.query,
+  );
+  final flattener = JsonLineFlattener(
+    expansion: expansion,
+    activeGlobalIndex: params.activeGlobalIndex,
+    matchCounts: params.query == null ? null : analysis.matchCounts,
+    lineCountMemo: null,
+    baseTextStyle: params.baseTextStyle,
+  );
+  return flattener.flatten(
+    params.data,
+    query: params.query,
+    matchOffset: params.matchOffset,
+  );
 }

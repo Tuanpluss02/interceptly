@@ -6,16 +6,23 @@ import '../model/request_filter.dart';
 /// In-memory fixed-capacity ring buffer of [IndexEntry] items.
 ///
 /// Mutations occur on the main isolate after background processing completes.
+///
+/// Capacities below 1 are clamped to 1 so misconfiguration degrades to a
+/// single-slot buffer instead of crashing.
 class MemoryIndex {
-  MemoryIndex({required this.maxEntries})
-      : _buffer = List<IndexEntry?>.filled(
-          maxEntries > 0 ? maxEntries : 0,
+  MemoryIndex({required int maxEntries})
+      : maxEntries = _clampCapacity(maxEntries),
+        _buffer = List<IndexEntry?>.filled(
+          _clampCapacity(maxEntries),
           null,
         );
 
   int maxEntries;
   List<IndexEntry?> _buffer;
   final Map<String, int> _idIndex = {};
+
+  /// Minimum usable capacity; smaller values clamp up to this.
+  static int _clampCapacity(int value) => value < 1 ? 1 : value;
 
   int _head = 0;
   int _count = 0;
@@ -43,13 +50,12 @@ class MemoryIndex {
   IndexEntry? get(String id) => byId(id);
 
   /// Inserts a new entry or updates an existing entry in-place in O(1) time.
+  ///
+  /// A non-positive [maxEntries] (only reachable via direct field mutation)
+  /// is clamped back to 1 instead of throwing.
   void add(IndexEntry entry) {
-    if (maxEntries <= 0) {
-      throw RangeError.value(
-        maxEntries,
-        'maxEntries',
-        'Must be greater than 0',
-      );
+    if (maxEntries < 1) {
+      updateMaxEntries(1);
     }
 
     final existingSlot = _idIndex[entry.id];
@@ -87,11 +93,14 @@ class MemoryIndex {
   }
 
   /// Changes capacity, keeping the newest entries when shrinking.
+  ///
+  /// Values below 1 are clamped to 1 instead of throwing.
   void updateMaxEntries(int value) {
+    value = _clampCapacity(value);
     if (value == maxEntries) return;
-    final retained = value <= 0 ? <IndexEntry>[] : entries.take(value).toList();
+    final retained = entries.take(value).toList();
     maxEntries = value;
-    _buffer = List<IndexEntry?>.filled(value > 0 ? value : 0, null);
+    _buffer = List<IndexEntry?>.filled(value, null);
     _head = 0;
     _count = 0;
     _idIndex.clear();

@@ -4,7 +4,10 @@ import 'package:interceptly/src/ui/widgets/json_viewer/json_viewer.dart';
 import '../../model/body_truncation.dart';
 import '../../model/request_record.dart';
 import '../../session/body_decode_service.dart';
+import '../format.dart';
 import '../widgets/error_summary.dart';
+
+export '../format.dart' show formatBytes;
 
 class DetailMatch {
   const DetailMatch({required this.tabIndex, required this.section});
@@ -32,12 +35,25 @@ enum DetailSection {
   errorMessage,
 }
 
-String formatBytes(int bytes) {
-  if (bytes < 1024) return '$bytes B';
-  if (bytes < 1024 * 1024) {
-    return '${(bytes / 1024).toStringAsFixed(1)} KB';
+/// Tab index constants for detail sections.
+const int overviewTabIndex = 0;
+const int requestTabIndex = 1;
+const int responseTabIndex = 2;
+const int errorTabIndex = 3;
+
+/// Counts how many times [lowerQuery] appears in [text] (case-insensitively).
+int countOccurrences(String? text, String lowerQuery) {
+  if (text == null || text.isEmpty || lowerQuery.isEmpty) return 0;
+  var count = 0;
+  var start = 0;
+  final lower = text.toLowerCase();
+  while (true) {
+    final idx = lower.indexOf(lowerQuery, start);
+    if (idx < 0) break;
+    count++;
+    start = idx + lowerQuery.length;
   }
-  return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  return count;
 }
 
 Map<String, dynamic> parseFormUrlEncoded(String body) {
@@ -104,10 +120,10 @@ Map<String, dynamic> parseMultipartSummary(String body) {
   };
 }
 
-dynamic formatBodyData({
+Object? formatBodyData({
   required String? contentType,
   required String? bodyPreview,
-  dynamic Function(String?)? tryParseJson,
+  Object? Function(String?)? tryParseJson,
 }) {
   if (bodyPreview == null || bodyPreview.isEmpty) return 'No Data';
   final ct = (contentType ?? '').toLowerCase();
@@ -141,149 +157,181 @@ dynamic formatBodyData({
   return parsed;
 }
 
+List<DetailMatch> _computeMatchesInternal({
+  required String url,
+  required String method,
+  required int statusCode,
+  required int durationMs,
+  required int requestSizeBytes,
+  required int responseSizeBytes,
+  required bool hasError,
+  required String? errorType,
+  required String? errorMessage,
+  required String timestampString,
+  required BodyTruncation requestTruncation,
+  required BodyTruncation responseTruncation,
+  required Map<String, String> requestHeaders,
+  required Map<String, String> responseHeaders,
+  required String? requestContentType,
+  required String? responseContentType,
+  required String? requestBodyPreview,
+  required String? responseBodyPreview,
+  required String query,
+  required bool isWs,
+  required Object? Function(String?) tryParseJson,
+}) {
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) return const [];
+
+  final matches = <DetailMatch>[];
+
+  void addMatches(int count, int tabIndex, DetailSection section) {
+    for (var i = 0; i < count; i++) {
+      matches.add(DetailMatch(tabIndex: tabIndex, section: section));
+    }
+  }
+
+  addMatches(countOccurrences(url, q), overviewTabIndex, DetailSection.overviewUrl);
+  addMatches(countOccurrences(method, q), overviewTabIndex, DetailSection.overviewMethod);
+  addMatches(
+    countOccurrences(statusCode > 0 ? statusCode.toString() : 'N/A', q),
+    overviewTabIndex,
+    DetailSection.overviewStatus,
+  );
+  addMatches(
+    countOccurrences('$durationMs ms', q),
+    overviewTabIndex,
+    DetailSection.overviewDuration,
+  );
+  addMatches(
+    countOccurrences(formatBytes(requestSizeBytes), q),
+    overviewTabIndex,
+    DetailSection.overviewRequestSize,
+  );
+  addMatches(
+    countOccurrences(statusCode == 0 && !hasError
+        ? 'loading…'
+        : formatBytes(responseSizeBytes), q),
+    overviewTabIndex,
+    DetailSection.overviewResponseSize,
+  );
+  if (hasError) {
+    final shortErr = summarizeRequestError(
+      errorType: errorType,
+      errorMessage: errorMessage,
+    );
+    addMatches(countOccurrences(shortErr, q), overviewTabIndex, DetailSection.overviewError);
+  }
+  addMatches(
+    countOccurrences(timestampString, q),
+    overviewTabIndex,
+    DetailSection.overviewTime,
+  );
+  for (final notice in [
+    ...bodyTruncationNotices(requestTruncation),
+    ...bodyTruncationNotices(responseTruncation),
+  ]) {
+    addMatches(countOccurrences(notice, q), overviewTabIndex, DetailSection.requestBody);
+  }
+
+  if (!isWs) {
+    final uri = Uri.tryParse(url);
+    if (uri != null && uri.queryParameters.isNotEmpty) {
+      addMatches(
+        JsonViewer.countMatches(uri.queryParameters, query),
+        requestTabIndex,
+        DetailSection.queryParams,
+      );
+    }
+    addMatches(
+      JsonViewer.countMatches(requestHeaders, query),
+      requestTabIndex,
+      DetailSection.requestHeaders,
+    );
+    final reqBody = formatBodyData(
+      contentType: requestContentType,
+      bodyPreview: requestBodyPreview,
+      tryParseJson: tryParseJson,
+    );
+    addMatches(
+      JsonViewer.countMatches(reqBody, query),
+      requestTabIndex,
+      DetailSection.requestBody,
+    );
+
+    addMatches(
+      JsonViewer.countMatches(responseHeaders, query),
+      responseTabIndex,
+      DetailSection.responseHeaders,
+    );
+    final resBody = formatBodyData(
+      contentType: responseContentType,
+      bodyPreview: responseBodyPreview,
+      tryParseJson: tryParseJson,
+    );
+    addMatches(
+      JsonViewer.countMatches(resBody, query),
+      responseTabIndex,
+      DetailSection.responseBody,
+    );
+
+    if (hasError) {
+      final shortErr = summarizeRequestError(
+        errorType: errorType,
+        errorMessage: errorMessage,
+      );
+      addMatches(
+        JsonViewer.countMatches(shortErr, query),
+        errorTabIndex,
+        DetailSection.errorSummary,
+      );
+    }
+    addMatches(
+      JsonViewer.countMatches(errorType ?? 'None', query),
+      errorTabIndex,
+      DetailSection.errorType,
+    );
+    addMatches(
+      JsonViewer.countMatches(errorMessage ?? 'None', query),
+      errorTabIndex,
+      DetailSection.errorMessage,
+    );
+  }
+
+  return matches;
+}
+
 /// Synchronous variant — kept for backward compatibility with code paths that
 /// already run inside an isolate (it doesn't snapshot the record twice).
 List<DetailMatch> computeMatches(
   RequestRecord record,
   String query,
   bool isWs,
-  dynamic Function(String?) tryParseJson,
+  Object? Function(String?) tryParseJson,
 ) {
-  final q = query.trim().toLowerCase();
-  if (q.isEmpty) return const [];
-
-  final matches = <DetailMatch>[];
-
-  int countOccurrences(String? text) {
-    if (text == null || text.isEmpty) return 0;
-    int c = 0;
-    int start = 0;
-    final lower = text.toLowerCase();
-    while (true) {
-      final idx = lower.indexOf(q, start);
-      if (idx < 0) break;
-      c++;
-      start = idx + q.length;
-    }
-    return c;
-  }
-
-  void addMatches(int count, int tabIndex, DetailSection section) {
-    for (int i = 0; i < count; i++) {
-      matches.add(DetailMatch(tabIndex: tabIndex, section: section));
-    }
-  }
-
-  addMatches(countOccurrences(record.url), 0, DetailSection.overviewUrl);
-  addMatches(countOccurrences(record.method), 0, DetailSection.overviewMethod);
-  addMatches(
-    countOccurrences(
-      record.statusCode > 0 ? record.statusCode.toString() : 'N/A',
-    ),
-    0,
-    DetailSection.overviewStatus,
+  return _computeMatchesInternal(
+    url: record.url,
+    method: record.method,
+    statusCode: record.statusCode,
+    durationMs: record.durationMs,
+    requestSizeBytes: record.requestSizeBytes,
+    responseSizeBytes: record.responseSizeBytes,
+    hasError: record.hasError,
+    errorType: record.errorType,
+    errorMessage: record.errorMessage,
+    timestampString: record.timestamp.toIso8601String(),
+    requestTruncation: record.requestTruncation,
+    responseTruncation: record.responseTruncation,
+    requestHeaders: record.requestHeaders,
+    responseHeaders: record.responseHeaders,
+    requestContentType: record.requestContentType,
+    responseContentType: record.responseContentType,
+    requestBodyPreview: record.requestBodyPreview,
+    responseBodyPreview: record.responseBodyPreview,
+    query: query,
+    isWs: isWs,
+    tryParseJson: tryParseJson,
   );
-  addMatches(
-    countOccurrences('${record.durationMs} ms'),
-    0,
-    DetailSection.overviewDuration,
-  );
-  addMatches(
-    countOccurrences(formatBytes(record.requestSizeBytes)),
-    0,
-    DetailSection.overviewRequestSize,
-  );
-  addMatches(
-    countOccurrences(record.statusCode == 0 && !record.hasError
-        ? 'loading…'
-        : formatBytes(record.responseSizeBytes)),
-    0,
-    DetailSection.overviewResponseSize,
-  );
-  if (record.hasError) {
-    final shortErr = summarizeRequestError(
-      errorType: record.errorType,
-      errorMessage: record.errorMessage,
-    );
-    addMatches(countOccurrences(shortErr), 0, DetailSection.overviewError);
-  }
-  addMatches(
-    countOccurrences(record.timestamp.toIso8601String()),
-    0,
-    DetailSection.overviewTime,
-  );
-  for (final notice in [
-    ...bodyTruncationNotices(record.requestTruncation),
-    ...bodyTruncationNotices(record.responseTruncation),
-  ]) {
-    addMatches(countOccurrences(notice), 0, DetailSection.requestBody);
-  }
-
-  if (!isWs) {
-    final uri = Uri.tryParse(record.url);
-    if (uri != null && uri.queryParameters.isNotEmpty) {
-      addMatches(
-        JsonViewer.countMatches(uri.queryParameters, query),
-        1,
-        DetailSection.queryParams,
-      );
-    }
-    addMatches(
-      JsonViewer.countMatches(record.requestHeaders, query),
-      1,
-      DetailSection.requestHeaders,
-    );
-    final reqBody = formatBodyData(
-      contentType: record.requestContentType,
-      bodyPreview: record.requestBodyPreview,
-      tryParseJson: tryParseJson,
-    );
-    addMatches(
-      JsonViewer.countMatches(reqBody, query),
-      1,
-      DetailSection.requestBody,
-    );
-
-    addMatches(
-      JsonViewer.countMatches(record.responseHeaders, query),
-      2,
-      DetailSection.responseHeaders,
-    );
-    final resBody = formatBodyData(
-      contentType: record.responseContentType,
-      bodyPreview: record.responseBodyPreview,
-      tryParseJson: tryParseJson,
-    );
-    addMatches(
-      JsonViewer.countMatches(resBody, query),
-      2,
-      DetailSection.responseBody,
-    );
-
-    if (record.hasError) {
-      final shortErr = summarizeRequestError(
-        errorType: record.errorType,
-        errorMessage: record.errorMessage,
-      );
-      addMatches(
-        JsonViewer.countMatches(shortErr, query),
-        3,
-        DetailSection.errorSummary,
-      );
-    }
-    addMatches(
-      JsonViewer.countMatches(record.errorType ?? 'None', query),
-      3,
-      DetailSection.errorType,
-    );
-    addMatches(
-      JsonViewer.countMatches(record.errorMessage ?? 'None', query),
-      3,
-      DetailSection.errorMessage,
-    );
-  }
-
-  return matches;
 }
 
 /// Single source of truth for the truncation notice wording.
@@ -364,11 +412,11 @@ Future<List<DetailMatch>> computeMatchesAsync(
   }
 }
 
-dynamic jsonDecodeSafe(String text) {
+Object? jsonDecodeSafe(String text) {
   return BodyDecodeService.decodeJsonLenient(text);
 }
 
-dynamic _syncParseJson(String? s) => s == null ? null : jsonDecodeSafe(s);
+Object? _syncParseJson(String? s) => s == null ? null : jsonDecodeSafe(s);
 
 class _IsolateArgs {
   final RequestRecordSnapshot record;
@@ -382,133 +430,30 @@ class _IsolateArgs {
 }
 
 List<DetailMatch> _computeMatchesIsolate(_IsolateArgs args) {
-  final q = args.query.trim().toLowerCase();
-  if (q.isEmpty) return const [];
-  final matches = <DetailMatch>[];
-
-  int countOccurrences(String? text) {
-    if (text == null || text.isEmpty) return 0;
-    int c = 0;
-    int start = 0;
-    final lower = text.toLowerCase();
-    while (true) {
-      final idx = lower.indexOf(q, start);
-      if (idx < 0) break;
-      c++;
-      start = idx + q.length;
-    }
-    return c;
-  }
-
-  void addMatches(int count, int tabIndex, DetailSection section) {
-    for (int i = 0; i < count; i++) {
-      matches.add(DetailMatch(tabIndex: tabIndex, section: section));
-    }
-  }
-
   final r = args.record;
-  addMatches(countOccurrences(r.url), 0, DetailSection.overviewUrl);
-  addMatches(countOccurrences(r.method), 0, DetailSection.overviewMethod);
-  addMatches(
-    countOccurrences(r.statusCode > 0 ? r.statusCode.toString() : 'N/A'),
-    0,
-    DetailSection.overviewStatus,
+  return _computeMatchesInternal(
+    url: r.url,
+    method: r.method,
+    statusCode: r.statusCode,
+    durationMs: r.durationMs,
+    requestSizeBytes: r.requestSizeBytes,
+    responseSizeBytes: r.responseSizeBytes,
+    hasError: r.hasError,
+    errorType: r.errorType,
+    errorMessage: r.errorMessage,
+    timestampString: r.timestampIso,
+    requestTruncation: r.requestTruncation,
+    responseTruncation: r.responseTruncation,
+    requestHeaders: r.requestHeaders,
+    responseHeaders: r.responseHeaders,
+    requestContentType: r.requestContentType,
+    responseContentType: r.responseContentType,
+    requestBodyPreview: r.requestBodyPreview,
+    responseBodyPreview: r.responseBodyPreview,
+    query: args.query,
+    isWs: args.isWs,
+    tryParseJson: (s) => s != null ? jsonDecodeSafe(s) : null,
   );
-  addMatches(
-    countOccurrences('${r.durationMs} ms'),
-    0,
-    DetailSection.overviewDuration,
-  );
-  addMatches(
-    countOccurrences(formatBytes(r.requestSizeBytes)),
-    0,
-    DetailSection.overviewRequestSize,
-  );
-  addMatches(
-    countOccurrences(r.statusCode == 0 && r.errorType == null
-        ? 'loading…'
-        : formatBytes(r.responseSizeBytes)),
-    0,
-    DetailSection.overviewResponseSize,
-  );
-  if (r.errorType != null || r.errorMessage != null) {
-    final shortErr = summarizeRequestError(
-      errorType: r.errorType,
-      errorMessage: r.errorMessage,
-    );
-    addMatches(countOccurrences(shortErr), 0, DetailSection.overviewError);
-  }
-  addMatches(countOccurrences(r.timestampIso), 0, DetailSection.overviewTime);
-  for (final notice in [
-    ...bodyTruncationNotices(r.requestTruncation),
-    ...bodyTruncationNotices(r.responseTruncation),
-  ]) {
-    addMatches(countOccurrences(notice), 0, DetailSection.requestBody);
-  }
-
-  if (!args.isWs) {
-    final uri = Uri.tryParse(r.url);
-    if (uri != null && uri.queryParameters.isNotEmpty) {
-      addMatches(
-        JsonViewer.countMatches(uri.queryParameters, args.query),
-        1,
-        DetailSection.queryParams,
-      );
-    }
-    addMatches(
-      JsonViewer.countMatches(r.requestHeaders, args.query),
-      1,
-      DetailSection.requestHeaders,
-    );
-    final reqBody = formatBodyData(
-      contentType: r.requestContentType,
-      bodyPreview: r.requestBodyPreview,
-      tryParseJson: (s) => s != null ? jsonDecodeSafe(s) : null,
-    );
-    addMatches(
-      JsonViewer.countMatches(reqBody, args.query),
-      1,
-      DetailSection.requestBody,
-    );
-    addMatches(
-      JsonViewer.countMatches(r.responseHeaders, args.query),
-      2,
-      DetailSection.responseHeaders,
-    );
-    final resBody = formatBodyData(
-      contentType: r.responseContentType,
-      bodyPreview: r.responseBodyPreview,
-      tryParseJson: (s) => s != null ? jsonDecodeSafe(s) : null,
-    );
-    addMatches(
-      JsonViewer.countMatches(resBody, args.query),
-      2,
-      DetailSection.responseBody,
-    );
-    if (r.errorType != null || r.errorMessage != null) {
-      final shortErr = summarizeRequestError(
-        errorType: r.errorType,
-        errorMessage: r.errorMessage,
-      );
-      addMatches(
-        JsonViewer.countMatches(shortErr, args.query),
-        3,
-        DetailSection.errorSummary,
-      );
-    }
-    addMatches(
-      JsonViewer.countMatches(r.errorType ?? 'None', args.query),
-      3,
-      DetailSection.errorType,
-    );
-    addMatches(
-      JsonViewer.countMatches(r.errorMessage ?? 'None', args.query),
-      3,
-      DetailSection.errorMessage,
-    );
-  }
-
-  return matches;
 }
 
 class RequestRecordSnapshot {
@@ -530,6 +475,9 @@ class RequestRecordSnapshot {
   final String? responseBodyPreview;
   final String? errorType;
   final String? errorMessage;
+
+  bool get hasError =>
+      errorType != null || errorMessage != null || statusCode >= 400;
 
   const RequestRecordSnapshot({
     required this.id,

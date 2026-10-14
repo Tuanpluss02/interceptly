@@ -27,6 +27,7 @@ class InterceptlyDioInterceptor extends Interceptor
   final HttpTrafficCollector collector;
 
   static const String _contextKey = 'interceptly_http_context';
+  static const String _reqBytesKey = 'interceptly_req_bytes';
 
   /// Captures a pending request and applies pre-request simulation.
   @override
@@ -88,10 +89,12 @@ class InterceptlyDioInterceptor extends Interceptor
             : null);
 
     if (context != null) {
-      await guardCaptureAsync(() async {
-        final resContentType =
-            response.headers.value(Headers.contentTypeHeader);
-        final resBytes = await _toBytesAsync(response.data, resContentType);
+      final resContentType =
+          response.headers.value(Headers.contentTypeHeader);
+      final resBytes = await guardCaptureAsync(
+        () => _toBytesAsync(response.data, resContentType),
+      );
+      try {
         await collector.completeResponse(
           context: context,
           statusCode: response.statusCode ?? 200,
@@ -99,7 +102,14 @@ class InterceptlyDioInterceptor extends Interceptor
           bodyBytes: resBytes,
           responseContentType: resContentType,
         );
-      });
+      } catch (e, st) {
+        if (kDebugMode) {
+          debugPrint('[Interceptly] completeResponse capture failed: $e\n$st');
+        }
+      } finally {
+        response.requestOptions.extra.remove(_contextKey);
+        response.requestOptions.extra.remove(_reqBytesKey);
+      }
     }
 
     handler.next(response);
@@ -107,13 +117,13 @@ class InterceptlyDioInterceptor extends Interceptor
 
   /// Captures a Dio failure response or transport error.
   @override
-  void onError(DioException err, ErrorInterceptorHandler handler) {
+  void onError(DioException err, ErrorInterceptorHandler handler) async {
     if (err.error is SimulatedNetworkException) {
       handler.next(err);
       return;
     }
 
-    guardCapture(() {
+    try {
       final extraContext =
           err.requestOptions.extra[_contextKey] as HttpRequestContext?;
       final context = extraContext ??
@@ -126,33 +136,52 @@ class InterceptlyDioInterceptor extends Interceptor
           );
 
       final response = err.response;
-      final resContentType = response?.headers.value(Headers.contentTypeHeader);
-      final responseBodyBytes =
-          response != null ? _toBytes(response.data, resContentType) : null;
-      final responseHeaders =
-          response != null ? _mapHeaders(response.headers.map) : null;
+      if (err.type == DioExceptionType.badResponse && response != null) {
+        final resContentType =
+            response.headers.value(Headers.contentTypeHeader);
+        final resBytes = await guardCaptureAsync(
+          () => _toBytesAsync(response.data, resContentType),
+        );
+        await collector.completeResponse(
+          context: context,
+          statusCode: response.statusCode ?? 0,
+          headers: _mapHeaders(response.headers.map),
+          bodyBytes: resBytes,
+          responseContentType: resContentType,
+        );
+      } else {
+        guardCapture(() {
+          final resContentType =
+              response?.headers.value(Headers.contentTypeHeader);
+          final responseBodyBytes =
+              response != null ? _toBytes(response.data, resContentType) : null;
+          final responseHeaders =
+              response != null ? _mapHeaders(response.headers.map) : null;
 
-      collector.failRequest(
-        context: context,
-        error: err.error ?? err,
-        errorType: err.type.name,
-        errorMessage: err.message ?? err.error?.toString(),
-        statusCode: response?.statusCode,
-        responseHeaders: responseHeaders,
-        responseBodyBytes: responseBodyBytes,
-      );
-    });
-
-    handler.next(err);
+          collector.failRequest(
+            context: context,
+            error: err.error ?? err,
+            errorType: err.type.name,
+            errorMessage: err.message ?? err.error?.toString(),
+            statusCode: response?.statusCode,
+            responseHeaders: responseHeaders,
+            responseBodyBytes: responseBodyBytes,
+          );
+        });
+      }
+    } catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('[Interceptly] onError capture failed: $e\n$st');
+      }
+    } finally {
+      err.requestOptions.extra.remove(_contextKey);
+      err.requestOptions.extra.remove(_reqBytesKey);
+      handler.next(err);
+    }
   }
 
   static Map<String, String> _mapHeaders(Map<String, dynamic> headers) {
-    return headers.map((k, v) {
-      if (v is Iterable) {
-        return MapEntry(k, v.join(', '));
-      }
-      return MapEntry(k, v.toString());
-    });
+    return normalizeHeaders(headers);
   }
 
   /// Serializes arbitrary data to UTF-8 bytes in an isolate when appropriate.
@@ -165,10 +194,7 @@ class InterceptlyDioInterceptor extends Interceptor
     if (data is List<int>) return Uint8List.fromList(data);
 
     if (data is String) {
-      if (data.length > 50 * 1024) {
-        return compute(utf8.encode, data);
-      }
-      return utf8.encode(data);
+      return _utf8Encode(data);
     }
 
     if (data is Map || data is List) {
@@ -184,34 +210,15 @@ class InterceptlyDioInterceptor extends Interceptor
   }
 
   static Uint8List _encodeJsonBytes(Object? data) {
-    try {
-      return utf8.encode(jsonEncode(data));
-    } catch (_) {
-      return utf8.encode(data.toString());
-    }
+    return encodeBodyBytes(data) ?? Uint8List(0);
   }
 
   /// Converts request/response data to raw bytes for the capture synchronously.
   static Uint8List? _toBytes(Object? data, [String? contentType]) {
     if (data == null) return null;
 
-    if (data is Uint8List) return data;
-    if (data is List<int>) return Uint8List.fromList(data);
-
-    if (data is String) {
-      return utf8.encode(data);
-    }
-
     if (data is ResponseBody) {
       return utf8.encode('[streamed response]');
-    }
-
-    if (data is Map || data is List) {
-      try {
-        return utf8.encode(jsonEncode(data));
-      } catch (_) {
-        return utf8.encode(data.toString());
-      }
     }
 
     if (data is FormData) {
@@ -227,6 +234,9 @@ class InterceptlyDioInterceptor extends Interceptor
       return utf8.encode(parts.join('\n'));
     }
 
-    return utf8.encode(data.toString());
+    return encodeBodyBytes(data);
   }
 }
+
+/// Encodes [text] into UTF-8 bytes synchronously without isolate overhead.
+Uint8List _utf8Encode(String text) => utf8.encode(text);
