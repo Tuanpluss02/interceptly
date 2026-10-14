@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
@@ -326,6 +328,146 @@ void main() {
 
       expect(interceptly.calls.first.statusCode, equals(1000));
       expect(interceptly.calls.first.hasError, isFalse);
+    });
+  });
+
+  group('Realtime Stream Hardening', () {
+    test('binary payload is copied and not aliased', () {
+      final session = InspectorSession();
+      addTearDown(session.dispose);
+      final collector = DefaultRealtimeTrafficCollector(session: session);
+
+      final originalBytes = Uint8List.fromList([10, 20, 30, 40]);
+      collector.recordFrame(
+        sessionId: 'ws-alias',
+        direction: FrameDirection.incoming,
+        type: FrameType.binary,
+        payload: originalBytes,
+      );
+
+      // Mutate application buffer
+      originalBytes[0] = 99;
+
+      final storedFrames = session.getRealtimeFrames('ws-alias');
+      expect(storedFrames.length, equals(1));
+      expect(storedFrames.first.binaryPayload![0], equals(10),
+          reason: 'Buffer must be defensively cloned');
+    });
+
+    test('truncates binary and text payload according to maxBodyBytes', () {
+      final session = InspectorSession(
+        settings: const InterceptlySettings(maxBodyBytes: 8),
+      );
+      addTearDown(session.dispose);
+      final collector = DefaultRealtimeTrafficCollector(session: session);
+
+      // Binary payload: 16 bytes truncated to 8
+      final binaryData = Uint8List.fromList(List.generate(16, (i) => i));
+      collector.recordFrame(
+        sessionId: 'ws-trunc',
+        direction: FrameDirection.incoming,
+        type: FrameType.binary,
+        payload: binaryData,
+      );
+
+      // Text payload: 20 ASCII characters truncated to 8
+      collector.recordFrame(
+        sessionId: 'ws-trunc',
+        direction: FrameDirection.outgoing,
+        type: FrameType.text,
+        payload: '12345678901234567890',
+      );
+
+      final frames = session.getRealtimeFrames('ws-trunc');
+      expect(frames.length, equals(2));
+
+      // Binary frame
+      expect(frames[0].binaryPayload!.length, equals(8));
+      expect(frames[0].payloadSizeBytes, equals(16),
+          reason: 'Retains original payload size');
+
+      // Text frame
+      expect(frames[1].textPayload!.length, equals(8));
+      expect(frames[1].payloadSizeBytes, equals(20),
+          reason: 'Retains original payload size');
+    });
+
+    test('respects shouldCapture filter for realtime connections', () {
+      final session = InspectorSession(
+        settings: InterceptlySettings(
+          shouldCapture: (url) => !url.contains('health-check'),
+        ),
+      );
+      addTearDown(session.dispose);
+      final collector = DefaultRealtimeTrafficCollector(session: session);
+
+      collector.recordConnection(
+        sessionId: 'ignored-session',
+        uri: Uri.parse('wss://example.com/health-check'),
+      );
+      collector.recordConnection(
+        sessionId: 'captured-session',
+        uri: Uri.parse('wss://example.com/stream'),
+      );
+
+      expect(session.entries.length, equals(1));
+      expect(session.entries.first.id, equals('captured-session'));
+    });
+
+    test('RealtimeStore bounds sessions to max 50 using LRU eviction', () {
+      final session = InspectorSession();
+      addTearDown(session.dispose);
+
+      // Record frames across 55 distinct sessions
+      for (var i = 0; i < 55; i++) {
+        session.recordRealtimeFrame(
+          RealtimeFrame.text(
+            id: 'frame-$i',
+            sessionId: 'sess-$i',
+            direction: FrameDirection.incoming,
+            text: 'msg-$i',
+          ),
+        );
+      }
+
+      // First 5 sessions (sess-0 .. sess-4) should be evicted
+      for (var i = 0; i < 5; i++) {
+        expect(session.getRealtimeFrames('sess-$i'), isEmpty,
+            reason: 'sess-$i should be evicted');
+      }
+
+      // Latest 50 sessions (sess-5 .. sess-54) should exist
+      for (var i = 5; i < 55; i++) {
+        expect(session.getRealtimeFrames('sess-$i').length, equals(1),
+            reason: 'sess-$i should be retained');
+      }
+    });
+
+    test('RealtimeFrame calculates utf8 byte length without allocating', () {
+      final asciiFrame = RealtimeFrame(
+        id: '1',
+        sessionId: 's',
+        direction: FrameDirection.incoming,
+        type: FrameType.text,
+        textPayload: 'hello',
+      );
+      expect(asciiFrame.payloadSizeBytes, equals(5));
+
+      final multiByteFrame = RealtimeFrame(
+        id: '2',
+        sessionId: 's',
+        direction: FrameDirection.incoming,
+        type: FrameType.text,
+        textPayload: 'Xin chào thế giới 🌍',
+      );
+      // 'Xin chào thế giới 🌍':
+      // 'Xin ' = 4
+      // 'chào ' = 2 + 1 + 2 + 1 + 1 = 6
+      // 'thế ' = 2 + 2 + 1 = 5
+      // 'giới ' = 1 + 1 + 2 + 2 + 1 = 7
+      // '🌍' = 4 bytes (surrogate pair)
+      // total = 4 + 6 + 6 + 7 + 4 = 27 bytes
+      expect(multiByteFrame.payloadSizeBytes, equals(27));
     });
   });
 }

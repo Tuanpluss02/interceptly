@@ -147,14 +147,15 @@ void main() {
       expect(entry.statusCode, equals(0)); // Handshake pending
     });
 
-    test('auto-generates sessionId when omitted and skips uri if null', () {
+    test('auto-generates sessionId and assigns fallback uri when omitted', () {
       final channel = InterceptlyWebSocketChannel(
         fakeChannel,
       );
 
       expect(channel.sessionId, isNotEmpty);
-      expect(channel.uri, isNull);
-      expect(session.entries, isEmpty);
+      expect(channel.uri, equals(Uri(scheme: 'ws', host: 'unknown-socket')));
+      expect(session.entries.length, equals(1));
+      expect(session.entries.first.url, equals('ws://unknown-socket'));
     });
 
     test('captures outgoing text frame via sink.add', () async {
@@ -566,13 +567,16 @@ void main() {
       expect(call['headers'], equals({'X-Test': 'Value'}));
     });
 
-    test('does not record connection when uri is null', () {
-      InterceptlyWebSocketChannel(
+    test('records connection with fallback uri when uri is null', () {
+      final channel = InterceptlyWebSocketChannel(
         fakeChannel,
         collector: spyCollector,
       );
 
-      expect(spyCollector.recordConnectionCalls, isEmpty);
+      expect(channel.uri, equals(Uri(scheme: 'ws', host: 'unknown-socket')));
+      expect(spyCollector.recordConnectionCalls.length, equals(1));
+      final call = spyCollector.recordConnectionCalls.first;
+      expect(call['uri'], equals(Uri(scheme: 'ws', host: 'unknown-socket')));
     });
 
     test(

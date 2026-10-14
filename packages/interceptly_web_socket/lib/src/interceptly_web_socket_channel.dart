@@ -35,7 +35,7 @@ class InterceptlyWebSocketChannel extends StreamChannelMixin
   })  : _inner = inner,
         collector = collector ?? RealtimeTrafficCollector.instance,
         scope = (collector ?? RealtimeTrafficCollector.instance).openSession(
-          uri: uri,
+          uri: uri ?? Uri(scheme: 'ws', host: 'unknown-socket'),
           sessionId: sessionId,
           headers: headers,
         ) {

@@ -99,6 +99,10 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
     required Uri uri,
     Map<String, String>? headers,
   }) {
+    if (session.settings.shouldCapture != null &&
+        !session.settings.shouldCapture!(uri.toString())) {
+      return;
+    }
     guardCapture(() {
       session.recordRealtimeConnection(
         id: sessionId,
@@ -120,15 +124,31 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
     guardCapture(() {
       String? textPayload;
       Uint8List? binaryPayload;
+      int? effectiveSize = payloadSizeBytes;
 
       if (payload is String) {
         textPayload = payload;
       } else if (payload is Uint8List) {
-        binaryPayload = payload;
+        binaryPayload = Uint8List.fromList(payload);
       } else if (payload is List<int>) {
         binaryPayload = Uint8List.fromList(payload);
       } else if (payload != null) {
         textPayload = payload.toString();
+      }
+
+      final maxBytes = maxBodyBytes;
+      if (maxBytes > 0) {
+        if (binaryPayload != null) {
+          effectiveSize ??= binaryPayload.lengthInBytes;
+          if (binaryPayload.length > maxBytes) {
+            binaryPayload = Uint8List.sublistView(binaryPayload, 0, maxBytes);
+          }
+        } else if (textPayload != null) {
+          effectiveSize ??= utf8ByteLength(textPayload);
+          if (textPayload.length > maxBytes) {
+            textPayload = textPayload.substring(0, maxBytes);
+          }
+        }
       }
 
       final frame = RealtimeFrame(
@@ -138,7 +158,7 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
         type: type,
         textPayload: textPayload,
         binaryPayload: binaryPayload,
-        payloadSizeBytes: payloadSizeBytes,
+        payloadSizeBytes: effectiveSize,
         timestamp: timestamp,
       );
 

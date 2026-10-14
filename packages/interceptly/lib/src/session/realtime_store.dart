@@ -16,6 +16,8 @@ class RealtimeStore {
   })  : _maxFramesPerSession = maxFramesPerSession,
         _onThrottledBatch = onThrottledBatch;
 
+  static const int maxSessions = 50;
+
   int _maxFramesPerSession;
   final VoidCallback _onThrottledBatch;
   final Map<String, RingBuffer<RealtimeFrame>> _realtimeFramesBySession = {};
@@ -27,10 +29,15 @@ class RealtimeStore {
   void recordFrame(RealtimeFrame frame) {
     if (_isDisposed) return;
 
-    final buffer = _realtimeFramesBySession.putIfAbsent(
-      frame.sessionId,
-      () => RingBuffer<RealtimeFrame>(capacity: _maxFramesPerSession),
-    );
+    var buffer = _realtimeFramesBySession.remove(frame.sessionId);
+    if (buffer == null) {
+      if (_realtimeFramesBySession.length >= maxSessions) {
+        final oldestKey = _realtimeFramesBySession.keys.first;
+        _realtimeFramesBySession.remove(oldestKey);
+      }
+      buffer = RingBuffer<RealtimeFrame>(capacity: _maxFramesPerSession);
+    }
+    _realtimeFramesBySession[frame.sessionId] = buffer;
     buffer.add(frame);
 
     _scheduleNotification();
@@ -51,10 +58,11 @@ class RealtimeStore {
   /// Returns captured frames for [sessionId] in FIFO order.
   List<RealtimeFrame> getFrames(String sessionId) {
     if (_isDisposed) return const <RealtimeFrame>[];
-    final buffer = _realtimeFramesBySession[sessionId];
+    final buffer = _realtimeFramesBySession.remove(sessionId);
     if (buffer == null || buffer.isEmpty) {
       return const <RealtimeFrame>[];
     }
+    _realtimeFramesBySession[sessionId] = buffer;
     return buffer.toList();
   }
 

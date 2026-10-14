@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:typed_data';
 
 /// The direction of a realtime frame relative to the client.
@@ -48,7 +47,7 @@ class RealtimeFrame {
   })  : payloadSizeBytes = payloadSizeBytes ??
             (binaryPayload != null
                 ? binaryPayload.lengthInBytes
-                : (textPayload != null ? utf8.encode(textPayload).length : 0)),
+                : (textPayload != null ? utf8ByteLength(textPayload) : 0)),
         timestamp = timestamp ?? DateTime.now();
 
   /// Raw const constructor for zero-overhead initialization.
@@ -203,4 +202,31 @@ class RealtimeFrame {
         payloadSizeBytes,
         timestamp,
       );
+}
+
+/// Computes the UTF-8 byte length of [text] without allocating a byte array.
+int utf8ByteLength(String text) {
+  var bytes = 0;
+  final len = text.length;
+  for (var i = 0; i < len; i++) {
+    final codeUnit = text.codeUnitAt(i);
+    if (codeUnit <= 0x007F) {
+      bytes += 1;
+    } else if (codeUnit <= 0x07FF) {
+      bytes += 2;
+    } else if (codeUnit >= 0xD800 && codeUnit <= 0xDBFF) {
+      if (i + 1 < len) {
+        final nextUnit = text.codeUnitAt(i + 1);
+        if (nextUnit >= 0xDC00 && nextUnit <= 0xDFFF) {
+          bytes += 4;
+          i++;
+          continue;
+        }
+      }
+      bytes += 3;
+    } else {
+      bytes += 3;
+    }
+  }
+  return bytes;
 }
