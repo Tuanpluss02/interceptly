@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/adapter.dart';
+import 'package:interceptly/interceptly.dart';
 import 'package:interceptly_dio/interceptly_dio.dart';
 
 const _pathProviderChannel = MethodChannel('plugins.flutter.io/path_provider');

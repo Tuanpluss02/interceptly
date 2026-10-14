@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/adapter.dart';
+import 'package:interceptly/interceptly.dart';
 import 'package:interceptly_web_socket/interceptly_web_socket.dart';
 import 'package:stream_channel/stream_channel.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';

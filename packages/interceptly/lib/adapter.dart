@@ -20,8 +20,6 @@ export 'src/capture/stream_capture.dart'
     show CappedBytesBuilder, teeStreamCapture;
 export 'src/model/network_simulation.dart'
     show NetworkSimulationProfile, SimulatedNetworkException;
-export 'src/model/raw_capture.dart' show RawCapture;
 export 'src/model/realtime_frame.dart'
     show FrameDirection, FrameType, RealtimeFrame;
-export 'src/session/inspector_session.dart' show InspectorSession;
 export 'src/session/request_id.dart' show RequestId;
