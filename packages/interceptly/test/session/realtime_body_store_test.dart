@@ -130,5 +130,14 @@ void main() {
       expect(await file.exists(), isFalse);
       expect(store.isInitialized, isFalse);
     });
+
+    test('dispose during initForWrite cleans up handle and remains uninitialized', () async {
+      final store = RealtimeBodyStore();
+      final initFuture = store.initForWrite(tempDir.path, fileName: 'test_mid_init_dispose.tmp');
+      final disposeFuture = store.dispose();
+      await Future.wait([initFuture, disposeFuture]);
+
+      expect(store.isInitialized, isFalse);
+    });
   });
 }

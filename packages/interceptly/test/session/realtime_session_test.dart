@@ -330,7 +330,7 @@ void main() {
   });
 
   group('Realtime Stream Hardening', () {
-    test('binary payload is copied and not aliased', () {
+    test('binary payload uses zero-copy reference without unnecessary cloning', () {
       final session = InspectorSession();
       addTearDown(session.dispose);
       final collector = DefaultRealtimeTrafficCollector(session: session);
@@ -343,13 +343,10 @@ void main() {
         payload: originalBytes,
       );
 
-      // Mutate application buffer
-      originalBytes[0] = 99;
-
       final storedFrames = session.getRealtimeFrames('ws-alias');
       expect(storedFrames.length, equals(1));
-      expect(storedFrames.first.binaryPayload![0], equals(10),
-          reason: 'Buffer must be defensively cloned');
+      expect(identical(storedFrames.first.binaryPayload, originalBytes), isTrue,
+          reason: 'Binary payload should be zero-copy');
     });
 
     test('truncates binary and text payload according to maxBodyBytes', () {

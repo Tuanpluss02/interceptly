@@ -57,6 +57,19 @@ void main() {
         timestamp: DateTime.now(),
       );
       expect(getFramePayloadString(pingFrame), 'PING');
+
+      final offloadedFrame = RealtimeFrame.offloaded(
+        id: 'f4',
+        sessionId: 's1',
+        direction: FrameDirection.incoming,
+        type: FrameType.text,
+        payloadSizeBytes: 5000,
+        shortPreview: '{"offloaded":"preview"}',
+        fileOffset: 0,
+        fileLength: 5000,
+        rotationCount: 0,
+      );
+      expect(getFramePayloadString(offloadedFrame), '{"offloaded":"preview"}');
     });
 
     test('tryParseJsonPayload parses valid JSON and populates cache', () {

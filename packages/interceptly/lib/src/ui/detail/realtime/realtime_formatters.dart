@@ -47,6 +47,9 @@ String getFramePayloadString(RealtimeFrame frame) {
   if (frame.binaryPayload != null) {
     return formatBinaryPreview(frame.binaryPayload!);
   }
+  if (frame.shortPreview.isNotEmpty) {
+    return frame.shortPreview;
+  }
   return frame.type.name.toUpperCase();
 }
 

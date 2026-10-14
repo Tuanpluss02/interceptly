@@ -67,6 +67,11 @@ class RealtimeBodyStore {
     }
     await _file.create(recursive: true);
     _raf = await _file.open(mode: FileMode.writeOnlyAppend);
+    if (_isDisposed) {
+      await _raf?.close();
+      _raf = null;
+      return;
+    }
     _currentOffset = 0;
     _rotationCount = 0;
     _isInitialized = true;

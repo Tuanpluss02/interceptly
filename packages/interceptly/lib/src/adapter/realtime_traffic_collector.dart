@@ -210,7 +210,7 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
       Uint8List? binaryPayload;
 
       if (effectiveType == FrameType.binary && effectivePayload is Uint8List) {
-        binaryPayload = Uint8List.fromList(effectivePayload);
+        binaryPayload = effectivePayload;
       } else if (effectiveType == FrameType.text && effectivePayload is String) {
         textPayload = effectivePayload;
       }

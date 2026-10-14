@@ -425,6 +425,67 @@ void main() {
       expect(find.byKey(const ValueKey('frame_card_f-3')), findsOneWidget);
     });
 
+    testWidgets(
+        'searching by text in shortPreview of an offloaded frame matches and displays the frame',
+        (tester) async {
+      final session = _MockSession();
+
+      final offloadedMatching = RealtimeFrame.offloaded(
+        id: 'frame_offload_match',
+        sessionId: 'sess_search_preview',
+        direction: FrameDirection.incoming,
+        type: FrameType.text,
+        payloadSizeBytes: 8000,
+        shortPreview: '{"query":"target_preview_keyword","status":200}',
+        fileOffset: 0,
+        fileLength: 8000,
+        rotationCount: 0,
+      );
+
+      final offloadedOther = RealtimeFrame.offloaded(
+        id: 'frame_offload_other',
+        sessionId: 'sess_search_preview',
+        direction: FrameDirection.incoming,
+        type: FrameType.text,
+        payloadSizeBytes: 8000,
+        shortPreview: '{"query":"unrelated_data"}',
+        fileOffset: 8000,
+        fileLength: 8000,
+        rotationCount: 0,
+      );
+
+      session.addFrame(offloadedMatching);
+      session.addFrame(offloadedOther);
+
+      await tester.pumpWidget(
+        buildTestWidget(sessionId: 'sess_search_preview', session: session),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('frame_card_frame_offload_match')),
+          findsOneWidget);
+      expect(find.byKey(const ValueKey('frame_card_frame_offload_other')),
+          findsOneWidget);
+
+      // Search for target keyword present only in offloadedMatching.shortPreview
+      final searchField = find.descendant(
+        of: find.byType(RealtimeFilterHeader),
+        matching: find.byType(TextField),
+      );
+      expect(searchField, findsOneWidget);
+      await tester.enterText(searchField, 'target_preview_keyword');
+      await tester.pumpAndSettle();
+
+      // Only matching offloaded frame is visible
+      expect(find.byKey(const ValueKey('frame_card_frame_offload_match')),
+          findsOneWidget);
+      expect(find.byKey(const ValueKey('frame_card_frame_offload_other')),
+          findsNothing);
+
+      // loadRealtimePayload was NOT triggered merely by searching
+      expect(session.loadPayloadCallCount, equals(0));
+    });
+
     testWidgets('copies payload to clipboard on copy button tap',
         (tester) async {
       final session = _MockSession();

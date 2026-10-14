@@ -212,6 +212,41 @@ void main() {
       expect(frameNoEvent.eventName, isNull);
       expect(frame, isNot(equals(frameNoEvent)));
     });
+
+    test('operator == and hashCode include binaryPayload equality', () {
+      final bytesA = Uint8List.fromList([1, 2, 3]);
+      final bytesB = Uint8List.fromList([1, 2, 3]);
+
+      final frame1 = RealtimeFrame.binary(
+        id: 'f-bin-eq',
+        sessionId: 's-eq',
+        direction: FrameDirection.incoming,
+        bytes: bytesA,
+        timestamp: fixedTime,
+      );
+
+      final frame2 = RealtimeFrame.binary(
+        id: 'f-bin-eq',
+        sessionId: 's-eq',
+        direction: FrameDirection.incoming,
+        bytes: bytesA,
+        timestamp: fixedTime,
+      );
+
+      final frame3 = RealtimeFrame.binary(
+        id: 'f-bin-eq',
+        sessionId: 's-eq',
+        direction: FrameDirection.incoming,
+        bytes: bytesB,
+        timestamp: fixedTime,
+      );
+
+      expect(frame1 == frame2, isTrue);
+      expect(frame1.hashCode, equals(frame2.hashCode));
+
+      // Distinct Uint8List instances are not identical
+      expect(frame1 == frame3, isFalse);
+    });
   });
 
   group('InterceptlySettings maxFramesPerSession', () {

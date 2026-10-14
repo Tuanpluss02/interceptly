@@ -345,6 +345,7 @@ class RealtimeFrame {
         other.type == type &&
         other.location == location &&
         other.textPayload == textPayload &&
+        identical(binaryPayload, other.binaryPayload) &&
         other.shortPreview == shortPreview &&
         other.fileOffset == fileOffset &&
         other.fileLength == fileLength &&
@@ -362,6 +363,7 @@ class RealtimeFrame {
         type,
         location,
         textPayload,
+        binaryPayload,
         shortPreview,
         fileOffset,
         fileLength,
