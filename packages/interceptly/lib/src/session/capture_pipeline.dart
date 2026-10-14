@@ -37,17 +37,40 @@ class CapturePipeline {
   final WriterIsolate _writerIsolate;
   final BoundedEventQueue<RawCapture> _preInitQueue;
   StreamSubscription<IndexEntry>? _resultSub;
+  StreamSubscription<WriterIsolateEvent>? _eventSub;
 
   Future<void>? _initFuture;
   bool _initialized = false;
   int _inFlight = 0;
+  int _inFlightBytes = 0;
   int _droppedCount = 0;
   int _generation = 0;
+  int _respawnCount = 0;
   final Map<String, int> _sentGenerations = {};
+  final Map<String, int> _sentBytes = {};
   String? _tempFilePath;
+  String? _activeDirPath;
+  String? _activeFileName;
+
+  static const int maxInFlightBytes = 32 * 1024 * 1024;
+  static const int maxRespawns = 3;
+
+  bool _isDisposed = false;
+  bool _initFailed = false;
+  bool _fallbackMode = false;
+  bool _isRespawning = false;
 
   /// Whether the pipeline has finished asynchronous isolate initialization.
   bool get isInitialized => _initialized;
+
+  /// Whether the pipeline has been disposed.
+  bool get isDisposed => _isDisposed;
+
+  /// Whether the pipeline initialization failed.
+  bool get initFailed => _initFailed;
+
+  /// Whether the pipeline is operating in degraded in-memory mode.
+  bool get isDegraded => _initFailed || _fallbackMode;
 
   /// Pre-resolved temporary file path used for body offloading on disk.
   String? get tempFilePath => _tempFilePath;
@@ -58,6 +81,12 @@ class CapturePipeline {
 
   /// Number of captures currently dispatched to the writer isolate.
   int get inFlight => _inFlight;
+
+  /// Total payload bytes currently in-flight across isolate boundaries.
+  int get inFlightBytes => _inFlightBytes;
+
+  /// Underlying writer isolate.
+  WriterIsolate get writerIsolate => _writerIsolate;
 
   /// Current generation number for fence verification.
   int get generation => _generation;
@@ -71,18 +100,20 @@ class CapturePipeline {
 
   /// Initializes disk storage and boots the background writer isolate.
   Future<void> initialize() async {
+    if (_isDisposed) return;
     _initFuture ??= _performInit();
     return _initFuture;
   }
 
   Future<void> _performInit() async {
-    if (_initialized) return;
+    if (_initialized || _isDisposed) return;
 
     try {
       final String dirPath;
       final fileName = 'interceptly_${_sessionId}_session.tmp';
       if (_settings.persistToDisk) {
         final dir = await getTemporaryDirectory();
+        if (_isDisposed) return;
         dirPath = dir.path;
         _tempFilePath = '$dirPath/$fileName';
 
@@ -91,12 +122,21 @@ class CapturePipeline {
           currentFileName: fileName,
           maxAge: const Duration(hours: 24),
         );
+        if (_isDisposed) return;
       } else {
         dirPath = Directory.systemTemp.path;
       }
 
       await _writerIsolate.start(tempDirPath: dirPath, fileName: fileName);
+      if (_isDisposed) {
+        await _writerIsolate.dispose();
+        return;
+      }
+
+      _activeDirPath = dirPath;
+      _activeFileName = fileName;
       _resultSub = _writerIsolate.results.listen(_handleEntryReady);
+      _eventSub = _writerIsolate.events.listen(_handleIsolateEvent);
       _initialized = true;
 
       _droppedCount += _preInitQueue.droppedCount;
@@ -105,41 +145,139 @@ class CapturePipeline {
         if (pending == null) break;
         _sendCapture(pending);
       }
-    } catch (_) {
-      _initFuture = null;
-      rethrow;
+    } catch (error, stackTrace) {
+      if (_isDisposed) return;
+      _initFailed = true;
+      _drainPreInitQueueToFallback();
+      if (kDebugMode) {
+        debugPrint(
+          '[Interceptly] background init failed: $error\n$stackTrace',
+        );
+      }
     }
+  }
+
+  void _drainPreInitQueueToFallback() {
+    _droppedCount += _preInitQueue.droppedCount;
+    while (true) {
+      final pending = _preInitQueue.removeFirstOrNull();
+      if (pending == null) break;
+      _processInMemory(pending);
+    }
+  }
+
+  void _processInMemory(RawCapture capture) {
+    _onEntryReceived?.call(capture.id);
+    final entry = WriterIsolate.processInMemory(
+      capture,
+      maxBodyBytes: _settings.maxBodyBytes,
+    );
+    _onEntryReady(entry);
+  }
+
+  void _enterFallbackMode() {
+    _fallbackMode = true;
+    _drainPreInitQueueToFallback();
+  }
+
+  void _handleIsolateEvent(WriterIsolateEvent event) {
+    if (_isDisposed) return;
+
+    _inFlight = 0;
+    _inFlightBytes = 0;
+    _sentBytes.clear();
+    _sentGenerations.clear();
+
+    if (_respawnCount < maxRespawns) {
+      _respawnCount++;
+      _respawnIsolate();
+    } else {
+      _enterFallbackMode();
+    }
+  }
+
+  Future<void> _respawnIsolate() async {
+    if (_isDisposed || _fallbackMode) return;
+    _isRespawning = true;
+    try {
+      final dirPath = _activeDirPath ?? Directory.systemTemp.path;
+      final fileName =
+          _activeFileName ?? 'interceptly_${_sessionId}_session.tmp';
+      await _writerIsolate.restart(
+        tempDirPath: dirPath,
+        fileName: fileName,
+      );
+      if (_isDisposed) return;
+      _isRespawning = false;
+
+      while (true) {
+        final pending = _preInitQueue.removeFirstOrNull();
+        if (pending == null) break;
+        _sendCapture(pending);
+      }
+    } catch (error, stackTrace) {
+      _isRespawning = false;
+      if (_isDisposed) return;
+      if (kDebugMode) {
+        debugPrint(
+          '[Interceptly] isolate respawn failed: $error\n$stackTrace',
+        );
+      }
+      _enterFallbackMode();
+    }
+  }
+
+  int _computeCaptureBytes(RawCapture capture) {
+    final req = capture.requestSizeBytes ?? 0;
+    final res = capture.responseSizeBytes ?? 0;
+    final total = req + res;
+    if (total > 0) return total;
+    return capture.url.length + 256;
   }
 
   /// Enqueues a capture directly to isolate or pre-init queue (zero allocation).
   void record(RawCapture capture) {
-    if (!_initialized) {
-      _preInitQueue.add(capture);
-      initialize().catchError((Object error, StackTrace stackTrace) {
-        if (kDebugMode) {
-          debugPrint(
-            '[Interceptly] background init failed: $error\n$stackTrace',
-          );
-        }
-      });
+    if (_isDisposed) return;
+
+    if (_initFailed || _fallbackMode) {
+      _processInMemory(capture);
       return;
     }
+
+    if (!_initialized) {
+      _preInitQueue.add(capture);
+      initialize();
+      return;
+    }
+
+    if (_isRespawning || !_writerIsolate.isReady) {
+      _preInitQueue.add(capture);
+      return;
+    }
+
     _sendCapture(capture);
   }
 
   void _sendCapture(RawCapture capture) {
-    if (_inFlight >= _settings.maxQueuedEvents) {
+    if (_inFlight >= _settings.maxQueuedEvents ||
+        _inFlightBytes >= maxInFlightBytes) {
       _droppedCount++;
       return;
     }
+    final captureBytes = _computeCaptureBytes(capture);
     _inFlight++;
+    _inFlightBytes += captureBytes;
+    _sentBytes[capture.id] = captureBytes;
     _sentGenerations[capture.id] = _generation;
-    try {
-      _writerIsolate.send(capture);
-    } catch (_) {
+
+    final sent = _writerIsolate.send(capture);
+    if (!sent) {
       _inFlight--;
+      _inFlightBytes =
+          (_inFlightBytes - captureBytes).clamp(0, double.maxFinite.toInt());
+      _sentBytes.remove(capture.id);
       _sentGenerations.remove(capture.id);
-      _droppedCount++;
+      _preInitQueue.add(capture);
     }
   }
 
@@ -147,6 +285,10 @@ class CapturePipeline {
     if (_inFlight > 0) {
       _inFlight--;
     }
+    final bytes = _sentBytes.remove(entry.id) ?? 0;
+    _inFlightBytes =
+        (_inFlightBytes - bytes).clamp(0, double.maxFinite.toInt());
+
     _onEntryReceived?.call(entry.id);
     final sentGeneration = _sentGenerations.remove(entry.id);
     if (sentGeneration != _generation) {
@@ -161,12 +303,14 @@ class CapturePipeline {
     _droppedCount = 0;
     _generation++;
     _sentGenerations.clear();
+    _sentBytes.clear();
     _inFlight = 0;
+    _inFlightBytes = 0;
   }
 
   /// Clears in-flight and queued items, bumping generation to drop stale entries.
   Future<void> clear() async {
-    if (_initialized) {
+    if (_initialized && !_fallbackMode) {
       await _writerIsolate.clear();
     } else {
       clearSync();
@@ -175,19 +319,27 @@ class CapturePipeline {
     _droppedCount = 0;
     _generation++;
     _sentGenerations.clear();
+    _sentBytes.clear();
     _inFlight = 0;
+    _inFlightBytes = 0;
   }
 
   /// Disposes background writer isolate and associated stream subscriptions.
   Future<void> dispose() async {
+    _isDisposed = true;
     _preInitQueue.clear();
+    await _eventSub?.cancel();
+    _eventSub = null;
     await _resultSub?.cancel();
     _resultSub = null;
     await _writerIsolate.dispose();
     _tempFilePath = null;
     _initialized = false;
     _sentGenerations.clear();
+    _sentBytes.clear();
     _inFlight = 0;
+    _inFlightBytes = 0;
     _initFuture = null;
+    _isRespawning = false;
   }
 }

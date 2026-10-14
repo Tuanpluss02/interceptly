@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
-import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
 
 import '../model/body_location.dart';
 import '../model/body_truncation.dart';
@@ -9,6 +10,12 @@ import '../model/index_entry.dart';
 import '../model/interceptly_settings.dart';
 import '../model/raw_capture.dart';
 import 'body_store.dart';
+
+/// Events emitted when the background isolate terminates or encounters an error.
+enum WriterIsolateEvent {
+  error,
+  exit,
+}
 
 class _InitMessage {
   const _InitMessage({
@@ -89,12 +96,26 @@ class WriterIsolate {
   ReceivePort? _exitPort;
   Completer<void>? _clearCompleter;
   Completer<void>? _disposeCompleter;
+  bool _isDisposed = false;
 
   final StreamController<IndexEntry> _resultController =
       StreamController<IndexEntry>.broadcast();
 
+  final StreamController<WriterIsolateEvent> _eventController =
+      StreamController<WriterIsolateEvent>.broadcast();
+
   /// Stream of [IndexEntry]s produced after each successful write.
   Stream<IndexEntry> get results => _resultController.stream;
+
+  /// Stream of lifecycle events emitted when the isolate encounters an error or exits.
+  Stream<WriterIsolateEvent> get events => _eventController.stream;
+
+  /// Direct handle to the underlying isolate for testing resilience.
+  @visibleForTesting
+  Isolate? get rawIsolate => _isolate;
+
+  /// Whether the background isolate has started and is ready to receive writes.
+  bool get isReady => _sendPort != null && _isolate != null && !_isDisposed;
 
   /// Spawns the background isolate.
   ///
@@ -133,6 +154,9 @@ class WriterIsolate {
       _clearCompleter = null;
       _disposeCompleter?.complete();
       _disposeCompleter = null;
+      if (!_isDisposed && !_eventController.isClosed) {
+        _eventController.add(WriterIsolateEvent.error);
+      }
     });
 
     _exitPort!.listen((_) {
@@ -140,6 +164,9 @@ class WriterIsolate {
       _clearCompleter = null;
       _disposeCompleter?.complete();
       _disposeCompleter = null;
+      if (!_isDisposed && !_eventController.isClosed) {
+        _eventController.add(WriterIsolateEvent.exit);
+      }
     });
 
     _isolate = await Isolate.spawn(
@@ -157,14 +184,54 @@ class WriterIsolate {
     _sendPort = await completer.future;
   }
 
+  /// Restarts the background isolate after an unexpected error or termination.
+  Future<void> restart({
+    required String tempDirPath,
+    String fileName = BodyStore.kFileName,
+    int maxFileBytes = BodyStore.kMaxFileBytes,
+  }) async {
+    if (_isDisposed) return;
+
+    _clearCompleter?.complete();
+    _clearCompleter = null;
+    _disposeCompleter?.complete();
+    _disposeCompleter = null;
+
+    try {
+      _isolate?.kill(priority: Isolate.immediate);
+    } catch (_) {}
+    _isolate = null;
+
+    _receivePort?.close();
+    _receivePort = null;
+    _errorPort?.close();
+    _errorPort = null;
+    _exitPort?.close();
+    _exitPort = null;
+    _sendPort = null;
+
+    await start(
+      tempDirPath: tempDirPath,
+      fileName: fileName,
+      maxFileBytes: maxFileBytes,
+    );
+  }
+
   /// Fire-and-forget: enqueue a capture for background processing.
-  void send(RawCapture capture) {
-    _sendPort?.send(_WriteMessage(
+  ///
+  /// Returns `true` if dispatched to the isolate, or `false` if the isolate is not ready.
+  bool send(RawCapture capture) {
+    final port = _sendPort;
+    if (port == null || _isDisposed) {
+      return false;
+    }
+    port.send(_WriteMessage(
       capture: capture,
       bodyOffloadThreshold: _settings.bodyOffloadThreshold,
       maxBodyBytes: _settings.maxBodyBytes,
       persistToDisk: _settings.persistToDisk,
     ));
+    return true;
   }
 
   /// Sends a clear request and waits for the isolate to confirm the file has
@@ -178,6 +245,7 @@ class WriterIsolate {
   }
 
   Future<void> dispose() async {
+    _isDisposed = true;
     if (_clearCompleter != null && !_clearCompleter!.isCompleted) {
       _clearCompleter!.complete();
     }
@@ -199,6 +267,7 @@ class WriterIsolate {
     _exitPort?.close();
     _exitPort = null;
     await _resultController.close();
+    await _eventController.close();
 
     final filePath = _activeTempFilePath;
     _activeTempFilePath = null;
@@ -210,6 +279,63 @@ class WriterIsolate {
         }
       } catch (_) {}
     }
+  }
+
+  /// Transforms a [capture] directly into an [IndexEntry] in memory without disk persistence.
+  static IndexEntry processInMemory(
+    RawCapture capture, {
+    int maxBodyBytes = 0,
+  }) {
+    Uint8List? reqRaw;
+    Uint8List? resRaw;
+    try {
+      reqRaw = capture.requestBodyBytes?.materialize().asUint8List();
+    } catch (_) {}
+    try {
+      resRaw = capture.responseBodyBytes?.materialize().asUint8List();
+    } catch (_) {}
+
+    final reqKept = reqRaw?.length ?? 0;
+    final resKept = resRaw?.length ?? 0;
+
+    final reqSize = capture.requestSizeBytes ?? reqKept;
+    final resSize = capture.responseSizeBytes ?? resKept;
+
+    final inlineReq = _maybeTruncate(reqRaw, maxBodyBytes);
+    final inlineRes = _maybeTruncate(resRaw, maxBodyBytes);
+
+    return IndexEntry(
+      id: capture.id,
+      method: capture.method,
+      url: capture.url,
+      statusCode: capture.statusCode,
+      durationMs: capture.durationMs,
+      requestSizeBytes: reqSize,
+      responseSizeBytes: resSize,
+      timestamp: capture.timestamp,
+      hasError: capture.hasError,
+      bodyLocation: BodyLocation.memory,
+      inlineRequestBody: inlineReq,
+      inlineResponseBody: inlineRes,
+      requestHeaders: capture.requestHeaders,
+      responseHeaders: capture.responseHeaders,
+      requestContentType: capture.requestContentType,
+      responseContentType: capture.responseContentType,
+      errorType: capture.errorType,
+      errorMessage: capture.errorMessage,
+      requestTruncation: _storageTruncation(
+        reqSize,
+        maxBodyBytes,
+        _keptBytes(reqKept, maxBodyBytes),
+      ),
+      responseTruncation: _storageTruncation(
+        resSize,
+        maxBodyBytes,
+        _keptBytes(resKept, maxBodyBytes),
+      ),
+      fileOffset: null,
+      fileLength: null,
+    );
   }
 }
 

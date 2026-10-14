@@ -23,6 +23,7 @@ import 'master_search_controller.dart';
 import 'memory_index.dart';
 import 'pending_tracker.dart';
 import 'realtime_store.dart';
+import 'writer_isolate.dart';
 
 /// Central lifecycle facade for an Interceptly inspection session.
 ///
@@ -240,6 +241,14 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   @visibleForTesting
   void handleEntryReadyForTesting(IndexEntry entry) => _onCaptureReady(entry);
 
+  /// Access to the underlying capture pipeline for testing.
+  @visibleForTesting
+  CapturePipeline get capturePipeline => _capturePipeline;
+
+  /// Access to the underlying writer isolate for testing.
+  @visibleForTesting
+  WriterIsolate get writerIsolate => _capturePipeline.writerIsolate;
+
   void _onPendingTimeout(IndexEntry timedOutEntry) {
     _entriesVersion++;
     _invalidateGroupedCache();
@@ -255,7 +264,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   /// Enables traffic capture.
   @override
   void enable() {
-    if (_enabled) return;
+    if (_isDisposed || _enabled) return;
     _enabled = true;
     notifyListeners();
   }
@@ -512,7 +521,13 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
 
   @override
   Future<void> dispose() async {
+    if (_isDisposed) {
+      throw StateError('InspectorSession has already been disposed.');
+    }
     _isDisposed = true;
+    if (identical(_instance, this)) {
+      _instance = null;
+    }
     _coalesceNotifyTimer?.cancel();
     _coalesceNotifyTimer = null;
     _hasPendingCoalescedNotify = false;
@@ -527,9 +542,6 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     _preferences.removeListener(notifyListeners);
     _preferences.dispose();
     await _capturePipeline.dispose();
-    if (identical(_instance, this)) {
-      _instance = null;
-    }
     super.dispose();
   }
 }
