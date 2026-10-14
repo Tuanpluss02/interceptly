@@ -541,21 +541,24 @@ class _RequestDetailPageState extends State<RequestDetailPage>
               );
             },
           ),
-          floatingActionButton: FloatingActionButton.extended(
-            key: _fabKey,
-            heroTag: null,
-            onPressed: () => _showShareMenu(themedContext),
-            backgroundColor: InterceptlyTheme.indigo500,
-            foregroundColor: InterceptlyGlobalColor.white,
-            icon: const Icon(Icons.share, size: 18),
-            label: Text(
-              'Share',
-              style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
-                color: InterceptlyGlobalColor.white,
-                fontSize: 13,
-              ),
-            ),
-          ),
+          floatingActionButton: isWs
+              ? null
+              : FloatingActionButton.extended(
+                  key: _fabKey,
+                  heroTag: null,
+                  onPressed: () => _showShareMenu(themedContext),
+                  backgroundColor: InterceptlyTheme.indigo500,
+                  foregroundColor: InterceptlyGlobalColor.white,
+                  icon: const Icon(Icons.share, size: 18),
+                  label: Text(
+                    'Share',
+                    style:
+                        InterceptlyTheme.typography.bodyMediumMedium.copyWith(
+                      color: InterceptlyGlobalColor.white,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
         ),
       ),
     );
