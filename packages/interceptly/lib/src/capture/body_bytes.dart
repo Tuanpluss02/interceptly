@@ -43,7 +43,8 @@ Uint8List? encodeBodyBytes(Object? body) {
 Map<String, String> normalizeHeaders(Map<String, Object?> headers) {
   return headers.map((key, value) {
     if (value is Iterable) {
-      return MapEntry(key, value.join(', '));
+      final delimiter = key.toLowerCase() == 'set-cookie' ? '\n' : ', ';
+      return MapEntry(key, value.join(delimiter));
     }
     return MapEntry(key, value?.toString() ?? '');
   });

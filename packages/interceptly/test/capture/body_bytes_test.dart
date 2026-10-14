@@ -91,6 +91,36 @@ void main() {
       expect(normalized['x-count'], '3');
     });
 
+    test('normalizeHeaders joins set-cookie with newline instead of comma', () {
+      final headers = {
+        'set-cookie': [
+          'session=abc; Expires=Wed, 21 Oct 2026 07:28:00 GMT; Path=/',
+          'token=xyz; Path=/',
+        ],
+        'accept': ['text/html', 'application/xhtml+xml'],
+      };
+      final normalized = normalizeHeaders(headers);
+      expect(
+        normalized['set-cookie'],
+        'session=abc; Expires=Wed, 21 Oct 2026 07:28:00 GMT; Path=/\ntoken=xyz; Path=/',
+      );
+      expect(normalized['accept'], 'text/html, application/xhtml+xml');
+    });
+
+    test('normalizeHeaders is case-insensitive for Set-Cookie', () {
+      final headers = {
+        'Set-Cookie': [
+          'session=abc; Expires=Wed, 21 Oct 2026 07:28:00 GMT; Path=/',
+          'token=xyz; Path=/',
+        ],
+      };
+      final normalized = normalizeHeaders(headers);
+      expect(
+        normalized['Set-Cookie'],
+        'session=abc; Expires=Wed, 21 Oct 2026 07:28:00 GMT; Path=/\ntoken=xyz; Path=/',
+      );
+    });
+
     test('mapHeaderEntries converts map to list of key-value maps', () {
       final headers = {'x-api-key': 'secret', 'accept': '*/*'};
       final harFormat = mapHeaderEntries(

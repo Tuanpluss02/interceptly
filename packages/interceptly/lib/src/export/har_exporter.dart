@@ -18,7 +18,7 @@ class HarExporter {
     return {
       'log': {
         'version': '1.2',
-        'creator': {'name': 'Interceptly', 'version': '0.0.1'},
+        'creator': {'name': 'Interceptly', 'version': '2.0.0'},
         'pages': <Map<String, Object?>>[],
         'entries': records.map(_entryFromRecord).toList(),
       },
@@ -72,16 +72,42 @@ class HarExporter {
         'httpVersion': 'HTTP/1.1',
         'cookies': <Object>[],
         'headers': _mapHeaders(r.responseHeaders),
-        'content': {
-          'size': r.responseSizeBytes,
-          'mimeType': r.responseContentType ?? 'application/octet-stream',
-          'text': _safeBody(r.responseBodyBytes, r.responseBodyPreview),
-        },
+        'content': _buildResponseContent(r),
         'redirectURL': '',
         'headersSize': -1,
         'bodySize': r.responseSizeBytes,
       },
     };
+  }
+
+  static Map<String, Object?> _buildResponseContent(RequestRecord r) {
+    final bytes = r.responseBodyBytes;
+    final mimeType = r.responseContentType ?? 'application/octet-stream';
+    final content = <String, Object?>{
+      'size': r.responseSizeBytes,
+      'mimeType': mimeType,
+    };
+
+    if (bytes != null && bytes.isNotEmpty) {
+      if (BodyDecodeService.isBinary(r.responseContentType)) {
+        content['text'] = base64Encode(bytes);
+        content['encoding'] = 'base64';
+        return content;
+      }
+      try {
+        final decoded = utf8.decode(bytes);
+        if (!BodyDecodeService.isPlaceholder(decoded)) {
+          content['text'] = decoded;
+          return content;
+        }
+      } catch (_) {}
+      content['text'] = base64Encode(bytes);
+      content['encoding'] = 'base64';
+      return content;
+    }
+
+    content['text'] = _safeBody(bytes, r.responseBodyPreview);
+    return content;
   }
 
   static List<Map<String, String>> _mapHeaders(Map<String, String> headers) {
