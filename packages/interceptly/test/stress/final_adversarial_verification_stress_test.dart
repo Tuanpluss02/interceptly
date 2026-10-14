@@ -4,12 +4,10 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/capture/capture_guard.dart';
 import 'package:interceptly/src/export/curl_generator.dart';
 import 'package:interceptly/src/model/body_location.dart';
 import 'package:interceptly/src/model/body_truncation.dart';
 import 'package:interceptly/src/model/index_entry.dart';
-import 'package:interceptly/src/model/interceptly_settings.dart';
 import 'package:interceptly/src/model/request_record.dart';
 import 'package:interceptly/src/session/body_store.dart';
 import 'package:interceptly/src/session/master_search_controller.dart';
@@ -334,41 +332,6 @@ void main() {
       expect(await nestedFile.exists(), isTrue);
 
       await tempDir.delete(recursive: true);
-    });
-
-    test(
-        'Vector 6: Redacted headers pre-normalization and case-insensitivity verification',
-        () {
-      final settings = InterceptlySettings(
-        redactedHeaders: {
-          'Authorization',
-          'X-Api-Key',
-          'COOKIE',
-          'sEcReT-ToKeN'
-        },
-      );
-
-      final normalized = settings.normalizedRedactedHeaders;
-      expect(normalized.contains('authorization'), isTrue);
-      expect(normalized.contains('x-api-key'), isTrue);
-      expect(normalized.contains('cookie'), isTrue);
-      expect(normalized.contains('secret-token'), isTrue);
-      expect(identical(settings.normalizedRedactedHeaders, normalized), isTrue);
-
-      final headers = {
-        'AUTHORIZATION': 'Bearer 9999',
-        'X-API-KEY': 'xyz-secret',
-        'Cookie': 'session=abc',
-        'Content-Type': 'application/json',
-        'Accept': '*/*',
-      };
-
-      final redacted = CaptureGuard.redactHeaders(headers, normalized);
-      expect(redacted['AUTHORIZATION'], '[REDACTED]');
-      expect(redacted['X-API-KEY'], '[REDACTED]');
-      expect(redacted['Cookie'], '[REDACTED]');
-      expect(redacted['Content-Type'], 'application/json');
-      expect(redacted['Accept'], '*/*');
     });
   });
 }

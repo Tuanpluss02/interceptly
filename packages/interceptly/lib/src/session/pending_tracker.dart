@@ -2,13 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import '../capture/capture_guard.dart';
 import '../model/body_location.dart';
 import '../model/body_truncation.dart';
 import '../model/index_entry.dart';
 import '../model/interceptly_settings.dart';
 import 'body_decode_service.dart';
-import 'capture_pipeline.dart';
 import 'memory_index.dart';
 
 /// Tracks pending request timers and handles timeout expiration or cancellation.
@@ -44,24 +42,12 @@ class PendingTracker {
     String? requestContentType,
     required InterceptlySettings settings,
   }) {
-    final sanitizedHeaders = CaptureGuard.redactHeaders(
-      requestHeaders,
-      settings.normalizedRedactedHeaders,
-    );
-    final sanitizedUrl = CaptureGuard.sanitizeUrl(
-      url,
-      settings.normalizedRedactedQueryParams,
-    );
-    final redactedRequestBody = CapturePipeline.redactInlineBytes(
-      requestBodyBytes,
-      settings.bodyRedactor,
-    );
     final inlineRequestBody = BodyDecodeService.truncate(
-      redactedRequestBody,
+      requestBodyBytes,
       settings.maxBodyBytes,
       settings.previewTruncationBytes,
     );
-    final requestSize = redactedRequestBody?.length ?? 0;
+    final requestSize = requestBodyBytes?.length ?? 0;
     final requestTruncation = pendingRequestTruncation(
       originalBytes: requestSize,
       inlineBytes: inlineRequestBody?.length ?? 0,
@@ -71,7 +57,7 @@ class PendingTracker {
       IndexEntry(
         id: id,
         method: method,
-        url: sanitizedUrl,
+        url: url,
         statusCode: 0,
         durationMs: 0,
         requestSizeBytes: requestSize,
@@ -81,7 +67,7 @@ class PendingTracker {
         bodyLocation: BodyLocation.memory,
         inlineRequestBody: inlineRequestBody,
         inlineResponseBody: null,
-        requestHeaders: sanitizedHeaders,
+        requestHeaders: requestHeaders,
         responseHeaders: const {},
         requestContentType: requestContentType,
         responseContentType: null,

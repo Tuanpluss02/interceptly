@@ -33,8 +33,6 @@ class Interceptly extends ChangeNotifier {
   /// and applies all desired configuration options in one clean call.
   ///
   /// Release build checklist:
-  /// - Ensure sensitive headers (tokens, cookies, auth keys) are configured in
-  ///   [InterceptlySettings.redactedHeaders].
   /// - Configure payload size caps via [InterceptlySettings.maxBodyBytes] and
   ///   [InterceptlySettings.maxEntries] to avoid memory overhead.
   /// - Keep the floating overlay hidden or restricted to internal users when shipping.
@@ -47,7 +45,6 @@ class Interceptly extends ChangeNotifier {
   ///   navigatorKey: _navKey,
   ///   settings: const InterceptlySettings(
   ///     maxBodyBytes: 1024 * 1024,
-  ///     redactedHeaders: {'authorization', 'x-api-key'},
   ///   ),
   ///   showFloatingButton: true,
   /// );

@@ -328,28 +328,6 @@ void main() {
       expect(find.text('RESPONSE HEADERS'), findsNothing);
     });
 
-    test(
-        '[F4] Redacted headers case-insensitively masks secrets without leaking',
-        () {
-      final headers = {
-        'Authorization': 'Bearer secret_token_xyz',
-        'COOKIE': 'session=abc12345',
-        'X-API-KEY': 'key_secret_999',
-        'Content-Type': 'application/json',
-        'Accept': '*/*',
-      };
-
-      final redacted = redactHeaders(
-        headers,
-        const {'authorization', 'cookie', 'x-api-key'},
-      );
-
-      expect(redacted['Authorization'], equals('[REDACTED]'));
-      expect(redacted['COOKIE'], equals('[REDACTED]'));
-      expect(redacted['X-API-KEY'], equals('[REDACTED]'));
-      expect(redacted['Content-Type'], equals('application/json'));
-      expect(redacted['Accept'], equals('*/*'));
-    });
 
     testWidgets('[F5] JsonViewer renders line gutter and formatted JSON',
         (tester) async {
@@ -772,38 +750,6 @@ void main() {
       expect(find.textContaining('cpu'), findsWidgets);
     });
 
-    test(
-        'Cross: Redacted headers preserved across cURL, HAR, and Postman exporters',
-        () {
-      final sensitiveHeaders = {
-        'authorization': 'Bearer secret_super_token',
-        'cookie': 'session_id=confidential_session',
-        'content-type': 'application/json',
-      };
-      final maskedHeaders = redactHeaders(
-        sensitiveHeaders,
-        const {'authorization', 'cookie'},
-      );
-
-      final record = _createRequestRecord(
-        requestHeaders: maskedHeaders,
-        requestBodyPreview: '{"action":"authenticate"}',
-      );
-
-      final curl = CurlGenerator.fromRecord(record);
-      expect(curl, contains('-H \'authorization: [REDACTED]\''));
-      expect(curl, contains('-H \'cookie: [REDACTED]\''));
-      expect(curl, isNot(contains('secret_super_token')));
-      expect(curl, isNot(contains('confidential_session')));
-
-      final har = HarExporter.toJson([record]);
-      expect(har, contains('[REDACTED]'));
-      expect(har, isNot(contains('secret_super_token')));
-
-      final postman = PostmanExporter.toJson([record]);
-      expect(postman, contains('[REDACTED]'));
-      expect(postman, isNot(contains('secret_super_token')));
-    });
 
     test(
         'Cross: Multiple sequential sessions isolate files and clean up independently',

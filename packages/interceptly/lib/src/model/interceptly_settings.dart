@@ -1,8 +1,3 @@
-import 'dart:typed_data';
-
-/// Transforms a captured body before it is persisted.
-typedef BodyRedactor = Uint8List? Function(Uint8List? body);
-
 /// Configuration for Interceptly capture and storage behavior.
 class InterceptlySettings {
   const InterceptlySettings({
@@ -15,9 +10,6 @@ class InterceptlySettings {
     this.maxFramesPerSession = 1000,
     this.urlDecodeEnabled = true,
     this.pendingTimeout = const Duration(seconds: 45),
-    this.redactedHeaders = const {},
-    this.redactedQueryParams = const {},
-    this.bodyRedactor,
     this.shouldCapture,
     this.persistToDisk = true,
   });
@@ -58,35 +50,6 @@ class InterceptlySettings {
   /// Duration after which an uncompleted pending request is marked as timed out.
   final Duration pendingTimeout;
 
-  /// Header names (case-insensitive) whose values are replaced with `[REDACTED]`.
-  /// Empty by default: redaction is opt-in, pass explicit names to enable it.
-  final Set<String> redactedHeaders;
-
-  /// Query parameter names (case-insensitive) masked as `[REDACTED]` in stored URLs.
-  /// Empty by default: redaction is opt-in, pass explicit names to enable it.
-  final Set<String> redactedQueryParams;
-
-  /// Optional hook transforming bodies before they are persisted.
-  /// Null by default, which leaves every byte untouched.
-  /// Note: [copyWith] treats a null [bodyRedactor] argument as keep the
-  /// existing value, so clearing a redactor requires constructing a new
-  /// [InterceptlySettings] instead of calling `copyWith(bodyRedactor: null)`.
-  final BodyRedactor? bodyRedactor;
-
-  static final Expando<Set<String>> _normalizedCache = Expando<Set<String>>();
-
-  static final Expando<Set<String>> _normalizedQueryCache =
-      Expando<Set<String>>();
-
-  /// Pre-normalized lowercase set of [redactedHeaders] for fast case-insensitive lookup.
-  Set<String> get normalizedRedactedHeaders => _normalizedCache[this] ??=
-      Set<String>.unmodifiable(redactedHeaders.map((k) => k.toLowerCase()));
-
-  /// Pre-normalized lowercase set of [redactedQueryParams] for fast case-insensitive lookup.
-  Set<String> get normalizedRedactedQueryParams =>
-      _normalizedQueryCache[this] ??= Set<String>.unmodifiable(
-          redactedQueryParams.map((k) => k.toLowerCase()));
-
   /// Optional predicate to exclude URLs or requests from being captured.
   ///
   /// Evaluated synchronously on every request URL before capture processing.
@@ -120,9 +83,6 @@ class InterceptlySettings {
     int? maxFramesPerSession,
     bool? urlDecodeEnabled,
     Duration? pendingTimeout,
-    Set<String>? redactedHeaders,
-    Set<String>? redactedQueryParams,
-    BodyRedactor? bodyRedactor,
     bool Function(String url)? shouldCapture,
     bool? persistToDisk,
   }) {
@@ -137,9 +97,6 @@ class InterceptlySettings {
       maxFramesPerSession: maxFramesPerSession ?? this.maxFramesPerSession,
       urlDecodeEnabled: urlDecodeEnabled ?? this.urlDecodeEnabled,
       pendingTimeout: pendingTimeout ?? this.pendingTimeout,
-      redactedHeaders: redactedHeaders ?? this.redactedHeaders,
-      redactedQueryParams: redactedQueryParams ?? this.redactedQueryParams,
-      bodyRedactor: bodyRedactor ?? this.bodyRedactor,
       shouldCapture: shouldCapture ?? this.shouldCapture,
       persistToDisk: persistToDisk ?? this.persistToDisk,
     );

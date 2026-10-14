@@ -4,8 +4,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/core/interceptly_controller.dart';
+import 'package:interceptly/src/model/interceptly_settings.dart';
+import 'package:interceptly/src/model/raw_capture.dart';
 import 'package:interceptly/src/session/body_decode_service.dart';
+import 'package:interceptly/src/session/inspector_session.dart';
 
 const _pathProviderChannel = MethodChannel('plugins.flutter.io/path_provider');
 
@@ -119,33 +122,7 @@ void main() {
     });
   });
 
-  group('Security and Session settings', () {
-    test('redacts configured sensitive headers case-insensitively', () async {
-      final session = InspectorSession(
-        settings: const InterceptlySettings(
-          redactedHeaders: {'authorization', 'x-api-key', 'cookie'},
-        ),
-      );
-      addTearDown(session.dispose);
-
-      session.recordPending(
-        id: 'pend_1',
-        method: 'GET',
-        url: 'https://example.com/test',
-        timestamp: DateTime(2026),
-        requestHeaders: {
-          'Authorization': 'Bearer secret_token',
-          'X-API-KEY': '12345',
-          'content-type': 'application/json',
-        },
-      );
-
-      final entry = session.entries.first;
-      expect(entry.requestHeaders['Authorization'], '[REDACTED]');
-      expect(entry.requestHeaders['X-API-KEY'], '[REDACTED]');
-      expect(entry.requestHeaders['content-type'], 'application/json');
-    });
-
+  group('Session settings and filters', () {
     test('shouldCapture ignores matching requests completely', () async {
       final session = InspectorSession(
         settings: InterceptlySettings(
@@ -198,13 +175,11 @@ void main() {
         session: customSession,
         settings: const InterceptlySettings(
           maxBodyBytes: 1024,
-          redactedHeaders: {'custom-token'},
         ),
         showFloatingButton: false,
       );
 
       expect(customSession.settings.maxBodyBytes, 1024);
-      expect(customSession.settings.redactedHeaders, contains('custom-token'));
     });
 
     test('Interceptly.init uses default settings when none provided', () async {

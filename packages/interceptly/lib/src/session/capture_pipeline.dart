@@ -1,11 +1,9 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
-import '../capture/capture_guard.dart';
 import '../model/index_entry.dart';
 import '../model/interceptly_settings.dart';
 import '../model/raw_capture.dart';
@@ -13,8 +11,8 @@ import 'body_store.dart';
 import 'bounded_event_queue.dart';
 import 'writer_isolate.dart';
 
-/// Pipeline managing capture redaction, pre-initialization queueing,
-/// asynchronous isolate writing, and generation-fenced entry ingestion.
+/// Pipeline managing pre-initialization queueing, asynchronous isolate writing,
+/// and generation-fenced entry ingestion.
 @internal
 class CapturePipeline {
   /// Creates a capture pipeline configured for [sessionId] and [settings].
@@ -27,8 +25,6 @@ class CapturePipeline {
         _sessionId = sessionId,
         _onEntryReady = onEntryReady,
         _onEntryReceived = onEntryReceived,
-        _normalizedRedactedHeaders = settings.normalizedRedactedHeaders,
-        _normalizedRedactedQueryParams = settings.normalizedRedactedQueryParams,
         _writerIsolate = WriterIsolate(settings),
         _preInitQueue = BoundedEventQueue(maxSize: settings.maxQueuedEvents);
 
@@ -37,8 +33,6 @@ class CapturePipeline {
   final void Function(String id)? _onEntryReceived;
 
   InterceptlySettings _settings;
-  Set<String> _normalizedRedactedHeaders;
-  Set<String> _normalizedRedactedQueryParams;
 
   final WriterIsolate _writerIsolate;
   final BoundedEventQueue<RawCapture> _preInitQueue;
@@ -71,8 +65,6 @@ class CapturePipeline {
   /// Updates settings propagated from session reconfiguration.
   void updateSettings(InterceptlySettings newSettings) {
     _settings = newSettings;
-    _normalizedRedactedHeaders = newSettings.normalizedRedactedHeaders;
-    _normalizedRedactedQueryParams = newSettings.normalizedRedactedQueryParams;
     _writerIsolate.updateSettings(newSettings);
     _preInitQueue.updateMaxSize(newSettings.maxQueuedEvents);
   }
@@ -119,42 +111,10 @@ class CapturePipeline {
     }
   }
 
-  /// Enqueues a capture, applying URL/header redaction and body transformations.
+  /// Enqueues a capture directly to isolate or pre-init queue (zero allocation).
   void record(RawCapture capture) {
-    final sanitizedCapture = RawCapture(
-      id: capture.id,
-      method: capture.method,
-      url: CaptureGuard.sanitizeUrl(
-        capture.url,
-        _normalizedRedactedQueryParams,
-      ),
-      requestHeaders: CaptureGuard.redactHeaders(
-        capture.requestHeaders,
-        _normalizedRedactedHeaders,
-      ),
-      responseHeaders: CaptureGuard.redactHeaders(
-        capture.responseHeaders,
-        _normalizedRedactedHeaders,
-      ),
-      statusCode: capture.statusCode,
-      durationMs: capture.durationMs,
-      timestamp: capture.timestamp,
-      requestBodyBytes: redactTransferable(
-        capture.requestBodyBytes,
-        _settings.bodyRedactor,
-      ),
-      responseBodyBytes: redactTransferable(
-        capture.responseBodyBytes,
-        _settings.bodyRedactor,
-      ),
-      requestContentType: capture.requestContentType,
-      responseContentType: capture.responseContentType,
-      errorType: capture.errorType,
-      errorMessage: capture.errorMessage,
-    );
-
     if (!_initialized) {
-      _preInitQueue.add(sanitizedCapture);
+      _preInitQueue.add(capture);
       initialize().catchError((Object error, StackTrace stackTrace) {
         if (kDebugMode) {
           debugPrint(
@@ -164,7 +124,7 @@ class CapturePipeline {
       });
       return;
     }
-    _sendCapture(sanitizedCapture);
+    _sendCapture(capture);
   }
 
   void _sendCapture(RawCapture capture) {
@@ -229,37 +189,5 @@ class CapturePipeline {
     _sentGenerations.clear();
     _inFlight = 0;
     _initFuture = null;
-  }
-
-  /// Redacts an inline byte buffer using [redactor] if present.
-  static Uint8List? redactInlineBytes(
-    Uint8List? body,
-    BodyRedactor? redactor,
-  ) {
-    if (redactor == null) return body;
-    try {
-      return redactor(body);
-    } catch (_) {
-      return body;
-    }
-  }
-
-  /// Redacts a transferable byte buffer using [redactor] if present.
-  static TransferableTypedData? redactTransferable(
-    TransferableTypedData? body,
-    BodyRedactor? redactor,
-  ) {
-    if (redactor == null) return body;
-    if (body == null) return null;
-    try {
-      final bytes = body.materialize().asUint8List();
-      try {
-        return RawCapture.wrapBytes(redactor(bytes));
-      } catch (_) {
-        return RawCapture.wrapBytes(bytes);
-      }
-    } catch (_) {
-      return body;
-    }
   }
 }

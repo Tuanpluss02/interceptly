@@ -15,7 +15,7 @@ export 'src/core/interceptly_controller.dart' show Interceptly;
 export 'src/export/curl_generator.dart' show CurlGenerator;
 export 'src/export/har_exporter.dart' show HarExporter;
 export 'src/export/postman_exporter.dart' show PostmanExporter;
-export 'src/model/interceptly_settings.dart' show BodyRedactor, InterceptlySettings;
+export 'src/model/interceptly_settings.dart' show InterceptlySettings;
 export 'src/model/network_simulation.dart'
     show NetworkSimulationProfile, SimulatedNetworkException;
 export 'src/model/request_filter.dart' show RequestFilter;
