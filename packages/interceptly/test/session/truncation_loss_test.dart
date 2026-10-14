@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/src/model/body_truncation.dart';
 import 'package:interceptly/src/model/interceptly_settings.dart';
 import 'package:interceptly/src/model/raw_capture.dart';
+import 'package:interceptly/src/session/body_decode_service.dart';
 import 'package:interceptly/src/session/inspector_session.dart';
 
 const _channel = MethodChannel('plugins.flutter.io/path_provider');
@@ -84,5 +85,13 @@ void main() {
     expect(entry.responseTruncation.stage, equals(TruncationStage.storage));
     expect(entry.responseTruncation.originalBytes, equals(500));
     expect(entry.responseTruncation.retainedBytes, equals(100));
+  });
+
+  test(
+      'truncate returns entire byte array unmodified when maxBody <= 0 (unlimited)',
+      () {
+    final payload = Uint8List.fromList(List.generate(100, (i) => i));
+    expect(BodyDecodeService.truncate(payload, 0, 10), equals(payload));
+    expect(BodyDecodeService.truncate(payload, -1, 10), equals(payload));
   });
 }

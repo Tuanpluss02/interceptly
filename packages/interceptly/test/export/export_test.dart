@@ -15,7 +15,7 @@ void main() {
       final cmd = CurlGenerator.fromRecord(
         _record(method: 'GET', url: 'https://api.example.com/users'),
       );
-      expect(cmd, contains("curl -X GET"));
+      expect(cmd, contains("curl -X 'GET'"));
       expect(cmd, contains("'https://api.example.com/users'"));
     });
 

@@ -461,7 +461,7 @@ void main() {
       );
 
       final curl = CurlGenerator.fromRecord(record);
-      expect(curl, contains('curl -X POST'));
+      expect(curl, contains("curl -X 'POST'"));
       expect(curl, contains('https://api.example.com/login'));
       expect(
           curl,

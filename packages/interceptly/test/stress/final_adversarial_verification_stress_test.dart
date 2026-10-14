@@ -256,7 +256,7 @@ void main() {
       final curl = CurlGenerator.fromRecord(record);
       expect(curl, contains('curl'));
       expect(curl, contains('https://api.example.com/upload'));
-      expect(curl, contains('-X POST'));
+      expect(curl, contains("-X 'POST'"));
     });
 
     testWidgets('Vector 4: JsonViewer virtualization with 30,000 lines payload',

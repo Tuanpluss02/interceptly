@@ -40,7 +40,7 @@ class CurlGenerator {
     final sanitizedUrl = record.url.replaceAll(RegExp(r'[\r\n]'), '').trim();
 
     final buffer = StringBuffer('curl');
-    buffer.write(' -X $sanitizedMethod');
+    buffer.write(" -X '$sanitizedMethod'");
 
     for (final entry in record.requestHeaders.entries) {
       final key = entry.key.replaceAll(RegExp(r'[\r\n]'), '').trim();

@@ -116,10 +116,11 @@ class BodyDecodeService {
   /// Returns a preview of [bytes] truncated to [previewLen] bytes,
   /// or `null` when [bytes] is null or empty.
   ///
-  /// If [bytes.length] <= [maxBody] the full buffer is returned unchanged.
+  /// If [maxBody] <= 0 (unlimited) or [bytes.length] <= [maxBody],
+  /// the full buffer is returned unchanged.
   static Uint8List? truncate(Uint8List? bytes, int maxBody, int previewLen) {
     if (bytes == null || bytes.isEmpty) return null;
-    if (bytes.length <= maxBody) return bytes;
+    if (maxBody <= 0 || bytes.length <= maxBody) return bytes;
     final end = previewLen < bytes.length ? previewLen : bytes.length;
     return bytes.sublist(0, end);
   }
