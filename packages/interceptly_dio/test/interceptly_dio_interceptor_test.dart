@@ -273,6 +273,29 @@ void main() {
     });
 
     test(
+        'onResponse applies fire-and-forget background capture for non-streaming response',
+        () async {
+      final spy = _SpyHttpTrafficCollector();
+      final interceptor = InterceptlyDioInterceptor(spy);
+
+      final dio = Dio()
+        ..httpClientAdapter = _FixedAdapter(
+          statusCode: 200,
+          responseBody: '{"decoupled":true}',
+        );
+      dio.interceptors.add(interceptor);
+
+      final res = await dio.get<dynamic>('https://api.example.com/fast');
+      expect(res.statusCode, equals(200));
+
+      await _waitFor(() => spy.completeResponseCalls.isNotEmpty);
+      expect(spy.completeResponseCalls.length, equals(1));
+      final call = spy.completeResponseCalls.first;
+      expect(utf8.decode(call['bodyBytes'] as Uint8List),
+          equals('{"decoupled":true}'));
+    });
+
+    test(
         'onError delegates to collector.completeResponse on badResponse with response',
         () async {
       final spy = _SpyHttpTrafficCollector();

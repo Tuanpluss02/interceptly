@@ -23,8 +23,8 @@ class InterceptlyDioInterceptor extends Interceptor {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    final reqBytes = await guardCaptureAsync<Uint8List?>(
-      () => _toBytesAsync(options.data, options.contentType),
+    final reqBytes = guardCapture(
+      () => _toBytes(options.data, options.contentType),
     );
 
     try {
@@ -101,17 +101,45 @@ class InterceptlyDioInterceptor extends Interceptor {
       return;
     }
 
-    final resBytes = await guardCaptureAsync(
-      () => _toBytesAsync(response.data, resContentType),
-    );
-    await scope.complete(
-      statusCode: response.statusCode ?? 200,
-      headers: normalizeHeaders(response.headers.map),
-      bodyBytes: resBytes,
-      contentType: resContentType,
-    );
+    var contentLength = 0;
+    final contentLengthHeader =
+        response.headers.value(Headers.contentLengthHeader);
+    if (contentLengthHeader != null) {
+      contentLength = int.tryParse(contentLengthHeader) ?? 0;
+    }
+    if (contentLength <= 0) {
+      final data = response.data;
+      if (data is List<int>) {
+        contentLength = data.length;
+      } else if (data is String) {
+        contentLength = data.length;
+      }
+    }
+
+    try {
+      final delay = collector.delayForChunk(contentLength);
+      if (delay > Duration.zero) {
+        await Future<void>.delayed(delay);
+      }
+    } catch (_) {}
 
     handler.next(response);
+
+    final statusCode = response.statusCode ?? 200;
+    final headers = normalizeHeaders(response.headers.map);
+    final responseData = response.data;
+
+    unawaited(
+      guardCaptureAsync(() async {
+        final resBytes = _toBytes(responseData, resContentType);
+        await scope.complete(
+          statusCode: statusCode,
+          headers: headers,
+          bodyBytes: resBytes,
+          contentType: resContentType,
+        );
+      }),
+    );
   }
 
   /// Captures a Dio failure response or transport error.
@@ -142,7 +170,7 @@ class InterceptlyDioInterceptor extends Interceptor {
       final resContentType = response.headers.value(Headers.contentTypeHeader);
       unawaited(
         guardCaptureAsync(() async {
-          final resBytes = await _toBytesAsync(response.data, resContentType);
+          final resBytes = _toBytes(response.data, resContentType);
           await scope.complete(
             statusCode: response.statusCode ?? 0,
             headers: normalizeHeaders(response.headers.map),
@@ -171,35 +199,6 @@ class InterceptlyDioInterceptor extends Interceptor {
     handler.next(err);
   }
 
-  /// Serializes arbitrary data to UTF-8 bytes in an isolate when appropriate.
-  static Future<Uint8List?> _toBytesAsync(
-    Object? data, [
-    String? contentType,
-  ]) async {
-    if (data == null) return null;
-    if (data is Uint8List) return data;
-    if (data is List<int>) return Uint8List.fromList(data);
-
-    if (data is String) {
-      return _utf8Encode(data);
-    }
-
-    if (data is Map || data is List) {
-      final isLarge = (data is List && data.length > 100) ||
-          (data is Map && data.length > 100);
-      if (isLarge) {
-        return compute(_encodeJsonBytes, data);
-      }
-      return _toBytes(data, contentType);
-    }
-
-    return _toBytes(data, contentType);
-  }
-
-  static Uint8List _encodeJsonBytes(Object? data) {
-    return encodeBodyBytes(data) ?? Uint8List(0);
-  }
-
   /// Converts request/response data to raw bytes for capture synchronously.
   static Uint8List? _toBytes(Object? data, [String? contentType]) {
     if (data == null) return null;
@@ -225,6 +224,3 @@ class InterceptlyDioInterceptor extends Interceptor {
     return encodeBodyBytes(data);
   }
 }
-
-/// Encodes [text] into UTF-8 bytes synchronously without isolate overhead.
-Uint8List _utf8Encode(String text) => utf8.encode(text);
