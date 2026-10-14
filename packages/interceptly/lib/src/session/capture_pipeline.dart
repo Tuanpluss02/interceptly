@@ -77,7 +77,8 @@ class CapturePipeline {
 
   /// Number of captures dropped due to queue saturation or isolate failure.
   int get droppedCount =>
-      _droppedCount + (_initialized ? 0 : _preInitQueue.droppedCount);
+      _droppedCount +
+      (_initialized || isDegraded ? 0 : _preInitQueue.droppedCount);
 
   /// Number of captures currently dispatched to the writer isolate.
   int get inFlight => _inFlight;
@@ -158,7 +159,9 @@ class CapturePipeline {
   }
 
   void _drainPreInitQueueToFallback() {
-    _droppedCount += _preInitQueue.droppedCount;
+    if (!_initialized) {
+      _droppedCount += _preInitQueue.droppedCount;
+    }
     while (true) {
       final pending = _preInitQueue.removeFirstOrNull();
       if (pending == null) break;
@@ -181,7 +184,7 @@ class CapturePipeline {
   }
 
   void _handleIsolateEvent(WriterIsolateEvent event) {
-    if (_isDisposed) return;
+    if (_isDisposed || _isRespawning || _fallbackMode) return;
 
     _inFlight = 0;
     _inFlightBytes = 0;
@@ -197,7 +200,7 @@ class CapturePipeline {
   }
 
   Future<void> _respawnIsolate() async {
-    if (_isDisposed || _fallbackMode) return;
+    if (_isDisposed || _fallbackMode || _isRespawning) return;
     _isRespawning = true;
     try {
       final dirPath = _activeDirPath ?? Directory.systemTemp.path;
@@ -216,7 +219,6 @@ class CapturePipeline {
         _sendCapture(pending);
       }
     } catch (error, stackTrace) {
-      _isRespawning = false;
       if (_isDisposed) return;
       if (kDebugMode) {
         debugPrint(
@@ -224,6 +226,8 @@ class CapturePipeline {
         );
       }
       _enterFallbackMode();
+    } finally {
+      _isRespawning = false;
     }
   }
 
@@ -273,8 +277,8 @@ class CapturePipeline {
     final sent = _writerIsolate.send(capture);
     if (!sent) {
       _inFlight--;
-      _inFlightBytes =
-          (_inFlightBytes - captureBytes).clamp(0, double.maxFinite.toInt());
+      final rem = _inFlightBytes - captureBytes;
+      _inFlightBytes = rem > 0 ? rem : 0;
       _sentBytes.remove(capture.id);
       _sentGenerations.remove(capture.id);
       _preInitQueue.add(capture);
@@ -286,8 +290,8 @@ class CapturePipeline {
       _inFlight--;
     }
     final bytes = _sentBytes.remove(entry.id) ?? 0;
-    _inFlightBytes =
-        (_inFlightBytes - bytes).clamp(0, double.maxFinite.toInt());
+    final rem = _inFlightBytes - bytes;
+    _inFlightBytes = rem > 0 ? rem : 0;
 
     _onEntryReceived?.call(entry.id);
     final sentGeneration = _sentGenerations.remove(entry.id);
