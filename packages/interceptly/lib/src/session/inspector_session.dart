@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../core/interceptly_controller.dart';
 import '../model/domain_group.dart';
 import '../model/index_entry.dart';
 import '../model/interceptly_settings.dart';
@@ -78,6 +79,16 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   /// Returns the shared default session singleton.
   static InspectorSession get instance =>
       _instance ??= InspectorSession(settings: _defaultSettings);
+
+  /// Resets the singleton instance and configuration for isolated unit/widget tests.
+  @visibleForTesting
+  static Future<void> resetForTesting() async {
+    await _instance?.dispose();
+    _instance = null;
+    _defaultSettings = const InterceptlySettings();
+    // ignore: invalid_use_of_visible_for_testing_member
+    Interceptly.resetForTesting();
+  }
 
   /// Unique ID for this session instance to isolate temporary files.
   final String sessionId;

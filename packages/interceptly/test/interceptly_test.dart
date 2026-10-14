@@ -5,6 +5,14 @@ import 'package:interceptly/src/model/index_entry.dart';
 import 'package:interceptly/src/session/memory_index.dart';
 
 void main() {
+  setUp(() async {
+    await InspectorSession.resetForTesting();
+  });
+
+  tearDown(() async {
+    await InspectorSession.resetForTesting();
+  });
+
   test('MemoryIndex drops oldest entry when maxEntries is exceeded', () {
     final index = MemoryIndex(maxEntries: 2);
 
@@ -194,6 +202,17 @@ void main() {
     final instance2 = Interceptly.instance;
     expect(identical(instance1, instance2), isFalse);
     instance2.dispose();
+  });
+
+  test('InspectorSession.resetForTesting resets singleton and Interceptly',
+      () async {
+    final session1 = InspectorSession.instance;
+    final interceptly1 = Interceptly.instance;
+    await InspectorSession.resetForTesting();
+    final session2 = InspectorSession.instance;
+    final interceptly2 = Interceptly.instance;
+    expect(identical(session1, session2), isFalse);
+    expect(identical(interceptly1, interceptly2), isFalse);
   });
 }
 

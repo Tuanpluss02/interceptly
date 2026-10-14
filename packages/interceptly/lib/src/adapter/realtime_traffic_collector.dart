@@ -34,14 +34,11 @@ abstract interface class RealtimeTrafficCollector {
 
 /// Default implementation of [RealtimeTrafficCollector] backed by [InspectorSession].
 class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
-  /// Creates a collector backed by [session] (defaults to [InspectorSession.instance]).
-  DefaultRealtimeTrafficCollector([InspectorSession? session])
-      : _session = session ?? InspectorSession.instance;
-
-  final InspectorSession _session;
+  /// Creates a collector backed by [InspectorSession.instance].
+  DefaultRealtimeTrafficCollector();
 
   /// The underlying [InspectorSession] used for storing captured traffic.
-  InspectorSession get session => _session;
+  InspectorSession get session => InspectorSession.instance;
 
   @override
   void recordConnection({
@@ -50,7 +47,7 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
     Map<String, String>? headers,
   }) {
     guardCapture(() {
-      _session.recordRealtimeConnection(
+      session.recordRealtimeConnection(
         id: sessionId,
         url: uri.toString(),
         headers: headers ?? const {},
@@ -92,7 +89,7 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
         timestamp: timestamp,
       );
 
-      _session.recordRealtimeFrame(frame);
+      session.recordRealtimeFrame(frame);
     });
   }
 
@@ -103,7 +100,7 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
     String? closeReason,
   }) {
     guardCapture(() {
-      _session.closeRealtimeConnection(
+      session.closeRealtimeConnection(
         sessionId,
         closeCode: closeCode ?? 1000,
         closeReason: closeReason,

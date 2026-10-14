@@ -7,12 +7,14 @@ import 'package:interceptly/src/ui/widgets/interceptly_confirm_dialog.dart';
 import 'package:interceptly/src/ui/widgets/toast_notification.dart';
 
 import '../../model/request_filter.dart';
+import '../../session/inspector_session.dart';
 import '../../session/inspector_session_view.dart';
 
 /// Main inspector screen showing captured network calls and actions.
 class InterceptlyScreen extends StatefulWidget {
-  /// Creates the inspector screen bound to [session].
-  const InterceptlyScreen({super.key, required this.session});
+  /// Creates the inspector screen bound to [session] (defaults to [InspectorSession.instance]).
+  InterceptlyScreen({super.key, InspectorSessionView? session})
+      : session = session ?? InspectorSession.instance;
 
   /// Session used to read and mutate captured data.
   final InspectorSessionView session;

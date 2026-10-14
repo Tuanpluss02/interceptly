@@ -3,6 +3,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
 
 void main() {
+  setUp(() async {
+    await InspectorSession.resetForTesting();
+  });
+
+  tearDown(() async {
+    await InspectorSession.resetForTesting();
+  });
+
   group('InspectorSession Realtime Frame Recording', () {
     test('stores frames accessible via getRealtimeFrames', () {
       final session = InspectorSession();
@@ -279,11 +287,9 @@ void main() {
 
   group('Interceptly Facade Forwarders', () {
     test('recordRealtimeFrame and getRealtimeFrames forward to session', () {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
-
-      final interceptly = Interceptly(session: session);
+      final interceptly = Interceptly();
       addTearDown(interceptly.dispose);
+      final session = InspectorSession.instance;
 
       final frame = RealtimeFrame.text(
         id: 'f-facade',
@@ -301,10 +307,7 @@ void main() {
     });
 
     test('recordRealtimeConnection and closeRealtimeConnection update session entries', () {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
-
-      final interceptly = Interceptly(session: session);
+      final interceptly = Interceptly();
       addTearDown(interceptly.dispose);
 
       interceptly.recordRealtimeConnection(

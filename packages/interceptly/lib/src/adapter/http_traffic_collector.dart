@@ -57,14 +57,11 @@ abstract interface class HttpTrafficCollector {
 
 /// Default implementation of [HttpTrafficCollector] backed by [InspectorSession].
 class DefaultHttpTrafficCollector implements HttpTrafficCollector {
-  /// Creates a collector backed by [session] (defaults to [InspectorSession.instance]).
-  DefaultHttpTrafficCollector([InspectorSession? session])
-      : _session = session ?? InspectorSession.instance;
-
-  final InspectorSession _session;
+  /// Creates a collector backed by [InspectorSession.instance].
+  DefaultHttpTrafficCollector();
 
   /// The underlying [InspectorSession] used for storing captured traffic.
-  InspectorSession get session => _session;
+  InspectorSession get session => InspectorSession.instance;
 
   @override
   Future<HttpRequestContext?> startRequest({
@@ -75,7 +72,7 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
     String? contentType,
     String? requestId,
   }) async {
-    if (!_session.isEnabled) {
+    if (!session.isEnabled) {
       return null;
     }
 
@@ -96,7 +93,7 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
       );
 
       guardCapture(() {
-        _session.recordPending(
+        session.recordPending(
           id: id,
           method: method,
           url: uri.toString(),
@@ -108,7 +105,7 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
       });
 
       try {
-        await _session.applyNetworkSimulationBeforeRequest(
+        await session.applyNetworkSimulationBeforeRequest(
           uploadBytes: bodyBytes?.length ?? 0,
         );
       } on SimulatedNetworkException catch (e) {
@@ -146,7 +143,7 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
     String? responseContentType,
   }) async {
     await guardCaptureAsync(() async {
-      await _session.applyNetworkSimulationAfterResponse(
+      await session.applyNetworkSimulationAfterResponse(
         downloadBytes: bodyBytes?.length ?? 0,
       );
 
@@ -170,7 +167,7 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
         responseContentType: resolvedContentType,
       );
 
-      _session.record(capture);
+      session.record(capture);
     });
   }
 
@@ -209,7 +206,7 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
         errorMessage: errorMessage ?? error.toString(),
       );
 
-      _session.record(capture);
+      session.record(capture);
     });
   }
 }

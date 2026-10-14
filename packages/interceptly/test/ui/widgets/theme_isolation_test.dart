@@ -33,13 +33,20 @@ void main() {
   );
 
   group('Theme isolation tests', () {
+    setUp(() async {
+      await InspectorSession.resetForTesting();
+    });
+
+    tearDown(() async {
+      await InspectorSession.resetForTesting();
+    });
+
     testWidgets('InterceptlyScreen completely overrides host ThemeData',
         (tester) async {
-      final session = InspectorSession();
       await tester.pumpWidget(
         MaterialApp(
           theme: hostTheme,
-          home: InterceptlyScreen(session: session),
+          home: InterceptlyScreen(),
         ),
       );
       await tester.pumpAndSettle();
@@ -106,7 +113,7 @@ void main() {
 
     testWidgets('SettingsBottomSheet is isolated from host ThemeData',
         (tester) async {
-      final session = InspectorSession();
+      final session = InspectorSession.instance;
       session.setNetworkSimulation(
         const NetworkSimulationProfile(
           name: 'Custom',

@@ -16,16 +16,23 @@ import '../ui/widgets/toast_notification.dart';
 
 /// Thin public facade over [InspectorSession].
 class Interceptly extends ChangeNotifier {
-  Interceptly({InterceptlySettings? settings, InspectorSession? session})
-      : _session = session ?? InspectorSession(settings: settings) {
+  Interceptly({InterceptlySettings? settings})
+      : _session = InspectorSession.instance {
+    if (settings != null) {
+      _session.configureSession(settings);
+    }
     _session.addListener(notifyListeners);
   }
 
   static Interceptly? _sharedInstance;
 
   static Interceptly get instance {
-    return _sharedInstance ??= Interceptly(session: InspectorSession.instance);
+    return _sharedInstance ??= Interceptly();
   }
+
+  /// Resets the shared instance singleton for isolated unit/widget tests.
+  @visibleForTesting
+  static void resetForTesting() => _sharedInstance = null;
 
   final InspectorSession _session;
 
@@ -55,14 +62,11 @@ class Interceptly extends ChangeNotifier {
     Widget? fabChild,
     Stream<void>? customTrigger,
     InterceptlySettings? settings,
-    InspectorSession? session,
   }) {
-    final targetSession = session ?? InspectorSession.instance;
-    if (settings != null) targetSession.configureSession(settings);
+    if (settings != null) InspectorSession.instance.configureSession(settings);
 
     return _init(
       navigatorKey: navigatorKey,
-      session: targetSession,
       showFloatingButton: showFloatingButton,
       fabChild: fabChild,
       customTrigger: customTrigger,
@@ -175,13 +179,11 @@ class Interceptly extends ChangeNotifier {
 }
 
 GlobalKey<NavigatorState>? _activeNavigatorKey;
-InspectorSession? _activeSession;
 StreamSubscription<void>? _customTriggerSub;
 bool _inspectorIsOpen = false;
 
 Future<void> _init({
   required GlobalKey<NavigatorState> navigatorKey,
-  InspectorSession? session,
   bool showFloatingButton = true,
   Widget? fabChild,
   Stream<void>? customTrigger,
@@ -189,7 +191,6 @@ Future<void> _init({
   _detach();
 
   _activeNavigatorKey = navigatorKey;
-  _activeSession = session ?? InspectorSession.instance;
 
   ToastNotification.setNavigatorKey(navigatorKey);
 
@@ -204,7 +205,7 @@ Future<void> _init({
     onFabTap: _openInspector,
   );
 
-  unawaited(_activeSession!.initialize().catchError((Object error) {
+  unawaited(InspectorSession.instance.initialize().catchError((Object error) {
     debugPrint('[Interceptly] background init failed: $error');
   }));
 }
@@ -214,13 +215,12 @@ void _detach() {
   _customTriggerSub?.cancel();
   _customTriggerSub = null;
   _activeNavigatorKey = null;
-  _activeSession = null;
   _inspectorIsOpen = false;
 }
 
 void _openInspector() {
   _pushInspector(
-    session: _activeSession ?? InspectorSession.instance,
+    session: InspectorSession.instance,
     nav: _activeNavigatorKey?.currentState,
   );
 }

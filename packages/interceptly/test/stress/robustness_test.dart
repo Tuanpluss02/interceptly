@@ -165,36 +165,38 @@ void main() {
   });
 
   group('Interceptly.init single-entrypoint setup', () {
+    setUp(() async {
+      await InspectorSession.resetForTesting();
+    });
+
+    tearDown(() async {
+      await InspectorSession.resetForTesting();
+    });
+
     test('Interceptly.init configures settings and target session', () async {
-      final customSession = InspectorSession();
-      addTearDown(customSession.dispose);
       final navKey = GlobalKey<NavigatorState>();
 
       await Interceptly.init(
         navigatorKey: navKey,
-        session: customSession,
         settings: const InterceptlySettings(
           maxBodyBytes: 1024,
         ),
         showFloatingButton: false,
       );
 
-      expect(customSession.settings.maxBodyBytes, 1024);
+      expect(InspectorSession.instance.settings.maxBodyBytes, 1024);
     });
 
     test('Interceptly.init uses default settings when none provided', () async {
-      final customSession = InspectorSession();
-      addTearDown(customSession.dispose);
       final navKey = GlobalKey<NavigatorState>();
 
       await Interceptly.init(
         navigatorKey: navKey,
-        session: customSession,
         showFloatingButton: false,
       );
 
-      expect(customSession.settings.maxBodyBytes, 5 * 1024 * 1024);
-      expect(customSession.settings.maxEntries, 5000);
+      expect(InspectorSession.instance.settings.maxBodyBytes, 5 * 1024 * 1024);
+      expect(InspectorSession.instance.settings.maxEntries, 5000);
     });
   });
 }

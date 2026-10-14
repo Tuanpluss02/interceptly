@@ -41,13 +41,6 @@ class TruncationPreset {
       maxBodyBytes: maxBodyBytes,
       maxUiPreviewBytes: maxUiPreviewBytes,
       shouldCapture: (url) => !url.contains('/analytics'),
-      redactedHeaders: const {
-        'authorization',
-        'cookie',
-        'set-cookie',
-        'x-api-key',
-        'token',
-      },
     );
   }
 }

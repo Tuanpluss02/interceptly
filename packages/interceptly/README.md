@@ -199,19 +199,11 @@ import 'package:interceptly/interceptly.dart';
 
 class MyCustomHttpInterceptor implements HttpCaptureAdapter {
   MyCustomHttpInterceptor([
-    InspectorSession? session,
     HttpTrafficCollector? collector,
-  ])  : session = session ??
-            (collector is DefaultHttpTrafficCollector
-                ? collector.session
-                : InspectorSession.instance),
-        collector = collector ??
-            DefaultHttpTrafficCollector(
-              session ?? InspectorSession.instance,
-            );
+  ])  : collector = collector ?? DefaultHttpTrafficCollector();
 
   @override
-  final InspectorSession session;
+  InspectorSession get session => collector.session;
 
   @override
   final HttpTrafficCollector collector;
@@ -265,19 +257,11 @@ import 'package:interceptly/interceptly.dart';
 
 class MyCustomRealtimeClient implements RealtimeCaptureAdapter {
   MyCustomRealtimeClient({
-    InspectorSession? session,
     RealtimeTrafficCollector? collector,
-  })  : session = session ??
-            (collector is DefaultRealtimeTrafficCollector
-                ? collector.session
-                : InspectorSession.instance),
-        collector = collector ??
-            DefaultRealtimeTrafficCollector(
-              session ?? InspectorSession.instance,
-            );
+  })  : collector = collector ?? DefaultRealtimeTrafficCollector();
 
   @override
-  final InspectorSession session;
+  InspectorSession get session => collector.session;
 
   @override
   final RealtimeTrafficCollector collector;

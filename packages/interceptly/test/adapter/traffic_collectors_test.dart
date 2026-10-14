@@ -39,6 +39,7 @@ void main() {
   late Directory tempDir;
 
   setUp(() async {
+    await InspectorSession.resetForTesting();
     tempDir = await Directory.systemTemp.createTemp('collector_test_');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_channel, (call) async {
@@ -48,6 +49,7 @@ void main() {
   });
 
   tearDown(() async {
+    await InspectorSession.resetForTesting();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_channel, null);
     try {
@@ -57,11 +59,10 @@ void main() {
 
   group('DefaultHttpTrafficCollector', () {
     test('startRequest creates HttpRequestContext and records pending request in session', () async {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+      final session = InspectorSession.instance;
       await session.initialize();
 
-      final collector = DefaultHttpTrafficCollector(session);
+      final collector = DefaultHttpTrafficCollector();
       expect(collector.session, equals(session));
 
       final uri = Uri.parse('https://api.example.com/items');
@@ -95,11 +96,10 @@ void main() {
     });
 
     test('startRequest respects custom requestId', () async {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+      final session = InspectorSession.instance;
       await session.initialize();
 
-      final collector = DefaultHttpTrafficCollector(session);
+      final collector = DefaultHttpTrafficCollector();
       final uri = Uri.parse('https://api.example.com/custom-id');
 
       final context = await collector.startRequest(
@@ -114,14 +114,13 @@ void main() {
     });
 
     test('startRequest returns null when session is disabled', () async {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+      final session = InspectorSession.instance;
       await session.initialize();
 
       session.disable();
       expect(session.isEnabled, isFalse);
 
-      final collector = DefaultHttpTrafficCollector(session);
+      final collector = DefaultHttpTrafficCollector();
       final context = await collector.startRequest(
         method: 'GET',
         uri: Uri.parse('https://api.example.com/disabled'),
@@ -132,11 +131,10 @@ void main() {
     });
 
     test('completeResponse calculates duration and records completed RawCapture into session', () async {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+      final session = InspectorSession.instance;
       await session.initialize();
 
-      final collector = DefaultHttpTrafficCollector(session);
+      final collector = DefaultHttpTrafficCollector();
       final uri = Uri.parse('https://api.example.com/success');
 
       final context = await collector.startRequest(
@@ -164,11 +162,10 @@ void main() {
     });
 
     test('completeResponse respects explicit durationMs when provided', () async {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+      final session = InspectorSession.instance;
       await session.initialize();
 
-      final collector = DefaultHttpTrafficCollector(session);
+      final collector = DefaultHttpTrafficCollector();
       final uri = Uri.parse('https://api.example.com/explicit-duration');
 
       final context = await collector.startRequest(
@@ -189,11 +186,10 @@ void main() {
     });
 
     test('failRequest records failed RawCapture with error details and duration', () async {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+      final session = InspectorSession.instance;
       await session.initialize();
 
-      final collector = DefaultHttpTrafficCollector(session);
+      final collector = DefaultHttpTrafficCollector();
       final uri = Uri.parse('https://api.example.com/failure');
 
       final context = await collector.startRequest(
@@ -220,11 +216,10 @@ void main() {
     });
 
     test('failRequest infers errorType and errorMessage when omitted and respects custom statusCode', () async {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+      final session = InspectorSession.instance;
       await session.initialize();
 
-      final collector = DefaultHttpTrafficCollector(session);
+      final collector = DefaultHttpTrafficCollector();
       final uri = Uri.parse('https://api.example.com/server-error');
 
       final context = await collector.startRequest(
@@ -251,8 +246,7 @@ void main() {
     });
 
     test('startRequest rethrows SimulatedNetworkException and records failure when offline simulation is active', () async {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+      final session = InspectorSession.instance;
       await session.initialize();
 
       // Configure offline simulation
@@ -260,7 +254,7 @@ void main() {
         NetworkSimulationProfile.offlineProfile,
       );
 
-      final collector = DefaultHttpTrafficCollector(session);
+      final collector = DefaultHttpTrafficCollector();
       final uri = Uri.parse('https://api.example.com/offline-test');
 
       expect(
@@ -279,10 +273,10 @@ void main() {
     });
 
     test('collector operations never throw unexpected errors outwards (guardCapture resilience)', () async {
-      final session = InspectorSession();
+      final session = InspectorSession.instance;
       await session.initialize();
 
-      final collector = DefaultHttpTrafficCollector(session);
+      final collector = DefaultHttpTrafficCollector();
       final dummyContext = HttpRequestContext(
         id: 'dummy-resilience',
         method: 'GET',
@@ -313,10 +307,9 @@ void main() {
 
   group('DefaultRealtimeTrafficCollector', () {
     test('recordConnection records WebSocket connection handshake in session', () async {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+      final session = InspectorSession.instance;
 
-      final collector = DefaultRealtimeTrafficCollector(session);
+      final collector = DefaultRealtimeTrafficCollector();
       expect(collector.session, equals(session));
 
       final uri = Uri.parse('wss://stream.example.com/feed');
@@ -337,10 +330,9 @@ void main() {
     });
 
     test('recordFrame records text frame with correct direction and payload into session buffer', () async {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+      final session = InspectorSession.instance;
 
-      final collector = DefaultRealtimeTrafficCollector(session);
+      final collector = DefaultRealtimeTrafficCollector();
 
       collector.recordFrame(
         sessionId: 'ws-frames-1',
@@ -359,10 +351,9 @@ void main() {
     });
 
     test('recordFrame records binary frame with Uint8List and List<int> payloads', () async {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+      final session = InspectorSession.instance;
 
-      final collector = DefaultRealtimeTrafficCollector(session);
+      final collector = DefaultRealtimeTrafficCollector();
 
       final uint8Bytes = Uint8List.fromList([1, 2, 3, 4, 5]);
       collector.recordFrame(
@@ -395,10 +386,9 @@ void main() {
     });
 
     test('recordClose updates connection status with closeCode and closeReason', () async {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+      final session = InspectorSession.instance;
 
-      final collector = DefaultRealtimeTrafficCollector(session);
+      final collector = DefaultRealtimeTrafficCollector();
       collector.recordConnection(
         sessionId: 'ws-close-1',
         uri: Uri.parse('wss://echo.example.com'),
@@ -418,10 +408,9 @@ void main() {
     });
 
     test('recordClose defaults to closeCode 1000 when omitted', () async {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+      final session = InspectorSession.instance;
 
-      final collector = DefaultRealtimeTrafficCollector(session);
+      final collector = DefaultRealtimeTrafficCollector();
       collector.recordConnection(
         sessionId: 'ws-close-default',
         uri: Uri.parse('wss://echo.example.com'),
@@ -436,10 +425,10 @@ void main() {
     });
 
     test('realtime collector operations never throw when session is disposed', () {
-      final session = InspectorSession();
+      final session = InspectorSession.instance;
       session.dispose();
 
-      final collector = DefaultRealtimeTrafficCollector(session);
+      final collector = DefaultRealtimeTrafficCollector();
 
       expect(
         () => collector.recordConnection(
@@ -468,11 +457,10 @@ void main() {
 
   group('HttpCaptureAdapter and RealtimeCaptureAdapter contracts', () {
     test('adapter implementations fulfill contract interfaces', () {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+      final session = InspectorSession.instance;
 
-      final httpCollector = DefaultHttpTrafficCollector(session);
-      final realtimeCollector = DefaultRealtimeTrafficCollector(session);
+      final httpCollector = DefaultHttpTrafficCollector();
+      final realtimeCollector = DefaultRealtimeTrafficCollector();
 
       final httpAdapter = _TestHttpCaptureAdapter(httpCollector, session);
       final realtimeAdapter = _TestRealtimeCaptureAdapter(realtimeCollector, session);

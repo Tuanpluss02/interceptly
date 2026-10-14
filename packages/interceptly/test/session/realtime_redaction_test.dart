@@ -7,10 +7,17 @@ import 'package:interceptly/src/model/realtime_frame.dart';
 import 'package:interceptly/src/session/inspector_session.dart';
 
 void main() {
+  setUp(() async {
+    await InspectorSession.resetForTesting();
+  });
+
+  tearDown(() async {
+    await InspectorSession.resetForTesting();
+  });
+
   group('Realtime traffic collection', () {
     test('realtime connection records headers and query params intact', () async {
-      final session = InspectorSession(settings: const InterceptlySettings());
-      addTearDown(session.dispose);
+      final session = InspectorSession.instance;
       session.recordRealtimeConnection(
         id: 'ws1',
         url: 'wss://x/?token=SECRET',
@@ -22,18 +29,17 @@ void main() {
     });
 
     test('shouldCapture false suppresses realtime connection', () async {
-      final session = InspectorSession(
-        settings: InterceptlySettings(shouldCapture: (_) => false),
+      final session = InspectorSession.instance;
+      session.configureSession(
+        const InterceptlySettings(shouldCapture: _blockAll),
       );
-      addTearDown(session.dispose);
       session.recordRealtimeConnection(id: 'ws-no', url: 'wss://x/', headers: {});
       expect(session.byId('ws-no'), isNull);
     });
 
     test('realtime frames preserve raw text and binary payloads', () async {
-      final session = InspectorSession(settings: const InterceptlySettings());
-      addTearDown(session.dispose);
-      final collector = DefaultRealtimeTrafficCollector(session);
+      final session = InspectorSession.instance;
+      final collector = DefaultRealtimeTrafficCollector();
       collector.recordFrame(
         sessionId: 'ws-raw',
         direction: FrameDirection.incoming,
@@ -53,13 +59,13 @@ void main() {
     });
 
     test('frames for filtered sessions are skipped', () async {
-      final session = InspectorSession(settings: InterceptlySettings(
+      final session = InspectorSession.instance;
+      session.configureSession(InterceptlySettings(
         shouldCapture: (url) => !url.contains('blocked'),
       ));
-      addTearDown(session.dispose);
       session.recordRealtimeConnection(id: 'ws-blocked', url: 'wss://x/blocked', headers: {});
       expect(session.byId('ws-blocked'), isNull);
-      DefaultRealtimeTrafficCollector(session).recordFrame(
+      DefaultRealtimeTrafficCollector().recordFrame(
         sessionId: 'ws-blocked',
         direction: FrameDirection.incoming,
         type: FrameType.text,
@@ -68,7 +74,7 @@ void main() {
       expect(session.getRealtimeFrames('ws-blocked'), isEmpty);
       session.recordRealtimeConnection(id: 'ws-ok', url: 'wss://x/allowed', headers: {});
       expect(session.byId('ws-ok'), isNotNull);
-      DefaultRealtimeTrafficCollector(session).recordFrame(
+      DefaultRealtimeTrafficCollector().recordFrame(
         sessionId: 'ws-ok',
         direction: FrameDirection.incoming,
         type: FrameType.text,
@@ -78,3 +84,5 @@ void main() {
     });
   });
 }
+
+bool _blockAll(String _) => false;

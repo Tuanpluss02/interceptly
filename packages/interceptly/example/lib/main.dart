@@ -26,13 +26,6 @@ void main() async {
       maxBodyBytes: 50 * 1024 * 1024,
       maxUiPreviewBytes: 50 * 1024 * 1024,
       shouldCapture: (url) => !url.contains('/analytics'),
-      redactedHeaders: const {
-        'authorization',
-        'cookie',
-        'set-cookie',
-        'x-api-key',
-        'token',
-      },
     ),
   );
 }
