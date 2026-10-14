@@ -34,6 +34,9 @@ abstract class InspectorSessionView extends ChangeNotifier {
   bool get isScanningFiles;
   bool get groupingEnabled;
 
+  /// Whether realtime (WebSocket) inspection UI and capabilities are currently active.
+  bool get isRealtimeActive => false;
+
   /// Returns the scopes that matched the active master search query for the given record ID.
   Set<SearchMatchScope> getSearchScopes(String id) =>
       const <SearchMatchScope>{};

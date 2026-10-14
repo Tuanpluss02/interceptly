@@ -12,6 +12,7 @@ class InterceptlySettings {
     this.pendingTimeout = const Duration(seconds: 45),
     this.shouldCapture,
     this.persistToDisk = true,
+    this.enableRealtime,
   })  : assert(maxEntries > 0, 'maxEntries must be greater than 0'),
         assert(maxQueuedEvents > 0, 'maxQueuedEvents must be greater than 0'),
         assert(
@@ -90,6 +91,11 @@ class InterceptlySettings {
   /// Equivalent to `!persistToDisk`.
   bool get memoryOnly => !persistToDisk;
 
+  /// Explicitly control whether realtime (WebSocket) inspection UI and capabilities are enabled.
+  /// When `null` (the default), realtime capability is auto-detected dynamically when
+  /// realtime adapters record traffic or open sessions.
+  final bool? enableRealtime;
+
   InterceptlySettings copyWith({
     int? bodyOffloadThreshold,
     int? previewTruncationBytes,
@@ -102,6 +108,7 @@ class InterceptlySettings {
     Duration? pendingTimeout,
     bool Function(String url)? shouldCapture,
     bool? persistToDisk,
+    bool? enableRealtime,
   }) {
     return InterceptlySettings(
       bodyOffloadThreshold: bodyOffloadThreshold ?? this.bodyOffloadThreshold,
@@ -116,6 +123,7 @@ class InterceptlySettings {
       pendingTimeout: pendingTimeout ?? this.pendingTimeout,
       shouldCapture: shouldCapture ?? this.shouldCapture,
       persistToDisk: persistToDisk ?? this.persistToDisk,
+      enableRealtime: enableRealtime ?? this.enableRealtime,
     );
   }
 }

@@ -160,6 +160,25 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   @override
   bool get groupingEnabled => _grouping.enabled;
 
+  bool _realtimeExplicitlyEnabled = false;
+
+  @override
+  bool get isRealtimeActive {
+    if (_settings.enableRealtime != null) {
+      return _settings.enableRealtime!;
+    }
+    return _realtimeExplicitlyEnabled ||
+        _memoryIndex.entries.any((e) => e.method == 'WS');
+  }
+
+  /// Explicitly marks realtime capability as active and notifies listeners.
+  void markRealtimeActive() {
+    if (!_realtimeExplicitlyEnabled) {
+      _realtimeExplicitlyEnabled = true;
+      notifyListeners();
+    }
+  }
+
   @override
   Set<SearchMatchScope> getSearchScopes(String id) => _search.getScopes(id);
 
@@ -419,6 +438,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     DateTime? timestamp,
   }) {
     if (!_enabled || _isDisposed) return;
+    markRealtimeActive();
     recordPending(
       id: id,
       method: 'WS',

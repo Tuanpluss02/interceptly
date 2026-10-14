@@ -19,6 +19,14 @@ abstract interface class RealtimeTrafficCollector {
     _instance = collector;
   }
 
+  /// Explicitly marks realtime capability as active on the global collector's session.
+  static void markActive() {
+    final current = instance;
+    if (current is DefaultRealtimeTrafficCollector) {
+      current.session.markRealtimeActive();
+    }
+  }
+
   /// Maximum byte capacity for captured realtime frames.
   int get maxBodyBytes;
 
@@ -74,6 +82,7 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
     String? sessionId,
     Map<String, String>? headers,
   }) {
+    session.markRealtimeActive();
     final effectiveId = sessionId ?? RequestId.generate();
 
     if (uri != null) {
