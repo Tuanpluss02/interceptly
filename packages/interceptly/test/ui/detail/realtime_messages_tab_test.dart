@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +11,7 @@ import 'package:interceptly/src/session/inspector_preferences.dart';
 import 'package:interceptly/src/ui/detail/realtime/realtime_filter_header.dart';
 import 'package:interceptly/src/ui/detail/realtime_detail_page.dart';
 import 'package:interceptly/src/ui/detail/realtime_messages_tab.dart';
+import 'package:interceptly/src/ui/tabs/network_tab.dart';
 import 'package:interceptly/src/ui/widgets/json_viewer/json_viewer.dart';
 
 class _MockSession extends ChangeNotifier implements InspectorSessionView {
@@ -142,6 +145,9 @@ class _MockSession extends ChangeNotifier implements InspectorSessionView {
   @override
   RealtimeProtocolType? getRealtimeProtocol(String sessionId) => protocol;
 
+  int loadPayloadCallCount = 0;
+  Future<dynamic> Function(RealtimeFrame frame)? customLoadPayload;
+
   @override
   ValueListenable<RealtimeFrameCounts> getRealtimeFrameCountsNotifier(
     String sessionId,
@@ -149,8 +155,13 @@ class _MockSession extends ChangeNotifier implements InspectorSessionView {
       ValueNotifier(getRealtimeFrameCounts(sessionId));
 
   @override
-  Future<dynamic> loadRealtimePayload(RealtimeFrame frame) async =>
-      frame.textPayload ?? frame.binaryPayload ?? '';
+  Future<dynamic> loadRealtimePayload(RealtimeFrame frame) async {
+    loadPayloadCallCount++;
+    if (customLoadPayload != null) {
+      return customLoadPayload!(frame);
+    }
+    return frame.textPayload ?? frame.binaryPayload ?? '';
+  }
 
   @override
   Future<void> sendRealtimeMessage(
@@ -779,6 +790,132 @@ void main() {
 
         // Should have scrolled to bottom and jump button should disappear
         expect(find.byKey(const ValueKey('realtime_jump_to_bottom')), findsNothing);
+      });
+    });
+
+    group('Lazy Payload Loading & Short Preview & Isolated Counter', () {
+      testWidgets('collapsed card displays shortPreview without reading disk or parsing JSON', (tester) async {
+        final session = _MockSession();
+        final frame = RealtimeFrame.offloaded(
+          id: 'frame_offload_1',
+          sessionId: 'sess_lazy',
+          direction: FrameDirection.incoming,
+          type: FrameType.text,
+          payloadSizeBytes: 5000,
+          shortPreview: '{"short":"preview only"}',
+          fileOffset: 0,
+          fileLength: 5000,
+          rotationCount: 0,
+        );
+
+        session.addFrame(frame);
+
+        await tester.pumpWidget(
+          buildTestWidget(sessionId: 'sess_lazy', session: session),
+        );
+        await tester.pumpAndSettle();
+
+        // 1. shortPreview is displayed
+        expect(find.text('{"short":"preview only"}'), findsOneWidget);
+
+        // 2. loadRealtimePayload was NOT called
+        expect(session.loadPayloadCallCount, equals(0));
+
+        // 3. JsonViewer is NOT mounted
+        expect(find.byType(JsonViewer), findsNothing);
+      });
+
+      testWidgets('expanding a file-backed card asynchronously fetches and displays payload with loading indicator', (tester) async {
+        final session = _MockSession();
+        final completer = Completer<dynamic>();
+        session.customLoadPayload = (frame) => completer.future;
+
+        final frame = RealtimeFrame.offloaded(
+          id: 'frame_offload_2',
+          sessionId: 'sess_async',
+          direction: FrameDirection.incoming,
+          type: FrameType.text,
+          payloadSizeBytes: 10000,
+          shortPreview: '{"preview":"lazy"}',
+          fileOffset: 0,
+          fileLength: 10000,
+          rotationCount: 0,
+        );
+
+        session.addFrame(frame);
+
+        await tester.pumpWidget(
+          buildTestWidget(sessionId: 'sess_async', session: session),
+        );
+        await tester.pumpAndSettle();
+
+        // Tap on payload to inspect
+        await tester.tap(find.byKey(const ValueKey('frame_payload_frame_offload_2')));
+        await tester.pump(); // Frame scheduled, loading starts
+
+        // Loading indicator should be visible while awaiting
+        expect(find.byType(CircularProgressIndicator), findsOneWidget);
+        expect(session.loadPayloadCallCount, equals(1));
+
+        // Complete the future with full JSON payload
+        completer.complete('{"full_data":"loaded from disk asynchronously","count":42}');
+        await tester.pumpAndSettle();
+
+        // Loading indicator gone, JsonViewer rendered
+        expect(find.byType(CircularProgressIndicator), findsNothing);
+        expect(find.byType(JsonViewer), findsOneWidget);
+        expect(find.textContaining('loaded from disk asynchronously'), findsOneWidget);
+      });
+
+      testWidgets('live frame arrivals update only the row counter badge without rebuilding parent NetworkTab list', (tester) async {
+        final session = InspectorSession();
+        addTearDown(session.dispose);
+
+        session.recordRealtimeConnection(
+          id: 'ws_badge_test',
+          url: 'wss://socket.example.com/test',
+        );
+
+        int buildCount = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (context) {
+                  buildCount++;
+                  return NetworkTab(session: session);
+                },
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Initially 0 IN, 0 OUT
+        expect(find.textContaining('↓ 0  ↑ 0'), findsOneWidget);
+        final initialBuildCount = buildCount;
+
+        // Record a live frame for this connection
+        await session.recordRealtimeFrame(
+          RealtimeFrame.memoryText(
+            id: 'live_frame_1',
+            sessionId: 'ws_badge_test',
+            direction: FrameDirection.incoming,
+            text: '{"ping":1}',
+          ),
+        );
+
+        // Pump a frame for ValueListenable to update
+        await tester.pump();
+
+        // The counter badge updated to ↓ 1  ↑ 0
+        expect(find.textContaining('↓ 1  ↑ 0'), findsOneWidget);
+
+        // The parent widget was NOT rebuilt
+        expect(buildCount, equals(initialBuildCount));
+
+        // Drain any throttle timer scheduled by RealtimeStore
+        await tester.pump(const Duration(milliseconds: 150));
       });
     });
   });

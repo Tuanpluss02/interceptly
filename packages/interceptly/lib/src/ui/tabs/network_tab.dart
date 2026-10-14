@@ -473,6 +473,9 @@ class _NetworkTabState extends State<NetworkTab> {
     final isRealtime = entry.isRealtime;
     final realtimeCounts =
         isRealtime ? widget.session.getRealtimeFrameCounts(entry.id) : null;
+    final realtimeCountsNotifier = isRealtime
+        ? widget.session.getRealtimeFrameCountsNotifier(entry.id)
+        : null;
     final String durationText;
     if (isRealtime) {
       if (isPending) {
@@ -516,6 +519,7 @@ class _NetworkTabState extends State<NetworkTab> {
       highlightQuery: activeQuery,
       isRealtime: isRealtime,
       realtimeFrameCounts: realtimeCounts,
+      realtimeFrameCountsNotifier: realtimeCountsNotifier,
       onLongPress: () => _enterSelectionMode(entry.id),
       onTap: () {
         if (_isSelectionMode) {

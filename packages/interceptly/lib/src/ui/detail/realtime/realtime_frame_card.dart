@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:interceptly/src/model/realtime_frame.dart';
+import 'package:interceptly/src/session/inspector_session_view.dart';
 import 'package:interceptly/src/ui/format.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
 
+import 'bounded_lru_cache.dart';
 import 'realtime_formatters.dart';
 import 'realtime_payload_view.dart';
 
@@ -15,6 +17,8 @@ class RealtimeFrameCard extends StatelessWidget {
   final VoidCallback onCopy;
   final VoidCallback? onResend;
   final VoidCallback? onEdit;
+  final InspectorSessionView? session;
+  final BoundedLruCache<String, dynamic>? jsonCache;
 
   const RealtimeFrameCard({
     super.key,
@@ -25,6 +29,8 @@ class RealtimeFrameCard extends StatelessWidget {
     required this.onCopy,
     this.onResend,
     this.onEdit,
+    this.session,
+    this.jsonCache,
   });
 
   @override
@@ -294,6 +300,8 @@ class RealtimeFrameCard extends StatelessWidget {
               isInspected: isInspected,
               parsedJson: parsedJson,
               onToggleInspect: onToggleInspect,
+              session: session,
+              jsonCache: jsonCache,
             ),
           ),
         ],

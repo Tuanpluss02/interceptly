@@ -2,12 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:interceptly/src/model/body_location.dart';
 import 'package:interceptly/src/model/realtime_frame.dart';
 import 'package:interceptly/src/model/realtime_protocol_type.dart';
 import 'package:interceptly/src/session/inspector_session_view.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
 import 'package:interceptly/src/ui/widgets/toast_notification.dart';
 
+import 'realtime/bounded_lru_cache.dart';
 import 'realtime/realtime_chat_bar.dart';
 import 'realtime/realtime_filter_header.dart';
 import 'realtime/realtime_formatters.dart';
@@ -39,7 +41,8 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
   final TextEditingController _eventController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final Set<String> _inspectedFrameIds = <String>{};
-  final Map<String, dynamic> _parsedJsonCache = <String, dynamic>{};
+  final BoundedLruCache<String, dynamic> _parsedJsonCache =
+      BoundedLruCache<String, dynamic>(capacity: 30);
   Timer? _searchDebounceTimer;
 
   String _searchQuery = '';
@@ -139,18 +142,33 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
     });
   }
 
-  void _copyPayload(RealtimeFrame frame) {
-    final text = getFramePayloadString(frame);
-    Clipboard.setData(ClipboardData(text: text)).then((_) {
-      if (mounted) {
-        ToastNotification.show('Payload copied to clipboard',
-            contextHint: context);
+  Future<String> _resolvePayloadText(RealtimeFrame frame) async {
+    if (frame.location == BodyLocation.file && widget.session != null) {
+      try {
+        final payload = await widget.session!.loadRealtimePayload(frame);
+        if (payload is Uint8List) {
+          return formatBinaryPreview(payload);
+        }
+        return payload?.toString() ?? frame.shortPreview;
+      } catch (_) {
+        return frame.shortPreview;
       }
-    });
+    }
+    return getFramePayloadString(frame);
   }
 
-  void _onEditFrame(RealtimeFrame frame) {
-    final text = getFramePayloadString(frame);
+  Future<void> _copyPayload(RealtimeFrame frame) async {
+    final text = await _resolvePayloadText(frame);
+    await Clipboard.setData(ClipboardData(text: text));
+    if (mounted) {
+      ToastNotification.show('Payload copied to clipboard',
+          contextHint: context);
+    }
+  }
+
+  Future<void> _onEditFrame(RealtimeFrame frame) async {
+    final text = await _resolvePayloadText(frame);
+    if (!mounted) return;
     _chatController.text = text;
     if (frame.eventName != null) {
       _eventController.text = frame.eventName!;
@@ -166,7 +184,7 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
       return;
     }
 
-    final text = getFramePayloadString(frame);
+    final text = await _resolvePayloadText(frame);
     final draft = RealtimeMessageDraft(
       event: frame.eventName,
       payload: text,
@@ -331,15 +349,22 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
                           itemCount: filteredFrames.length,
                           itemBuilder: (context, index) {
                             final frame = filteredFrames[index];
+                            final isInspected =
+                                _inspectedFrameIds.contains(frame.id);
+                            final parsedJson = isInspected &&
+                                    frame.location == BodyLocation.memory
+                                ? tryParseJsonPayload(frame, _parsedJsonCache)
+                                : null;
                             return RealtimeFrameCard(
                               frame: frame,
-                              isInspected: _inspectedFrameIds.contains(frame.id),
-                              parsedJson:
-                                  tryParseJsonPayload(frame, _parsedJsonCache),
+                              isInspected: isInspected,
+                              parsedJson: parsedJson,
                               onToggleInspect: () => _toggleInspect(frame.id),
                               onCopy: () => _copyPayload(frame),
                               onEdit: () => _onEditFrame(frame),
                               onResend: () => _onResendFrame(frame),
+                              session: widget.session,
+                              jsonCache: _parsedJsonCache,
                             );
                           },
                         ),

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
 
@@ -109,6 +110,7 @@ class RequestLogItem extends StatelessWidget {
     this.highlightQuery,
     this.isRealtime = false,
     this.realtimeFrameCounts,
+    this.realtimeFrameCountsNotifier,
   });
 
   final String method;
@@ -125,6 +127,7 @@ class RequestLogItem extends StatelessWidget {
   final String? highlightQuery;
   final bool isRealtime;
   final RealtimeFrameCounts? realtimeFrameCounts;
+  final ValueListenable<RealtimeFrameCounts>? realtimeFrameCountsNotifier;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
 
@@ -373,19 +376,40 @@ class RequestLogItem extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                           Expanded(
-                            child: Text(
-                              _buildMetaLine(),
-                              style: InterceptlyTheme
-                                  .typography.labelMediumMedium
-                                  .copyWith(
-                                fontSize: 12,
-                                height: 1.2,
-                                color: metaColor,
-                                letterSpacing: 0.15,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                            child: isRealtime &&
+                                    realtimeFrameCountsNotifier != null
+                                ? ValueListenableBuilder<RealtimeFrameCounts>(
+                                    valueListenable:
+                                        realtimeFrameCountsNotifier!,
+                                    builder: (context, counts, _) {
+                                      return Text(
+                                        '$time · $duration · ↓ ${counts.incoming}  ↑ ${counts.outgoing}',
+                                        style: InterceptlyTheme
+                                            .typography.labelMediumMedium
+                                            .copyWith(
+                                          fontSize: 12,
+                                          height: 1.2,
+                                          color: metaColor,
+                                          letterSpacing: 0.15,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      );
+                                    },
+                                  )
+                                : Text(
+                                    _buildMetaLine(),
+                                    style: InterceptlyTheme
+                                        .typography.labelMediumMedium
+                                        .copyWith(
+                                      fontSize: 12,
+                                      height: 1.2,
+                                      color: metaColor,
+                                      letterSpacing: 0.15,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                           ),
                         ],
                       ),
