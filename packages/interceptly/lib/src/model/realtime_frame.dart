@@ -42,6 +42,7 @@ class RealtimeFrame {
     required this.type,
     this.textPayload,
     this.binaryPayload,
+    this.eventName,
     int? payloadSizeBytes,
     DateTime? timestamp,
   })  : payloadSizeBytes = payloadSizeBytes ??
@@ -60,6 +61,7 @@ class RealtimeFrame {
     required this.timestamp,
     this.textPayload,
     this.binaryPayload,
+    this.eventName,
   });
 
   /// Convenience factory for creating a text frame.
@@ -68,6 +70,7 @@ class RealtimeFrame {
     required String sessionId,
     required FrameDirection direction,
     required String text,
+    String? eventName,
     DateTime? timestamp,
     int? payloadSizeBytes,
   }) {
@@ -77,6 +80,7 @@ class RealtimeFrame {
       direction: direction,
       type: FrameType.text,
       textPayload: text,
+      eventName: eventName,
       payloadSizeBytes: payloadSizeBytes,
       timestamp: timestamp,
     );
@@ -88,6 +92,7 @@ class RealtimeFrame {
     required String sessionId,
     required FrameDirection direction,
     required Uint8List bytes,
+    String? eventName,
     DateTime? timestamp,
     int? payloadSizeBytes,
   }) {
@@ -97,6 +102,7 @@ class RealtimeFrame {
       direction: direction,
       type: FrameType.binary,
       binaryPayload: bytes,
+      eventName: eventName,
       payloadSizeBytes: payloadSizeBytes,
       timestamp: timestamp,
     );
@@ -119,6 +125,9 @@ class RealtimeFrame {
 
   /// Raw byte buffer when [type] == [FrameType.binary], or null otherwise.
   final Uint8List? binaryPayload;
+
+  /// Optional event name for event-driven realtime protocols (e.g. Socket.IO).
+  final String? eventName;
 
   /// Total size of the payload in bytes.
   final int payloadSizeBytes;
@@ -158,6 +167,7 @@ class RealtimeFrame {
     FrameType? type,
     String? textPayload,
     Uint8List? binaryPayload,
+    String? eventName,
     int? payloadSizeBytes,
     DateTime? timestamp,
   }) {
@@ -168,6 +178,7 @@ class RealtimeFrame {
       type: type ?? this.type,
       textPayload: textPayload ?? this.textPayload,
       binaryPayload: binaryPayload ?? this.binaryPayload,
+      eventName: eventName ?? this.eventName,
       payloadSizeBytes: payloadSizeBytes ?? this.payloadSizeBytes,
       timestamp: timestamp ?? this.timestamp,
     );
@@ -176,7 +187,7 @@ class RealtimeFrame {
   @override
   String toString() {
     return 'RealtimeFrame(id: $id, sessionId: $sessionId, direction: $direction, '
-        'type: $type, payloadSizeBytes: $payloadSizeBytes, timestamp: $timestamp)';
+        'type: $type, eventName: $eventName, payloadSizeBytes: $payloadSizeBytes, timestamp: $timestamp)';
   }
 
   @override
@@ -188,6 +199,7 @@ class RealtimeFrame {
         other.direction == direction &&
         other.type == type &&
         other.textPayload == textPayload &&
+        other.eventName == eventName &&
         other.payloadSizeBytes == payloadSizeBytes &&
         other.timestamp == timestamp;
   }
@@ -199,6 +211,7 @@ class RealtimeFrame {
         direction,
         type,
         textPayload,
+        eventName,
         payloadSizeBytes,
         timestamp,
       );

@@ -177,6 +177,41 @@ void main() {
       expect(ping.isText, isFalse);
       expect(ping.isBinary, isFalse);
     });
+
+    test('supports eventName for event-driven protocols like Socket.IO', () {
+      final frame = RealtimeFrame(
+        id: 'f-event',
+        sessionId: 'sess-1',
+        direction: FrameDirection.incoming,
+        type: FrameType.text,
+        textPayload: '{"msg":"hi"}',
+        eventName: 'chat:message',
+      );
+
+      expect(frame.eventName, equals('chat:message'));
+
+      final textFrame = RealtimeFrame.text(
+        id: 'f-text-event',
+        sessionId: 'sess-1',
+        direction: FrameDirection.outgoing,
+        text: 'hello',
+        eventName: 'join:room',
+      );
+      expect(textFrame.eventName, equals('join:room'));
+
+      final copied = frame.copyWith(eventName: 'chat:updated');
+      expect(copied.eventName, equals('chat:updated'));
+
+      final frameNoEvent = RealtimeFrame(
+        id: 'f-no-event',
+        sessionId: 'sess-1',
+        direction: FrameDirection.incoming,
+        type: FrameType.text,
+        textPayload: '{"msg":"hi"}',
+      );
+      expect(frameNoEvent.eventName, isNull);
+      expect(frame, isNot(equals(frameNoEvent)));
+    });
   });
 
   group('InterceptlySettings maxFramesPerSession', () {

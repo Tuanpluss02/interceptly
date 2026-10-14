@@ -60,4 +60,7 @@ class RequestSummary {
   /// Non-null when [hasError] is true.
   final String? errorType;
   final String? errorMessage;
+
+  /// Whether this request represents a realtime connection (WebSocket, Socket.IO, SSE).
+  bool get isRealtime => method == 'WS' || method == 'SIO' || method == 'SSE';
 }
