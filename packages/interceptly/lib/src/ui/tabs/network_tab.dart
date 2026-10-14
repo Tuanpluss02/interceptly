@@ -13,6 +13,8 @@ import '../../model/network_protocol.dart';
 import '../../model/request_record.dart';
 import '../../model/request_summary.dart';
 import '../../session/inspector_session_view.dart';
+import '../widgets/filter_badge.dart';
+import 'quick_filter_bar.dart';
 
 part 'network_tab_widgets.dart';
 
@@ -178,19 +180,26 @@ class _NetworkTabState extends State<NetworkTab> {
                 colors: colors,
                 onCancel: _exitSelectionMode,
               )
-            else
-              _SearchFilterBar(
-                controller: _searchController,
-                onChanged: (value) {
-                  final q = value.trim();
-                  if (q.isEmpty) {
-                    widget.session.cancelMasterSearch();
-                  } else {
-                    widget.session.startMasterSearch(q);
-                  }
-                },
-                onShowFilter: widget.onShowFilterPanel,
+            else ...[
+              ListenableBuilder(
+                listenable: widget.session,
+                builder: (context, _) => _SearchFilterBar(
+                  controller: _searchController,
+                  activeFiltersCount: widget.session.filter.activeFilterCount,
+                  onChanged: (value) {
+                    final q = value.trim();
+                    if (q.isEmpty) {
+                      widget.session.cancelMasterSearch();
+                    } else {
+                      widget.session.startMasterSearch(q);
+                    }
+                  },
+                  onShowFilter: widget.onShowFilterPanel,
+                ),
               ),
+              if (widget.protocol != NetworkProtocol.realtime)
+                QuickFilterBar(session: widget.session),
+            ],
 
             Divider(height: 1, color: InterceptlyTheme.dividerSubtle),
 

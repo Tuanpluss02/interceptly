@@ -45,16 +45,18 @@ class _SearchFilterBar extends StatelessWidget {
     required this.controller,
     required this.onChanged,
     required this.onShowFilter,
+    required this.activeFiltersCount,
   });
 
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
   final VoidCallback? onShowFilter;
+  final int activeFiltersCount;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 4.0),
       child: Row(
         children: [
           Expanded(
@@ -64,13 +66,10 @@ class _SearchFilterBar extends StatelessWidget {
               onChanged: onChanged,
             ),
           ),
-          const SizedBox(width: 12),
-          IconButton(
-            icon: const Icon(Icons.filter_list, size: 24),
-            onPressed: onShowFilter,
-            padding: const EdgeInsets.all(8),
-            constraints: const BoxConstraints(),
-            tooltip: 'Filter',
+          const SizedBox(width: 8),
+          FilterBadge(
+            activeFiltersCount: activeFiltersCount,
+            onTap: onShowFilter,
           ),
         ],
       ),

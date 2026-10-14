@@ -7,7 +7,6 @@ import 'package:interceptly/src/ui/widgets/interceptly_confirm_dialog.dart';
 import 'package:interceptly/src/ui/widgets/toast_notification.dart';
 
 import '../../model/network_protocol.dart';
-import '../../model/request_filter.dart';
 import '../../session/inspector_session.dart';
 import '../../session/inspector_session_view.dart';
 
@@ -25,14 +24,7 @@ class InterceptlyScreen extends StatefulWidget {
 }
 
 class _InterceptlyScreenState extends State<InterceptlyScreen> {
-  late RequestFilter _filter;
   int _selectedTabIndex = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _filter = widget.session.filter;
-  }
 
   void _showSettings(BuildContext ctx) {
     SettingsBottomSheet.show(ctx, widget.session);
@@ -41,10 +33,9 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
   void _showFilterPanel(BuildContext ctx) {
     FilterPanel.show(
       context: ctx,
-      currentFilter: _filter,
+      currentFilter: widget.session.filter,
       availableDomains: widget.session.availableDomains,
       onFilterChanged: (newFilter) {
-        setState(() => _filter = newFilter);
         widget.session.applyFilter(newFilter);
       },
     );

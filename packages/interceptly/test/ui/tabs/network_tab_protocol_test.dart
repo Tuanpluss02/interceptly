@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
 import 'package:interceptly/src/ui/tabs/network_tab.dart';
+import 'package:interceptly/src/ui/tabs/request_log_item.dart';
 
 void main() {
   group('NetworkTab Protocol Filtering', () {
@@ -41,7 +42,13 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
 
       expect(find.text('/items'), findsOneWidget);
-      expect(find.text('GET'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(RequestLogItem),
+          matching: find.text('GET'),
+        ),
+        findsOneWidget,
+      );
 
       expect(find.text('/feed'), findsNothing);
       expect(find.text('WS'), findsNothing);
@@ -83,7 +90,13 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
 
       expect(find.text('/items'), findsOneWidget);
-      expect(find.text('GET'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(RequestLogItem),
+          matching: find.text('GET'),
+        ),
+        findsOneWidget,
+      );
       expect(find.text('/feed'), findsOneWidget);
       expect(find.text('WS'), findsOneWidget);
     });
