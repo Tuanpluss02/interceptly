@@ -180,5 +180,37 @@ void main() {
         expect(entryBAfter.errorType, equals('TimeoutException'));
       });
     });
+
+    test('recordRealtimeConnection does NOT time out after pendingTimeout', () {
+      fakeAsync((async) {
+        final session = InspectorSession(
+          settings: const InterceptlySettings(
+            pendingTimeout: Duration(seconds: 45),
+          ),
+        );
+        addTearDown(session.dispose);
+
+        session.recordRealtimeConnection(
+          id: 'ws-persistent',
+          url: 'wss://api.example.com/live',
+          timestamp: DateTime.now(),
+        );
+
+        expect(session.entries.length, equals(1));
+        var entry = session.entries.first;
+        expect(entry.id, equals('ws-persistent'));
+        expect(entry.isRealtime, isTrue);
+        expect(entry.statusCode, equals(0));
+        expect(entry.hasError, isFalse);
+
+        // Advance 100 seconds (well past 45s pending timeout)
+        async.elapse(const Duration(seconds: 100));
+
+        entry = session.entries.first;
+        expect(entry.statusCode, equals(0));
+        expect(entry.hasError, isFalse);
+        expect(entry.errorType, isNull);
+      });
+    });
   });
 }

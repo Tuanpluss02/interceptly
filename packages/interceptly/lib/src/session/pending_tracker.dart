@@ -79,7 +79,9 @@ class PendingTracker {
     );
 
     _memoryIndex.add(entry);
-    schedule(id);
+    if (!entry.isRealtime) {
+      schedule(id);
+    }
     return entry;
   }
 
@@ -107,11 +109,15 @@ class PendingTracker {
   /// Schedules a timeout timer for pending request [id].
   void schedule(String id) {
     cancel(id);
+    final entry = _memoryIndex.byId(id);
+    if (entry != null && entry.isRealtime) return;
+
     _pendingTimers[id] = Timer(_timeoutDuration, () {
       _pendingTimers.remove(id);
 
       final current = _memoryIndex.byId(id);
       if (current == null) return;
+      if (current.isRealtime) return;
       if (current.statusCode != 0 || current.hasError) return;
 
       final timedOutEntry = current.copyWith(
