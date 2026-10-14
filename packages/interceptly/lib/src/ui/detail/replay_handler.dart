@@ -218,6 +218,13 @@ class ReplayHandler {
     final cleanedHeaders = _sanitizeReplayHeaders(headers);
     final isPlaceholder = _isPlaceholder(body);
 
+    if (truncation.hasDataLoss) {
+      ToastNotification.show(
+        'Warning: Request body was truncated during capture and may be incomplete.',
+        contextHint: context,
+      );
+    }
+
     if (bodyBytes == null &&
         truncation.isPreviewOnly &&
         body != null &&

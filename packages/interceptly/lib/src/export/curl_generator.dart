@@ -39,7 +39,14 @@ class CurlGenerator {
 
     final sanitizedUrl = record.url.replaceAll(RegExp(r'[\r\n]'), '').trim();
 
-    final buffer = StringBuffer('curl');
+    final buffer = StringBuffer();
+    if (record.requestTruncation.hasDataLoss) {
+      buffer.write(
+        '# WARNING: Request body was truncated during capture '
+        '(${record.requestTruncation.retainedBytes}/${record.requestSizeBytes} bytes)\n',
+      );
+    }
+    buffer.write('curl');
     buffer.write(" -X '$sanitizedMethod'");
 
     for (final entry in record.requestHeaders.entries) {

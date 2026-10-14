@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/src/export/har_exporter.dart';
+import 'package:interceptly/src/model/body_truncation.dart';
 import 'package:interceptly/src/model/request_record.dart';
 
 void main() {
@@ -102,6 +103,88 @@ void main() {
       expect(content['text'], '');
       expect(content.containsKey('encoding'), isFalse);
     });
+
+    test('includes comment in response content when responseTruncation hasDataLoss is true (storage)', () {
+      final record = _record(
+        responseContentType: 'application/json',
+        responseSizeBytes: 5000,
+        responseBodyPreview: '{"truncated":true}',
+        responseTruncation: const BodyTruncation(
+          originalBytes: 5000,
+          retainedBytes: 1024,
+          stage: TruncationStage.storage,
+        ),
+      );
+
+      final har = HarExporter.fromRecords([record]);
+      final entries = (har['log'] as Map<String, Object?>)['entries'] as List;
+      final res = (entries.first as Map<String, Object?>)['response'] as Map<String, Object?>;
+      final content = res['content'] as Map<String, Object?>;
+
+      expect(
+        content['comment'],
+        'Payload truncated from original 5000 bytes',
+      );
+    });
+
+    test('includes comment in response content when responseTruncation hasDataLoss is true (storageAndPreview)', () {
+      final record = _record(
+        responseContentType: 'application/json',
+        responseSizeBytes: 5000,
+        responseBodyPreview: '{"truncated":true}',
+        responseTruncation: const BodyTruncation(
+          originalBytes: 5000,
+          retainedBytes: 512,
+          stage: TruncationStage.storageAndPreview,
+        ),
+      );
+
+      final har = HarExporter.fromRecords([record]);
+      final entries = (har['log'] as Map<String, Object?>)['entries'] as List;
+      final res = (entries.first as Map<String, Object?>)['response'] as Map<String, Object?>;
+      final content = res['content'] as Map<String, Object?>;
+
+      expect(
+        content['comment'],
+        'Payload truncated from original 5000 bytes',
+      );
+    });
+
+    test('omits comment in response content when complete (hasDataLoss is false)', () {
+      final record = _record(
+        responseContentType: 'application/json',
+        responseSizeBytes: 100,
+        responseBodyPreview: '{"truncated":false}',
+        responseTruncation: const BodyTruncation.complete(100),
+      );
+
+      final har = HarExporter.fromRecords([record]);
+      final entries = (har['log'] as Map<String, Object?>)['entries'] as List;
+      final res = (entries.first as Map<String, Object?>)['response'] as Map<String, Object?>;
+      final content = res['content'] as Map<String, Object?>;
+
+      expect(content.containsKey('comment'), isFalse);
+    });
+
+    test('omits comment in response content when preview only (hasDataLoss is false)', () {
+      final record = _record(
+        responseContentType: 'application/json',
+        responseSizeBytes: 5000,
+        responseBodyPreview: '{"truncated":false}',
+        responseTruncation: const BodyTruncation(
+          originalBytes: 5000,
+          retainedBytes: 500,
+          stage: TruncationStage.preview,
+        ),
+      );
+
+      final har = HarExporter.fromRecords([record]);
+      final entries = (har['log'] as Map<String, Object?>)['entries'] as List;
+      final res = (entries.first as Map<String, Object?>)['response'] as Map<String, Object?>;
+      final content = res['content'] as Map<String, Object?>;
+
+      expect(content.containsKey('comment'), isFalse);
+    });
   });
 }
 
@@ -112,6 +195,7 @@ RequestRecord _record({
   int durationMs = 50,
   int requestSizeBytes = 0,
   int responseSizeBytes = 0,
+  BodyTruncation responseTruncation = const BodyTruncation.complete(0),
   String? requestContentType,
   String? responseContentType,
   Map<String, String>? requestHeaders,
@@ -138,5 +222,6 @@ RequestRecord _record({
     responseBodyBytes: responseBodyBytes,
     requestBodyPreview: requestBodyPreview,
     responseBodyPreview: responseBodyPreview,
+    responseTruncation: responseTruncation,
   );
 }

@@ -87,6 +87,10 @@ class HarExporter {
       'size': r.responseSizeBytes,
       'mimeType': mimeType,
     };
+    if (r.responseTruncation.hasDataLoss) {
+      content['comment'] =
+          'Payload truncated from original ${r.responseSizeBytes} bytes';
+    }
 
     if (bytes != null && bytes.isNotEmpty) {
       if (BodyDecodeService.isBinary(r.responseContentType)) {
