@@ -215,13 +215,13 @@ class WriterIsolate {
 
 Future<void> _isolateEntry(_InitMessage init) async {
   final receivePort = ReceivePort();
-  init.replyPort.send(receivePort.sendPort);
-
   final bodyStore = BodyStore(maxFileBytes: init.maxFileBytes);
 
   try {
     await bodyStore.initForWrite(init.tempDirPath, fileName: init.fileName);
   } catch (_) {}
+
+  init.replyPort.send(receivePort.sendPort);
 
   await for (final message in receivePort) {
     try {

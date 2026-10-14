@@ -32,7 +32,10 @@ class Interceptly extends ChangeNotifier {
 
   /// Resets the shared instance singleton for isolated unit/widget tests.
   @visibleForTesting
-  static void resetForTesting() => _sharedInstance = null;
+  static void resetForTesting() {
+    _detach();
+    _sharedInstance = null;
+  }
 
   final InspectorSession _session;
 

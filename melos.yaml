@@ -8,6 +8,7 @@ scripts:
     description: Run analyzer in all packages.
   test:
     exec: flutter test
+    concurrency: 1
     description: Run tests in all packages.
   test:core:
     exec: flutter test --exclude-tags=stress,perf

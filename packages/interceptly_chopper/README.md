@@ -72,7 +72,7 @@ final collector = MyCustomHttpTrafficCollector();
 
 final chopper = ChopperClient(
   interceptors: [
-    InterceptlyChopperInterceptor(collector: collector),
+    InterceptlyChopperInterceptor(collector),
   ],
 );
 ```

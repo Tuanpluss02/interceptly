@@ -70,7 +70,7 @@ void main() async {
 final collector = MyCustomHttpTrafficCollector();
 final customClient = InterceptlyHttpClient.wrap(
   http.Client(),
-  collector: collector,
+  collector,
 );
 ```
 

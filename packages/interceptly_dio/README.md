@@ -73,7 +73,7 @@ void main() {
 // Custom collector:
 final collector = MyCustomHttpTrafficCollector();
 final customDio = Dio()..interceptors.add(
-  InterceptlyDioInterceptor(collector: collector),
+  InterceptlyDioInterceptor(collector),
 );
 ```
 
