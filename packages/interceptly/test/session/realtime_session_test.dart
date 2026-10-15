@@ -843,32 +843,69 @@ void main() {
       expect(store.getRealtimeFrames('s2').length, equals(1));
     });
 
+    test('ValueNotifier coalesces frame counts and notifies once per throttle window during message bursts', () {
+      fakeAsync((async) {
+        final store = RealtimeStore(maxFramesPerSession: 100, onThrottledBatch: () {});
+        addTearDown(store.dispose);
+
+        final notifier = store.getFrameCountsNotifier('ws-burst');
+        var notifyCount = 0;
+        notifier.addListener(() => notifyCount++);
+
+        // Burst 50 frames
+        for (var i = 0; i < 50; i++) {
+          store.recordFrame(RealtimeFrame.text(
+            id: 'f-$i',
+            sessionId: 'ws-burst',
+            direction: FrameDirection.incoming,
+            text: 'msg',
+          ));
+        }
+
+        // Immediately after burst, getFrameCounts is accurate but notifier has not spammed 50 rebuilds
+        expect(store.getFrameCounts('ws-burst').incoming, equals(50));
+        expect(notifyCount, equals(0), reason: 'Must not synchronously thrash notifier on every frame');
+
+        // After 100ms throttle window elapses
+        async.elapse(const Duration(milliseconds: 100));
+        expect(notifyCount, equals(1), reason: 'Must notify exactly once for the burst batch');
+        expect(notifier.value.incoming, equals(50));
+      });
+    });
+
     test('frame arrival notifies only that session ValueNotifier<RealtimeFrameCounts>', () {
-      final store = RealtimeStore(
-        maxFramesPerSession: 100,
-        onThrottledBatch: () {},
-      );
-      addTearDown(store.dispose);
+      fakeAsync((async) {
+        final store = RealtimeStore(
+          maxFramesPerSession: 100,
+          onThrottledBatch: () {},
+        );
+        addTearDown(store.dispose);
 
-      final notifierA = store.getFrameCountsNotifier('sess-a');
-      final notifierB = store.getFrameCountsNotifier('sess-b');
+        final notifierA = store.getFrameCountsNotifier('sess-a');
+        final notifierB = store.getFrameCountsNotifier('sess-b');
 
-      var aNotified = 0;
-      var bNotified = 0;
+        var aNotified = 0;
+        var bNotified = 0;
 
-      notifierA.addListener(() => aNotified++);
-      notifierB.addListener(() => bNotified++);
+        notifierA.addListener(() => aNotified++);
+        notifierB.addListener(() => bNotified++);
 
-      store.recordFrame(RealtimeFrame.text(
-        id: 'f-a1',
-        sessionId: 'sess-a',
-        direction: FrameDirection.incoming,
-        text: 'msg',
-      ));
+        store.recordFrame(RealtimeFrame.text(
+          id: 'f-a1',
+          sessionId: 'sess-a',
+          direction: FrameDirection.incoming,
+          text: 'msg',
+        ));
 
-      expect(aNotified, equals(1));
-      expect(bNotified, equals(0), reason: 'Unrelated session must not be notified');
-      expect(notifierA.value.incoming, equals(1));
+        expect(store.getFrameCounts('sess-a').incoming, equals(1));
+        expect(aNotified, equals(0), reason: 'Must coalesce to throttle timer');
+
+        async.elapse(const Duration(milliseconds: 100));
+
+        expect(aNotified, equals(1));
+        expect(bNotified, equals(0), reason: 'Unrelated session must not be notified');
+        expect(notifierA.value.incoming, equals(1));
+      });
     });
   });
 

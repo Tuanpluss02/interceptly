@@ -985,8 +985,8 @@ void main() {
           ),
         );
 
-        // Pump a frame for ValueListenable to update
-        await tester.pump();
+        // Pump for throttle interval so coalesced ValueListenable updates
+        await tester.pump(const Duration(milliseconds: 100));
 
         // The counter badge updated to ↓ 1  ↑ 0
         expect(find.textContaining('↓ 1  ↑ 0'), findsOneWidget);
@@ -994,8 +994,8 @@ void main() {
         // The parent widget was NOT rebuilt
         expect(buildCount, equals(initialBuildCount));
 
-        // Drain any throttle timer scheduled by RealtimeStore
-        await tester.pump(const Duration(milliseconds: 150));
+        // Drain any remaining throttle timer scheduled by RealtimeStore
+        await tester.pump(const Duration(milliseconds: 50));
       });
 
       testWidgets('late async payload response for recycled RealtimePayloadView is discarded and does not corrupt cache', (tester) async {

@@ -181,6 +181,8 @@ class RealtimeStore {
   final Map<String, DynamicCircularBuffer> _buffersBySession = {};
   final Map<String, _RealtimeBufferListView> _viewsBySession = {};
   final Map<String, ValueNotifier<RealtimeFrameCounts>> _notifiersBySession = {};
+  final Map<String, RealtimeFrameCounts> _liveCountsBySession = {};
+  final Set<String> _dirtyNotifierSessions = {};
   final Set<String> _closedSessions = {};
 
   int _totalFramesAcrossSessions = 0;
@@ -254,6 +256,7 @@ class RealtimeStore {
     }
     _viewsBySession.remove(sessionId);
     _closedSessions.remove(sessionId);
+    _dirtyNotifierSessions.remove(sessionId);
   }
 
   /// Appends [frame] to the session buffer, enforces global budget, and updates counters.
@@ -272,17 +275,12 @@ class RealtimeStore {
     _enforceMaxSessions(incomingSessionId: frame.sessionId);
     _enforceGlobalBudget();
 
-    // Update session frame count notifier
-    final notifier = _notifiersBySession[frame.sessionId];
-    if (notifier != null) {
-      notifier.value =
-          notifier.value.copyWithIncrement(direction: frame.direction);
-    } else {
-      _notifiersBySession[frame.sessionId] = ValueNotifier(
-        const RealtimeFrameCounts()
-            .copyWithIncrement(direction: frame.direction),
-      );
-    }
+    // Update live counts and mark session notifier as dirty for coalesced update
+    final currentCounts =
+        _liveCountsBySession[frame.sessionId] ?? const RealtimeFrameCounts();
+    _liveCountsBySession[frame.sessionId] =
+        currentCounts.copyWithIncrement(direction: frame.direction);
+    _dirtyNotifierSessions.add(frame.sessionId);
 
     _scheduleNotification();
   }
@@ -344,6 +342,14 @@ class RealtimeStore {
       _throttleTimer = null;
       if (_hasPendingNotification && !_isDisposed) {
         _hasPendingNotification = false;
+        for (final sessionId in _dirtyNotifierSessions) {
+          final notifier = _notifiersBySession[sessionId];
+          final liveCount = _liveCountsBySession[sessionId];
+          if (notifier != null && liveCount != null) {
+            notifier.value = liveCount;
+          }
+        }
+        _dirtyNotifierSessions.clear();
         _onThrottledBatch();
       }
     });
@@ -362,14 +368,16 @@ class RealtimeStore {
   ValueListenable<RealtimeFrameCounts> getFrameCountsNotifier(String sessionId) {
     return _notifiersBySession.putIfAbsent(
       sessionId,
-      () => ValueNotifier(const RealtimeFrameCounts()),
+      () => ValueNotifier(
+        _liveCountsBySession[sessionId] ?? const RealtimeFrameCounts(),
+      ),
     );
   }
 
   /// Returns the current total incoming and outgoing frame counts for [sessionId].
   RealtimeFrameCounts getFrameCounts(String sessionId) {
     if (_isDisposed) return const RealtimeFrameCounts();
-    return _notifiersBySession[sessionId]?.value ?? const RealtimeFrameCounts();
+    return _liveCountsBySession[sessionId] ?? const RealtimeFrameCounts();
   }
 
   /// Marks [sessionId] as closed, prioritizing its frames for eviction under memory pressure.
@@ -406,6 +414,8 @@ class RealtimeStore {
     _throttleTimer?.cancel();
     _throttleTimer = null;
     _hasPendingNotification = false;
+    _dirtyNotifierSessions.clear();
+    _liveCountsBySession.clear();
     for (final buffer in _buffersBySession.values) {
       buffer.clear();
     }
