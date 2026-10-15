@@ -85,6 +85,9 @@ jobs:
         run: |
           dart pub global activate melos
           dart pub global activate pana
+          dart pub global activate dartdoc
+          echo "$PUB_CACHE/bin" >> $GITHUB_PATH
+          echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
 
       - name: Bootstrap Melos workspace
         run: melos bootstrap

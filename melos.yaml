@@ -47,6 +47,7 @@ scripts:
 
   pana:
     exec: pana --no-warning --exit-code-threshold 1
+    concurrency: 1
     description: Analyze package pub health score.
 
   check:
