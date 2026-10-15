@@ -11,7 +11,8 @@ void main() {
       expect(formatFrameTimestamp(dt), '09:05:03.042');
     });
 
-    test('frameTypeLabel returns capitalized readable names for all FrameTypes', () {
+    test('frameTypeLabel returns capitalized readable names for all FrameTypes',
+        () {
       expect(frameTypeLabel(FrameType.text), 'Text');
       expect(frameTypeLabel(FrameType.binary), 'Binary');
       expect(frameTypeLabel(FrameType.ping), 'Ping');
@@ -32,7 +33,9 @@ void main() {
       expect(preview.endsWith('...'), isTrue);
     });
 
-    test('getFramePayloadString returns text, binary preview, or uppercase fallback', () {
+    test(
+        'getFramePayloadString returns text, binary preview, or uppercase fallback',
+        () {
       final textFrame = RealtimeFrame.text(
         id: 'f1',
         sessionId: 's1',
@@ -90,7 +93,8 @@ void main() {
       expect(tryParseJsonPayload(frame, cache), equals(result));
     });
 
-    test('tryParseJsonPayload caches null on non-json text or null payload', () {
+    test('tryParseJsonPayload caches null on non-json text or null payload',
+        () {
       final cache = <String, dynamic>{};
       final frame = RealtimeFrame.text(
         id: 'f5',

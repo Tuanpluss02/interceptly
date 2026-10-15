@@ -58,7 +58,8 @@ void main() {
           expect(
             frames.first.id,
             equals('frame-$sIndex-$expectedStartSeq'),
-            reason: 'Earliest preserved frame must be sequence $expectedStartSeq',
+            reason:
+                'Earliest preserved frame must be sequence $expectedStartSeq',
           );
           expect(
             frames.last.id,
@@ -165,7 +166,8 @@ void main() {
           expect(
             notifyCount,
             equals(1),
-            reason: 'Burst of 1,000 frames must trigger exactly 1 batched notification',
+            reason:
+                'Burst of 1,000 frames must trigger exactly 1 batched notification',
           );
 
           // 2. High-frequency sustained stream over 500ms
@@ -187,7 +189,8 @@ void main() {
           expect(
             notifyCount,
             inInclusiveRange(4, 7),
-            reason: 'Sustained storm must batch notifications at ~100ms intervals',
+            reason:
+                'Sustained storm must batch notifications at ~100ms intervals',
           );
 
           // 3. Idle period: no spurious notifications after storm ceases

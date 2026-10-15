@@ -55,12 +55,14 @@ void main() {
         expect(
           notifyCount,
           lessThanOrEqualTo(20),
-          reason: '1000 rapid entries should be throttled/coalesced into <= 20 notifications',
+          reason:
+              '1000 rapid entries should be throttled/coalesced into <= 20 notifications',
         );
       });
     });
 
-    testWidgets('realtime messages search input debounces filtering by 150-200ms',
+    testWidgets(
+        'realtime messages search input debounces filtering by 150-200ms',
         (tester) async {
       final session = InspectorSession();
       addTearDown(session.dispose);
@@ -102,7 +104,8 @@ void main() {
       expect(
         find.textContaining('regular_message_0'),
         findsOneWidget,
-        reason: 'At 50ms, search query should not filter yet due to 150-200ms debounce',
+        reason:
+            'At 50ms, search query should not filter yet due to 150-200ms debounce',
       );
 
       await tester.pump(const Duration(milliseconds: 200));
@@ -112,7 +115,9 @@ void main() {
       expect(find.textContaining('regular_message_0'), findsNothing);
     });
 
-    test('large JSON 5k lines ensures lines efficiently and preserves invariants', () async {
+    test(
+        'large JSON 5k lines ensures lines efficiently and preserves invariants',
+        () async {
       final largeData = <String, dynamic>{
         'items': List.generate(
           1000,
@@ -126,12 +131,14 @@ void main() {
       };
 
       final stopwatch = Stopwatch()..start();
-      final analysis = JsonLineFlattener.countLinesAndMatches(largeData, 'item 42');
+      final analysis =
+          JsonLineFlattener.countLinesAndMatches(largeData, 'item 42');
       stopwatch.stop();
 
       expect(analysis.lineCount, greaterThanOrEqualTo(5000));
       expect(analysis.matchCounts, isNotEmpty);
-      debugPrint('[Perf Profile] countLinesAndMatches for ${analysis.lineCount} lines took: ${stopwatch.elapsedMilliseconds}ms');
+      debugPrint(
+          '[Perf Profile] countLinesAndMatches for ${analysis.lineCount} lines took: ${stopwatch.elapsedMilliseconds}ms');
 
       final flattenerStopwatch = Stopwatch()..start();
       final expansion = JsonExpansionState()
@@ -150,7 +157,8 @@ void main() {
       expect(lines.length, greaterThanOrEqualTo(5000));
       expect(lines.first.realLineNumber, equals(1));
       expect(lines.last.realLineNumber, equals(analysis.lineCount));
-      debugPrint('[Perf Profile] flattener.flatten for ${lines.length} lines took: ${flattenerStopwatch.elapsedMilliseconds}ms');
+      debugPrint(
+          '[Perf Profile] flattener.flatten for ${lines.length} lines took: ${flattenerStopwatch.elapsedMilliseconds}ms');
 
       final asyncLines = await JsonLineFlattener.flattenAsync(
         data: largeData,

@@ -33,7 +33,8 @@ void main() {
       expect(frame.isOutgoing, isFalse);
     });
 
-    test('direct constructor computes payloadSizeBytes from text when omitted', () {
+    test('direct constructor computes payloadSizeBytes from text when omitted',
+        () {
       const text = 'Hello UTF-8: Xin chào 🚀';
       final expectedBytes = utf8.encode(text).length;
 
@@ -51,7 +52,9 @@ void main() {
       expect(frame.isIncoming, isFalse);
     });
 
-    test('direct constructor computes payloadSizeBytes from binary when omitted', () {
+    test(
+        'direct constructor computes payloadSizeBytes from binary when omitted',
+        () {
       final bytes = Uint8List.fromList([1, 2, 3, 4, 5, 6, 7, 8]);
       final frame = RealtimeFrame(
         id: 'frame-bin-auto',
@@ -92,7 +95,9 @@ void main() {
       expect(frame.isIncoming, isFalse);
     });
 
-    test('RealtimeFrame.text factory supports explicit payloadSizeBytes override', () {
+    test(
+        'RealtimeFrame.text factory supports explicit payloadSizeBytes override',
+        () {
       final frame = RealtimeFrame.text(
         id: 'frame-override',
         sessionId: 'ws-sess',
@@ -130,7 +135,9 @@ void main() {
       expect(frame.isOutgoing, isFalse);
     });
 
-    test('RealtimeFrame.binary factory supports explicit payloadSizeBytes override', () {
+    test(
+        'RealtimeFrame.binary factory supports explicit payloadSizeBytes override',
+        () {
       final data = Uint8List.fromList([1, 2, 3]);
       final frame = RealtimeFrame.binary(
         id: 'frame-bin-override',

@@ -5,7 +5,6 @@ import 'package:interceptly/src/model/body_location.dart';
 import 'package:interceptly/src/model/body_truncation.dart';
 
 void main() {
-
   group('RequestFilter.isEmpty', () {
     test('default constructor is empty', () {
       expect(RequestFilter().isEmpty, isTrue);

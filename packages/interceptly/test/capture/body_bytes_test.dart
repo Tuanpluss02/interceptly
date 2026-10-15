@@ -128,20 +128,24 @@ void main() {
         keyName: 'name',
         valueName: 'value',
       );
-      expect(harFormat, equals([
-        {'name': 'x-api-key', 'value': 'secret'},
-        {'name': 'accept', 'value': '*/*'},
-      ]));
+      expect(
+          harFormat,
+          equals([
+            {'name': 'x-api-key', 'value': 'secret'},
+            {'name': 'accept', 'value': '*/*'},
+          ]));
 
       final postmanFormat = mapHeaderEntries(
         headers,
         keyName: 'key',
         valueName: 'value',
       );
-      expect(postmanFormat, equals([
-        {'key': 'x-api-key', 'value': 'secret'},
-        {'key': 'accept', 'value': '*/*'},
-      ]));
+      expect(
+          postmanFormat,
+          equals([
+            {'key': 'x-api-key', 'value': 'secret'},
+            {'key': 'accept', 'value': '*/*'},
+          ]));
     });
   });
 }

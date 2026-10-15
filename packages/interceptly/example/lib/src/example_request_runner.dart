@@ -525,7 +525,6 @@ mutation UpdateUserStatus(\$id: ID!, \$status: String!) {
     }
   }
 
-
   /// POST /api/analytics/track -> URL blacklisted by shouldCapture
   Future<ExampleRequestResult> runAnalyticsRequest() async {
     final sw = Stopwatch()..start();
@@ -784,8 +783,7 @@ mutation UpdateUserStatus(\$id: ID!, \$status: String!) {
       await sub.cancel();
       sw.stop();
 
-      final preview =
-          'WebSocket Live Chat Test Completed:\n'
+      final preview = 'WebSocket Live Chat Test Completed:\n'
           '• Endpoint: /ws/chat\n'
           '• Received: ${receivedMessages.length} frames (System welcome, StormX greeting, Pong)\n'
           '• Frames: ${receivedMessages.join("\n")}';

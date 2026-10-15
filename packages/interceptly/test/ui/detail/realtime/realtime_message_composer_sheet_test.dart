@@ -5,7 +5,9 @@ import 'package:interceptly/src/ui/detail/realtime/realtime_message_composer_she
 
 void main() {
   group('RealtimeMessageComposerSheet Widget Tests', () {
-    testWidgets('Renders WebSocket composer with initial payload and without event input', (tester) async {
+    testWidgets(
+        'Renders WebSocket composer with initial payload and without event input',
+        (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -18,9 +20,12 @@ void main() {
         ),
       );
 
-      expect(find.byKey(const ValueKey('realtime_composer_sheet')), findsOneWidget);
-      expect(find.byKey(const ValueKey('realtime_composer_event_input')), findsNothing);
-      expect(find.byKey(const ValueKey('realtime_composer_payload_input')), findsOneWidget);
+      expect(find.byKey(const ValueKey('realtime_composer_sheet')),
+          findsOneWidget);
+      expect(find.byKey(const ValueKey('realtime_composer_event_input')),
+          findsNothing);
+      expect(find.byKey(const ValueKey('realtime_composer_payload_input')),
+          findsOneWidget);
       expect(find.text('{"hello":"world"}'), findsOneWidget);
     });
 
@@ -38,12 +43,15 @@ void main() {
         ),
       );
 
-      expect(find.byKey(const ValueKey('realtime_composer_event_input')), findsOneWidget);
+      expect(find.byKey(const ValueKey('realtime_composer_event_input')),
+          findsOneWidget);
       expect(find.text('chat_event'), findsOneWidget);
-      expect(find.byKey(const ValueKey('realtime_composer_payload_input')), findsOneWidget);
+      expect(find.byKey(const ValueKey('realtime_composer_payload_input')),
+          findsOneWidget);
     });
 
-    testWidgets('Format JSON button reformats valid minified JSON', (tester) async {
+    testWidgets('Format JSON button reformats valid minified JSON',
+        (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -56,15 +64,18 @@ void main() {
         ),
       );
 
-      await tester.tap(find.byKey(const ValueKey('realtime_composer_format_button')));
+      await tester
+          .tap(find.byKey(const ValueKey('realtime_composer_format_button')));
       await tester.pump();
 
-      final payloadInput = tester.widget<TextField>(find.byKey(const ValueKey('realtime_composer_payload_input')));
+      final payloadInput = tester.widget<TextField>(
+          find.byKey(const ValueKey('realtime_composer_payload_input')));
       expect(payloadInput.controller?.text, contains('  "a": 1'));
       expect(payloadInput.controller?.text, contains('  "b": ['));
     });
 
-    testWidgets('Format JSON button with invalid JSON shows inline warning', (tester) async {
+    testWidgets('Format JSON button with invalid JSON shows inline warning',
+        (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -77,7 +88,8 @@ void main() {
         ),
       );
 
-      await tester.tap(find.byKey(const ValueKey('realtime_composer_format_button')));
+      await tester
+          .tap(find.byKey(const ValueKey('realtime_composer_format_button')));
       await tester.pump();
 
       expect(find.textContaining('Invalid JSON'), findsOneWidget);
@@ -117,18 +129,22 @@ void main() {
       await tester.tap(find.text('Open Sheet'));
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const ValueKey('realtime_composer_sheet')), findsOneWidget);
+      expect(find.byKey(const ValueKey('realtime_composer_sheet')),
+          findsOneWidget);
 
-      await tester.tap(find.byKey(const ValueKey('realtime_composer_send_button')));
+      await tester
+          .tap(find.byKey(const ValueKey('realtime_composer_send_button')));
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const ValueKey('realtime_composer_sheet')), findsNothing);
+      expect(
+          find.byKey(const ValueKey('realtime_composer_sheet')), findsNothing);
       expect(sentDraft, isNotNull);
       expect(sentDraft?.event, 'alert');
       expect(sentDraft?.payload, '{"type":"warning"}');
     });
 
-    testWidgets('Tapping cancel pops Navigator without sending', (tester) async {
+    testWidgets('Tapping cancel pops Navigator without sending',
+        (tester) async {
       bool sent = false;
 
       await tester.pumpWidget(
@@ -161,16 +177,21 @@ void main() {
       await tester.tap(find.text('Open Sheet'));
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const ValueKey('realtime_composer_sheet')), findsOneWidget);
+      expect(find.byKey(const ValueKey('realtime_composer_sheet')),
+          findsOneWidget);
 
-      await tester.tap(find.byKey(const ValueKey('realtime_composer_cancel_button')));
+      await tester
+          .tap(find.byKey(const ValueKey('realtime_composer_cancel_button')));
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const ValueKey('realtime_composer_sheet')), findsNothing);
+      expect(
+          find.byKey(const ValueKey('realtime_composer_sheet')), findsNothing);
       expect(sent, isFalse);
     });
 
-    testWidgets('Send button is disabled when payload is empty or whitespace only', (tester) async {
+    testWidgets(
+        'Send button is disabled when payload is empty or whitespace only',
+        (tester) async {
       bool sent = false;
 
       await tester.pumpWidget(
@@ -187,7 +208,8 @@ void main() {
         ),
       );
 
-      final sendButtonFinder = find.byKey(const ValueKey('realtime_composer_send_button'));
+      final sendButtonFinder =
+          find.byKey(const ValueKey('realtime_composer_send_button'));
       expect(sendButtonFinder, findsOneWidget);
 
       // Verify disabled initially with null/empty payload
@@ -231,4 +253,3 @@ void main() {
     });
   });
 }
-

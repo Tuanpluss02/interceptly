@@ -182,7 +182,8 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
               FilledButton.tonal(
                 onPressed: _isLoading
                     ? null
-                    : () => _runRequest('Chopper GET (200)', _runner.runChopperGet),
+                    : () =>
+                        _runRequest('Chopper GET (200)', _runner.runChopperGet),
                 child: const Text('Chopper GET 200'),
               ),
               FilledButton.tonal(
@@ -200,31 +201,36 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
               FilledButton.tonal(
                 onPressed: _isLoading
                     ? null
-                    : () => _runRequest('PATCH User (200)', _runner.runPatchUser),
+                    : () =>
+                        _runRequest('PATCH User (200)', _runner.runPatchUser),
                 child: const Text('PATCH (200)'),
               ),
               FilledButton.tonal(
                 onPressed: _isLoading
                     ? null
-                    : () => _runRequest('DELETE User (204)', _runner.runDeleteUser),
+                    : () =>
+                        _runRequest('DELETE User (204)', _runner.runDeleteUser),
                 child: const Text('DELETE (204)'),
               ),
               OutlinedButton(
                 onPressed: _isLoading
                     ? null
-                    : () => _runRequest('Bad Request (400)', _runner.run400BadRequest),
+                    : () => _runRequest(
+                        'Bad Request (400)', _runner.run400BadRequest),
                 child: const Text('400 Bad Request'),
               ),
               OutlinedButton(
                 onPressed: _isLoading
                     ? null
-                    : () => _runRequest('Unauthorized (401)', _runner.run401Unauthorized),
+                    : () => _runRequest(
+                        'Unauthorized (401)', _runner.run401Unauthorized),
                 child: const Text('401 Unauthorized'),
               ),
               OutlinedButton(
                 onPressed: _isLoading
                     ? null
-                    : () => _runRequest('Not Found (404)', _runner.run404NotFound),
+                    : () =>
+                        _runRequest('Not Found (404)', _runner.run404NotFound),
                 child: const Text('404 Not Found'),
               ),
               OutlinedButton.icon(
@@ -246,31 +252,36 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
               FilledButton.tonal(
                 onPressed: _isLoading
                     ? null
-                    : () => _runRequest('GraphQL Query', _runner.runGraphQLQuery),
+                    : () =>
+                        _runRequest('GraphQL Query', _runner.runGraphQLQuery),
                 child: const Text('GraphQL Query'),
               ),
               FilledButton.tonal(
                 onPressed: _isLoading
                     ? null
-                    : () => _runRequest('GraphQL Mutation', _runner.runGraphQLMutation),
+                    : () => _runRequest(
+                        'GraphQL Mutation', _runner.runGraphQLMutation),
                 child: const Text('GraphQL Mutation'),
               ),
               FilledButton.tonal(
                 onPressed: _isLoading
                     ? null
-                    : () => _runRequest('Multipart Upload', _runner.runMultipartUpload),
+                    : () => _runRequest(
+                        'Multipart Upload', _runner.runMultipartUpload),
                 child: const Text('Multipart Upload (FormData)'),
               ),
               FilledButton.tonal(
                 onPressed: _isLoading
                     ? null
-                    : () => _runRequest('Binary Image (PNG)', _runner.runGetImage),
+                    : () =>
+                        _runRequest('Binary Image (PNG)', _runner.runGetImage),
                 child: const Text('Binary Image (PNG)'),
               ),
               FilledButton.tonal(
                 onPressed: _isLoading
                     ? null
-                    : () => _runRequest('Vector Image (SVG)', _runner.runGetSvg),
+                    : () =>
+                        _runRequest('Vector Image (SVG)', _runner.runGetSvg),
                 child: const Text('Vector Image (SVG)'),
               ),
             ],
@@ -303,38 +314,45 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
               FilledButton(
                 onPressed: _isLoading
                     ? null
-                    : () => _runRequest('Heavy List (3k items)', _runner.runHeavyListGet),
+                    : () => _runRequest(
+                        'Heavy List (3k items)', _runner.runHeavyListGet),
                 child: const Text('Heavy List (~1MB)'),
               ),
               FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: Colors.deepOrange),
+                style:
+                    FilledButton.styleFrom(backgroundColor: Colors.deepOrange),
                 onPressed: _isLoading
                     ? null
-                    : () => _runRequest('Extreme List (20k items)', _runner.runExtremeListGet),
+                    : () => _runRequest(
+                        'Extreme List (20k items)', _runner.runExtremeListGet),
                 child: const Text('Extreme List (>6MB Truncate)'),
               ),
               FilledButton.tonal(
                 onPressed: _isLoading
                     ? null
-                    : () => _runRequest('Deep Nested (35 levels)', _runner.runDeepNestedGet),
+                    : () => _runRequest(
+                        'Deep Nested (35 levels)', _runner.runDeepNestedGet),
                 child: const Text('Deep Nested (35 lvls)'),
               ),
               FilledButton.tonal(
                 onPressed: _isLoading
                     ? null
-                    : () => _runRequest('Wide Text (100k chars)', _runner.runWideTextGet),
+                    : () => _runRequest(
+                        'Wide Text (100k chars)', _runner.runWideTextGet),
                 child: const Text('Wide Text (100k)'),
               ),
               FilledButton.tonal(
                 onPressed: _isLoading
                     ? null
-                    : () => _runRequest('Heavy POST (1k items)', _runner.runHeavyPost),
+                    : () => _runRequest(
+                        'Heavy POST (1k items)', _runner.runHeavyPost),
                 child: const Text('Heavy POST (1k)'),
               ),
               OutlinedButton.icon(
                 onPressed: _isLoading
                     ? null
-                    : () => _runRequest('Delayed (1.5s)', _runner.runDelayedGet),
+                    : () =>
+                        _runRequest('Delayed (1.5s)', _runner.runDelayedGet),
                 icon: const Icon(Icons.timer_outlined, size: 18),
                 label: const Text('Delayed (1.5s)'),
               ),
@@ -350,7 +368,8 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
               OutlinedButton.icon(
                 onPressed: _isLoading
                     ? null
-                    : () => _runRequest('Analytics Request', _runner.runAnalyticsRequest),
+                    : () => _runRequest(
+                        'Analytics Request', _runner.runAnalyticsRequest),
                 icon: const Icon(Icons.filter_alt_off_outlined, size: 18),
                 label: const Text('Analytics (Filtered by shouldCapture)'),
               ),

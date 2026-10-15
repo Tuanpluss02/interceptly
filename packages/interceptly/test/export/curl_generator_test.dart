@@ -6,7 +6,8 @@ import 'package:interceptly/src/model/request_record.dart';
 void main() {
   group('CurlGenerator method quoting', () {
     test('quotes GET method in cURL command', () {
-      final record = _record(method: 'GET', url: 'https://api.example.com/users');
+      final record =
+          _record(method: 'GET', url: 'https://api.example.com/users');
       final curl = CurlGenerator.fromRecord(record);
       expect(curl, contains("-X 'GET'"));
       expect(curl, startsWith("curl -X 'GET' 'https://api.example.com/users'"));
@@ -26,7 +27,8 @@ void main() {
 
     test('quotes other HTTP methods (PUT, DELETE, PATCH, HEAD, OPTIONS)', () {
       for (final method in ['PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS']) {
-        final record = _record(method: method, url: 'https://api.example.com/resource');
+        final record =
+            _record(method: method, url: 'https://api.example.com/resource');
         final curl = CurlGenerator.fromRecord(record);
         expect(curl, contains("-X '$method'"));
       }
@@ -34,7 +36,9 @@ void main() {
   });
 
   group('CurlGenerator data loss awareness', () {
-    test('prepends warning comment when request body was truncated at storage stage', () {
+    test(
+        'prepends warning comment when request body was truncated at storage stage',
+        () {
       final record = _record(
         method: 'POST',
         url: 'https://api.example.com/items',
@@ -55,7 +59,9 @@ void main() {
       );
     });
 
-    test('prepends warning comment when request body was truncated at storageAndPreview stage', () {
+    test(
+        'prepends warning comment when request body was truncated at storageAndPreview stage',
+        () {
       final record = _record(
         method: 'POST',
         url: 'https://api.example.com/items',
@@ -76,7 +82,9 @@ void main() {
       );
     });
 
-    test('does not prepend warning comment when request body was not truncated with data loss', () {
+    test(
+        'does not prepend warning comment when request body was not truncated with data loss',
+        () {
       final record = _record(
         method: 'POST',
         url: 'https://api.example.com/items',
@@ -89,7 +97,8 @@ void main() {
       expect(curl, startsWith("curl -X 'POST'"));
     });
 
-    test('does not prepend warning comment when preview only (no data loss)', () {
+    test('does not prepend warning comment when preview only (no data loss)',
+        () {
       final record = _record(
         method: 'POST',
         url: 'https://api.example.com/items',

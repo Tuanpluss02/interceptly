@@ -10,7 +10,8 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('Pending Request Timeout with fakeAsync', () {
-    test('recordPending with fakeAsync advancing 45s marks entry as timeout', () {
+    test('recordPending with fakeAsync advancing 45s marks entry as timeout',
+        () {
       fakeAsync((async) {
         final session = InspectorSession(
           settings: const InterceptlySettings(
@@ -49,7 +50,8 @@ void main() {
       });
     });
 
-    test('closeRealtimeConnection before 45s cancels pending timeout timer', () {
+    test('closeRealtimeConnection before 45s cancels pending timeout timer',
+        () {
       fakeAsync((async) {
         final session = InspectorSession(
           settings: const InterceptlySettings(

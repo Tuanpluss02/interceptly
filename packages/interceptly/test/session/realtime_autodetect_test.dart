@@ -16,16 +16,20 @@ void main() {
       session.dispose();
     });
 
-    test('isRealtimeActive is false by default when no realtime events occurred', () {
+    test(
+        'isRealtimeActive is false by default when no realtime events occurred',
+        () {
       expect(session.isRealtimeActive, isFalse);
     });
 
-    test('isRealtimeActive is true when settings explicitly enable realtime', () {
+    test('isRealtimeActive is true when settings explicitly enable realtime',
+        () {
       session.configureSession(const InterceptlySettings(enableRealtime: true));
       expect(session.isRealtimeActive, isTrue);
     });
 
-    test('isRealtimeActive is true after recordRealtimeConnection is invoked', () {
+    test('isRealtimeActive is true after recordRealtimeConnection is invoked',
+        () {
       expect(session.isRealtimeActive, isFalse);
 
       session.recordRealtimeConnection(
@@ -36,7 +40,9 @@ void main() {
       expect(session.isRealtimeActive, isTrue);
     });
 
-    test('markRealtimeActive sets isRealtimeActive to true and notifies listeners', () {
+    test(
+        'markRealtimeActive sets isRealtimeActive to true and notifies listeners',
+        () {
       var notified = 0;
       session.addListener(() => notified++);
 
@@ -50,7 +56,9 @@ void main() {
       expect(notified, equals(1));
     });
 
-    test('DefaultRealtimeTrafficCollector triggers markRealtimeActive on openSession and recordConnection', () {
+    test(
+        'DefaultRealtimeTrafficCollector triggers markRealtimeActive on openSession and recordConnection',
+        () {
       final collector = DefaultRealtimeTrafficCollector(session: session);
       expect(session.isRealtimeActive, isFalse);
 
@@ -58,8 +66,10 @@ void main() {
       expect(session.isRealtimeActive, isTrue);
     });
 
-    test('RealtimeTrafficCollector.markActive activates realtime capability', () {
-      RealtimeTrafficCollector.instance = DefaultRealtimeTrafficCollector(session: session);
+    test('RealtimeTrafficCollector.markActive activates realtime capability',
+        () {
+      RealtimeTrafficCollector.instance =
+          DefaultRealtimeTrafficCollector(session: session);
       expect(session.isRealtimeActive, isFalse);
 
       RealtimeTrafficCollector.markActive();
@@ -74,7 +84,9 @@ void main() {
       expect(session.isRealtimeActive, isTrue);
     });
 
-    test('isRealtimeActive detects other realtime protocols like SIO or SSE in entries', () {
+    test(
+        'isRealtimeActive detects other realtime protocols like SIO or SSE in entries',
+        () {
       expect(session.isRealtimeActive, isFalse);
       session.recordPending(
         id: 'sio_1',
@@ -85,7 +97,9 @@ void main() {
       expect(session.isRealtimeActive, isTrue);
     });
 
-    test('recordRealtimeConnection maps protocolType to correct method (WS, SIO, SSE)', () {
+    test(
+        'recordRealtimeConnection maps protocolType to correct method (WS, SIO, SSE)',
+        () {
       final collector = DefaultRealtimeTrafficCollector(session: session);
 
       collector.openSession(

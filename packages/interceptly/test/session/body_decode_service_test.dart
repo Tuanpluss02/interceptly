@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/src/session/body_decode_service.dart';
 
 void main() {
-
   group('BodyDecodeService.decode', () {
     test('returns null for null bytes', () {
       expect(BodyDecodeService.decode(null, null), isNull);

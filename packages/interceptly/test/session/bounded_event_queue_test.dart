@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/src/session/bounded_event_queue.dart';
 
 void main() {
-
   group('BoundedEventQueue basic operations', () {
     test('starts empty', () {
       final q = BoundedEventQueue<int>(maxSize: 5);

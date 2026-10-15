@@ -3,7 +3,6 @@ import 'package:interceptly/src/simulation/network_simulation_service.dart';
 import 'package:interceptly/src/model/network_simulation.dart';
 
 void main() {
-
   group('NetworkSimulationService.throughputDelayForChunk', () {
     test('returns zero when kbps is 0 (no throttling)', () {
       final delay = NetworkSimulationService.throughputDelayForChunk(

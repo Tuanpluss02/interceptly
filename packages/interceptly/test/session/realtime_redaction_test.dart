@@ -16,7 +16,8 @@ void main() {
   });
 
   group('Realtime traffic collection', () {
-    test('realtime connection records headers and query params intact', () async {
+    test('realtime connection records headers and query params intact',
+        () async {
       final session = InspectorSession.instance;
       session.recordRealtimeConnection(
         id: 'ws1',
@@ -33,7 +34,8 @@ void main() {
       session.configureSession(
         const InterceptlySettings(shouldCapture: _blockAll),
       );
-      session.recordRealtimeConnection(id: 'ws-no', url: 'wss://x/', headers: {});
+      session
+          .recordRealtimeConnection(id: 'ws-no', url: 'wss://x/', headers: {});
       expect(session.byId('ws-no'), isNull);
     });
 
@@ -63,7 +65,8 @@ void main() {
       session.configureSession(InterceptlySettings(
         shouldCapture: (url) => !url.contains('blocked'),
       ));
-      session.recordRealtimeConnection(id: 'ws-blocked', url: 'wss://x/blocked', headers: {});
+      session.recordRealtimeConnection(
+          id: 'ws-blocked', url: 'wss://x/blocked', headers: {});
       expect(session.byId('ws-blocked'), isNull);
       DefaultRealtimeTrafficCollector().recordFrame(
         sessionId: 'ws-blocked',
@@ -72,7 +75,8 @@ void main() {
         payload: 'should not be stored',
       );
       expect(session.getRealtimeFrames('ws-blocked'), isEmpty);
-      session.recordRealtimeConnection(id: 'ws-ok', url: 'wss://x/allowed', headers: {});
+      session.recordRealtimeConnection(
+          id: 'ws-ok', url: 'wss://x/allowed', headers: {});
       expect(session.byId('ws-ok'), isNotNull);
       DefaultRealtimeTrafficCollector().recordFrame(
         sessionId: 'ws-ok',

@@ -9,7 +9,6 @@ import 'package:interceptly/src/model/request_record.dart';
 import 'package:interceptly/src/session/body_store.dart';
 
 void main() {
-
   group('CurlGenerator', () {
     test('generates basic GET command', () {
       final cmd = CurlGenerator.fromRecord(

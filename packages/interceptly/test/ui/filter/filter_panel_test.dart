@@ -7,7 +7,9 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('FilterPanel Redesign', () {
-    testWidgets('does not show Show errors only and allows toggling methods and applying filter', (tester) async {
+    testWidgets(
+        'does not show Show errors only and allows toggling methods and applying filter',
+        (tester) async {
       RequestFilter? applied;
       await tester.pumpWidget(
         MaterialApp(
@@ -17,7 +19,11 @@ void main() {
                 onPressed: () => FilterPanel.show(
                   context: ctx,
                   currentFilter: RequestFilter(),
-                  availableDomains: {'api.github.com', 'stormx.dev', 'auth.example.com'},
+                  availableDomains: {
+                    'api.github.com',
+                    'stormx.dev',
+                    'auth.example.com'
+                  },
                   onFilterChanged: (f) => applied = f,
                 ),
                 child: const Text('Open Filter'),
@@ -47,7 +53,8 @@ void main() {
       expect(applied!.methods, contains('POST'));
     });
 
-    testWidgets('domain search field filters the list of available domains', (tester) async {
+    testWidgets('domain search field filters the list of available domains',
+        (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -86,7 +93,8 @@ void main() {
       expect(find.text('beta.com'), findsNothing);
     });
 
-    testWidgets('Reset All resets all modified filter selections to defaults', (tester) async {
+    testWidgets('Reset All resets all modified filter selections to defaults',
+        (tester) async {
       RequestFilter? applied;
       await tester.pumpWidget(
         MaterialApp(
@@ -122,7 +130,9 @@ void main() {
       expect(applied!.methods, isEmpty);
     });
 
-    testWidgets('prevents deselecting all status codes and disables Apply when no domains selected', (tester) async {
+    testWidgets(
+        'prevents deselecting all status codes and disables Apply when no domains selected',
+        (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(

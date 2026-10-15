@@ -161,7 +161,8 @@ void main() {
       final interceptor = InterceptlyDioInterceptor(collector);
       final handler = _TrackingResponseHandler();
 
-      final largePayload = List.generate(200, (i) => {'index': i, 'name': 'item_$i'});
+      final largePayload =
+          List.generate(200, (i) => {'index': i, 'name': 'item_$i'});
       final response = Response<dynamic>(
         requestOptions: RequestOptions(path: 'https://api.example.com/large'),
         statusCode: 200,
@@ -194,7 +195,8 @@ void main() {
       final handler = _TrackingResponseHandler();
 
       final response = Response<dynamic>(
-        requestOptions: RequestOptions(path: 'https://api.example.com/throttled'),
+        requestOptions:
+            RequestOptions(path: 'https://api.example.com/throttled'),
         statusCode: 200,
         headers: Headers.fromMap({
           Headers.contentLengthHeader: ['2048'],

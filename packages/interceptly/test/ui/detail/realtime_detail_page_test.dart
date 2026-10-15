@@ -132,7 +132,8 @@ void main() {
     );
   }
 
-  testWidgets('RealtimeDetailPage defaults to Messages tab and has no Replay button',
+  testWidgets(
+      'RealtimeDetailPage defaults to Messages tab and has no Replay button',
       (tester) async {
     final entry = createEntry(id: 'ws-1');
     final record = createRecord(entry);
@@ -159,7 +160,8 @@ void main() {
     expect(find.text('CONNECTED'), findsOneWidget);
   });
 
-  testWidgets('RealtimeDetailPage switches to Overview tab and displays connection details',
+  testWidgets(
+      'RealtimeDetailPage switches to Overview tab and displays connection details',
       (tester) async {
     final entry = createEntry(id: 'ws-overview');
     final record = createRecord(entry);
@@ -227,11 +229,13 @@ void main() {
     expect(find.text('5s'), findsOneWidget);
   });
 
-  testWidgets('RealtimeDetailPage renders CLOSED and DROPPED badges appropriately',
+  testWidgets(
+      'RealtimeDetailPage renders CLOSED and DROPPED badges appropriately',
       (tester) async {
     final closedEntry = createEntry(id: 'ws-closed', statusCode: 1000);
     final closedRecord = createRecord(closedEntry);
-    final closedSession = _FakeRealtimeSession(record: closedRecord, entry: closedEntry);
+    final closedSession =
+        _FakeRealtimeSession(record: closedRecord, entry: closedEntry);
 
     await tester.pumpWidget(
       MaterialApp(
@@ -253,7 +257,8 @@ void main() {
       errorMessage: 'Abnormal closure',
     );
     final droppedRecord = createRecord(droppedEntry);
-    final droppedSession = _FakeRealtimeSession(record: droppedRecord, entry: droppedEntry);
+    final droppedSession =
+        _FakeRealtimeSession(record: droppedRecord, entry: droppedEntry);
 
     await tester.pumpWidget(
       MaterialApp(

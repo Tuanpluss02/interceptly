@@ -719,7 +719,8 @@ void main() {
       );
     });
 
-    test('attaches RealtimeConnectionSender to scope and transmits messages', () async {
+    test('attaches RealtimeConnectionSender to scope and transmits messages',
+        () async {
       final channel = InterceptlyWebSocketChannel(
         fakeChannel,
         sessionId: 'ws-sender-test',
@@ -756,7 +757,9 @@ void main() {
       );
     });
 
-    test('sender.send immediately and synchronously invokes sink.add without microtask delay', () async {
+    test(
+        'sender.send immediately and synchronously invokes sink.add without microtask delay',
+        () async {
       final channel = InterceptlyWebSocketChannel(
         fakeChannel,
         sessionId: 'sync-send-session',
@@ -835,7 +838,9 @@ class _SpyRealtimeTrafficCollector implements RealtimeTrafficCollector {
   @override
   Future<void> sendMessage(String sessionId, RealtimeMessageDraft draft) async {
     final scope = _activeScopes[sessionId];
-    if (scope == null) throw StateError('No scope found for session $sessionId');
+    if (scope == null) {
+      throw StateError('No scope found for session $sessionId');
+    }
     await scope.sendToServer(draft);
   }
 

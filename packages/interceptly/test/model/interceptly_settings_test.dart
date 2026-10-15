@@ -6,13 +6,20 @@ void main() {
     test('asserts on non-positive capacities', () {
       expect(() => InterceptlySettings(maxEntries: 0), throwsAssertionError);
       expect(() => InterceptlySettings(maxEntries: -1), throwsAssertionError);
-      expect(() => InterceptlySettings(maxQueuedEvents: 0), throwsAssertionError);
-      expect(() => InterceptlySettings(maxQueuedEvents: -1), throwsAssertionError);
-      expect(() => InterceptlySettings(maxFramesPerSession: 0), throwsAssertionError);
-      expect(() => InterceptlySettings(maxFramesPerSession: -1), throwsAssertionError);
-      expect(() => InterceptlySettings(bodyOffloadThreshold: -1), throwsAssertionError);
-      expect(() => InterceptlySettings(previewTruncationBytes: -1), throwsAssertionError);
-      expect(() => InterceptlySettings(maxUiPreviewBytes: -1), throwsAssertionError);
+      expect(
+          () => InterceptlySettings(maxQueuedEvents: 0), throwsAssertionError);
+      expect(
+          () => InterceptlySettings(maxQueuedEvents: -1), throwsAssertionError);
+      expect(() => InterceptlySettings(maxFramesPerSession: 0),
+          throwsAssertionError);
+      expect(() => InterceptlySettings(maxFramesPerSession: -1),
+          throwsAssertionError);
+      expect(() => InterceptlySettings(bodyOffloadThreshold: -1),
+          throwsAssertionError);
+      expect(() => InterceptlySettings(previewTruncationBytes: -1),
+          throwsAssertionError);
+      expect(() => InterceptlySettings(maxUiPreviewBytes: -1),
+          throwsAssertionError);
     });
 
     test('allows non-negative boundary values for byte thresholds', () {
@@ -40,10 +47,14 @@ void main() {
       const settings = InterceptlySettings();
       expect(() => settings.copyWith(maxEntries: 0), throwsAssertionError);
       expect(() => settings.copyWith(maxQueuedEvents: 0), throwsAssertionError);
-      expect(() => settings.copyWith(maxFramesPerSession: 0), throwsAssertionError);
-      expect(() => settings.copyWith(bodyOffloadThreshold: -1), throwsAssertionError);
-      expect(() => settings.copyWith(previewTruncationBytes: -1), throwsAssertionError);
-      expect(() => settings.copyWith(maxUiPreviewBytes: -1), throwsAssertionError);
+      expect(() => settings.copyWith(maxFramesPerSession: 0),
+          throwsAssertionError);
+      expect(() => settings.copyWith(bodyOffloadThreshold: -1),
+          throwsAssertionError);
+      expect(() => settings.copyWith(previewTruncationBytes: -1),
+          throwsAssertionError);
+      expect(
+          () => settings.copyWith(maxUiPreviewBytes: -1), throwsAssertionError);
     });
   });
 }

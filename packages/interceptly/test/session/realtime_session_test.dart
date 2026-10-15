@@ -111,7 +111,9 @@ void main() {
   });
 
   group('Ring buffer capacity & eviction', () {
-    test('drops oldest frames and retains newest when exceeding maxFramesPerSession', () {
+    test(
+        'drops oldest frames and retains newest when exceeding maxFramesPerSession',
+        () {
       final session = InspectorSession(
         settings: const InterceptlySettings(maxFramesPerSession: 3),
       );
@@ -130,12 +132,15 @@ void main() {
 
       final frames = session.getRealtimeFrames('ws-bounded');
       expect(frames.length, equals(3));
-      expect(frames.map((f) => f.id).toList(), equals(['frame-3', 'frame-4', 'frame-5']));
+      expect(frames.map((f) => f.id).toList(),
+          equals(['frame-3', 'frame-4', 'frame-5']));
       expect(frames.first.id, equals('frame-3'));
       expect(frames.last.id, equals('frame-5'));
     });
 
-    test('retains newest frames when maxFramesPerSession shrinks via configureSession', () {
+    test(
+        'retains newest frames when maxFramesPerSession shrinks via configureSession',
+        () {
       final session = InspectorSession(
         settings: const InterceptlySettings(maxFramesPerSession: 5),
       );
@@ -164,7 +169,9 @@ void main() {
   });
 
   group('Message Storm Ticking Throttler', () {
-    test('burst of 500 frames within 50ms batches notifyListeners within ~100ms', () {
+    test(
+        'burst of 500 frames within 50ms batches notifyListeners within ~100ms',
+        () {
       fakeAsync((async) {
         final session = InspectorSession(
           settings: const InterceptlySettings(maxFramesPerSession: 100),
@@ -180,7 +187,8 @@ void main() {
             RealtimeFrame.text(
               id: 'storm-$i',
               sessionId: 'ws-storm',
-              direction: i.isEven ? FrameDirection.incoming : FrameDirection.outgoing,
+              direction:
+                  i.isEven ? FrameDirection.incoming : FrameDirection.outgoing,
               text: 'storm message $i',
             ),
           );
@@ -253,7 +261,8 @@ void main() {
         // Call clear before the 100ms throttler timer fires
         session.clear();
         expect(session.getRealtimeFrames('ws-clear'), isEmpty);
-        expect(notifyCount, equals(1)); // clear() itself calls notifyListeners()
+        expect(
+            notifyCount, equals(1)); // clear() itself calls notifyListeners()
 
         // Advance past throttle window - canceled timer must not fire again
         async.elapse(const Duration(milliseconds: 200));
@@ -303,11 +312,14 @@ void main() {
       interceptly.recordRealtimeFrame(frame);
 
       expect(interceptly.getRealtimeFrames('ws-facade').length, equals(1));
-      expect(interceptly.getRealtimeFrames('ws-facade').first.id, equals('f-facade'));
+      expect(interceptly.getRealtimeFrames('ws-facade').first.id,
+          equals('f-facade'));
       expect(session.getRealtimeFrames('ws-facade').length, equals(1));
     });
 
-    test('recordRealtimeConnection and closeRealtimeConnection update session entries', () {
+    test(
+        'recordRealtimeConnection and closeRealtimeConnection update session entries',
+        () {
       final interceptly = Interceptly();
       addTearDown(interceptly.dispose);
 
@@ -331,7 +343,8 @@ void main() {
   });
 
   group('Realtime Stream Hardening', () {
-    test('binary payload uses zero-copy reference without unnecessary cloning', () {
+    test('binary payload uses zero-copy reference without unnecessary cloning',
+        () {
       final session = InspectorSession();
       addTearDown(session.dispose);
       final collector = DefaultRealtimeTrafficCollector(session: session);
@@ -510,27 +523,35 @@ void main() {
   });
 
   group('Clean-Sheet RealtimeFrame Model & Settings', () {
-    test('shortPreview cuts cleanly at 128 chars without splitting surrogate pairs', () {
+    test(
+        'shortPreview cuts cleanly at 128 chars without splitting surrogate pairs',
+        () {
       final longText = 'a' * 150;
-      final preview = RealtimeFrame.extractShortPreview(longText, FrameType.text);
+      final preview =
+          RealtimeFrame.extractShortPreview(longText, FrameType.text);
       expect(preview.length, equals(128));
       expect(preview, equals('a' * 128));
 
       // Test with emojis at boundary (each emoji is 2 UTF-16 code units)
       // 63 'a's + emoji at index 126-127 + emoji at index 128-129
       final textWithEmoji = '${'a' * 126}🌍🚀${'b' * 50}';
-      final emojiPreview = RealtimeFrame.extractShortPreview(textWithEmoji, FrameType.text);
+      final emojiPreview =
+          RealtimeFrame.extractShortPreview(textWithEmoji, FrameType.text);
       expect(emojiPreview.length, equals(128));
-      expect(emojiPreview.endsWith('🌍'), isTrue, reason: 'Must not split the surrogate pair of 🚀');
+      expect(emojiPreview.endsWith('🌍'), isTrue,
+          reason: 'Must not split the surrogate pair of 🚀');
 
       // Binary preview
-      final binaryData = Uint8List.fromList([0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x02]);
-      final binaryPreview = RealtimeFrame.extractShortPreview(binaryData, FrameType.binary);
+      final binaryData =
+          Uint8List.fromList([0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x02]);
+      final binaryPreview =
+          RealtimeFrame.extractShortPreview(binaryData, FrameType.binary);
       expect(binaryPreview, contains('binary: 6 bytes'));
       expect(binaryPreview, contains('de ad be ef'));
     });
 
-    test('RealtimeFrame.offloaded holds file location and null payloads in RAM', () {
+    test('RealtimeFrame.offloaded holds file location and null payloads in RAM',
+        () {
       final frame = RealtimeFrame.offloaded(
         id: 'frame-off-1',
         sessionId: 'ws-conn',
@@ -576,7 +597,9 @@ void main() {
       expect(binFrame.shortPreview, contains('binary: 3 bytes'));
     });
 
-    test('InterceptlySettings includes realtimeBodyOffloadThreshold and maxTotalRealtimeFrames', () {
+    test(
+        'InterceptlySettings includes realtimeBodyOffloadThreshold and maxTotalRealtimeFrames',
+        () {
       const defaultSettings = InterceptlySettings();
       expect(defaultSettings.realtimeBodyOffloadThreshold, equals(32 * 1024));
       expect(defaultSettings.maxTotalRealtimeFrames, equals(5000));
@@ -591,7 +614,9 @@ void main() {
   });
 
   group('FrameNormalizer & Ingestion Pipeline', () {
-    test('text payload computes byte size via utf8ByteLength with 0 heap byte allocations', () {
+    test(
+        'text payload computes byte size via utf8ByteLength with 0 heap byte allocations',
+        () {
       const text = 'Hello world! 🚀 12345';
       final normalized = FrameNormalizer.normalize(
         text,
@@ -613,12 +638,14 @@ void main() {
         maxBodyBytes: 1024,
       );
       expect(normalized.type, equals(FrameType.binary));
-      expect(identical(normalized.payload, bytes), isTrue, reason: 'Must not clone Uint8List');
+      expect(identical(normalized.payload, bytes), isTrue,
+          reason: 'Must not clone Uint8List');
       expect(normalized.originalSizeBytes, equals(5));
       expect(normalized.shouldOffload, isFalse);
     });
 
-    test('payloads exceeding offloadThreshold are marked shouldOffload = true', () {
+    test('payloads exceeding offloadThreshold are marked shouldOffload = true',
+        () {
       final largeText = 'a' * 40000;
       final normalized = FrameNormalizer.normalize(
         largeText,
@@ -630,7 +657,9 @@ void main() {
       expect(normalized.shortPreview.length, equals(128));
     });
 
-    test('handshake shouldCapture predicate is evaluated once and cached on RealtimeSessionScope', () {
+    test(
+        'handshake shouldCapture predicate is evaluated once and cached on RealtimeSessionScope',
+        () {
       var checkCount = 0;
       final settings = InterceptlySettings(
         shouldCapture: (url) {
@@ -642,37 +671,51 @@ void main() {
       final collector = DefaultRealtimeTrafficCollector(session: session);
 
       // Disallowed connection
-      final droppedScope = collector.openSession(uri: Uri.parse('wss://example.com/blocked'));
+      final droppedScope =
+          collector.openSession(uri: Uri.parse('wss://example.com/blocked'));
       expect(checkCount, equals(1));
 
       // Sending messages on droppedScope should not check predicate again and should not record frames
       droppedScope.send('hello');
       droppedScope.receive('world');
-      expect(checkCount, equals(1), reason: 'Predicate must be cached and evaluated once per connection handshake');
+      expect(checkCount, equals(1),
+          reason:
+              'Predicate must be cached and evaluated once per connection handshake');
       expect(session.getRealtimeFrames(droppedScope.sessionId), isEmpty);
 
       // Allowed connection
-      final allowedScope = collector.openSession(uri: Uri.parse('wss://example.com/allowed'));
+      final allowedScope =
+          collector.openSession(uri: Uri.parse('wss://example.com/allowed'));
       expect(checkCount, equals(2));
       allowedScope.send('msg1');
       expect(checkCount, equals(2));
     });
 
-    test('normalizes Map payload into canonical JSON text frame with accurate byte size', () {
-      final payload = {'event': 'message', 'data': {'userId': 42, 'active': true}};
+    test(
+        'normalizes Map payload into canonical JSON text frame with accurate byte size',
+        () {
+      final payload = {
+        'event': 'message',
+        'data': {'userId': 42, 'active': true}
+      };
       final normalized = FrameNormalizer.normalize(
         payload,
         offloadThreshold: 32 * 1024,
         maxBodyBytes: 1024,
       );
       expect(normalized.type, equals(FrameType.text));
-      expect(normalized.payload, equals('{"event":"message","data":{"userId":42,"active":true}}'));
-      expect(normalized.originalSizeBytes, equals(utf8.encode(normalized.payload as String).length));
+      expect(normalized.payload,
+          equals('{"event":"message","data":{"userId":42,"active":true}}'));
+      expect(normalized.originalSizeBytes,
+          equals(utf8.encode(normalized.payload as String).length));
       expect(normalized.shortPreview, contains('{"event":"message"'));
     });
 
     test('normalizes List payload into canonical JSON array text frame', () {
-      final payload = ['chat_message', {'text': 'hi'}];
+      final payload = [
+        'chat_message',
+        {'text': 'hi'}
+      ];
       final normalized = FrameNormalizer.normalize(
         payload,
         offloadThreshold: 32 * 1024,
@@ -682,7 +725,9 @@ void main() {
       expect(normalized.payload, equals('["chat_message",{"text":"hi"}]'));
     });
 
-    test('falls back gracefully to toString() if Map/List contains circular reference or fails to encode', () {
+    test(
+        'falls back gracefully to toString() if Map/List contains circular reference or fails to encode',
+        () {
       final cyclicList = <dynamic>[];
       cyclicList.add(cyclicList); // cyclic reference
       final normalized = FrameNormalizer.normalize(
@@ -694,7 +739,9 @@ void main() {
       expect(normalized.payload, contains('[...]'));
     });
 
-    test('FrameNormalizer attaches pre-encoded bytes for frames >= offloadThreshold', () {
+    test(
+        'FrameNormalizer attaches pre-encoded bytes for frames >= offloadThreshold',
+        () {
       final largeJson = jsonEncode({'data': 'x' * 35000});
       final normalized = FrameNormalizer.normalize(
         largeJson,
@@ -703,12 +750,17 @@ void main() {
       );
       expect(normalized.shouldOffload, isTrue);
       expect(normalized.preEncodedBytes, isNotNull);
-      expect(normalized.preEncodedBytes!.length, equals(normalized.originalSizeBytes));
+      expect(normalized.preEncodedBytes!.length,
+          equals(normalized.originalSizeBytes));
     });
   });
 
-  group('Clean-Sheet RealtimeStore with Dynamic Circular Buffer & Global Budget', () {
-    test('dynamic circular buffer starts small and expands up to maxFramesPerSession', () {
+  group(
+      'Clean-Sheet RealtimeStore with Dynamic Circular Buffer & Global Budget',
+      () {
+    test(
+        'dynamic circular buffer starts small and expands up to maxFramesPerSession',
+        () {
       final store = RealtimeStore(
         maxFramesPerSession: 64,
         onThrottledBatch: () {},
@@ -744,12 +796,22 @@ void main() {
       expect(frames.last.id, equals('f-69'));
     });
 
-    test('replaceById in DynamicCircularBuffer finds newest element in reverse search', () {
+    test(
+        'replaceById in DynamicCircularBuffer finds newest element in reverse search',
+        () {
       final buf = DynamicCircularBuffer(maxCapacity: 100);
       for (var i = 0; i < 50; i++) {
-        buf.add(RealtimeFrame.text(id: 'f-$i', sessionId: 's', direction: FrameDirection.incoming, text: 't'));
+        buf.add(RealtimeFrame.text(
+            id: 'f-$i',
+            sessionId: 's',
+            direction: FrameDirection.incoming,
+            text: 't'));
       }
-      final updated = RealtimeFrame.text(id: 'f-49', sessionId: 's', direction: FrameDirection.incoming, text: 'updated');
+      final updated = RealtimeFrame.text(
+          id: 'f-49',
+          sessionId: 's',
+          direction: FrameDirection.incoming,
+          text: 'updated');
       expect(buf.replaceById('f-49', updated), isTrue);
       expect(buf[49].textPayload, equals('updated'));
     });
@@ -763,7 +825,8 @@ void main() {
 
       final view1 = store.getRealtimeFrames('ws-view');
       final view2 = store.getRealtimeFrames('ws-view');
-      expect(identical(view1, view2), isTrue, reason: 'Must return cached zero-alloc view');
+      expect(identical(view1, view2), isTrue,
+          reason: 'Must return cached zero-alloc view');
       expect(view1.length, equals(0));
 
       store.recordFrame(RealtimeFrame.text(
@@ -779,7 +842,9 @@ void main() {
       expect(() => view1[0] = view1[0], throwsUnsupportedError);
     });
 
-    test('global coordinator prioritizes closed sessions during budget eviction', () {
+    test(
+        'global coordinator prioritizes closed sessions during budget eviction',
+        () {
       final store = RealtimeStore(
         maxFramesPerSession: 50,
         maxTotalRealtimeFrames: 40,
@@ -829,45 +894,77 @@ void main() {
     });
 
     test('getRealtimeFrames does not pollute or mutate LRU session order', () {
-      final store = RealtimeStore(maxFramesPerSession: 10, maxSessions: 3, onThrottledBatch: () {});
+      final store = RealtimeStore(
+          maxFramesPerSession: 10, maxSessions: 3, onThrottledBatch: () {});
       addTearDown(store.dispose);
 
       // Add frames to s1, s2, s3
-      store.recordFrame(RealtimeFrame.text(id: '1', sessionId: 's1', direction: FrameDirection.incoming, text: 'm'));
-      store.recordFrame(RealtimeFrame.text(id: '2', sessionId: 's2', direction: FrameDirection.incoming, text: 'm'));
-      store.recordFrame(RealtimeFrame.text(id: '3', sessionId: 's3', direction: FrameDirection.incoming, text: 'm'));
+      store.recordFrame(RealtimeFrame.text(
+          id: '1',
+          sessionId: 's1',
+          direction: FrameDirection.incoming,
+          text: 'm'));
+      store.recordFrame(RealtimeFrame.text(
+          id: '2',
+          sessionId: 's2',
+          direction: FrameDirection.incoming,
+          text: 'm'));
+      store.recordFrame(RealtimeFrame.text(
+          id: '3',
+          sessionId: 's3',
+          direction: FrameDirection.incoming,
+          text: 'm'));
 
       // Read s1 (oldest). Reading s1 MUST NOT make it the MRU.
       store.getRealtimeFrames('s1');
 
       // Adding s4 should evict s1 (the least recently WRITTEN session)
-      store.recordFrame(RealtimeFrame.text(id: '4', sessionId: 's4', direction: FrameDirection.incoming, text: 'm'));
+      store.recordFrame(RealtimeFrame.text(
+          id: '4',
+          sessionId: 's4',
+          direction: FrameDirection.incoming,
+          text: 'm'));
 
-      expect(store.getRealtimeFrames('s1'), isEmpty, reason: 's1 must be evicted because read does not refresh LRU');
+      expect(store.getRealtimeFrames('s1'), isEmpty,
+          reason: 's1 must be evicted because read does not refresh LRU');
       expect(store.getRealtimeFrames('s2').length, equals(1));
       expect(store.getRealtimeFrames('s3').length, equals(1));
       expect(store.getRealtimeFrames('s4').length, equals(1));
     });
 
-    test('reading non-existent session does not allocate buffer or count towards maxSessions', () {
-      final store = RealtimeStore(maxFramesPerSession: 10, maxSessions: 2, onThrottledBatch: () {});
+    test(
+        'reading non-existent session does not allocate buffer or count towards maxSessions',
+        () {
+      final store = RealtimeStore(
+          maxFramesPerSession: 10, maxSessions: 2, onThrottledBatch: () {});
       addTearDown(store.dispose);
 
       final emptyView = store.getRealtimeFrames('ghost-session');
       expect(emptyView, isEmpty);
 
       // Now record to s1 and s2
-      store.recordFrame(RealtimeFrame.text(id: '1', sessionId: 's1', direction: FrameDirection.incoming, text: 'm'));
-      store.recordFrame(RealtimeFrame.text(id: '2', sessionId: 's2', direction: FrameDirection.incoming, text: 'm'));
+      store.recordFrame(RealtimeFrame.text(
+          id: '1',
+          sessionId: 's1',
+          direction: FrameDirection.incoming,
+          text: 'm'));
+      store.recordFrame(RealtimeFrame.text(
+          id: '2',
+          sessionId: 's2',
+          direction: FrameDirection.incoming,
+          text: 'm'));
 
       // Both s1 and s2 must exist because ghost-session never took a slot
       expect(store.getRealtimeFrames('s1').length, equals(1));
       expect(store.getRealtimeFrames('s2').length, equals(1));
     });
 
-    test('ValueNotifier coalesces frame counts and notifies once per throttle window during message bursts', () {
+    test(
+        'ValueNotifier coalesces frame counts and notifies once per throttle window during message bursts',
+        () {
       fakeAsync((async) {
-        final store = RealtimeStore(maxFramesPerSession: 100, onThrottledBatch: () {});
+        final store =
+            RealtimeStore(maxFramesPerSession: 100, onThrottledBatch: () {});
         addTearDown(store.dispose);
 
         final notifier = store.getFrameCountsNotifier('ws-burst');
@@ -886,16 +983,20 @@ void main() {
 
         // Immediately after burst, getFrameCounts is accurate but notifier has not spammed 50 rebuilds
         expect(store.getFrameCounts('ws-burst').incoming, equals(50));
-        expect(notifyCount, equals(0), reason: 'Must not synchronously thrash notifier on every frame');
+        expect(notifyCount, equals(0),
+            reason: 'Must not synchronously thrash notifier on every frame');
 
         // After 100ms throttle window elapses
         async.elapse(const Duration(milliseconds: 100));
-        expect(notifyCount, equals(1), reason: 'Must notify exactly once for the burst batch');
+        expect(notifyCount, equals(1),
+            reason: 'Must notify exactly once for the burst batch');
         expect(notifier.value.incoming, equals(50));
       });
     });
 
-    test('frame arrival notifies only that session ValueNotifier<RealtimeFrameCounts>', () {
+    test(
+        'frame arrival notifies only that session ValueNotifier<RealtimeFrameCounts>',
+        () {
       fakeAsync((async) {
         final store = RealtimeStore(
           maxFramesPerSession: 100,
@@ -925,14 +1026,17 @@ void main() {
         async.elapse(const Duration(milliseconds: 100));
 
         expect(aNotified, equals(1));
-        expect(bNotified, equals(0), reason: 'Unrelated session must not be notified');
+        expect(bNotified, equals(0),
+            reason: 'Unrelated session must not be notified');
         expect(notifierA.value.incoming, equals(1));
       });
     });
   });
 
-  group('RealtimeBodyStore Integration & Async Lazy Load in InspectorSession', () {
-    test('frames >= 32 KB are offloaded to temp file and lazy-loaded', () async {
+  group('RealtimeBodyStore Integration & Async Lazy Load in InspectorSession',
+      () {
+    test('frames >= 32 KB are offloaded to temp file and lazy-loaded',
+        () async {
       final session = InspectorSession(
         settings: const InterceptlySettings(
           realtimeBodyOffloadThreshold: 32 * 1024,
@@ -984,7 +1088,8 @@ void main() {
       expect(loadedLarge, equals(largeText));
     });
 
-    test('large binary frame is offloaded and loaded back as Uint8List', () async {
+    test('large binary frame is offloaded and loaded back as Uint8List',
+        () async {
       final session = InspectorSession(
         settings: const InterceptlySettings(
           realtimeBodyOffloadThreshold: 1024,
@@ -992,7 +1097,8 @@ void main() {
       );
       addTearDown(session.dispose);
 
-      final largeBytes = Uint8List.fromList(List.generate(2048, (i) => i % 256));
+      final largeBytes =
+          Uint8List.fromList(List.generate(2048, (i) => i % 256));
 
       session.recordRealtimeConnection(
         id: 'ws-bin-off',
@@ -1016,7 +1122,9 @@ void main() {
       expect(loaded, equals(largeBytes));
     });
 
-    test('expired frame returns graceful expiration placeholder after file rotation', () async {
+    test(
+        'expired frame returns graceful expiration placeholder after file rotation',
+        () async {
       final session = InspectorSession(
         settings: const InterceptlySettings(
           realtimeBodyOffloadThreshold: 1024,
@@ -1047,7 +1155,9 @@ void main() {
       expect(result, contains('expired due to file rotation'));
     });
 
-    test('clear resets realtime tmp file without touching REST session tmp file', () async {
+    test(
+        'clear resets realtime tmp file without touching REST session tmp file',
+        () async {
       final session = InspectorSession(
         settings: const InterceptlySettings(
           realtimeBodyOffloadThreshold: 1024,
@@ -1075,6 +1185,3 @@ void main() {
     });
   });
 }
-
-
-

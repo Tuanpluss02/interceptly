@@ -656,8 +656,7 @@ void main() {
       );
 
       await tester.runAsync(() async {
-        final handler =
-            ReplayHandler(
+        final handler = ReplayHandler(
           context: savedContext,
           session: replaySession,
           clientFactory: () => MockHttpClient((request) {

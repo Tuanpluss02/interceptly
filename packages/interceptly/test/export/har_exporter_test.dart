@@ -17,8 +17,11 @@ void main() {
       expect(creator['version'], '2.0.0');
     });
 
-    test('exports binary response body as base64 with encoding: base64 when contentType is binary', () {
-      final pngBytes = Uint8List.fromList([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+    test(
+        'exports binary response body as base64 with encoding: base64 when contentType is binary',
+        () {
+      final pngBytes =
+          Uint8List.fromList([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
       final record = _record(
         responseContentType: 'image/png',
         responseSizeBytes: pngBytes.length,
@@ -27,7 +30,8 @@ void main() {
 
       final har = HarExporter.toMap([record]);
       final entries = (har['log'] as Map<String, Object?>)['entries'] as List;
-      final res = (entries.first as Map<String, Object?>)['response'] as Map<String, Object?>;
+      final res = (entries.first as Map<String, Object?>)['response']
+          as Map<String, Object?>;
       final content = res['content'] as Map<String, Object?>;
 
       expect(content['mimeType'], 'image/png');
@@ -36,7 +40,9 @@ void main() {
       expect(content['text'], base64Encode(pngBytes));
     });
 
-    test('exports binary response body as base64 with encoding: base64 when bytes fail UTF-8 decoding', () {
+    test(
+        'exports binary response body as base64 with encoding: base64 when bytes fail UTF-8 decoding',
+        () {
       final nonUtf8Bytes = Uint8List.fromList([0xFF, 0xFE, 0xFD, 0xFC]);
       final record = _record(
         responseContentType: 'application/octet-stream',
@@ -46,14 +52,17 @@ void main() {
 
       final har = HarExporter.toMap([record]);
       final entries = (har['log'] as Map<String, Object?>)['entries'] as List;
-      final res = (entries.first as Map<String, Object?>)['response'] as Map<String, Object?>;
+      final res = (entries.first as Map<String, Object?>)['response']
+          as Map<String, Object?>;
       final content = res['content'] as Map<String, Object?>;
 
       expect(content['encoding'], 'base64');
       expect(content['text'], base64Encode(nonUtf8Bytes));
     });
 
-    test('exports text response body as plain decoded string without encoding field', () {
+    test(
+        'exports text response body as plain decoded string without encoding field',
+        () {
       const jsonText = '{"status":"ok","count":42}';
       final textBytes = Uint8List.fromList(utf8.encode(jsonText));
       final record = _record(
@@ -64,7 +73,8 @@ void main() {
 
       final har = HarExporter.toMap([record]);
       final entries = (har['log'] as Map<String, Object?>)['entries'] as List;
-      final res = (entries.first as Map<String, Object?>)['response'] as Map<String, Object?>;
+      final res = (entries.first as Map<String, Object?>)['response']
+          as Map<String, Object?>;
       final content = res['content'] as Map<String, Object?>;
 
       expect(content['mimeType'], 'application/json');
@@ -81,14 +91,17 @@ void main() {
 
       final har = HarExporter.toMap([record]);
       final entries = (har['log'] as Map<String, Object?>)['entries'] as List;
-      final res = (entries.first as Map<String, Object?>)['response'] as Map<String, Object?>;
+      final res = (entries.first as Map<String, Object?>)['response']
+          as Map<String, Object?>;
       final content = res['content'] as Map<String, Object?>;
 
       expect(content['text'], '{"preview":true}');
       expect(content.containsKey('encoding'), isFalse);
     });
 
-    test('outputs empty string when responseBodyBytes is null and preview is placeholder', () {
+    test(
+        'outputs empty string when responseBodyBytes is null and preview is placeholder',
+        () {
       final record = _record(
         responseContentType: 'image/png',
         responseSizeBytes: 1024,
@@ -97,14 +110,17 @@ void main() {
 
       final har = HarExporter.toMap([record]);
       final entries = (har['log'] as Map<String, Object?>)['entries'] as List;
-      final res = (entries.first as Map<String, Object?>)['response'] as Map<String, Object?>;
+      final res = (entries.first as Map<String, Object?>)['response']
+          as Map<String, Object?>;
       final content = res['content'] as Map<String, Object?>;
 
       expect(content['text'], '');
       expect(content.containsKey('encoding'), isFalse);
     });
 
-    test('includes comment in response content when responseTruncation hasDataLoss is true (storage)', () {
+    test(
+        'includes comment in response content when responseTruncation hasDataLoss is true (storage)',
+        () {
       final record = _record(
         responseContentType: 'application/json',
         responseSizeBytes: 5000,
@@ -118,7 +134,8 @@ void main() {
 
       final har = HarExporter.toMap([record]);
       final entries = (har['log'] as Map<String, Object?>)['entries'] as List;
-      final res = (entries.first as Map<String, Object?>)['response'] as Map<String, Object?>;
+      final res = (entries.first as Map<String, Object?>)['response']
+          as Map<String, Object?>;
       final content = res['content'] as Map<String, Object?>;
 
       expect(
@@ -127,7 +144,9 @@ void main() {
       );
     });
 
-    test('includes comment in response content when responseTruncation hasDataLoss is true (storageAndPreview)', () {
+    test(
+        'includes comment in response content when responseTruncation hasDataLoss is true (storageAndPreview)',
+        () {
       final record = _record(
         responseContentType: 'application/json',
         responseSizeBytes: 5000,
@@ -141,7 +160,8 @@ void main() {
 
       final har = HarExporter.toMap([record]);
       final entries = (har['log'] as Map<String, Object?>)['entries'] as List;
-      final res = (entries.first as Map<String, Object?>)['response'] as Map<String, Object?>;
+      final res = (entries.first as Map<String, Object?>)['response']
+          as Map<String, Object?>;
       final content = res['content'] as Map<String, Object?>;
 
       expect(
@@ -150,7 +170,9 @@ void main() {
       );
     });
 
-    test('omits comment in response content when complete (hasDataLoss is false)', () {
+    test(
+        'omits comment in response content when complete (hasDataLoss is false)',
+        () {
       final record = _record(
         responseContentType: 'application/json',
         responseSizeBytes: 100,
@@ -160,13 +182,16 @@ void main() {
 
       final har = HarExporter.toMap([record]);
       final entries = (har['log'] as Map<String, Object?>)['entries'] as List;
-      final res = (entries.first as Map<String, Object?>)['response'] as Map<String, Object?>;
+      final res = (entries.first as Map<String, Object?>)['response']
+          as Map<String, Object?>;
       final content = res['content'] as Map<String, Object?>;
 
       expect(content.containsKey('comment'), isFalse);
     });
 
-    test('omits comment in response content when preview only (hasDataLoss is false)', () {
+    test(
+        'omits comment in response content when preview only (hasDataLoss is false)',
+        () {
       final record = _record(
         responseContentType: 'application/json',
         responseSizeBytes: 5000,
@@ -180,7 +205,8 @@ void main() {
 
       final har = HarExporter.toMap([record]);
       final entries = (har['log'] as Map<String, Object?>)['entries'] as List;
-      final res = (entries.first as Map<String, Object?>)['response'] as Map<String, Object?>;
+      final res = (entries.first as Map<String, Object?>)['response']
+          as Map<String, Object?>;
       final content = res['content'] as Map<String, Object?>;
 
       expect(content.containsKey('comment'), isFalse);

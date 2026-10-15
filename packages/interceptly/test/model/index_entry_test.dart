@@ -21,7 +21,9 @@ void main() {
     BodyTruncation requestTruncation = const BodyTruncation.complete(64),
     BodyTruncation responseTruncation = const BodyTruncation.complete(256),
     Map<String, String> requestHeaders = const {'accept': 'application/json'},
-    Map<String, String> responseHeaders = const {'content-type': 'application/json'},
+    Map<String, String> responseHeaders = const {
+      'content-type': 'application/json'
+    },
     String? requestContentType = 'application/json',
     String? responseContentType = 'application/json',
     String? errorType,
@@ -62,7 +64,8 @@ void main() {
 
   group('IndexEntry domain pre-parsing', () {
     test('extracts hostname from URL upon creation', () {
-      final entry = createEntry(url: 'https://service.domain.com/v2/items?page=1');
+      final entry =
+          createEntry(url: 'https://service.domain.com/v2/items?page=1');
       expect(entry.domain, equals('service.domain.com'));
     });
 
@@ -152,7 +155,8 @@ void main() {
       expect(copy.domain, equals('newdomain.org'));
     });
 
-    test('respects explicit domain when url changes and domain is provided', () {
+    test('respects explicit domain when url changes and domain is provided',
+        () {
       final original = createEntry(url: 'https://api.initial.com/v1');
       final copy = original.copyWith(
         url: 'https://newdomain.org/v2',

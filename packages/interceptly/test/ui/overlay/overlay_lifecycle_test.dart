@@ -90,8 +90,7 @@ class _FakeSessionView extends ChangeNotifier implements InspectorSessionView {
       throw UnimplementedError();
 
   @override
-  Future<RequestRecord> loadDetailById(String id) =>
-      throw UnimplementedError();
+  Future<RequestRecord> loadDetailById(String id) => throw UnimplementedError();
 
   @override
   RequestSummary? byId(String id) => null;
@@ -187,8 +186,9 @@ void main() {
       await tester.pumpAndSettle();
 
       final obs = FloatingOverlayManager.instance.navigatorObserver;
-      final matchCountFirst =
-          navKey.currentState!.widget.observers.where((o) => identical(o, obs)).length;
+      final matchCountFirst = navKey.currentState!.widget.observers
+          .where((o) => identical(o, obs))
+          .length;
       expect(matchCountFirst, 1);
 
       FloatingOverlayManager.instance.attach(
@@ -197,8 +197,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final matchCountSecond =
-          navKey.currentState!.widget.observers.where((o) => identical(o, obs)).length;
+      final matchCountSecond = navKey.currentState!.widget.observers
+          .where((o) => identical(o, obs))
+          .length;
       expect(matchCountSecond, 1);
     });
 
@@ -232,7 +233,8 @@ void main() {
   });
 
   group('SettingsBottomSheet slider commit behavior', () {
-    testWidgets('slider drag updates local state and commits only on onChangeEnd',
+    testWidgets(
+        'slider drag updates local state and commits only on onChangeEnd',
         (tester) async {
       final fakeSession = _FakeSessionView();
 

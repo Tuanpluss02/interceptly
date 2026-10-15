@@ -87,7 +87,8 @@ void main() {
   });
 
   group('HarExporter hardening', () {
-    test('contains required HAR 1.2 fields: pages, cache, timings, queryString', () {
+    test('contains required HAR 1.2 fields: pages, cache, timings, queryString',
+        () {
       final record = _record(
         durationMs: 120,
         url: 'https://api.example.com/items?category=books&page=2',
@@ -116,10 +117,12 @@ void main() {
 
       final req = entry['request'] as Map<String, Object?>;
       final queryString = req['queryString'] as List;
-      expect(queryString, containsAll([
-        {'name': 'category', 'value': 'books'},
-        {'name': 'page', 'value': '2'},
-      ]));
+      expect(
+          queryString,
+          containsAll([
+            {'name': 'category', 'value': 'books'},
+            {'name': 'page', 'value': '2'},
+          ]));
     });
 
     test('formats startedDateTime in UTC ISO 8601', () {
@@ -154,7 +157,9 @@ void main() {
 
       final headers = (req['headers'] as List).cast<Map<String, String>>();
       expect(
-        headers.any((h) => h['name'] == 'Authorization' && h['value'] == 'Bearer confidential'),
+        headers.any((h) =>
+            h['name'] == 'Authorization' &&
+            h['value'] == 'Bearer confidential'),
         isTrue,
       );
 
@@ -184,7 +189,8 @@ void main() {
     });
 
     test('strips userinfo from URL for security', () {
-      final record = _record(url: 'https://admin:secret123@api.example.com/v1/data');
+      final record =
+          _record(url: 'https://admin:secret123@api.example.com/v1/data');
       final postman = PostmanExporter.toMap([record]);
       final items = postman['item'] as List;
       final req = (items.first as Map)['request'] as Map;
@@ -226,7 +232,8 @@ void main() {
       final headers = (req['header'] as List).cast<Map<String, String>>();
 
       expect(
-        headers.any((h) => h['key'] == 'Authorization' && h['value'] == 'Bearer token-abc'),
+        headers.any((h) =>
+            h['key'] == 'Authorization' && h['value'] == 'Bearer token-abc'),
         isTrue,
       );
       expect(
@@ -288,13 +295,16 @@ void main() {
       );
 
       await tester.runAsync(() async {
-        await handler.retry(_record(method: 'GET', url: 'http://localhost:8080/admin'));
+        await handler
+            .retry(_record(method: 'GET', url: 'http://localhost:8080/admin'));
         expect(capturedRequest, isNull);
 
-        await handler.retry(_record(method: 'GET', url: 'http://127.0.0.1:3000/keys'));
+        await handler
+            .retry(_record(method: 'GET', url: 'http://127.0.0.1:3000/keys'));
         expect(capturedRequest, isNull);
 
-        await handler.retry(_record(method: 'GET', url: 'http://[::1]:80/status'));
+        await handler
+            .retry(_record(method: 'GET', url: 'http://[::1]:80/status'));
         expect(capturedRequest, isNull);
       });
     });
@@ -393,13 +403,15 @@ void main() {
       );
 
       await tester.runAsync(() async {
-        await handler.retry(_record(method: 'GET', url: 'https://api.example.com/items'));
+        await handler.retry(
+            _record(method: 'GET', url: 'https://api.example.com/items'));
         expect(dialogPrompted, isTrue);
         expect(capturedRequest, isNotNull);
       });
     });
 
-    testWidgets('prompts confirmation on non-idempotent methods', (tester) async {
+    testWidgets('prompts confirmation on non-idempotent methods',
+        (tester) async {
       MockHttpClientRequest? capturedRequest;
       final session = InspectorSession();
       addTearDown(session.dispose);
@@ -427,7 +439,8 @@ void main() {
         },
       );
 
-      final postRecord = _record(method: 'POST', url: 'https://api.example.com/pay');
+      final postRecord =
+          _record(method: 'POST', url: 'https://api.example.com/pay');
 
       await tester.runAsync(() async {
         userApproved = false;
@@ -445,7 +458,9 @@ void main() {
   });
 
   group('InterceptlyShare & ShareHandler temp file lifecycle', () {
-    test('InterceptlyShare throws ArgumentError for paths outside temp directory', () {
+    test(
+        'InterceptlyShare throws ArgumentError for paths outside temp directory',
+        () {
       final share = InterceptlyShare();
       expect(
         () => share.shareFile(filePath: '/etc/passwd'),
@@ -467,7 +482,8 @@ void main() {
           filePath: largeFile.path,
           maxFileSizeBytes: 50,
         ),
-        throwsA(isA<StateError>().having((e) => e.message, 'message', contains('exceeds'))),
+        throwsA(isA<StateError>()
+            .having((e) => e.message, 'message', contains('exceeds'))),
       );
 
       if (await largeFile.exists()) {
@@ -475,7 +491,8 @@ void main() {
       }
     });
 
-    testWidgets('ShareHandler deletes temp HAR file after export in finally', (tester) async {
+    testWidgets('ShareHandler deletes temp HAR file after export in finally',
+        (tester) async {
       late BuildContext savedContext;
       final fabKey = GlobalKey();
 
@@ -507,7 +524,8 @@ void main() {
         share: mockShare,
       );
 
-      final record = _record(method: 'GET', url: 'https://api.example.com/test');
+      final record =
+          _record(method: 'GET', url: 'https://api.example.com/test');
       await tester.runAsync(() async {
         await handler.exportHarFile(record);
       });
@@ -516,7 +534,9 @@ void main() {
       expect(File(sharedFilePath!).existsSync(), isFalse);
     });
 
-    testWidgets('ShareHandler deletes temp Postman file after export in finally', (tester) async {
+    testWidgets(
+        'ShareHandler deletes temp Postman file after export in finally',
+        (tester) async {
       late BuildContext savedContext;
       final fabKey = GlobalKey();
 
@@ -548,7 +568,8 @@ void main() {
         share: mockShare,
       );
 
-      final record = _record(method: 'POST', url: 'https://api.example.com/test');
+      final record =
+          _record(method: 'POST', url: 'https://api.example.com/test');
       await tester.runAsync(() async {
         await handler.exportPostmanRecords([record]);
       });

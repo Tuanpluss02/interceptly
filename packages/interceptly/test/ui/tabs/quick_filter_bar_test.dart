@@ -15,7 +15,8 @@ void main() {
   });
 
   group('QuickFilterBar', () {
-    testWidgets('renders quick filter chips and toggles onlyErrors filter', (tester) async {
+    testWidgets('renders quick filter chips and toggles onlyErrors filter',
+        (tester) async {
       final session = InspectorSession();
       addTearDown(session.dispose);
 
@@ -47,7 +48,8 @@ void main() {
       expect(session.filter.isEmpty, isTrue);
     });
 
-    testWidgets('toggles 2xx status range filter and POST method filter', (tester) async {
+    testWidgets('toggles 2xx status range filter and POST method filter',
+        (tester) async {
       final session = InspectorSession();
       addTearDown(session.dispose);
 

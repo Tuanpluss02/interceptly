@@ -142,7 +142,8 @@ void main() {
       expect(longPressed, isTrue);
     });
 
-    testWidgets('renders CONNECTED badge and frame counts for active realtime connection',
+    testWidgets(
+        'renders CONNECTED badge and frame counts for active realtime connection',
         (tester) async {
       await tester.pumpWidget(
         buildItem(
@@ -153,7 +154,8 @@ void main() {
           status: 0,
           isPending: true,
           isRealtime: true,
-          realtimeFrameCounts: const RealtimeFrameCounts(incoming: 12, outgoing: 5),
+          realtimeFrameCounts:
+              const RealtimeFrameCounts(incoming: 12, outgoing: 5),
         ),
       );
 
@@ -174,16 +176,19 @@ void main() {
           status: 1000,
           isPending: false,
           isRealtime: true,
-          realtimeFrameCounts: const RealtimeFrameCounts(incoming: 20, outgoing: 10),
+          realtimeFrameCounts:
+              const RealtimeFrameCounts(incoming: 20, outgoing: 10),
         ),
       );
 
       expect(find.text('CLOSED'), findsOneWidget);
       expect(find.text('1000'), findsNothing);
-      expect(find.textContaining('12:00:00 · 2m 15s · ↓ 20  ↑ 10'), findsOneWidget);
+      expect(find.textContaining('12:00:00 · 2m 15s · ↓ 20  ↑ 10'),
+          findsOneWidget);
     });
 
-    testWidgets('renders DROPPED badge for abnormally closed realtime connection',
+    testWidgets(
+        'renders DROPPED badge for abnormally closed realtime connection',
         (tester) async {
       await tester.pumpWidget(
         buildItem(
@@ -195,7 +200,8 @@ void main() {
           hasError: true,
           isPending: false,
           isRealtime: true,
-          realtimeFrameCounts: const RealtimeFrameCounts(incoming: 3, outgoing: 1),
+          realtimeFrameCounts:
+              const RealtimeFrameCounts(incoming: 3, outgoing: 1),
         ),
       );
 

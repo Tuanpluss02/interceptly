@@ -53,7 +53,8 @@ void main() {
   }
 
   group('Dual Backpressure (inFlightBytes)', () {
-    test('dual backpressure drops capture when inFlightBytes exceeds 32MB', () async {
+    test('dual backpressure drops capture when inFlightBytes exceeds 32MB',
+        () async {
       final session = InspectorSession(
         settings: const InterceptlySettings(
           maxQueuedEvents: 1000,
@@ -75,7 +76,8 @@ void main() {
           reason: 'large-3 must be dropped because inFlightBytes exceeds 32MB');
     });
 
-    test('inFlightBytes drains and allows subsequent captures after completion', () async {
+    test('inFlightBytes drains and allows subsequent captures after completion',
+        () async {
       final session = InspectorSession();
       addTearDown(session.dispose);
       await session.initialize();

@@ -16,7 +16,9 @@ void main() {
       await session.dispose();
     });
 
-    testWidgets('renders single view with no bottom bar when isRealtimeActive is false', (tester) async {
+    testWidgets(
+        'renders single view with no bottom bar when isRealtimeActive is false',
+        (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: InterceptlyScreen(session: session),
@@ -29,7 +31,9 @@ void main() {
       expect(find.byType(NetworkTab), findsOneWidget);
     });
 
-    testWidgets('renders NavigationBar with REST and Realtime tabs when isRealtimeActive is true', (tester) async {
+    testWidgets(
+        'renders NavigationBar with REST and Realtime tabs when isRealtimeActive is true',
+        (tester) async {
       session.configureSession(const InterceptlySettings(enableRealtime: true));
 
       await tester.pumpWidget(
@@ -50,11 +54,14 @@ void main() {
       await tester.tap(find.text('Realtime'));
       await tester.pumpAndSettle();
 
-      final updatedNavBar = tester.widget<NavigationBar>(find.byType(NavigationBar));
+      final updatedNavBar =
+          tester.widget<NavigationBar>(find.byType(NavigationBar));
       expect(updatedNavBar.selectedIndex, equals(1));
     });
 
-    testWidgets('dynamically shows NavigationBar when a realtime connection is recorded', (tester) async {
+    testWidgets(
+        'dynamically shows NavigationBar when a realtime connection is recorded',
+        (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: InterceptlyScreen(session: session),
@@ -80,7 +87,9 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('tab switching alternates between REST requests and WebSocket connections', (tester) async {
+    testWidgets(
+        'tab switching alternates between REST requests and WebSocket connections',
+        (tester) async {
       session.configureSession(const InterceptlySettings(enableRealtime: true));
       session.recordPending(
         id: 'req_tab_1',
@@ -116,7 +125,8 @@ void main() {
       await tester.pump();
     });
 
-    testWidgets('persists selected tab index across screen dismiss and re-open', (tester) async {
+    testWidgets('persists selected tab index across screen dismiss and re-open',
+        (tester) async {
       session.configureSession(const InterceptlySettings(enableRealtime: true));
 
       // 1. Open InterceptlyScreen
@@ -127,12 +137,20 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex, equals(0));
+      expect(
+          tester
+              .widget<NavigationBar>(find.byType(NavigationBar))
+              .selectedIndex,
+          equals(0));
 
       // 2. User taps 'Realtime' tab
       await tester.tap(find.text('Realtime'));
       await tester.pumpAndSettle();
-      expect(tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex, equals(1));
+      expect(
+          tester
+              .widget<NavigationBar>(find.byType(NavigationBar))
+              .selectedIndex,
+          equals(1));
 
       // 3. User exits screen (simulating popping route/closing overlay)
       await tester.pumpWidget(const MaterialApp(home: SizedBox()));
@@ -148,7 +166,11 @@ void main() {
       await tester.pumpAndSettle();
 
       // Must restore Realtime tab (index 1), NOT reset to 0 (REST)
-      expect(tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex, equals(1));
+      expect(
+          tester
+              .widget<NavigationBar>(find.byType(NavigationBar))
+              .selectedIndex,
+          equals(1));
     });
   });
 }

@@ -228,7 +228,9 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
 
     if (!_isConnected || _channel == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng kết nối WebSocket trước khi gửi tin nhắn!')),
+        const SnackBar(
+            content:
+                Text('Vui lòng kết nối WebSocket trước khi gửi tin nhắn!')),
       );
       return;
     }
@@ -268,7 +270,8 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                 children: [
                   CircleAvatar(
                     backgroundColor: Colors.indigo.shade100,
-                    child: const Icon(Icons.support_agent, color: Colors.indigo),
+                    child:
+                        const Icon(Icons.support_agent, color: Colors.indigo),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -278,7 +281,8 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                       children: [
                         const Text(
                           'StormX (Support Bot)',
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                              fontSize: 15, fontWeight: FontWeight.bold),
                         ),
                         Row(
                           children: [
@@ -304,7 +308,9 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                                       : 'Offline',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: _isConnected ? Colors.green.shade700 : Colors.grey.shade600,
+                                color: _isConnected
+                                    ? Colors.green.shade700
+                                    : Colors.grey.shade600,
                               ),
                             ),
                           ],
@@ -338,11 +344,13 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
           children: [
             if (!widget.showAppBar)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                 decoration: BoxDecoration(
                   border: Border(
                     bottom: BorderSide(
-                      color: Theme.of(context).dividerColor.withValues(alpha: 0.2),
+                      color:
+                          Theme.of(context).dividerColor.withValues(alpha: 0.2),
                     ),
                   ),
                 ),
@@ -351,7 +359,8 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                     CircleAvatar(
                       radius: 14,
                       backgroundColor: Colors.indigo.shade100,
-                      child: const Icon(Icons.support_agent, size: 16, color: Colors.indigo),
+                      child: const Icon(Icons.support_agent,
+                          size: 16, color: Colors.indigo),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -359,7 +368,8 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                         children: [
                           const Text(
                             'StormX',
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                                fontSize: 14, fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(width: 8),
                           Container(
@@ -376,8 +386,11 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            _isConnected ? 'Online' : (_isConnecting ? 'Connecting' : 'Offline'),
-                            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                            _isConnected
+                                ? 'Online'
+                                : (_isConnecting ? 'Connecting' : 'Offline'),
+                            style: TextStyle(
+                                fontSize: 12, color: Colors.grey.shade600),
                           ),
                         ],
                       ),
@@ -386,7 +399,8 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                       icon: Icon(
                         _isConnected ? Icons.link_off : Icons.link,
                         size: 20,
-                        color: _isConnected ? Colors.red.shade400 : Colors.indigo,
+                        color:
+                            _isConnected ? Colors.red.shade400 : Colors.indigo,
                       ),
                       tooltip: _isConnected ? 'Ngắt kết nối' : 'Kết nối lại',
                       onPressed: _isConnected ? _disconnect : _connect,
@@ -399,7 +413,8 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
             Expanded(
               child: ListView.builder(
                 controller: _scrollController,
-                padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12.0, vertical: 12.0),
                 itemCount: _messages.length + (_isTyping ? 1 : 0),
                 itemBuilder: (context, index) {
                   if (_isTyping && index == _messages.length) {
@@ -410,19 +425,24 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                           CircleAvatar(
                             radius: 12,
                             backgroundColor: Colors.indigo.shade100,
-                            child: const Icon(Icons.support_agent, size: 14, color: Colors.indigo),
+                            child: const Icon(Icons.support_agent,
+                                size: 14, color: Colors.indigo),
                           ),
                           const SizedBox(width: 8),
                           Container(
                             key: const ValueKey('chat_typing_indicator'),
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
                             decoration: BoxDecoration(
                               color: Colors.grey.shade200,
                               borderRadius: BorderRadius.circular(16),
                             ),
                             child: const Text(
                               'StormX đang gõ...',
-                              style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.black54),
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  fontStyle: FontStyle.italic,
+                                  color: Colors.black54),
                             ),
                           ),
                         ],
@@ -436,14 +456,16 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                     return Center(
                       child: Container(
                         margin: const EdgeInsets.symmetric(vertical: 6.0),
-                        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12.0, vertical: 4.0),
                         decoration: BoxDecoration(
                           color: Colors.grey.shade200,
                           borderRadius: BorderRadius.circular(12.0),
                         ),
                         child: Text(
                           msg.text,
-                          style: const TextStyle(fontSize: 11.5, color: Colors.black54),
+                          style: const TextStyle(
+                              fontSize: 11.5, color: Colors.black54),
                         ),
                       ),
                     );
@@ -454,7 +476,8 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                       alignment: Alignment.centerRight,
                       child: Container(
                         margin: const EdgeInsets.only(bottom: 8.0, left: 50.0),
-                        padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14.0, vertical: 10.0),
                         decoration: BoxDecoration(
                           color: Colors.indigo,
                           borderRadius: BorderRadius.circular(16.0).copyWith(
@@ -463,7 +486,8 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                         ),
                         child: Text(
                           msg.text,
-                          style: const TextStyle(color: Colors.white, fontSize: 14.0),
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 14.0),
                         ),
                       ),
                     );
@@ -477,17 +501,21 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                         CircleAvatar(
                           radius: 13,
                           backgroundColor: Colors.indigo.shade100,
-                          child: const Icon(Icons.support_agent, size: 15, color: Colors.indigo),
+                          child: const Icon(Icons.support_agent,
+                              size: 15, color: Colors.indigo),
                         ),
                         const SizedBox(width: 6),
                         Flexible(
                           child: Container(
-                            margin: const EdgeInsets.only(bottom: 8.0, right: 40.0),
-                            padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+                            margin:
+                                const EdgeInsets.only(bottom: 8.0, right: 40.0),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14.0, vertical: 10.0),
                             decoration: BoxDecoration(
                               color: Colors.grey.shade100,
                               border: Border.all(color: Colors.grey.shade300),
-                              borderRadius: BorderRadius.circular(16.0).copyWith(
+                              borderRadius:
+                                  BorderRadius.circular(16.0).copyWith(
                                 bottomLeft: const Radius.circular(2.0),
                               ),
                             ),
@@ -505,7 +533,8 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                                 const SizedBox(height: 3),
                                 Text(
                                   msg.text,
-                                  style: const TextStyle(fontSize: 14.0, color: Colors.black87),
+                                  style: const TextStyle(
+                                      fontSize: 14.0, color: Colors.black87),
                                 ),
                               ],
                             ),
@@ -520,7 +549,8 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
 
             // Quick chips
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
@@ -536,14 +566,16 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                       key: const ValueKey('chip_bug'),
                       avatar: const Icon(Icons.bug_report, size: 14),
                       label: const Text('🐞 Báo lỗi hệ thống'),
-                      onPressed: () => _sendMessage('Ứng dụng bị lỗi kết nối timeout'),
+                      onPressed: () =>
+                          _sendMessage('Ứng dụng bị lỗi kết nối timeout'),
                     ),
                     const SizedBox(width: 6),
                     ActionChip(
                       key: const ValueKey('chip_order'),
                       avatar: const Icon(Icons.local_shipping, size: 14),
                       label: const Text('📦 Kiểm tra đơn hàng'),
-                      onPressed: () => _sendMessage('Kiểm tra tình trạng đơn hàng #DH-20261014'),
+                      onPressed: () => _sendMessage(
+                          'Kiểm tra tình trạng đơn hàng #DH-20261014'),
                     ),
                   ],
                 ),
@@ -552,7 +584,8 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
 
             // Chat input bar
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0),
               decoration: BoxDecoration(
                 color: Colors.white,
                 border: Border(top: BorderSide(color: Colors.grey.shade200)),
@@ -566,7 +599,8 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                       decoration: const InputDecoration(
                         hintText: 'Nhập tin nhắn hỗ trợ...',
                         isDense: true,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.all(Radius.circular(24)),
                         ),

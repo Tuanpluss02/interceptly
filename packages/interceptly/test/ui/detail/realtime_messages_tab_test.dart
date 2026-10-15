@@ -195,7 +195,8 @@ void main() {
   }
 
   group('RealtimeMessagesTab', () {
-    testWidgets('shows empty state when no frames are captured', (tester) async {
+    testWidgets('shows empty state when no frames are captured',
+        (tester) async {
       final session = _MockSession();
 
       await tester.pumpWidget(
@@ -206,7 +207,8 @@ void main() {
       expect(find.text('No WebSocket messages captured.'), findsOneWidget);
     });
 
-    testWidgets('renders incoming and outgoing frames with badges and timestamps',
+    testWidgets(
+        'renders incoming and outgoing frames with badges and timestamps',
         (tester) async {
       final session = _MockSession();
       final t1 = DateTime(2026, 10, 13, 14, 30, 15, 123);
@@ -616,24 +618,32 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(RealtimeMessagesTab), findsOneWidget);
-      expect(find.byKey(const ValueKey('frame_card_ws-frame-1')), findsOneWidget);
+      expect(
+          find.byKey(const ValueKey('frame_card_ws-frame-1')), findsOneWidget);
       expect(find.textContaining('connected'), findsOneWidget);
     });
 
     group('Realtime Message Sender Integration', () {
-      testWidgets('renders RealtimeChatBar at bottom of tab even when frames list is empty or populated', (tester) async {
+      testWidgets(
+          'renders RealtimeChatBar at bottom of tab even when frames list is empty or populated',
+          (tester) async {
         final session = _MockSession();
         session.activeCanSend = true;
         session.protocol = RealtimeProtocolType.webSocket;
 
-        await tester.pumpWidget(buildTestWidget(sessionId: 'sess_1', session: session));
+        await tester
+            .pumpWidget(buildTestWidget(sessionId: 'sess_1', session: session));
         await tester.pumpAndSettle();
 
-        expect(find.byKey(const ValueKey('realtime_chat_input')), findsOneWidget);
-        expect(find.byKey(const ValueKey('realtime_chat_send_button')), findsOneWidget);
+        expect(
+            find.byKey(const ValueKey('realtime_chat_input')), findsOneWidget);
+        expect(find.byKey(const ValueKey('realtime_chat_send_button')),
+            findsOneWidget);
       });
 
-      testWidgets('frame cards render Resend and Edit buttons and optional event badge', (tester) async {
+      testWidgets(
+          'frame cards render Resend and Edit buttons and optional event badge',
+          (tester) async {
         final session = _MockSession();
         session.activeCanSend = true;
         session.protocol = RealtimeProtocolType.socketIo;
@@ -648,16 +658,21 @@ void main() {
           ),
         );
 
-        await tester.pumpWidget(buildTestWidget(sessionId: 'sess_1', session: session));
+        await tester
+            .pumpWidget(buildTestWidget(sessionId: 'sess_1', session: session));
         await tester.pumpAndSettle();
 
-        expect(find.byKey(const ValueKey('frame_event_frame_sio_1')), findsOneWidget);
+        expect(find.byKey(const ValueKey('frame_event_frame_sio_1')),
+            findsOneWidget);
         expect(find.text('chat_msg'), findsOneWidget);
-        expect(find.byKey(const ValueKey('frame_resend_frame_sio_1')), findsOneWidget);
-        expect(find.byKey(const ValueKey('frame_edit_frame_sio_1')), findsOneWidget);
+        expect(find.byKey(const ValueKey('frame_resend_frame_sio_1')),
+            findsOneWidget);
+        expect(find.byKey(const ValueKey('frame_edit_frame_sio_1')),
+            findsOneWidget);
       });
 
-      testWidgets('tapping Edit populates RealtimeChatBar inputs', (tester) async {
+      testWidgets('tapping Edit populates RealtimeChatBar inputs',
+          (tester) async {
         final session = _MockSession();
         session.activeCanSend = true;
         session.protocol = RealtimeProtocolType.socketIo;
@@ -672,20 +687,25 @@ void main() {
           ),
         );
 
-        await tester.pumpWidget(buildTestWidget(sessionId: 'sess_1', session: session));
+        await tester
+            .pumpWidget(buildTestWidget(sessionId: 'sess_1', session: session));
         await tester.pumpAndSettle();
 
-        await tester.tap(find.byKey(const ValueKey('frame_edit_frame_edit_target')));
+        await tester
+            .tap(find.byKey(const ValueKey('frame_edit_frame_edit_target')));
         await tester.pumpAndSettle();
 
-        final input = tester.widget<TextField>(find.byKey(const ValueKey('realtime_chat_input')));
+        final input = tester.widget<TextField>(
+            find.byKey(const ValueKey('realtime_chat_input')));
         expect(input.controller?.text, '{"action":"authenticate"}');
 
-        final eventInput = tester.widget<TextField>(find.byKey(const ValueKey('realtime_chat_event_input')));
+        final eventInput = tester.widget<TextField>(
+            find.byKey(const ValueKey('realtime_chat_event_input')));
         expect(eventInput.controller?.text, 'auth');
       });
 
-      testWidgets('tapping Resend immediately sends frame draft', (tester) async {
+      testWidgets('tapping Resend immediately sends frame draft',
+          (tester) async {
         final session = _MockSession();
         session.activeCanSend = true;
         session.protocol = RealtimeProtocolType.socketIo;
@@ -700,10 +720,12 @@ void main() {
           ),
         );
 
-        await tester.pumpWidget(buildTestWidget(sessionId: 'sess_1', session: session));
+        await tester
+            .pumpWidget(buildTestWidget(sessionId: 'sess_1', session: session));
         await tester.pumpAndSettle();
 
-        await tester.tap(find.byKey(const ValueKey('frame_resend_frame_resend_target')));
+        await tester.tap(
+            find.byKey(const ValueKey('frame_resend_frame_resend_target')));
         await tester.pumpAndSettle();
 
         expect(session.sentDrafts.length, 1);
@@ -711,7 +733,8 @@ void main() {
         expect(session.sentDrafts.first.payload, '{"action":"heartbeat"}');
       });
 
-      testWidgets('typing and tapping send in chat bar sends message', (tester) async {
+      testWidgets('typing and tapping send in chat bar sends message',
+          (tester) async {
         final session = _MockSession();
         session.activeCanSend = true;
         session.protocol = RealtimeProtocolType.webSocket;
@@ -725,39 +748,49 @@ void main() {
           ),
         );
 
-        await tester.pumpWidget(buildTestWidget(sessionId: 'sess_1', session: session));
+        await tester
+            .pumpWidget(buildTestWidget(sessionId: 'sess_1', session: session));
         await tester.pumpAndSettle();
 
-        await tester.enterText(find.byKey(const ValueKey('realtime_chat_input')), 'hello server');
+        await tester.enterText(
+            find.byKey(const ValueKey('realtime_chat_input')), 'hello server');
         await tester.pump();
 
-        await tester.tap(find.byKey(const ValueKey('realtime_chat_send_button')));
+        await tester
+            .tap(find.byKey(const ValueKey('realtime_chat_send_button')));
         await tester.pumpAndSettle();
 
         expect(session.sentDrafts.length, 1);
         expect(session.sentDrafts.first.payload, 'hello server');
       });
 
-      testWidgets('tapping expand when chat input is empty opens composer sheet with disabled send button', (tester) async {
+      testWidgets(
+          'tapping expand when chat input is empty opens composer sheet with disabled send button',
+          (tester) async {
         final session = _MockSession();
         session.activeCanSend = true;
         session.protocol = RealtimeProtocolType.webSocket;
 
-        await tester.pumpWidget(buildTestWidget(sessionId: 'sess_1', session: session));
+        await tester
+            .pumpWidget(buildTestWidget(sessionId: 'sess_1', session: session));
         await tester.pumpAndSettle();
 
-        await tester.tap(find.byKey(const ValueKey('realtime_chat_expand_button')));
+        await tester
+            .tap(find.byKey(const ValueKey('realtime_chat_expand_button')));
         await tester.pumpAndSettle();
 
-        expect(find.byKey(const ValueKey('realtime_composer_sheet')), findsOneWidget);
-        final sendButton = tester.widget<FilledButton>(find.byKey(const ValueKey('realtime_composer_send_button')));
+        expect(find.byKey(const ValueKey('realtime_composer_sheet')),
+            findsOneWidget);
+        final sendButton = tester.widget<FilledButton>(
+            find.byKey(const ValueKey('realtime_composer_send_button')));
         expect(sendButton.onPressed, isNull);
       });
     });
 
-
     group('Auto-scroll & Scroll-to-bottom Behavior', () {
-      testWidgets('auto-scrolls to bottom when new frame arrives and user is near bottom', (tester) async {
+      testWidgets(
+          'auto-scrolls to bottom when new frame arrives and user is near bottom',
+          (tester) async {
         final session = _MockSession();
         for (var i = 0; i < 3; i++) {
           session.addFrame(
@@ -765,17 +798,20 @@ void main() {
               id: 'frame_$i',
               sessionId: 'sess_scroll',
               timestamp: DateTime(2026, 1, 1, 10, i),
-              direction: i.isEven ? FrameDirection.incoming : FrameDirection.outgoing,
+              direction:
+                  i.isEven ? FrameDirection.incoming : FrameDirection.outgoing,
               text: 'Message $i initial text',
             ),
           );
         }
 
-        await tester.pumpWidget(buildTestWidget(sessionId: 'sess_scroll', session: session));
+        await tester.pumpWidget(
+            buildTestWidget(sessionId: 'sess_scroll', session: session));
         await tester.pumpAndSettle();
 
         // Initially frame_2 is in view
-        expect(find.byKey(const ValueKey('frame_card_frame_2')), findsOneWidget);
+        expect(
+            find.byKey(const ValueKey('frame_card_frame_2')), findsOneWidget);
 
         // Add 15 more frames so it extends downwards and auto-scrolls
         for (var i = 3; i < 18; i++) {
@@ -792,11 +828,15 @@ void main() {
         await tester.pumpAndSettle();
 
         // The latest frame_17 should be in view at bottom
-        expect(find.byKey(const ValueKey('frame_card_frame_17')), findsOneWidget);
-        expect(find.byKey(const ValueKey('realtime_jump_to_bottom')), findsNothing);
+        expect(
+            find.byKey(const ValueKey('frame_card_frame_17')), findsOneWidget);
+        expect(find.byKey(const ValueKey('realtime_jump_to_bottom')),
+            findsNothing);
       });
 
-      testWidgets('shows jump to bottom button when scrolled up, and tapping it scrolls down', (tester) async {
+      testWidgets(
+          'shows jump to bottom button when scrolled up, and tapping it scrolls down',
+          (tester) async {
         final session = _MockSession();
         for (var i = 0; i < 20; i++) {
           session.addFrame(
@@ -804,37 +844,44 @@ void main() {
               id: 'frame_$i',
               sessionId: 'sess_scroll_btn',
               timestamp: DateTime(2026, 1, 1, 10, i),
-              direction: i.isEven ? FrameDirection.incoming : FrameDirection.outgoing,
+              direction:
+                  i.isEven ? FrameDirection.incoming : FrameDirection.outgoing,
               text: 'Message $i content line',
             ),
           );
         }
 
-        await tester.pumpWidget(buildTestWidget(sessionId: 'sess_scroll_btn', session: session));
+        await tester.pumpWidget(
+            buildTestWidget(sessionId: 'sess_scroll_btn', session: session));
         await tester.pumpAndSettle();
 
         // Drag up to scroll to bottom
         await tester.drag(find.byType(ListView), const Offset(0, -1500));
         await tester.pumpAndSettle();
-        expect(find.byKey(const ValueKey('frame_card_frame_19')), findsOneWidget);
+        expect(
+            find.byKey(const ValueKey('frame_card_frame_19')), findsOneWidget);
 
         // Drag down to scroll up away from bottom
         await tester.drag(find.byType(ListView), const Offset(0, 600));
         await tester.pumpAndSettle();
 
         // When scrolled up, jump to bottom button appears
-        expect(find.byKey(const ValueKey('realtime_jump_to_bottom')), findsOneWidget);
+        expect(find.byKey(const ValueKey('realtime_jump_to_bottom')),
+            findsOneWidget);
 
         // Tap jump to bottom
         await tester.tap(find.byKey(const ValueKey('realtime_jump_to_bottom')));
         await tester.pumpAndSettle();
 
         // Now frame_19 is in view again and jump button disappears
-        expect(find.byKey(const ValueKey('frame_card_frame_19')), findsOneWidget);
-        expect(find.byKey(const ValueKey('realtime_jump_to_bottom')), findsNothing);
+        expect(
+            find.byKey(const ValueKey('frame_card_frame_19')), findsOneWidget);
+        expect(find.byKey(const ValueKey('realtime_jump_to_bottom')),
+            findsNothing);
       });
 
-      testWidgets('sending message automatically scrolls to bottom', (tester) async {
+      testWidgets('sending message automatically scrolls to bottom',
+          (tester) async {
         final session = _MockSession();
         session.activeCanSend = true;
         session.protocol = RealtimeProtocolType.webSocket;
@@ -850,7 +897,8 @@ void main() {
           );
         }
 
-        await tester.pumpWidget(buildTestWidget(sessionId: 'sess_send_scroll', session: session));
+        await tester.pumpWidget(
+            buildTestWidget(sessionId: 'sess_send_scroll', session: session));
         await tester.pumpAndSettle();
 
         // Drag up to scroll to bottom
@@ -860,21 +908,28 @@ void main() {
         // Drag down to scroll up away from bottom
         await tester.drag(find.byType(ListView), const Offset(0, 600));
         await tester.pumpAndSettle();
-        expect(find.byKey(const ValueKey('realtime_jump_to_bottom')), findsOneWidget);
+        expect(find.byKey(const ValueKey('realtime_jump_to_bottom')),
+            findsOneWidget);
 
         // Send a message
-        await tester.enterText(find.byKey(const ValueKey('realtime_chat_input')), 'my new message');
+        await tester.enterText(
+            find.byKey(const ValueKey('realtime_chat_input')),
+            'my new message');
         await tester.pump();
-        await tester.tap(find.byKey(const ValueKey('realtime_chat_send_button')));
+        await tester
+            .tap(find.byKey(const ValueKey('realtime_chat_send_button')));
         await tester.pumpAndSettle();
 
         // Should have scrolled to bottom and jump button should disappear
-        expect(find.byKey(const ValueKey('realtime_jump_to_bottom')), findsNothing);
+        expect(find.byKey(const ValueKey('realtime_jump_to_bottom')),
+            findsNothing);
       });
     });
 
     group('Lazy Payload Loading & Short Preview & Isolated Counter', () {
-      testWidgets('collapsed card displays shortPreview without reading disk or parsing JSON', (tester) async {
+      testWidgets(
+          'collapsed card displays shortPreview without reading disk or parsing JSON',
+          (tester) async {
         final session = _MockSession();
         final frame = RealtimeFrame.offloaded(
           id: 'frame_offload_1',
@@ -905,7 +960,9 @@ void main() {
         expect(find.byType(JsonViewer), findsNothing);
       });
 
-      testWidgets('expanding a file-backed card asynchronously fetches and displays payload with loading indicator', (tester) async {
+      testWidgets(
+          'expanding a file-backed card asynchronously fetches and displays payload with loading indicator',
+          (tester) async {
         final session = _MockSession();
         final completer = Completer<dynamic>();
         session.customLoadPayload = (frame) => completer.future;
@@ -930,7 +987,8 @@ void main() {
         await tester.pumpAndSettle();
 
         // Tap on payload to inspect
-        await tester.tap(find.byKey(const ValueKey('frame_payload_frame_offload_2')));
+        await tester
+            .tap(find.byKey(const ValueKey('frame_payload_frame_offload_2')));
         await tester.pump(); // Frame scheduled, loading starts
 
         // Loading indicator should be visible while awaiting
@@ -938,16 +996,20 @@ void main() {
         expect(session.loadPayloadCallCount, equals(1));
 
         // Complete the future with full JSON payload
-        completer.complete('{"full_data":"loaded from disk asynchronously","count":42}');
+        completer.complete(
+            '{"full_data":"loaded from disk asynchronously","count":42}');
         await tester.pumpAndSettle();
 
         // Loading indicator gone, JsonViewer rendered
         expect(find.byType(CircularProgressIndicator), findsNothing);
         expect(find.byType(JsonViewer), findsOneWidget);
-        expect(find.textContaining('loaded from disk asynchronously'), findsOneWidget);
+        expect(find.textContaining('loaded from disk asynchronously'),
+            findsOneWidget);
       });
 
-      testWidgets('live frame arrivals update only the row counter badge without rebuilding parent NetworkTab list', (tester) async {
+      testWidgets(
+          'live frame arrivals update only the row counter badge without rebuilding parent NetworkTab list',
+          (tester) async {
         final session = InspectorSession();
         addTearDown(session.dispose);
 
@@ -998,7 +1060,9 @@ void main() {
         await tester.pump(const Duration(milliseconds: 50));
       });
 
-      testWidgets('late async payload response for recycled RealtimePayloadView is discarded and does not corrupt cache', (tester) async {
+      testWidgets(
+          'late async payload response for recycled RealtimePayloadView is discarded and does not corrupt cache',
+          (tester) async {
         final session = _MockSession();
         final completerA = Completer<dynamic>();
         final completerB = Completer<dynamic>();
