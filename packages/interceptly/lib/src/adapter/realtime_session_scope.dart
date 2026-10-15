@@ -65,15 +65,15 @@ class RealtimeSessionScope {
   }
 
   /// Records an outgoing frame sent to the server. Safe to call.
-  void send(dynamic data) {
+  void send(dynamic data, {String? eventName}) {
     if (_isClosed || !_shouldCapture) return;
-    guardCapture(() => _record(data, FrameDirection.outgoing));
+    guardCapture(() => _record(data, FrameDirection.outgoing, eventName: eventName));
   }
 
   /// Records an incoming frame received from the server. Safe to call.
-  void receive(dynamic data) {
+  void receive(dynamic data, {String? eventName}) {
     if (_isClosed || !_shouldCapture) return;
-    guardCapture(() => _record(data, FrameDirection.incoming));
+    guardCapture(() => _record(data, FrameDirection.incoming, eventName: eventName));
   }
 
   /// Records the connection closure. Safe and idempotent.
@@ -90,7 +90,7 @@ class RealtimeSessionScope {
     });
   }
 
-  void _record(dynamic data, FrameDirection direction) {
+  void _record(dynamic data, FrameDirection direction, {String? eventName}) {
     if (data == null) return;
     final normalized = FrameNormalizer.normalize(
       data,
@@ -106,6 +106,7 @@ class RealtimeSessionScope {
       payloadSizeBytes: normalized.originalSizeBytes,
       shortPreview: normalized.shortPreview,
       shouldOffload: normalized.shouldOffload,
+      eventName: eventName,
     );
   }
 }

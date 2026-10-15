@@ -164,4 +164,34 @@ void main() {
       expect(sender.sentDrafts, contains(draft));
     });
   });
+
+  group('RealtimeSessionScope eventName propagation', () {
+    late DefaultRealtimeTrafficCollector collector;
+    late InspectorSession session;
+
+    setUp(() {
+      session = InspectorSession();
+      collector = DefaultRealtimeTrafficCollector(session: session);
+    });
+
+    tearDown(() {
+      session.dispose();
+    });
+
+    test('scope.send and scope.receive propagate eventName to recorded frames', () {
+      final scope = collector.openSession(sessionId: 's-events');
+      scope.send('hello event', eventName: 'chat_message');
+      scope.receive('ack event', eventName: 'chat_ack');
+
+      final frames = session.getRealtimeFrames('s-events');
+      expect(frames.length, equals(2));
+      expect(frames[0].direction, equals(FrameDirection.outgoing));
+      expect(frames[0].eventName, equals('chat_message'));
+      expect(frames[0].textPayload, equals('hello event'));
+
+      expect(frames[1].direction, equals(FrameDirection.incoming));
+      expect(frames[1].eventName, equals('chat_ack'));
+      expect(frames[1].textPayload, equals('ack event'));
+    });
+  });
 }

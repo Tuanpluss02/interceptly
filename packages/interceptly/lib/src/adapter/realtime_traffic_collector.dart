@@ -72,6 +72,7 @@ abstract interface class RealtimeTrafficCollector {
     DateTime? timestamp,
     String? shortPreview,
     bool? shouldOffload,
+    String? eventName,
   });
 
   /// Records the closure of an active realtime connection.
@@ -188,6 +189,7 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
     DateTime? timestamp,
     String? shortPreview,
     bool? shouldOffload,
+    String? eventName,
   }) {
     guardCapture(() {
       final normalized = (shortPreview != null && payloadSizeBytes != null)
@@ -225,6 +227,7 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
         shortPreview: effectivePreview,
         payloadSizeBytes: effectiveSize,
         timestamp: timestamp,
+        eventName: eventName,
       );
 
       session.recordRealtimeFrame(frame);
