@@ -16,7 +16,9 @@ void main() {
       await server.stop();
     });
 
-    testWidgets('renders AppBar with StormX, connection status, and action buttons', (tester) async {
+    testWidgets(
+        'renders AppBar with StormX, connection status, and action buttons',
+        (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: ExampleChatPage(
@@ -27,8 +29,10 @@ void main() {
       );
 
       expect(find.text('StormX (Support Bot)'), findsOneWidget);
-      expect(find.byKey(const ValueKey('chat_connection_status')), findsOneWidget);
-      expect(find.byKey(const ValueKey('chat_toggle_connection')), findsOneWidget);
+      expect(
+          find.byKey(const ValueKey('chat_connection_status')), findsOneWidget);
+      expect(
+          find.byKey(const ValueKey('chat_toggle_connection')), findsOneWidget);
       expect(find.byKey(const ValueKey('chat_open_inspector')), findsOneWidget);
     });
 
@@ -49,7 +53,8 @@ void main() {
       expect(find.byKey(const ValueKey('chat_send_button')), findsOneWidget);
     });
 
-    testWidgets('tapping quick chip populates input or sends message', (tester) async {
+    testWidgets('tapping quick chip populates input or sends message',
+        (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: ExampleChatPage(

@@ -10,11 +10,23 @@ The core `interceptly` package contains the inspection UI overlay, background is
 
 ---
 
+## Install with AI agent
+
+Paste this into your coding agent (OpenCode, Claude Code, Codex, ...):
+
+```
+Fetch and follow instructions from https://raw.githubusercontent.com/Tuanpluss02/interceptly/main/AGENTS.md
+```
+
+The agent will detect your HTTP clients, add the right packages, wire up the inspector, and verify it works.
+
+---
+
 ## Preview
 
 |                                            REST Inspector                                            |                                            Realtime Inspector                                            |
 | :--------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------------: |
-| ![REST](https://raw.githubusercontent.com/Tuanpluss02/interceptly/main/assets/images/REST_demo.gif) | ![Realtime](https://raw.githubusercontent.com/Tuanpluss02/interceptly/main/assets/images/Realtime_demo.gif) |
+| ![REST](https://raw.githubusercontent.com/Tuanpluss02/interceptly/main/packages/interceptly/assets/images/REST_demo.gif) | ![Realtime](https://raw.githubusercontent.com/Tuanpluss02/interceptly/main/packages/interceptly/assets/images/Realtime_demo.gif) |
 
 ---
 

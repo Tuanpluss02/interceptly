@@ -204,26 +204,28 @@ This design decouples application networking frameworks from Interceptly's inter
 
 This repository uses [Melos](https://pub.dev/packages/melos) to manage dependencies and multi-package scripts.
 
-### Prerequisites
-
-- Flutter SDK `>=3.10.0`
-- Dart SDK `>=3.5.0 <4.0.0`
-- Melos CLI (`dart pub global activate melos`)
+For detailed guidelines on branch naming, Conventional Commits, and CI/CD automation, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Common Commands
 
 ```bash
-# Bootstrap all packages and link local path dependencies
+# Bootstrap all packages and link local dependencies
 melos bootstrap
 
-# Run static analysis across all packages and the example
+# Fast pre-push check (format check, static analysis, core tests)
+melos run check
+
+# Auto-format all Dart files across the monorepo
+melos run format
+
+# Run static analysis across all packages
 melos run analyze
 
-# Run all test suites across all packages
+# Run all test suites (840+ tests)
 melos run test
 
-# Clean build artifacts across all packages
-melos run clean
+# Check pub.dev health score (160/160 points target)
+melos run pana
 ```
 
 ---

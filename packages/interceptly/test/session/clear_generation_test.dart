@@ -34,7 +34,8 @@ RawCapture _capture(String id, {Uint8List? body}) {
   );
 }
 
-Future<bool> _waitForId(InspectorSession session, String id) async {  final end = DateTime.now().add(const Duration(seconds: 15));
+Future<bool> _waitForId(InspectorSession session, String id) async {
+  final end = DateTime.now().add(const Duration(seconds: 15));
   while (DateTime.now().isBefore(end)) {
     for (final entry in session.entries) {
       if (entry.id == id) return true;
@@ -120,8 +121,7 @@ void main() {
       expect(await _waitForId(session, 'post-clear'), isTrue);
       await Future<void>.delayed(const Duration(seconds: 1));
       expect(session.entries.map((e) => e.id).toList(), ['post-clear']);
-      final entry =
-          session.entries.singleWhere((e) => e.id == 'post-clear');
+      final entry = session.entries.singleWhere((e) => e.id == 'post-clear');
       final record = await session.loadDetail(entry);
       expect(record.responseBodyBytes, isNotNull);
       expect(record.responseBodyBytes!.length, 60 * 1024);

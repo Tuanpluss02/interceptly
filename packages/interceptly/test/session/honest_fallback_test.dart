@@ -62,7 +62,8 @@ void main() {
       expect(entry.responseTruncation.hasDataLoss, isFalse);
     });
 
-    test('fallback entry preserves response size and marks response truncated', () {
+    test('fallback entry preserves response size and marks response truncated',
+        () {
       final capture = _createCapture(
         id: '2',
         method: 'GET',
@@ -80,7 +81,9 @@ void main() {
       expect(entry.responseTruncation.originalBytes, equals(1200));
     });
 
-    test('fallback entry preserves both request and response sizes when present', () {
+    test(
+        'fallback entry preserves both request and response sizes when present',
+        () {
       final capture = _createCapture(
         id: '3',
         method: 'PUT',
@@ -98,7 +101,8 @@ void main() {
       expect(entry.responseTruncation.stage, equals(TruncationStage.storage));
     });
 
-    test('fallback entry with no bodies reports zero size and no data loss', () {
+    test('fallback entry with no bodies reports zero size and no data loss',
+        () {
       final capture = _createCapture(
         id: '4',
         method: 'HEAD',
@@ -111,7 +115,9 @@ void main() {
       expect(entry.responseTruncation.hasDataLoss, isFalse);
     });
 
-    test('fallback entry determines size from requestBodyBytes if requestSizeBytes null', () {
+    test(
+        'fallback entry determines size from requestBodyBytes if requestSizeBytes null',
+        () {
       final bytes = Uint8List.fromList([1, 2, 3, 4, 5]);
       final capture = _createCapture(
         id: '5',

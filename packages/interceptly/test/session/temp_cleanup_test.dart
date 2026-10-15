@@ -174,8 +174,8 @@ void main() {
       final orphan = File('${tempDir.path}/interceptly_crashed_1.tmp');
       final active = File('${tempDir.path}/interceptly_active_2.tmp');
       await orphan.writeAsString('crashed');
-      await orphan.setLastModified(
-          DateTime.now().subtract(const Duration(hours: 25)));
+      await orphan
+          .setLastModified(DateTime.now().subtract(const Duration(hours: 25)));
       await active.writeAsString('active');
 
       final count = await BodyStore.purgeOrphanedTempFiles(
@@ -257,11 +257,11 @@ void main() {
       final orphan2 = File('${tempDir.path}/interceptly_prior_crash_2.tmp');
       final regularFile = File('${tempDir.path}/regular_file.txt');
       await orphan1.writeAsString('prior crash 1');
-      await orphan1.setLastModified(
-          DateTime.now().subtract(const Duration(hours: 25)));
+      await orphan1
+          .setLastModified(DateTime.now().subtract(const Duration(hours: 25)));
       await orphan2.writeAsString('prior crash 2');
-      await orphan2.setLastModified(
-          DateTime.now().subtract(const Duration(hours: 25)));
+      await orphan2
+          .setLastModified(DateTime.now().subtract(const Duration(hours: 25)));
       await regularFile.writeAsString('keep me');
 
       final session = InspectorSession();

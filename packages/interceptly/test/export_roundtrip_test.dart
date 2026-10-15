@@ -65,10 +65,19 @@ void main() {
   }
 
   group('HAR Export Round-trip & Schema Validation', () {
-    test('writes HAR to file and reads back valid HAR 1.2 JSON schema', () async {
+    test('writes HAR to file and reads back valid HAR 1.2 JSON schema',
+        () async {
       final records = [
-        sampleRecord(id: 'r1', method: 'GET', url: 'https://api.example.com/items?cat=tech', statusCode: 200),
-        sampleRecord(id: 'r2', method: 'POST', url: 'https://api.example.com/items', statusCode: 201),
+        sampleRecord(
+            id: 'r1',
+            method: 'GET',
+            url: 'https://api.example.com/items?cat=tech',
+            statusCode: 200),
+        sampleRecord(
+            id: 'r2',
+            method: 'POST',
+            url: 'https://api.example.com/items',
+            statusCode: 201),
       ];
 
       final harMap = HarExporter.toMap(records);
@@ -117,7 +126,9 @@ void main() {
       expect(content['text'], equals('{"id":"usr_123","name":"Alice"}'));
     });
 
-    test('HAR export outputs authorization and query params raw without redaction', () async {
+    test(
+        'HAR export outputs authorization and query params raw without redaction',
+        () async {
       final records = [
         sampleRecord(url: 'https://api.example.com/auth?token=999'),
       ];
@@ -126,12 +137,15 @@ void main() {
       final file = File('${tempDir.path}/unredacted.har');
       await file.writeAsString(jsonEncode(harMap));
 
-      final decoded = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
-      final entry = (decoded['log']['entries'] as List).first as Map<String, dynamic>;
+      final decoded =
+          jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      final entry =
+          (decoded['log']['entries'] as List).first as Map<String, dynamic>;
       final req = entry['request'] as Map<String, dynamic>;
 
       final headers = (req['headers'] as List).cast<Map<String, dynamic>>();
-      final authHeader = headers.firstWhere((h) => h['name'] == 'Authorization');
+      final authHeader =
+          headers.firstWhere((h) => h['name'] == 'Authorization');
       expect(authHeader['value'], equals('Bearer test-token-123'));
 
       final qs = (req['queryString'] as List).cast<Map<String, dynamic>>();
@@ -139,7 +153,8 @@ void main() {
       expect(tokenQuery['value'], equals('999'));
     });
 
-    test('HAR export handles binary placeholder without corrupting JSON', () async {
+    test('HAR export handles binary placeholder without corrupting JSON',
+        () async {
       final records = [
         sampleRecord(
           responseBody: '\x00[binary: 1024 bytes]',
@@ -152,17 +167,23 @@ void main() {
       final file = File('${tempDir.path}/binary.har');
       await file.writeAsString(jsonString);
 
-      final decoded = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
-      final entry = (decoded['log']['entries'] as List).first as Map<String, dynamic>;
+      final decoded =
+          jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      final entry =
+          (decoded['log']['entries'] as List).first as Map<String, dynamic>;
       final content = entry['response']['content'] as Map<String, dynamic>;
       expect(content['text'], equals(''));
     });
   });
 
   group('Postman Export Round-trip & Schema Validation', () {
-    test('writes Postman Collection to file and reads back valid v2.1.0 schema', () async {
+    test('writes Postman Collection to file and reads back valid v2.1.0 schema',
+        () async {
       final records = [
-        sampleRecord(id: 'r1', method: 'GET', url: 'https://api.example.com:8080/v1/users?page=1'),
+        sampleRecord(
+            id: 'r1',
+            method: 'GET',
+            url: 'https://api.example.com:8080/v1/users?page=1'),
         sampleRecord(
           id: 'r2',
           method: 'POST',
@@ -172,7 +193,8 @@ void main() {
         ),
       ];
 
-      final postmanMap = PostmanExporter.toMap(records, collectionName: 'My Service API');
+      final postmanMap =
+          PostmanExporter.toMap(records, collectionName: 'My Service API');
       final jsonString = jsonEncode(postmanMap);
 
       final file = File('${tempDir.path}/test_collection.json');
@@ -184,7 +206,10 @@ void main() {
       expect(decoded.containsKey('info'), isTrue);
       final info = decoded['info'] as Map<String, dynamic>;
       expect(info['name'], equals('My Service API'));
-      expect(info['schema'], equals('https://schema.getpostman.com/json/collection/v2.1.0/collection.json'));
+      expect(
+          info['schema'],
+          equals(
+              'https://schema.getpostman.com/json/collection/v2.1.0/collection.json'));
 
       expect(decoded.containsKey('item'), isTrue);
       final items = decoded['item'] as List;
@@ -195,7 +220,8 @@ void main() {
       final firstReq = firstItem['request'] as Map<String, dynamic>;
       expect(firstReq['method'], equals('GET'));
       final firstUrl = firstReq['url'] as Map<String, dynamic>;
-      expect(firstUrl['raw'], equals('https://api.example.com:8080/v1/users?page=1'));
+      expect(firstUrl['raw'],
+          equals('https://api.example.com:8080/v1/users?page=1'));
       expect(firstUrl['port'], equals('8080'));
       expect(firstUrl['protocol'], equals('https'));
       expect(firstUrl['host'], equals(['api', 'example', 'com']));
@@ -225,14 +251,19 @@ void main() {
       final file = File('${tempDir.path}/form.json');
       await file.writeAsString(jsonEncode(postmanMap));
 
-      final decoded = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      final decoded =
+          jsonDecode(await file.readAsString()) as Map<String, dynamic>;
       final item = (decoded['item'] as List).first as Map<String, dynamic>;
       final body = item['request']['body'] as Map<String, dynamic>;
 
       expect(body['mode'], equals('urlencoded'));
       final urlencoded = body['urlencoded'] as List;
-      expect(urlencoded.any((p) => p['key'] == 'param1' && p['value'] == 'val1'), isTrue);
-      expect(urlencoded.any((p) => p['key'] == 'param2' && p['value'] == 'val2'), isTrue);
+      expect(
+          urlencoded.any((p) => p['key'] == 'param1' && p['value'] == 'val1'),
+          isTrue);
+      expect(
+          urlencoded.any((p) => p['key'] == 'param2' && p['value'] == 'val2'),
+          isTrue);
     });
   });
 

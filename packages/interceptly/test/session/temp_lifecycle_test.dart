@@ -85,8 +85,8 @@ void main() {
 
       final stale = File('${tempDir.path}/interceptly_stale_crash.tmp');
       await stale.writeAsString('stale crash payload');
-      await stale.setLastModified(
-          DateTime.now().subtract(const Duration(hours: 25)));
+      await stale
+          .setLastModified(DateTime.now().subtract(const Duration(hours: 25)));
 
       final sessionA = InspectorSession();
       await sessionA.initialize();
@@ -171,4 +171,3 @@ void main() {
     });
   });
 }
-

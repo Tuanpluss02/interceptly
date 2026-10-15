@@ -8,23 +8,38 @@ order. Do not skip verification.
 
 - Read the app's `pubspec.yaml`. Note the Flutter/Dart SDK constraints and
   which networking clients are already used: `dio`, `http`, `chopper`,
-  `web_socket_channel` (note each version).
+  `web_socket_channel` (note each version). Also search imports for raw
+  `dart:io` sockets (`Socket`, `WebSocket`, `HttpClient`) — those need a
+  decision too (see below).
+- Check for existing inspector/debug tools: `alice`, `alice_dio`,
+  `alice_lightweight`, `talker`, `talker_dio_logger`, `dio_log`,
+  `http_logger`, `pretty_dio_logger`, `chopper_logger`, or any custom
+  debug overlay / shake-to-inspect wiring. List every hit with file paths.
+  If any is found, STOP and ask the user whether to remove the old tool
+  (recommended: avoid double capture overhead and conflicting overlays) or
+  keep both side by side. Do not add Interceptly on top silently.
 - Find where `runApp` / `MaterialApp` (or `MaterialApp.router`) is built and
   whether a global `navigatorKey` already exists.
+- Ask the user which detected clients to integrate (dio / http / chopper /
+  WebSocket / raw sockets). Default is all detected, but let them exclude
+  any (e.g. keep analytics on the old logger). Only add adapters for the
+  confirmed list.
 
 ## 2. Add dependencies (hosted only)
 
 ```bash
-flutter pub add interceptly:^2.1.0
+flutter pub add interceptly
 ```
 
-Then add only the adapters matching the clients detected in step 1:
+Then add only the adapters for the client list the user confirmed in step 1
+(`flutter pub add` resolves the latest compatible version; do not pin
+versions here so this guide stays correct across releases):
 
 ```bash
-flutter pub add interceptly_dio:^1.0.0        # if dio is used
-flutter pub add interceptly_http:^1.0.0       # if package:http is used
-flutter pub add interceptly_chopper:^1.0.0    # if chopper is used
-flutter pub add interceptly_web_socket:^1.0.0 # if web_socket_channel is used
+flutter pub add interceptly_dio         # if dio is used
+flutter pub add interceptly_http       # if package:http is used
+flutter pub add interceptly_chopper    # if chopper is used
+flutter pub add interceptly_web_socket # if web_socket_channel is used
 ```
 
 Rules:

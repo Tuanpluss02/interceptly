@@ -4,8 +4,10 @@ import 'package:interceptly/interceptly.dart';
 void main() {
   group('RealtimeProtocolType', () {
     test('contains expected protocol types', () {
-      expect(RealtimeProtocolType.values, contains(RealtimeProtocolType.webSocket));
-      expect(RealtimeProtocolType.values, contains(RealtimeProtocolType.socketIo));
+      expect(RealtimeProtocolType.values,
+          contains(RealtimeProtocolType.webSocket));
+      expect(
+          RealtimeProtocolType.values, contains(RealtimeProtocolType.socketIo));
       expect(RealtimeProtocolType.values, contains(RealtimeProtocolType.sse));
     });
   });

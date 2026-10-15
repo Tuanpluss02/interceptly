@@ -229,5 +229,4 @@ void main() {
       expect(stopwatch.elapsedMilliseconds, lessThan(500));
     });
   });
-
 }

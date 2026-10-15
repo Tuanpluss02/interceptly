@@ -145,7 +145,9 @@ void main() {
       session.dispose();
     });
 
-    test('delegates canSendRealtimeMessage and sendRealtimeMessage to collector', () async {
+    test(
+        'delegates canSendRealtimeMessage and sendRealtimeMessage to collector',
+        () async {
       final scope = collector.openSession(
         sessionId: 'session-delegated',
         protocolType: RealtimeProtocolType.socketIo,
@@ -178,7 +180,8 @@ void main() {
       session.dispose();
     });
 
-    test('scope.send and scope.receive propagate eventName to recorded frames', () {
+    test('scope.send and scope.receive propagate eventName to recorded frames',
+        () {
       final scope = collector.openSession(sessionId: 's-events');
       scope.send('hello event', eventName: 'chat_message');
       scope.receive('ack event', eventName: 'chat_ack');

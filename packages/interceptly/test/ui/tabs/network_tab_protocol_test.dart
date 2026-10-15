@@ -29,7 +29,8 @@ void main() {
       session.dispose();
     });
 
-    testWidgets('NetworkProtocol.rest displays only HTTP/REST requests', (tester) async {
+    testWidgets('NetworkProtocol.rest displays only HTTP/REST requests',
+        (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -56,7 +57,8 @@ void main() {
       expect(find.text('WS'), findsNothing);
     });
 
-    testWidgets('NetworkProtocol.realtime displays only WebSocket connections', (tester) async {
+    testWidgets('NetworkProtocol.realtime displays only WebSocket connections',
+        (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -77,7 +79,8 @@ void main() {
       expect(find.text('GET'), findsNothing);
     });
 
-    testWidgets('NetworkProtocol.all displays both HTTP and WebSocket entries', (tester) async {
+    testWidgets('NetworkProtocol.all displays both HTTP and WebSocket entries',
+        (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -103,7 +106,9 @@ void main() {
       expect(find.text('WS'), findsOneWidget);
     });
 
-    testWidgets('NetworkProtocol.realtime empty state shows custom empty message', (tester) async {
+    testWidgets(
+        'NetworkProtocol.realtime empty state shows custom empty message',
+        (tester) async {
       final emptySession = InspectorSession();
       addTearDown(emptySession.dispose);
 
@@ -122,7 +127,8 @@ void main() {
       expect(find.text('No WebSocket connections yet.'), findsOneWidget);
     });
 
-    testWidgets('NetworkTab ticks live duration second-by-second for active realtime connection',
+    testWidgets(
+        'NetworkTab ticks live duration second-by-second for active realtime connection',
         (tester) async {
       final session = InspectorSession();
       addTearDown(session.dispose);
@@ -187,7 +193,9 @@ void main() {
       expect(find.byType(RealtimeDetailPage), findsNothing);
     });
 
-    testWidgets('tapping WebSocket connection opens RealtimeDetailPage directly', (tester) async {
+    testWidgets(
+        'tapping WebSocket connection opens RealtimeDetailPage directly',
+        (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(

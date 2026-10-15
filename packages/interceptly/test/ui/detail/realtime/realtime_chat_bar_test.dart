@@ -18,7 +18,9 @@ void main() {
       eventController.dispose();
     });
 
-    testWidgets('Active WebSocket mode renders payload input without event input', (tester) async {
+    testWidgets(
+        'Active WebSocket mode renders payload input without event input',
+        (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -36,12 +38,16 @@ void main() {
       );
 
       expect(find.byKey(const ValueKey('realtime_chat_input')), findsOneWidget);
-      expect(find.byKey(const ValueKey('realtime_chat_event_input')), findsNothing);
-      expect(find.byKey(const ValueKey('realtime_chat_send_button')), findsOneWidget);
-      expect(find.byKey(const ValueKey('realtime_chat_expand_button')), findsOneWidget);
+      expect(find.byKey(const ValueKey('realtime_chat_event_input')),
+          findsNothing);
+      expect(find.byKey(const ValueKey('realtime_chat_send_button')),
+          findsOneWidget);
+      expect(find.byKey(const ValueKey('realtime_chat_expand_button')),
+          findsOneWidget);
     });
 
-    testWidgets('Active Socket.IO mode renders event input and payload input', (tester) async {
+    testWidgets('Active Socket.IO mode renders event input and payload input',
+        (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -58,12 +64,16 @@ void main() {
         ),
       );
 
-      expect(find.byKey(const ValueKey('realtime_chat_event_input')), findsOneWidget);
+      expect(find.byKey(const ValueKey('realtime_chat_event_input')),
+          findsOneWidget);
       expect(find.byKey(const ValueKey('realtime_chat_input')), findsOneWidget);
-      expect(find.byKey(const ValueKey('realtime_chat_send_button')), findsOneWidget);
+      expect(find.byKey(const ValueKey('realtime_chat_send_button')),
+          findsOneWidget);
     });
 
-    testWidgets('Closed connection mode renders notice and disables inputs and send button', (tester) async {
+    testWidgets(
+        'Closed connection mode renders notice and disables inputs and send button',
+        (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -82,10 +92,12 @@ void main() {
 
       expect(find.text('Connection is closed'), findsOneWidget);
 
-      final textField = tester.widget<TextField>(find.byKey(const ValueKey('realtime_chat_input')));
+      final textField = tester
+          .widget<TextField>(find.byKey(const ValueKey('realtime_chat_input')));
       expect(textField.enabled, isFalse);
 
-      final sendButton = tester.widget<IconButton>(find.byKey(const ValueKey('realtime_chat_send_button')));
+      final sendButton = tester.widget<IconButton>(
+          find.byKey(const ValueKey('realtime_chat_send_button')));
       expect(sendButton.onPressed, isNull);
     });
 
@@ -106,12 +118,16 @@ void main() {
         ),
       );
 
-      expect(find.text('Server-Sent Events is a read-only stream'), findsOneWidget);
-      final textField = tester.widget<TextField>(find.byKey(const ValueKey('realtime_chat_input')));
+      expect(find.text('Server-Sent Events is a read-only stream'),
+          findsOneWidget);
+      final textField = tester
+          .widget<TextField>(find.byKey(const ValueKey('realtime_chat_input')));
       expect(textField.enabled, isFalse);
     });
 
-    testWidgets('Typing text enables send button and tapping send triggers callback', (tester) async {
+    testWidgets(
+        'Typing text enables send button and tapping send triggers callback',
+        (tester) async {
       bool sent = false;
       await tester.pumpWidget(
         MaterialApp(
@@ -131,13 +147,16 @@ void main() {
         ),
       );
 
-      var sendButton = tester.widget<IconButton>(find.byKey(const ValueKey('realtime_chat_send_button')));
+      var sendButton = tester.widget<IconButton>(
+          find.byKey(const ValueKey('realtime_chat_send_button')));
       expect(sendButton.onPressed, isNull);
 
-      await tester.enterText(find.byKey(const ValueKey('realtime_chat_input')), '{"action":"ping"}');
+      await tester.enterText(find.byKey(const ValueKey('realtime_chat_input')),
+          '{"action":"ping"}');
       await tester.pump();
 
-      sendButton = tester.widget<IconButton>(find.byKey(const ValueKey('realtime_chat_send_button')));
+      sendButton = tester.widget<IconButton>(
+          find.byKey(const ValueKey('realtime_chat_send_button')));
       expect(sendButton.onPressed, isNotNull);
 
       await tester.tap(find.byKey(const ValueKey('realtime_chat_send_button')));
@@ -146,7 +165,8 @@ void main() {
       expect(sent, isTrue);
     });
 
-    testWidgets('Tapping expand button triggers onExpand callback', (tester) async {
+    testWidgets('Tapping expand button triggers onExpand callback',
+        (tester) async {
       bool expanded = false;
       await tester.pumpWidget(
         MaterialApp(
@@ -166,7 +186,8 @@ void main() {
         ),
       );
 
-      await tester.tap(find.byKey(const ValueKey('realtime_chat_expand_button')));
+      await tester
+          .tap(find.byKey(const ValueKey('realtime_chat_expand_button')));
       await tester.pump();
 
       expect(expanded, isTrue);

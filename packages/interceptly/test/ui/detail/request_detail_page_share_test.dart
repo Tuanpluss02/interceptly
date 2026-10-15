@@ -125,7 +125,8 @@ void main() {
       expect(find.text('Share'), findsOneWidget);
     });
 
-    testWidgets('hides Share FAB for Realtime/WebSocket connection', (tester) async {
+    testWidgets('hides Share FAB for Realtime/WebSocket connection',
+        (tester) async {
       final entry = _buildEntry('ws_1', method: 'WS');
       final record = RequestRecord(
         id: 'ws_1',

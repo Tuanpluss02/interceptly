@@ -43,6 +43,7 @@ class RealtimePayloadView extends StatefulWidget {
 class _RealtimePayloadViewState extends State<RealtimePayloadView> {
   bool _isLoading = false;
   bool _hasLoaded = false;
+  bool _showHex = false;
   dynamic _loadedPayload;
   dynamic _loadedJson;
 
@@ -60,6 +61,7 @@ class _RealtimePayloadViewState extends State<RealtimePayloadView> {
       _loadedJson = null;
       _isLoading = false;
       _hasLoaded = false;
+      _showHex = false;
     }
     _checkLoadPayload();
   }
@@ -94,13 +96,20 @@ class _RealtimePayloadViewState extends State<RealtimePayloadView> {
     session.loadRealtimePayload(widget.frame).then((payload) {
       if (!mounted || widget.frame.id != requestedFrameId) return;
       dynamic parsed;
+      String? textToParse;
       if (payload is String && payload.trim().isNotEmpty) {
+        textToParse = payload;
+      } else if (payload is Uint8List) {
+        textToParse = tryDecodeBinaryToText(payload);
+      }
+
+      if (textToParse != null && textToParse.trim().isNotEmpty) {
         if (widget.jsonCache != null &&
             widget.jsonCache!.containsKey(requestedFrameId)) {
           parsed = widget.jsonCache![requestedFrameId];
         } else {
           try {
-            parsed = jsonDecode(payload);
+            parsed = jsonDecode(textToParse);
             widget.jsonCache?[requestedFrameId] = parsed;
           } catch (_) {
             widget.jsonCache?[requestedFrameId] = null;
@@ -124,17 +133,109 @@ class _RealtimePayloadViewState extends State<RealtimePayloadView> {
     });
   }
 
-  Widget _buildHeader(bool isJson) {
+  Widget _buildHeader({
+    required bool isJson,
+    bool isDecodableBinary = false,
+    bool showHex = false,
+    VoidCallback? onToggleHex,
+  }) {
+    final String label;
+    if (widget.frame.isBinary) {
+      if (showHex) {
+        label = 'HEX PAYLOAD';
+      } else if (isJson) {
+        label = 'JSON (DECODED)';
+      } else if (isDecodableBinary) {
+        label = 'DECODED TEXT';
+      } else {
+        label = 'RAW BINARY';
+      }
+    } else {
+      label = isJson ? 'JSON PAYLOAD' : 'RAW PAYLOAD';
+    }
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          isJson ? 'JSON PAYLOAD' : 'RAW PAYLOAD',
-          style: InterceptlyTheme.typography.labelSmallMedium.copyWith(
-            color: InterceptlyTheme.textMuted,
-            fontSize: 10,
-            letterSpacing: 0.5,
-          ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: InterceptlyTheme.typography.labelSmallMedium.copyWith(
+                color: InterceptlyTheme.textMuted,
+                fontSize: 10,
+                letterSpacing: 0.5,
+              ),
+            ),
+            if (isDecodableBinary) ...[
+              const SizedBox(width: 8),
+              InkWell(
+                key: ValueKey('frame_toggle_decoded_${widget.frame.id}'),
+                onTap: showHex ? onToggleHex : null,
+                borderRadius: BorderRadius.circular(4),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: !showHex
+                        ? InterceptlyTheme.indigo500.withValues(alpha: 0.2)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: !showHex
+                          ? InterceptlyTheme.indigo400.withValues(alpha: 0.4)
+                          : Colors.transparent,
+                    ),
+                  ),
+                  child: Text(
+                    isJson ? 'JSON' : 'Text',
+                    style:
+                        InterceptlyTheme.typography.labelSmallMedium.copyWith(
+                      fontSize: 10,
+                      color: !showHex
+                          ? InterceptlyTheme.indigo400
+                          : InterceptlyTheme.textMuted,
+                      fontWeight:
+                          !showHex ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              InkWell(
+                key: ValueKey('frame_toggle_hex_${widget.frame.id}'),
+                onTap: !showHex ? onToggleHex : null,
+                borderRadius: BorderRadius.circular(4),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: showHex
+                        ? InterceptlyTheme.indigo500.withValues(alpha: 0.2)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: showHex
+                          ? InterceptlyTheme.indigo400.withValues(alpha: 0.4)
+                          : Colors.transparent,
+                    ),
+                  ),
+                  child: Text(
+                    'Hex',
+                    style:
+                        InterceptlyTheme.typography.labelSmallMedium.copyWith(
+                      fontSize: 10,
+                      color: showHex
+                          ? InterceptlyTheme.indigo400
+                          : InterceptlyTheme.textMuted,
+                      fontWeight: showHex ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
         GestureDetector(
           key: ValueKey('frame_collapse_${widget.frame.id}'),
@@ -170,7 +271,7 @@ class _RealtimePayloadViewState extends State<RealtimePayloadView> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildHeader(false),
+              _buildHeader(isJson: false),
               const SizedBox(height: 16),
               const Center(
                 child: SizedBox(
@@ -189,10 +290,29 @@ class _RealtimePayloadViewState extends State<RealtimePayloadView> {
           );
         }
 
+        final String? decodedText;
+        if (_loadedPayload is Uint8List) {
+          decodedText = tryDecodeBinaryToText(_loadedPayload as Uint8List);
+        } else if (_loadedPayload is String) {
+          decodedText = _loadedPayload as String;
+        } else {
+          decodedText = null;
+        }
+
+        final bool isDecodableBinary = widget.frame.isBinary &&
+            _loadedPayload is Uint8List &&
+            decodedText != null;
+
         final parsed = _loadedJson ?? widget.parsedJson;
+        final bool showJson = !_showHex && parsed != null;
+
         final String displayText;
         if (_loadedPayload is Uint8List) {
-          displayText = formatBinaryPreview(_loadedPayload as Uint8List);
+          if (!_showHex && decodedText != null) {
+            displayText = decodedText;
+          } else {
+            displayText = formatBinaryPreview(_loadedPayload as Uint8List);
+          }
         } else if (_loadedPayload != null) {
           displayText = _loadedPayload.toString();
         } else {
@@ -202,9 +322,14 @@ class _RealtimePayloadViewState extends State<RealtimePayloadView> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildHeader(parsed != null),
+            _buildHeader(
+              isJson: parsed != null,
+              isDecodableBinary: isDecodableBinary,
+              showHex: _showHex,
+              onToggleHex: () => setState(() => _showHex = !_showHex),
+            ),
             const SizedBox(height: 8),
-            parsed != null
+            showJson
                 ? JsonViewer(data: parsed)
                 : SelectableText(
                     displayText,
@@ -219,20 +344,41 @@ class _RealtimePayloadViewState extends State<RealtimePayloadView> {
       }
 
       // In-memory frame
+      final String? decodedBinaryText = widget.frame.binaryPayload != null
+          ? tryDecodeBinaryToText(widget.frame.binaryPayload!)
+          : null;
+      final bool isDecodableBinary =
+          widget.frame.isBinary && decodedBinaryText != null;
+
       dynamic effectiveJson = widget.parsedJson;
       if (effectiveJson == null && widget.jsonCache != null) {
         effectiveJson = tryParseJsonPayload(widget.frame, widget.jsonCache!);
       }
 
+      final bool showJson = !_showHex && effectiveJson != null;
+      final String displayText;
+      if (_showHex && widget.frame.binaryPayload != null) {
+        displayText = formatBinaryPreview(widget.frame.binaryPayload!);
+      } else if (decodedBinaryText != null) {
+        displayText = decodedBinaryText;
+      } else {
+        displayText = getFramePayloadString(widget.frame);
+      }
+
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildHeader(effectiveJson != null),
+          _buildHeader(
+            isJson: effectiveJson != null,
+            isDecodableBinary: isDecodableBinary,
+            showHex: _showHex,
+            onToggleHex: () => setState(() => _showHex = !_showHex),
+          ),
           const SizedBox(height: 8),
-          effectiveJson != null
+          showJson
               ? JsonViewer(data: effectiveJson)
               : SelectableText(
-                  getFramePayloadString(widget.frame),
+                  displayText,
                   style: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
                     fontSize: 12,
                     color: InterceptlyTheme.textPrimary,

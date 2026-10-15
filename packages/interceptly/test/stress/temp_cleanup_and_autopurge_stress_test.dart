@@ -261,11 +261,11 @@ void main() {
       final subFolder = Directory('${tempDir.path}/session_logs');
 
       await priorOrphan1.writeAsString('crashed session 1');
-      await priorOrphan1.setLastModified(
-          DateTime.now().subtract(const Duration(hours: 25)));
+      await priorOrphan1
+          .setLastModified(DateTime.now().subtract(const Duration(hours: 25)));
       await priorOrphan2.writeAsString('crashed session 2');
-      await priorOrphan2.setLastModified(
-          DateTime.now().subtract(const Duration(hours: 25)));
+      await priorOrphan2
+          .setLastModified(DateTime.now().subtract(const Duration(hours: 25)));
       await regularFile.writeAsString('cache database');
       await subFolder.create();
 
@@ -325,8 +325,8 @@ void main() {
       final crashedSessionFile =
           File('${tempDir.path}/interceptly_crash_session.tmp');
       await crashedSessionFile.writeAsString('unclosed session from crash');
-      await crashedSessionFile.setLastModified(
-          DateTime.now().subtract(const Duration(hours: 25)));
+      await crashedSessionFile
+          .setLastModified(DateTime.now().subtract(const Duration(hours: 25)));
 
       final newSession = InspectorSession();
       await newSession.initialize();

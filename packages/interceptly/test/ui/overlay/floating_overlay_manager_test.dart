@@ -197,8 +197,7 @@ void main() {
     expect(find.byIcon(Icons.bug_report), findsOneWidget);
   });
 
-  testWidgets(
-      'Rapid route operations during startup do not duplicate FAB',
+  testWidgets('Rapid route operations during startup do not duplicate FAB',
       (tester) async {
     final navKey = GlobalKey<NavigatorState>();
 
@@ -217,8 +216,10 @@ void main() {
 
     // Rapidly schedule route observer events and bringToTop before frame settles
     final obs = FloatingOverlayManager.instance.navigatorObserver;
-    final r1 = MaterialPageRoute(builder: (_) => const Scaffold(body: Text('R1')));
-    final r2 = MaterialPageRoute(builder: (_) => const Scaffold(body: Text('R2')));
+    final r1 =
+        MaterialPageRoute(builder: (_) => const Scaffold(body: Text('R1')));
+    final r2 =
+        MaterialPageRoute(builder: (_) => const Scaffold(body: Text('R2')));
     obs.didPush(r1, null);
     obs.didPush(r2, r1);
     obs.didPop(r2, r1);
@@ -230,8 +231,7 @@ void main() {
     expect(find.byIcon(Icons.bug_report), findsOneWidget);
   });
 
-  testWidgets(
-      'Rapid toggle of setHiddenForSession maintains at most one FAB',
+  testWidgets('Rapid toggle of setHiddenForSession maintains at most one FAB',
       (tester) async {
     final navKey = GlobalKey<NavigatorState>();
 
@@ -304,6 +304,3 @@ void main() {
     expect(find.byIcon(Icons.bug_report), findsOneWidget);
   });
 }
-
-
-

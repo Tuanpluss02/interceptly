@@ -13,7 +13,9 @@ void main() {
   });
 
   group('MasterSearchController Dynamic Updates', () {
-    test('updateOrAddEntry replaces pending entry with completed entry in search results', () async {
+    test(
+        'updateOrAddEntry replaces pending entry with completed entry in search results',
+        () async {
       final search = MasterSearchController();
       addTearDown(search.dispose);
 
@@ -46,7 +48,9 @@ void main() {
       expect(search.results!.first.durationMs, equals(150));
     });
 
-    test('updateOrAddEntry inserts newly arrived matching entry into search results', () async {
+    test(
+        'updateOrAddEntry inserts newly arrived matching entry into search results',
+        () async {
       final search = MasterSearchController();
       addTearDown(search.dispose);
 
@@ -72,7 +76,9 @@ void main() {
       expect(search.results!.first.id, equals('req-new'));
     });
 
-    test('updateOrAddEntry removes entry from search results when it no longer matches', () async {
+    test(
+        'updateOrAddEntry removes entry from search results when it no longer matches',
+        () async {
       final search = MasterSearchController();
       addTearDown(search.dispose);
 
@@ -108,7 +114,8 @@ void main() {
   });
 
   group('InspectorSession Search Invalidation and Coalescing', () {
-    test('search updates invalidate grouped cache in InspectorSession', () async {
+    test('search updates invalidate grouped cache in InspectorSession',
+        () async {
       final session = InspectorSession();
       addTearDown(session.dispose);
 
@@ -130,7 +137,8 @@ void main() {
       expect(searchGroups.length, equals(1));
     });
 
-    test('recordPending coalesces notifications to prevent UI thrashing', () async {
+    test('recordPending coalesces notifications to prevent UI thrashing',
+        () async {
       final session = InspectorSession();
       addTearDown(session.dispose);
 

@@ -10,7 +10,8 @@ import 'package:interceptly/src/session/detail_loader.dart';
 import 'package:interceptly/src/session/memory_index.dart';
 
 /// Helper to pack bodies with the legacy trailing truncated byte.
-Uint8List _packLegacy(Uint8List? req, Uint8List? res, {required bool isTruncated}) {
+Uint8List _packLegacy(Uint8List? req, Uint8List? res,
+    {required bool isTruncated}) {
   final total = 4 + (req?.length ?? 0) + 4 + (res?.length ?? 0) + 1;
   final out = Uint8List(total);
   final data = ByteData.sublistView(out);
@@ -41,7 +42,8 @@ void main() {
   late DetailLoader detailLoader;
 
   setUp(() async {
-    tempDir = await Directory.systemTemp.createTemp('per_side_truncation_test_');
+    tempDir =
+        await Directory.systemTemp.createTemp('per_side_truncation_test_');
     tempFile = File('${tempDir.path}/body_store.bin');
     memoryIndex = MemoryIndex(maxEntries: 100);
     detailLoader = DetailLoader(

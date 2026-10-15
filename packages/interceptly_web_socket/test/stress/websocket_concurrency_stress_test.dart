@@ -534,7 +534,8 @@ void main() {
           closedInitialTotal,
           equals(closedCount * closedMessagesPerChannel),
         );
-        expect(session.totalRealtimeFramesForTesting, equals(closedInitialTotal));
+        expect(
+            session.totalRealtimeFramesForTesting, equals(closedInitialTotal));
 
         // Close all 15 connections (half via client sink, half via server stream)
         await Future.wait(
@@ -542,7 +543,8 @@ void main() {
             if (c.isEven) {
               await closedChannels[c].sink.close(1000, 'client closed');
             } else {
-              await closedFakes[c].closeServer(code: 1000, reason: 'server closed');
+              await closedFakes[c]
+                  .closeServer(code: 1000, reason: 'server closed');
             }
           }),
         );
@@ -650,7 +652,8 @@ void main() {
           countedAcrossBuffers +=
               session.getRealtimeFrames('ws-active-$c').length;
         }
-        expect(countedAcrossBuffers, equals(session.totalRealtimeFramesForTesting));
+        expect(countedAcrossBuffers,
+            equals(session.totalRealtimeFramesForTesting));
 
         // 2. Closed sessions are evicted first under global memory pressure
         // Because 690 > 400, all 90 frames of the 15 closed sessions must be fully evicted
@@ -744,7 +747,8 @@ void main() {
         expect(
           offloadedFramesVerified,
           greaterThan(50),
-          reason: 'Must have verified substantial offloaded payloads crossing 32 KB threshold',
+          reason:
+              'Must have verified substantial offloaded payloads crossing 32 KB threshold',
         );
         expect(
           memoryFramesVerified,

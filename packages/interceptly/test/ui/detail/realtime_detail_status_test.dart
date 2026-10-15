@@ -79,7 +79,8 @@ class _FakeRealtimeSession extends InspectorSessionView {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('displays CONNECTED badge and overview details for active realtime session',
+  testWidgets(
+      'displays CONNECTED badge and overview details for active realtime session',
       (tester) async {
     final entry = IndexEntry(
       id: 'ws-active',
@@ -140,7 +141,8 @@ void main() {
     );
   });
 
-  testWidgets('displays CLOSED badge and overview for normally closed realtime session',
+  testWidgets(
+      'displays CLOSED badge and overview for normally closed realtime session',
       (tester) async {
     final entry = IndexEntry(
       id: 'ws-closed',
@@ -197,7 +199,8 @@ void main() {
     expect(find.text('CLOSED (1000)'), findsOneWidget);
   });
 
-  testWidgets('displays DROPPED badge and overview for abnormally closed realtime session',
+  testWidgets(
+      'displays DROPPED badge and overview for abnormally closed realtime session',
       (tester) async {
     final entry = IndexEntry(
       id: 'ws-dropped',
@@ -257,7 +260,8 @@ void main() {
     expect(find.text('DROPPED (1006)'), findsOneWidget);
   });
 
-  testWidgets('live ticker updates duration periodically for active realtime session in detail page',
+  testWidgets(
+      'live ticker updates duration periodically for active realtime session in detail page',
       (tester) async {
     var currentTime = DateTime(2026, 1, 1, 12, 0, 0);
     final start = currentTime;
@@ -322,7 +326,8 @@ void main() {
     expect(find.text('1m 5s'), findsOneWidget);
   });
 
-  testWidgets('RequestDetailPage forwards realtime entries to RealtimeDetailPage',
+  testWidgets(
+      'RequestDetailPage forwards realtime entries to RealtimeDetailPage',
       (tester) async {
     final entry = IndexEntry(
       id: 'ws-compat',

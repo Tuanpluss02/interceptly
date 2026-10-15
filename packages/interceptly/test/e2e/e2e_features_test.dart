@@ -327,7 +327,6 @@ void main() {
       expect(find.text('RESPONSE HEADERS'), findsNothing);
     });
 
-
     testWidgets('[F5] JsonViewer renders line gutter and formatted JSON',
         (tester) async {
       final jsonPayload = {
@@ -748,7 +747,6 @@ void main() {
       expect(find.textContaining('metrics'), findsWidgets);
       expect(find.textContaining('cpu'), findsWidgets);
     });
-
 
     test(
         'Cross: Multiple sequential sessions isolate files and clean up independently',

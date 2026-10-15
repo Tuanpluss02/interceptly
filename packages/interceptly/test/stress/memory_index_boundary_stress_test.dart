@@ -155,8 +155,7 @@ void main() {
 
   group('Adversarial Group 1: MemoryIndex Boundary maxEntries = 0 and Negative',
       () {
-    test('maxEntries = 0: initial properties, accessors, and clamp on add',
-        () {
+    test('maxEntries = 0: initial properties, accessors, and clamp on add', () {
       final index = MemoryIndex(maxEntries: 0);
 
       expect(index.length, 0);

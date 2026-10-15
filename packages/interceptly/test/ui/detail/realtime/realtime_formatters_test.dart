@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -11,7 +12,8 @@ void main() {
       expect(formatFrameTimestamp(dt), '09:05:03.042');
     });
 
-    test('frameTypeLabel returns capitalized readable names for all FrameTypes', () {
+    test('frameTypeLabel returns capitalized readable names for all FrameTypes',
+        () {
       expect(frameTypeLabel(FrameType.text), 'Text');
       expect(frameTypeLabel(FrameType.binary), 'Binary');
       expect(frameTypeLabel(FrameType.ping), 'Ping');
@@ -32,7 +34,9 @@ void main() {
       expect(preview.endsWith('...'), isTrue);
     });
 
-    test('getFramePayloadString returns text, binary preview, or uppercase fallback', () {
+    test(
+        'getFramePayloadString returns text, binary preview, or uppercase fallback',
+        () {
       final textFrame = RealtimeFrame.text(
         id: 'f1',
         sessionId: 's1',
@@ -90,7 +94,8 @@ void main() {
       expect(tryParseJsonPayload(frame, cache), equals(result));
     });
 
-    test('tryParseJsonPayload caches null on non-json text or null payload', () {
+    test('tryParseJsonPayload caches null on non-json text or null payload',
+        () {
       final cache = <String, dynamic>{};
       final frame = RealtimeFrame.text(
         id: 'f5',
@@ -102,6 +107,76 @@ void main() {
       expect(tryParseJsonPayload(frame, cache), isNull);
       expect(cache.containsKey('f5'), isTrue);
       expect(cache['f5'], isNull);
+    });
+
+    group('tryDecodeBinaryToText', () {
+      test('returns null for empty bytes', () {
+        expect(tryDecodeBinaryToText(Uint8List(0)), isNull);
+      });
+
+      test('decodes valid ASCII text', () {
+        final bytes = Uint8List.fromList('Hello Interceptly!'.codeUnits);
+        expect(tryDecodeBinaryToText(bytes), 'Hello Interceptly!');
+      });
+
+      test('decodes valid UTF-8 text with Vietnamese and emojis', () {
+        final text = 'Xin chào thế giới! 🚀 Socket message';
+        final bytes = Uint8List.fromList(utf8.encode(text));
+        expect(tryDecodeBinaryToText(bytes), text);
+      });
+
+      test('allows tabs, newlines, and carriage returns', () {
+        final text = '{\n\t"key": "value"\r\n}';
+        final bytes = Uint8List.fromList(utf8.encode(text));
+        expect(tryDecodeBinaryToText(bytes), text);
+      });
+
+      test('returns null for invalid UTF-8 bytes', () {
+        final invalidBytes = Uint8List.fromList([0xFF, 0xFE, 0xFD]);
+        expect(tryDecodeBinaryToText(invalidBytes), isNull);
+      });
+
+      test('returns null for binary data with null byte or control characters',
+          () {
+        // Contains null byte 0x00
+        final nullByteData = Uint8List.fromList([0x48, 0x65, 0x00, 0x6C, 0x6F]);
+        expect(tryDecodeBinaryToText(nullByteData), isNull);
+
+        // Contains control character 0x07 (bell)
+        final controlData = Uint8List.fromList([0x48, 0x07, 0x6C]);
+        expect(tryDecodeBinaryToText(controlData), isNull);
+      });
+    });
+
+    test(
+        'getFramePayloadString returns decoded text when binary contains valid text',
+        () {
+      final binFrame = RealtimeFrame.binary(
+        id: 'f_bin_text',
+        sessionId: 's1',
+        direction: FrameDirection.incoming,
+        bytes: Uint8List.fromList('WebSocket UTF-8 message'.codeUnits),
+      );
+      expect(getFramePayloadString(binFrame), 'WebSocket UTF-8 message');
+    });
+
+    test('tryParseJsonPayload parses valid JSON from binary frame', () {
+      final cache = <String, dynamic>{};
+      final jsonBytes = Uint8List.fromList(
+        utf8.encode('{"type":"ping","count":42}'),
+      );
+      final binFrame = RealtimeFrame.binary(
+        id: 'f_bin_json',
+        sessionId: 's1',
+        direction: FrameDirection.incoming,
+        bytes: jsonBytes,
+      );
+
+      final result = tryParseJsonPayload(binFrame, cache);
+      expect(result, isA<Map<String, dynamic>>());
+      expect(result['type'], 'ping');
+      expect(result['count'], 42);
+      expect(cache['f_bin_json'], equals(result));
     });
   });
 }

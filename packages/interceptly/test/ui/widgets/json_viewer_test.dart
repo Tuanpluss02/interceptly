@@ -475,7 +475,8 @@ void main() {
         expect(capturedRequest!.bodyBytes, isEmpty);
         expect(capturedRequest!.body, isEmpty);
         expect(
-          (capturedRequest!.headers as MockHttpHeaders).containsKey('content-type'),
+          (capturedRequest!.headers as MockHttpHeaders)
+              .containsKey('content-type'),
           isFalse,
         );
       },

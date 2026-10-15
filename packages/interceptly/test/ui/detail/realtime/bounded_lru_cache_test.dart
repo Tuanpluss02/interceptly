@@ -16,8 +16,10 @@ void main() {
     });
 
     test('throws ArgumentError if capacity is <= 0', () {
-      expect(() => BoundedLruCache<String, int>(capacity: 0), throwsArgumentError);
-      expect(() => BoundedLruCache<String, int>(capacity: -1), throwsArgumentError);
+      expect(
+          () => BoundedLruCache<String, int>(capacity: 0), throwsArgumentError);
+      expect(() => BoundedLruCache<String, int>(capacity: -1),
+          throwsArgumentError);
     });
 
     test('stores entries up to capacity without eviction', () {
@@ -80,7 +82,9 @@ void main() {
       expect(cache.containsKey(1), isTrue);
     });
 
-    test('updating an existing entry refreshes LRU order without increasing size', () {
+    test(
+        'updating an existing entry refreshes LRU order without increasing size',
+        () {
       final cache = BoundedLruCache<int, String>(capacity: 3);
       cache[1] = 'one';
       cache[2] = 'two';
@@ -128,7 +132,9 @@ void main() {
       expect(cache.isEmpty, isTrue);
     });
 
-    test('tryParseJsonPayload works with BoundedLruCache and evicts beyond capacity 30', () {
+    test(
+        'tryParseJsonPayload works with BoundedLruCache and evicts beyond capacity 30',
+        () {
       final cache = BoundedLruCache<String, dynamic>(capacity: 30);
       for (var i = 0; i < 35; i++) {
         final frame = RealtimeFrame.memoryText(

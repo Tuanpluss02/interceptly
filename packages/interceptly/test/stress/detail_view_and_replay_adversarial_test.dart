@@ -526,7 +526,8 @@ void main() {
       expect(capturedRequest, isNotNull);
       expect(capturedRequest!.bodyBytes, isEmpty);
       expect(
-        (capturedRequest!.headers as MockHttpHeaders).containsKey('content-type'),
+        (capturedRequest!.headers as MockHttpHeaders)
+            .containsKey('content-type'),
         isFalse,
       );
     });
@@ -575,7 +576,8 @@ void main() {
       expect(capturedRequest, isNotNull);
       expect(capturedRequest!.bodyBytes, isEmpty);
       expect(
-        (capturedRequest!.headers as MockHttpHeaders).containsKey('content-type'),
+        (capturedRequest!.headers as MockHttpHeaders)
+            .containsKey('content-type'),
         isFalse,
       );
     });
@@ -676,7 +678,8 @@ void main() {
 
       expect(capturedRequest, isNotNull);
       expect(capturedRequest!.body, equals(textBody));
-      expect(capturedRequest!.headers.value('content-type'), equals('text/plain'));
+      expect(
+          capturedRequest!.headers.value('content-type'), equals('text/plain'));
     });
 
     testWidgets('All placeholder formats are stripped during replay',
@@ -736,7 +739,8 @@ void main() {
         expect(capturedRequest!.bodyBytes, isEmpty,
             reason: 'Failed for placeholder: $placeholder');
         expect(
-          (capturedRequest!.headers as MockHttpHeaders).containsKey('content-type'),
+          (capturedRequest!.headers as MockHttpHeaders)
+              .containsKey('content-type'),
           isFalse,
         );
       }

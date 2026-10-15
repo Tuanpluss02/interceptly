@@ -17,7 +17,8 @@ void main() {
   });
 
   group('NetworkTab Filter Integration', () {
-    testWidgets('shows FilterBadge and QuickFilterBar for REST protocol', (tester) async {
+    testWidgets('shows FilterBadge and QuickFilterBar for REST protocol',
+        (tester) async {
       final session = InspectorSession();
       addTearDown(session.dispose);
 
@@ -37,7 +38,8 @@ void main() {
       expect(find.byType(QuickFilterBar), findsOneWidget);
     });
 
-    testWidgets('FilterBadge reflects active filter count reactively', (tester) async {
+    testWidgets('FilterBadge reflects active filter count reactively',
+        (tester) async {
       final session = InspectorSession();
       addTearDown(session.dispose);
 

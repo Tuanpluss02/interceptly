@@ -8,7 +8,8 @@ void main() {
   late Directory tempDir;
 
   setUp(() async {
-    tempDir = await Directory.systemTemp.createTemp('realtime_body_store_test_');
+    tempDir =
+        await Directory.systemTemp.createTemp('realtime_body_store_test_');
   });
 
   tearDown(() async {
@@ -62,13 +63,16 @@ void main() {
       expect(read2, equals(payload2));
     });
 
-    test('serializes concurrent appends without race conditions or offset corruption', () async {
+    test(
+        'serializes concurrent appends without race conditions or offset corruption',
+        () async {
       final store = RealtimeBodyStore();
       addTearDown(store.dispose);
       await store.initForWrite(tempDir.path);
 
       const count = 20;
-      final payloads = List.generate(count, (i) => Uint8List.fromList(List.filled(100, i)));
+      final payloads =
+          List.generate(count, (i) => Uint8List.fromList(List.filled(100, i)));
 
       // Dispatch 20 simultaneous append calls concurrently
       final futures = payloads.map((p) => store.append(p));
@@ -80,7 +84,8 @@ void main() {
       // Verify that every single offset is unique, strictly monotonic (increasing by 100), and non-overlapping
       final offsets = results.map((r) => r.$1).toList();
       final sortedOffsets = List<int>.from(offsets)..sort();
-      expect(offsets, equals(sortedOffsets), reason: 'Offsets must preserve submission order');
+      expect(offsets, equals(sortedOffsets),
+          reason: 'Offsets must preserve submission order');
 
       for (var i = 0; i < count; i++) {
         expect(results[i].$1, equals(i * 100));
@@ -92,7 +97,9 @@ void main() {
       }
     });
 
-    test('rotates file when capacity is exceeded, resetting offset and bumping rotationCount', () async {
+    test(
+        'rotates file when capacity is exceeded, resetting offset and bumping rotationCount',
+        () async {
       // 100 bytes max capacity
       final store = RealtimeBodyStore(maxFileBytes: 100);
       addTearDown(store.dispose);
@@ -131,16 +138,20 @@ void main() {
       expect(store.isInitialized, isFalse);
     });
 
-    test('dispose during initForWrite cleans up handle and remains uninitialized', () async {
+    test(
+        'dispose during initForWrite cleans up handle and remains uninitialized',
+        () async {
       final store = RealtimeBodyStore();
-      final initFuture = store.initForWrite(tempDir.path, fileName: 'test_mid_init_dispose.tmp');
+      final initFuture = store.initForWrite(tempDir.path,
+          fileName: 'test_mid_init_dispose.tmp');
       final disposeFuture = store.dispose();
       await Future.wait([initFuture, disposeFuture]);
 
       expect(store.isInitialized, isFalse);
     });
 
-    test('enforces backpressure guard when pending writes exceed limit', () async {
+    test('enforces backpressure guard when pending writes exceed limit',
+        () async {
       final store = RealtimeBodyStore(maxPendingWrites: 20);
       addTearDown(store.dispose);
       await store.initForWrite(tempDir.path);

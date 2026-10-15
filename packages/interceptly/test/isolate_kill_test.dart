@@ -61,7 +61,8 @@ void main() {
   }
 
   group('WriterIsolate Lifecycle and Cleanup Fallback', () {
-    test('cleans up temp file on disk even after immediate termination', () async {
+    test('cleans up temp file on disk even after immediate termination',
+        () async {
       final writer = WriterIsolate(const InterceptlySettings());
       await writer.start(
         tempDirPath: tempDir.path,
@@ -103,7 +104,9 @@ void main() {
   });
 
   group('CapturePipeline DroppedCount and Error Accounting', () {
-    test('pipeline increments droppedCount when saturated beyond maxQueuedEvents', () async {
+    test(
+        'pipeline increments droppedCount when saturated beyond maxQueuedEvents',
+        () async {
       const maxQueue = 3;
       final readyEntries = <IndexEntry>[];
 
@@ -125,7 +128,8 @@ void main() {
       await pipeline.dispose();
     });
 
-    test('pipeline dispose clears in-flight tracking and cleans resources', () async {
+    test('pipeline dispose clears in-flight tracking and cleans resources',
+        () async {
       final readyEntries = <IndexEntry>[];
       final pipeline = CapturePipeline(
         settings: const InterceptlySettings(),
@@ -145,7 +149,8 @@ void main() {
   });
 
   group('Large Payload Storage Cap and hasDataLoss Invariant', () {
-    test('recording payload exceeding maxBodyBytes sets hasDataLoss = true', () async {
+    test('recording payload exceeding maxBodyBytes sets hasDataLoss = true',
+        () async {
       final session = InspectorSession(
         settings: const InterceptlySettings(
           maxBodyBytes: 1024,

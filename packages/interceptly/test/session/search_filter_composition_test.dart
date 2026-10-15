@@ -14,7 +14,8 @@ void main() {
   });
 
   group('Search and Filter Composition', () {
-    test('entries compose both search query and filter criteria simultaneously', () async {
+    test('entries compose both search query and filter criteria simultaneously',
+        () async {
       final session = InspectorSession();
       addTearDown(session.dispose);
 
@@ -52,7 +53,9 @@ void main() {
       expect(session.entries.map((e) => e.id).toSet(), equals({'1', '2'}));
     });
 
-    test('onlyErrors filter matches 4xx, 5xx, and network errors but not 2xx or pending', () {
+    test(
+        'onlyErrors filter matches 4xx, 5xx, and network errors but not 2xx or pending',
+        () {
       final filter = RequestFilter(onlyErrors: true);
       final ok = IndexEntry(
         id: '1',
@@ -114,7 +117,9 @@ void main() {
       expect(errorFilter.matches(netErr), isTrue);
     });
 
-    test('statusCode 0 entries (network error or pending) do not leak into 2xx/3xx filters', () {
+    test(
+        'statusCode 0 entries (network error or pending) do not leak into 2xx/3xx filters',
+        () {
       final base = IndexEntry(
         id: '1',
         method: 'GET',
