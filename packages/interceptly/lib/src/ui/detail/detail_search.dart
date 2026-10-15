@@ -367,9 +367,13 @@ List<String> bodyTruncationNotices(BodyTruncation truncation) {
 }
 
 String formatTruncationBytes(int bytes) {
+  if (bytes <= 0) return '0 B';
   if (bytes < 1024) return '$bytes B';
   if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-  return '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
+  if (bytes < 1024 * 1024 * 1024) {
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
+  }
+  return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
 }
 
 /// Snapshot model passed into [compute] — `RequestRecord` contains `Map`s of
