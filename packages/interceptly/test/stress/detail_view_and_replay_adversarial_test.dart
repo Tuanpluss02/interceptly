@@ -1,3 +1,6 @@
+@Tags(['stress'])
+library;
+
 import 'dart:io';
 
 import 'package:flutter/material.dart';

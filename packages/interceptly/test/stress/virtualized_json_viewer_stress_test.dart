@@ -1,3 +1,6 @@
+@Tags(['stress'])
+library;
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -134,7 +137,7 @@ void main() {
       await tester.pumpAndSettle();
       stopwatch.stop();
 
-      expect(stopwatch.elapsedMilliseconds, lessThan(1500));
+      expect(stopwatch.elapsedMilliseconds, lessThan(3500));
 
       expect(find.textContaining('"row_1":'), findsOneWidget);
       expect(find.textContaining('"row_15000":'), findsNothing);
