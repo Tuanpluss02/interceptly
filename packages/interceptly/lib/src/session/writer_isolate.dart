@@ -479,7 +479,9 @@ Future<IndexEntry> _processCapture(
   final resSize = capture.responseSizeBytes ?? resKept;
 
   final largestSize = reqSize > resSize ? reqSize : resSize;
-  var useFile = persistToDisk && largestSize >= threshold;
+  final hasRawBytes = (reqRaw != null && reqRaw.isNotEmpty) ||
+      (resRaw != null && resRaw.isNotEmpty);
+  var useFile = persistToDisk && hasRawBytes && largestSize >= threshold;
 
   Uint8List? inlineReq;
   Uint8List? inlineRes;
