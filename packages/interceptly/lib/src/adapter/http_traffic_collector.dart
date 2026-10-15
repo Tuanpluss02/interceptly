@@ -288,6 +288,8 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
   static int? _parseContentLength(Map<String, String>? headers) {
     if (headers == null) return null;
     final cl = headerValue(headers, 'content-length');
-    return cl != null ? int.tryParse(cl) : null;
+    if (cl == null) return null;
+    final parsed = int.tryParse(cl);
+    return (parsed != null && parsed >= 0) ? parsed : null;
   }
 }
