@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:fake_async/fake_async.dart';
@@ -655,6 +656,42 @@ void main() {
       expect(checkCount, equals(2));
       allowedScope.send('msg1');
       expect(checkCount, equals(2));
+    });
+
+    test('normalizes Map payload into canonical JSON text frame with accurate byte size', () {
+      final payload = {'event': 'message', 'data': {'userId': 42, 'active': true}};
+      final normalized = FrameNormalizer.normalize(
+        payload,
+        offloadThreshold: 32 * 1024,
+        maxBodyBytes: 1024,
+      );
+      expect(normalized.type, equals(FrameType.text));
+      expect(normalized.payload, equals('{"event":"message","data":{"userId":42,"active":true}}'));
+      expect(normalized.originalSizeBytes, equals(utf8.encode(normalized.payload as String).length));
+      expect(normalized.shortPreview, contains('{"event":"message"'));
+    });
+
+    test('normalizes List payload into canonical JSON array text frame', () {
+      final payload = ['chat_message', {'text': 'hi'}];
+      final normalized = FrameNormalizer.normalize(
+        payload,
+        offloadThreshold: 32 * 1024,
+        maxBodyBytes: 1024,
+      );
+      expect(normalized.type, equals(FrameType.text));
+      expect(normalized.payload, equals('["chat_message",{"text":"hi"}]'));
+    });
+
+    test('falls back gracefully to toString() if Map/List contains circular reference or fails to encode', () {
+      final cyclicList = <dynamic>[];
+      cyclicList.add(cyclicList); // cyclic reference
+      final normalized = FrameNormalizer.normalize(
+        cyclicList,
+        offloadThreshold: 32 * 1024,
+        maxBodyBytes: 1024,
+      );
+      expect(normalized.type, equals(FrameType.text));
+      expect(normalized.payload, contains('[...]'));
     });
   });
 
