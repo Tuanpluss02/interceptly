@@ -14,7 +14,7 @@ dependencies:
   flutter:
     sdk: flutter
   interceptly: ^2.1.0
-  dio: ^5.0.0
+  dio: ^5.2.0
 
 dev_dependencies:
   flutter_test:
