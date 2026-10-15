@@ -13,6 +13,9 @@ on:
         required: false
         type: boolean
         default: false
+  push:
+    tags:
+      - '*-v*'
 
 concurrency:
   group: release-${{ github.ref }}
@@ -54,9 +57,9 @@ jobs:
       - name: Pre-release Quality Gate
         run: melos run check
 
-      # --- 1. Versioning Step ---
+      # --- 1. Versioning Step (manual dispatch only) ---
       - name: Preview Versioning (Dry Run)
-        if: ${{ github.event.inputs.dry_run == 'true' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' }}
         run: |
           echo "::notice::Running Melos versioning in DRY RUN mode..."
           melos version --yes --no-git-tag-version ${{ github.event.inputs.prerelease == 'true' && '--prerelease' || '' }}
@@ -64,7 +67,7 @@ jobs:
           git diff
 
       - name: Apply Versioning & Push Tags
-        if: ${{ github.event.inputs.dry_run != 'true' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run != 'true' }}
         run: |
           echo "::notice::Applying Melos versioning and pushing release tags..."
           melos version --yes ${{ github.event.inputs.prerelease == 'true' && '--prerelease' || '' }}
@@ -72,13 +75,13 @@ jobs:
 
       # --- 2. Pub.dev Publishing via OIDC ---
       - name: Publish Packages to Pub.dev (Dry Run)
-        if: ${{ github.event.inputs.dry_run == 'true' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' }}
         run: |
           echo "::notice::Running Melos publish in DRY RUN mode..."
           melos publish --yes --dry-run
 
       - name: Publish Packages to Pub.dev via OIDC
-        if: ${{ github.event.inputs.dry_run != 'true' }}
+        if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run != 'true') }}
         env:
           PUB_HOSTED_URL: https://pub.dev
         run: |
@@ -87,14 +90,20 @@ jobs:
 
       # --- 3. GitHub Releases Creation ---
       - name: Create GitHub Releases
-        if: ${{ github.event.inputs.dry_run != 'true' }}
+        if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run != 'true') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          for tag in $(git tag --points-at HEAD); do
-            echo "Creating GitHub Release for $tag..."
-            gh release create "$tag" \
-              --title "$tag" \
-              --generate-notes \
-              ${{ github.event.inputs.prerelease == 'true' && '--prerelease' || '' }} || true
-          done
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${{ github.ref_name }}"
+            echo "Creating GitHub Release for tag: $TAG..."
+            gh release create "$TAG" --title "$TAG" --generate-notes || true
+          else
+            for tag in $(git tag --points-at HEAD); do
+              echo "Creating GitHub Release for $tag..."
+              gh release create "$tag" \
+                --title "$tag" \
+                --generate-notes \
+                ${{ github.event.inputs.prerelease == 'true' && '--prerelease' || '' }} || true
+            done
+          fi
