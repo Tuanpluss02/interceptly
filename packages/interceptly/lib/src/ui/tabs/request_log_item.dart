@@ -228,6 +228,73 @@ class RequestLogItem extends StatelessWidget {
     final borderRadius = BorderRadius.circular(InterceptlyTheme.radius.lg);
     final metaColor = colors.textTertiary;
 
+    final statusBadge = DecoratedBox(
+      decoration: BoxDecoration(
+        color: statusLook.background,
+        borderRadius: BorderRadius.circular(10),
+        border: statusLook.border != null
+            ? Border.all(color: statusLook.border!)
+            : null,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 9,
+          vertical: 5,
+        ),
+        child: isPending && !isRealtime
+            ? SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    statusLook.foreground,
+                  ),
+                ),
+              )
+            : isRealtime && isPending
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: statusLook.foreground,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        statusLabel,
+                        style: InterceptlyTheme.typography.monospace(
+                          InterceptlyTheme.typography.labelSmallBold.copyWith(
+                            fontSize: 10,
+                            height: 1,
+                            fontWeight: FontWeight.w700,
+                            color: statusLook.foreground,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                : Text(
+                    statusLabel,
+                    style: InterceptlyTheme.typography.monospace(
+                      InterceptlyTheme.typography.labelMediumBold.copyWith(
+                        fontSize: isRealtime ? 10 : 12,
+                        height: 1,
+                        fontWeight:
+                            isRealtime ? FontWeight.w700 : FontWeight.bold,
+                        color: statusLook.foreground,
+                        letterSpacing: isRealtime ? 0.3 : null,
+                      ),
+                    ),
+                  ),
+      ),
+    );
+
     return Semantics(
       button: true,
       label: '$method $url, status $statusLabel',
@@ -300,30 +367,42 @@ class RequestLogItem extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text.rich(
-                        _buildHighlightedSpan(
-                          text: path,
-                          query: highlightQuery,
-                          normalStyle: InterceptlyTheme
-                              .typography.bodyMediumMedium
-                              .copyWith(
-                            fontSize: 14,
-                            height: 1.25,
-                            color: colors.textPrimary,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text.rich(
+                              _buildHighlightedSpan(
+                                text: path,
+                                query: highlightQuery,
+                                normalStyle: InterceptlyTheme
+                                    .typography.bodyMediumMedium
+                                    .copyWith(
+                                  fontSize: 14,
+                                  height: 1.25,
+                                  color: colors.textPrimary,
+                                ),
+                                highlightStyle: InterceptlyTheme
+                                    .typography.bodyMediumMedium
+                                    .copyWith(
+                                  fontSize: 14,
+                                  height: 1.25,
+                                  backgroundColor: InterceptlyTheme.yellow500
+                                      .withValues(alpha: 0.28),
+                                  color: colors.textPrimary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                          highlightStyle: InterceptlyTheme
-                              .typography.bodyMediumMedium
-                              .copyWith(
-                            fontSize: 14,
-                            height: 1.25,
-                            backgroundColor: InterceptlyTheme.yellow500
-                                .withValues(alpha: 0.28),
-                            color: colors.textPrimary,
-                            fontWeight: FontWeight.w700,
+                          const SizedBox(width: 10),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: statusBadge,
                           ),
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                        ],
                       ),
                       if (host.isNotEmpty) ...[
                         const SizedBox(height: 4),
@@ -414,81 +493,6 @@ class RequestLogItem extends StatelessWidget {
                         ],
                       ),
                     ],
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: statusLook.background,
-                      borderRadius: BorderRadius.circular(10),
-                      border: statusLook.border != null
-                          ? Border.all(color: statusLook.border!)
-                          : null,
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 9,
-                        vertical: 5,
-                      ),
-                      child: isPending && !isRealtime
-                          ? SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  statusLook.foreground,
-                                ),
-                              ),
-                            )
-                          : isRealtime && isPending
-                              ? Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Container(
-                                      width: 6,
-                                      height: 6,
-                                      decoration: BoxDecoration(
-                                        color: statusLook.foreground,
-                                        shape: BoxShape.circle,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      statusLabel,
-                                      style:
-                                          InterceptlyTheme.typography.monospace(
-                                        InterceptlyTheme
-                                            .typography.labelSmallBold
-                                            .copyWith(
-                                          fontSize: 10,
-                                          height: 1,
-                                          fontWeight: FontWeight.w700,
-                                          color: statusLook.foreground,
-                                          letterSpacing: 0.3,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                )
-                              : Text(
-                                  statusLabel,
-                                  style: InterceptlyTheme.typography.monospace(
-                                    InterceptlyTheme.typography.labelMediumBold
-                                        .copyWith(
-                                      fontSize: isRealtime ? 10 : 12,
-                                      height: 1,
-                                      fontWeight: isRealtime
-                                          ? FontWeight.w700
-                                          : FontWeight.bold,
-                                      color: statusLook.foreground,
-                                      letterSpacing: isRealtime ? 0.3 : null,
-                                    ),
-                                  ),
-                                ),
-                    ),
                   ),
                 ),
               ],

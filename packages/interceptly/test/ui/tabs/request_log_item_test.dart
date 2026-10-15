@@ -203,5 +203,38 @@ void main() {
       expect(find.text('1006'), findsNothing);
       expect(find.textContaining('12:00:00 · 30s · ↓ 3  ↑ 1'), findsOneWidget);
     });
+
+    testWidgets('metadata line width is not constrained by status badge width',
+        (tester) async {
+      tester.view.physicalSize = const Size(360, 640);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(
+        buildItem(
+          method: 'WS',
+          url: 'wss://realtime.example.com/socket/v1/stream',
+          time: '12:00:00',
+          duration: '1h 30m 15s',
+          status: 0,
+          isPending: true,
+          isRealtime: true,
+          realtimeFrameCounts:
+              const RealtimeFrameCounts(incoming: 1234, outgoing: 5678),
+        ),
+      );
+
+      final badgeFinder = find.text('CONNECTED');
+      final metaFinder =
+          find.textContaining('12:00:00 · 1h 30m 15s · ↓ 1234  ↑ 5678');
+      expect(badgeFinder, findsOneWidget);
+      expect(metaFinder, findsOneWidget);
+
+      final badgeRenderBox = tester.renderObject(badgeFinder) as RenderBox;
+      final metaRenderBox = tester.renderObject(metaFinder) as RenderBox;
+
+      expect(metaRenderBox.size.width, greaterThan(220));
+      expect(badgeRenderBox.size.width, greaterThan(50));
+    });
   });
 }
