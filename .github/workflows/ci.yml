@@ -1,0 +1,99 @@
+name: Continuous Integration
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-format:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Melos
+        run: dart pub global activate melos
+
+      - name: Bootstrap Melos workspace
+        run: melos bootstrap
+
+      - name: Verify code formatting
+        run: melos run format:check
+
+      - name: Run static analysis
+        run: melos run analyze
+
+  test:
+    name: Test Suites & Coverage
+    needs: [lint-and-format]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Melos
+        run: dart pub global activate melos
+
+      - name: Bootstrap Melos workspace
+        run: melos bootstrap
+
+      - name: Run all tests with coverage
+        run: melos run coverage
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lcov-coverage
+          path: packages/*/coverage/lcov.info
+          if-no-files-found: ignore
+
+  pana-and-example:
+    name: Package Health & Example Check
+    needs: [lint-and-format]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Melos & Pana
+        run: |
+          dart pub global activate melos
+          dart pub global activate pana
+
+      - name: Bootstrap Melos workspace
+        run: melos bootstrap
+
+      - name: Run Pana package health analysis (aiming for 160 points)
+        run: melos run pana
+
+      - name: Verify Example App
+        run: |
+          cd packages/interceptly/example
+          flutter analyze
+          flutter test
