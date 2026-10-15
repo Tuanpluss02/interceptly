@@ -592,6 +592,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     Map<String, String> headers = const {},
     DateTime? timestamp,
     bool isPreValidated = false,
+    RealtimeProtocolType protocolType = RealtimeProtocolType.webSocket,
   }) {
     if (!_enabled || _isDisposed) return;
     if (!isPreValidated &&
@@ -600,9 +601,14 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       return;
     }
     markRealtimeActive();
+    final method = switch (protocolType) {
+      RealtimeProtocolType.webSocket => 'WS',
+      RealtimeProtocolType.socketIo => 'SIO',
+      RealtimeProtocolType.sse => 'SSE',
+    };
     _recordPendingEntry(
       id: id,
-      method: 'WS',
+      method: method,
       url: url,
       timestamp: timestamp ?? DateTime.now(),
       requestHeaders: headers,

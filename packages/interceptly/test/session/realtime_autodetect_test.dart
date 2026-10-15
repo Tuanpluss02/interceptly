@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/src/adapter/realtime_traffic_collector.dart';
 import 'package:interceptly/src/model/interceptly_settings.dart';
+import 'package:interceptly/src/model/realtime_protocol_type.dart';
 import 'package:interceptly/src/session/inspector_session.dart';
 
 void main() {
@@ -82,6 +83,35 @@ void main() {
         timestamp: DateTime.now(),
       );
       expect(session.isRealtimeActive, isTrue);
+    });
+
+    test('recordRealtimeConnection maps protocolType to correct method (WS, SIO, SSE)', () {
+      final collector = DefaultRealtimeTrafficCollector(session: session);
+
+      collector.openSession(
+        sessionId: 'conn_ws',
+        uri: Uri.parse('wss://example.com/ws'),
+        protocolType: RealtimeProtocolType.webSocket,
+      );
+      collector.openSession(
+        sessionId: 'conn_sio',
+        uri: Uri.parse('https://example.com/socket.io'),
+        protocolType: RealtimeProtocolType.socketIo,
+      );
+      collector.openSession(
+        sessionId: 'conn_sse',
+        uri: Uri.parse('https://example.com/events'),
+        protocolType: RealtimeProtocolType.sse,
+      );
+
+      expect(session.byId('conn_ws')?.method, equals('WS'));
+      expect(session.byId('conn_ws')?.isRealtime, isTrue);
+
+      expect(session.byId('conn_sio')?.method, equals('SIO'));
+      expect(session.byId('conn_sio')?.isRealtime, isTrue);
+
+      expect(session.byId('conn_sse')?.method, equals('SSE'));
+      expect(session.byId('conn_sse')?.isRealtime, isTrue);
     });
   });
 }

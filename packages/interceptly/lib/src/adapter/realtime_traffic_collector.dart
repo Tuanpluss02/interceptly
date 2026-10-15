@@ -60,6 +60,7 @@ abstract interface class RealtimeTrafficCollector {
     required String sessionId,
     required Uri uri,
     Map<String, String>? headers,
+    RealtimeProtocolType protocolType = RealtimeProtocolType.webSocket,
   });
 
   /// Records an incoming or outgoing frame exchanged over an active connection.
@@ -128,6 +129,7 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
           url: uri.toString(),
           headers: headers ?? const {},
           isPreValidated: true,
+          protocolType: protocolType,
         );
       });
     }
@@ -166,6 +168,7 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
     required String sessionId,
     required Uri uri,
     Map<String, String>? headers,
+    RealtimeProtocolType protocolType = RealtimeProtocolType.webSocket,
   }) {
     if (!shouldCapture(uri)) {
       return;
@@ -175,6 +178,7 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
         id: sessionId,
         url: uri.toString(),
         headers: headers ?? const {},
+        protocolType: protocolType,
       );
     });
   }
