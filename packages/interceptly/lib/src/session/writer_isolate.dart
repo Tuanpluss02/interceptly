@@ -381,7 +381,8 @@ Future<void> _isolateEntry(_InitMessage init) async {
 }
 
 @visibleForTesting
-IndexEntry fallbackEntryForTesting(RawCapture capture) => _fallbackEntry(capture);
+IndexEntry fallbackEntryForTesting(RawCapture capture) =>
+    _fallbackEntry(capture);
 
 IndexEntry _fallbackEntry(RawCapture capture) {
   int? reqLen;

@@ -50,7 +50,6 @@ class InterceptlyWebSocketChannel extends StreamChannelMixin
     );
   }
 
-
   /// Connects to [uri] and wraps the resulting channel with Interceptly capture.
   static InterceptlyWebSocketChannel connect(
     Uri uri, {

@@ -280,8 +280,7 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
               if (query.isNotEmpty) {
                 final payloadText = getFramePayloadString(frame).toLowerCase();
                 final typeText = frame.type.name.toLowerCase();
-                if (!payloadText.contains(query) &&
-                    !typeText.contains(query)) {
+                if (!payloadText.contains(query) && !typeText.contains(query)) {
                   return false;
                 }
               }

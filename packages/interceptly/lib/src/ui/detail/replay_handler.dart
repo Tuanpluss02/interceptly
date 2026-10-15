@@ -30,7 +30,8 @@ class ReplayHandler {
   final HttpClient Function()? clientFactory;
 
   @visibleForTesting
-  final Future<bool> Function(BuildContext context, String method)? confirmDialog;
+  final Future<bool> Function(BuildContext context, String method)?
+      confirmDialog;
 
   void showReplayMenu(RequestRecord record) {
     showModalBottomSheet(
@@ -353,11 +354,8 @@ class ReplayHandler {
 
   @visibleForTesting
   static bool isBlockedHost(String host) {
-    var clean = host
-        .toLowerCase()
-        .trim()
-        .replaceAll('[', '')
-        .replaceAll(']', '');
+    var clean =
+        host.toLowerCase().trim().replaceAll('[', '').replaceAll(']', '');
     while (clean.endsWith('.')) {
       clean = clean.substring(0, clean.length - 1);
     }

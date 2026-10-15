@@ -1,4 +1,3 @@
-
 import '../capture/capture_guard.dart';
 import '../capture/frame_normalizer.dart';
 import '../model/realtime_frame.dart';
@@ -67,13 +66,15 @@ class RealtimeSessionScope {
   /// Records an outgoing frame sent to the server. Safe to call.
   void send(dynamic data, {String? eventName}) {
     if (_isClosed || !_shouldCapture) return;
-    guardCapture(() => _record(data, FrameDirection.outgoing, eventName: eventName));
+    guardCapture(
+        () => _record(data, FrameDirection.outgoing, eventName: eventName));
   }
 
   /// Records an incoming frame received from the server. Safe to call.
   void receive(dynamic data, {String? eventName}) {
     if (_isClosed || !_shouldCapture) return;
-    guardCapture(() => _record(data, FrameDirection.incoming, eventName: eventName));
+    guardCapture(
+        () => _record(data, FrameDirection.incoming, eventName: eventName));
   }
 
   /// Records the connection closure. Safe and idempotent.

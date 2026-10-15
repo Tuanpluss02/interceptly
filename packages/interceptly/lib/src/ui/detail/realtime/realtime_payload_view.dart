@@ -221,8 +221,7 @@ class _RealtimePayloadViewState extends State<RealtimePayloadView> {
       // In-memory frame
       dynamic effectiveJson = widget.parsedJson;
       if (effectiveJson == null && widget.jsonCache != null) {
-        effectiveJson =
-            tryParseJsonPayload(widget.frame, widget.jsonCache!);
+        effectiveJson = tryParseJsonPayload(widget.frame, widget.jsonCache!);
       }
 
       return Column(

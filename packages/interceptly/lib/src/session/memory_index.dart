@@ -46,7 +46,6 @@ class MemoryIndex {
     return _buffer[slot];
   }
 
-
   /// Inserts a new entry or updates an existing entry in-place in O(1) time.
   ///
   /// A non-positive [maxEntries] (only reachable via direct field mutation)

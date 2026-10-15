@@ -112,7 +112,8 @@ class RealtimeBodyStore {
       try {
         if (_isDisposed || _raf == null) {
           completer.completeError(
-            StateError('RealtimeBodyStore was disposed before write completed.'),
+            StateError(
+                'RealtimeBodyStore was disposed before write completed.'),
           );
           return;
         }
@@ -205,7 +206,8 @@ class RealtimeBodyStore {
         _raf = null;
         _currentOffset = 0;
         _rotationCount = 0;
-        final effectiveName = fileName ?? _file.path.split(RegExp(r'[/\\]')).last;
+        final effectiveName =
+            fileName ?? _file.path.split(RegExp(r'[/\\]')).last;
         _file = File('$dirPath/$effectiveName');
         if (await _file.exists()) {
           await _file.delete();

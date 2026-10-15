@@ -149,7 +149,8 @@ class _RealtimeChatBarState extends State<RealtimeChatBar> {
                     const SizedBox(width: 6),
                     Text(
                       closedNotice,
-                      style: InterceptlyTheme.typography.bodySmallRegular.copyWith(
+                      style:
+                          InterceptlyTheme.typography.bodySmallRegular.copyWith(
                         color: InterceptlyTheme.textMuted,
                       ),
                     ),
@@ -166,13 +167,15 @@ class _RealtimeChatBarState extends State<RealtimeChatBar> {
                       key: const ValueKey('realtime_chat_event_input'),
                       controller: widget.eventController,
                       enabled: canSend,
-                      style: InterceptlyTheme.typography.bodySmallRegular.copyWith(
+                      style:
+                          InterceptlyTheme.typography.bodySmallRegular.copyWith(
                         color: InterceptlyTheme.textPrimary,
                       ),
                       decoration: InputDecoration(
                         isDense: true,
                         hintText: 'Event name',
-                        hintStyle: InterceptlyTheme.typography.bodySmallRegular.copyWith(
+                        hintStyle: InterceptlyTheme.typography.bodySmallRegular
+                            .copyWith(
                           color: InterceptlyTheme.textMuted,
                         ),
                         contentPadding: const EdgeInsets.symmetric(
@@ -182,12 +185,16 @@ class _RealtimeChatBarState extends State<RealtimeChatBar> {
                         filled: true,
                         fillColor: InterceptlyTheme.surface,
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(InterceptlyTheme.radius.sm),
-                          borderSide: BorderSide(color: InterceptlyTheme.dividerSubtle),
+                          borderRadius:
+                              BorderRadius.circular(InterceptlyTheme.radius.sm),
+                          borderSide:
+                              BorderSide(color: InterceptlyTheme.dividerSubtle),
                         ),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(InterceptlyTheme.radius.sm),
-                          borderSide: BorderSide(color: InterceptlyTheme.dividerSubtle),
+                          borderRadius:
+                              BorderRadius.circular(InterceptlyTheme.radius.sm),
+                          borderSide:
+                              BorderSide(color: InterceptlyTheme.dividerSubtle),
                         ),
                       ),
                     ),
@@ -201,13 +208,15 @@ class _RealtimeChatBarState extends State<RealtimeChatBar> {
                     enabled: canSend,
                     minLines: 1,
                     maxLines: 4,
-                    style: InterceptlyTheme.typography.bodySmallRegular.copyWith(
+                    style:
+                        InterceptlyTheme.typography.bodySmallRegular.copyWith(
                       color: InterceptlyTheme.textPrimary,
                     ),
                     decoration: InputDecoration(
                       isDense: true,
                       hintText: 'Send message or JSON...',
-                      hintStyle: InterceptlyTheme.typography.bodySmallRegular.copyWith(
+                      hintStyle:
+                          InterceptlyTheme.typography.bodySmallRegular.copyWith(
                         color: InterceptlyTheme.textMuted,
                       ),
                       contentPadding: const EdgeInsets.symmetric(
@@ -217,16 +226,22 @@ class _RealtimeChatBarState extends State<RealtimeChatBar> {
                       filled: true,
                       fillColor: InterceptlyTheme.surface,
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(InterceptlyTheme.radius.sm),
-                        borderSide: BorderSide(color: InterceptlyTheme.dividerSubtle),
+                        borderRadius:
+                            BorderRadius.circular(InterceptlyTheme.radius.sm),
+                        borderSide:
+                            BorderSide(color: InterceptlyTheme.dividerSubtle),
                       ),
                       enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(InterceptlyTheme.radius.sm),
-                        borderSide: BorderSide(color: InterceptlyTheme.dividerSubtle),
+                        borderRadius:
+                            BorderRadius.circular(InterceptlyTheme.radius.sm),
+                        borderSide:
+                            BorderSide(color: InterceptlyTheme.dividerSubtle),
                       ),
                       disabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(InterceptlyTheme.radius.sm),
-                        borderSide: BorderSide(color: InterceptlyTheme.dividerSubtle),
+                        borderRadius:
+                            BorderRadius.circular(InterceptlyTheme.radius.sm),
+                        borderSide:
+                            BorderSide(color: InterceptlyTheme.dividerSubtle),
                       ),
                     ),
                   ),

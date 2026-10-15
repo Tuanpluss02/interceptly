@@ -116,7 +116,6 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                 ],
               ),
             ),
-
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.all(16.0),
@@ -196,7 +195,6 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                       ),
                     ),
                   ]),
-
                   const SizedBox(height: 20),
                   _buildSectionTitle('Network Simulation'),
                   _buildSectionCard([
@@ -311,7 +309,6 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                       },
                     ),
                   ],
-
                   const SizedBox(height: 48),
                 ],
               ),

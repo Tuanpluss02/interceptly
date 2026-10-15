@@ -19,9 +19,8 @@ class FilterBadge extends StatelessWidget {
 
     return Semantics(
       button: true,
-      label: isActive
-          ? 'Filters ($activeFiltersCount active)'
-          : 'Filter requests',
+      label:
+          isActive ? 'Filters ($activeFiltersCount active)' : 'Filter requests',
       child: Badge.count(
         count: activeFiltersCount,
         isLabelVisible: isActive,

@@ -177,7 +177,8 @@ class _FilterPanelState extends State<FilterPanel> {
 
             // Header
             Padding(
-              padding: EdgeInsets.fromLTRB(spacing.lg, spacing.sm, spacing.lg, spacing.sm),
+              padding: EdgeInsets.fromLTRB(
+                  spacing.lg, spacing.sm, spacing.lg, spacing.sm),
               child: Row(
                 children: [
                   Text(
@@ -189,14 +190,16 @@ class _FilterPanelState extends State<FilterPanel> {
                   if (_activeFilterCount > 0) ...[
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 7, vertical: 2),
                       decoration: BoxDecoration(
                         color: colors.actionPrimary,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
                         '$_activeFilterCount',
-                        style: InterceptlyTheme.typography.labelSmallMedium.copyWith(
+                        style: InterceptlyTheme.typography.labelSmallMedium
+                            .copyWith(
                           color: colors.textOnAction,
                           fontSize: 11,
                         ),
@@ -207,10 +210,12 @@ class _FilterPanelState extends State<FilterPanel> {
                   GestureDetector(
                     onTap: _resetFilters,
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 4, vertical: 2),
                       child: Text(
                         'Reset All',
-                        style: InterceptlyTheme.typography.bodySmallMedium.copyWith(
+                        style: InterceptlyTheme.typography.bodySmallMedium
+                            .copyWith(
                           color: colors.actionPrimary,
                           fontWeight: FontWeight.w600,
                         ),
@@ -272,7 +277,8 @@ class _FilterPanelState extends State<FilterPanel> {
               ),
               decoration: BoxDecoration(
                 color: InterceptlyTheme.surface,
-                border: Border(top: BorderSide(color: InterceptlyTheme.dividerSubtle)),
+                border: Border(
+                    top: BorderSide(color: InterceptlyTheme.dividerSubtle)),
               ),
               child: SizedBox(
                 width: double.infinity,
@@ -293,8 +299,10 @@ class _FilterPanelState extends State<FilterPanel> {
                     _canApply
                         ? 'Apply Filter${_activeFilterCount > 0 ? ' ($_activeFilterCount)' : ''}'
                         : 'Select at least one domain',
-                    style: InterceptlyTheme.typography.labelMediumMedium.copyWith(
-                      color: _canApply ? colors.textOnAction : colors.textTertiary,
+                    style:
+                        InterceptlyTheme.typography.labelMediumMedium.copyWith(
+                      color:
+                          _canApply ? colors.textOnAction : colors.textTertiary,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -418,7 +426,8 @@ class _FilterPanelState extends State<FilterPanel> {
           InterceptlySearchField(
             controller: _domainSearchController,
             hintText: 'Search domains...',
-            onChanged: (q) => setState(() => _domainSearchQuery = q.trim().toLowerCase()),
+            onChanged: (q) =>
+                setState(() => _domainSearchQuery = q.trim().toLowerCase()),
           ),
           SizedBox(height: spacing.sm),
         ],
@@ -462,7 +471,8 @@ class _FilterPanelState extends State<FilterPanel> {
                   child: Center(
                     child: Text(
                       'No matching domains',
-                      style: InterceptlyTheme.typography.bodySmallRegular.copyWith(
+                      style:
+                          InterceptlyTheme.typography.bodySmallRegular.copyWith(
                         color: colors.textTertiary,
                       ),
                     ),
@@ -492,7 +502,8 @@ class _FilterPanelState extends State<FilterPanel> {
                         });
                       },
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
                         child: Row(
                           children: [
                             AnimatedContainer(
@@ -500,23 +511,32 @@ class _FilterPanelState extends State<FilterPanel> {
                               width: 18,
                               height: 18,
                               decoration: BoxDecoration(
-                                color: isChecked ? colors.actionPrimary : Colors.transparent,
+                                color: isChecked
+                                    ? colors.actionPrimary
+                                    : Colors.transparent,
                                 borderRadius: BorderRadius.circular(4),
                                 border: Border.all(
-                                  color: isChecked ? colors.actionPrimary : colors.textTertiary,
+                                  color: isChecked
+                                      ? colors.actionPrimary
+                                      : colors.textTertiary,
                                   width: 1.5,
                                 ),
                               ),
                               child: isChecked
-                                  ? Icon(Icons.check, size: 12, color: colors.textOnAction)
+                                  ? Icon(Icons.check,
+                                      size: 12, color: colors.textOnAction)
                                   : null,
                             ),
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
                                 domain,
-                                style: InterceptlyTheme.typography.bodySmallMedium.copyWith(
-                                  color: isChecked ? colors.textPrimary : colors.textSecondary,
+                                style: InterceptlyTheme
+                                    .typography.bodySmallMedium
+                                    .copyWith(
+                                  color: isChecked
+                                      ? colors.textPrimary
+                                      : colors.textSecondary,
                                 ),
                                 overflow: TextOverflow.ellipsis,
                               ),

@@ -182,7 +182,8 @@ class RealtimeStore {
 
   final Map<String, DynamicCircularBuffer> _buffersBySession = {};
   final Map<String, _RealtimeBufferListView> _viewsBySession = {};
-  final Map<String, ValueNotifier<RealtimeFrameCounts>> _notifiersBySession = {};
+  final Map<String, ValueNotifier<RealtimeFrameCounts>> _notifiersBySession =
+      {};
   final Map<String, RealtimeFrameCounts> _liveCountsBySession = {};
   final Set<String> _dirtyNotifierSessions = {};
   final Set<String> _closedSessions = {};
@@ -367,7 +368,8 @@ class RealtimeStore {
   }
 
   /// Returns the per-session [ValueListenable] for reactive frame count updates.
-  ValueListenable<RealtimeFrameCounts> getFrameCountsNotifier(String sessionId) {
+  ValueListenable<RealtimeFrameCounts> getFrameCountsNotifier(
+      String sessionId) {
     return _notifiersBySession.putIfAbsent(
       sessionId,
       () => ValueNotifier(

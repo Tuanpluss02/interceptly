@@ -22,7 +22,12 @@ export 'src/model/request_record.dart' show RequestRecord;
 export 'src/model/raw_capture.dart' show RawCapture;
 export 'src/model/body_location.dart' show BodyLocation;
 export 'src/model/realtime_frame.dart'
-    show FrameDirection, FrameType, RealtimeFrame, RealtimeFrameCounts, utf8ByteLength;
+    show
+        FrameDirection,
+        FrameType,
+        RealtimeFrame,
+        RealtimeFrameCounts,
+        utf8ByteLength;
 export 'src/model/realtime_protocol_type.dart'
     show RealtimeConnectionSender, RealtimeMessageDraft, RealtimeProtocolType;
 export 'src/model/body_truncation.dart' show BodyTruncation, TruncationStage;

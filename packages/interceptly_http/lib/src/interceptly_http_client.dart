@@ -18,7 +18,6 @@ class InterceptlyHttpClient extends http.BaseClient {
     HttpTrafficCollector? collector,
   ]) : collector = collector ?? HttpTrafficCollector.instance;
 
-
   final http.Client _inner;
 
   /// The traffic collector coordinating capture.

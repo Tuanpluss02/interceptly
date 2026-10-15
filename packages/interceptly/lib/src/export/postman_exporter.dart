@@ -36,7 +36,6 @@ class PostmanExporter {
     };
   }
 
-
   static Map<String, Object?> _itemFromRecord(RequestRecord r) {
     final uri = Uri.tryParse(r.url);
 

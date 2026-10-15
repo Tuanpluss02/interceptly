@@ -41,8 +41,7 @@ class _RealtimeMessageComposerSheetState
   @override
   void initState() {
     super.initState();
-    _eventController =
-        TextEditingController(text: widget.initialEvent ?? '');
+    _eventController = TextEditingController(text: widget.initialEvent ?? '');
     _payloadController =
         TextEditingController(text: widget.initialPayload ?? '');
     _payloadController.addListener(_onTextChanged);
@@ -140,14 +139,16 @@ class _RealtimeMessageComposerSheetState
                         padding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: InterceptlyTheme.indigo500.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(
-                              InterceptlyTheme.radius.sm),
+                          color: InterceptlyTheme.indigo500
+                              .withValues(alpha: 0.15),
+                          borderRadius:
+                              BorderRadius.circular(InterceptlyTheme.radius.sm),
                         ),
                         child: Text(
                           protocolName.toUpperCase(),
                           style: InterceptlyTheme.typography
-                              .monospace(InterceptlyTheme.typography.bodySmallMedium)
+                              .monospace(
+                                  InterceptlyTheme.typography.bodySmallMedium)
                               .copyWith(color: InterceptlyTheme.indigo500),
                         ),
                       ),
@@ -217,8 +218,8 @@ class _RealtimeMessageComposerSheetState
               // JSON warning
               if (_jsonWarning != null) ...[
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
                     color: InterceptlyTheme.red500.withValues(alpha: 0.1),
                     borderRadius:

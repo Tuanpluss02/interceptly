@@ -25,7 +25,6 @@ class HarExporter {
     };
   }
 
-
   static Map<String, Object?> _entryFromRecord(RequestRecord r) {
     final uri = Uri.tryParse(r.url);
     final queryString = uri != null && uri.hasQuery

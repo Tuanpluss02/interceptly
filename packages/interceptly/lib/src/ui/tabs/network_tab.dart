@@ -169,9 +169,8 @@ class _NetworkTabState extends State<NetworkTab> {
 
       final List<RequestRecord> records = [];
       for (var i = 0; i < selectedEntries.length; i += 10) {
-        final end = (i + 10 < selectedEntries.length)
-            ? i + 10
-            : selectedEntries.length;
+        final end =
+            (i + 10 < selectedEntries.length) ? i + 10 : selectedEntries.length;
         final chunk = selectedEntries.sublist(i, end);
         final chunkRecords = await Future.wait(
           chunk.map((entry) => widget.session.loadDetailById(entry.id)),
@@ -242,9 +241,7 @@ class _NetworkTabState extends State<NetworkTab> {
               if (widget.protocol != NetworkProtocol.realtime)
                 QuickFilterBar(session: widget.session),
             ],
-
             Divider(height: 1, color: InterceptlyTheme.dividerSubtle),
-
             Expanded(
               child: ListenableBuilder(
                 listenable: widget.session,
@@ -253,7 +250,6 @@ class _NetworkTabState extends State<NetworkTab> {
                     : _buildFlatList(context),
               ),
             ),
-
             if (_isSelectionMode)
               _ExportBar(
                 selectedCount: _selectedIds.length,
@@ -366,8 +362,8 @@ class _NetworkTabState extends State<NetworkTab> {
       final groupIds = group.requests.map((r) => r.id).toList();
       final allGroupSelected = groupIds.isNotEmpty &&
           groupIds.every((id) => _selectedIds.contains(id));
-      final someGroupSelected = !allGroupSelected &&
-          groupIds.any((id) => _selectedIds.contains(id));
+      final someGroupSelected =
+          !allGroupSelected && groupIds.any((id) => _selectedIds.contains(id));
 
       flatItems.add(_GroupHeaderItem(
         group: group,
@@ -483,8 +479,7 @@ class _NetworkTabState extends State<NetworkTab> {
         final elapsed = currentNow.difference(entry.timestamp);
         durationText = formatDuration(elapsed);
       } else {
-        durationText =
-            formatDuration(Duration(milliseconds: entry.durationMs));
+        durationText = formatDuration(Duration(milliseconds: entry.durationMs));
       }
     } else if (isPending) {
       durationText = 'loading…';

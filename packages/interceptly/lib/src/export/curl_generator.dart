@@ -25,10 +25,8 @@ class CurlGenerator {
   /// Throws an [ArgumentError] if the HTTP method is non-standard or contains
   /// unsafe characters (such as CRLF or shell metacharacters).
   static String fromRecord(RequestRecord record) {
-    final sanitizedMethod = record.method
-        .replaceAll(RegExp(r'[\r\n]'), '')
-        .trim()
-        .toUpperCase();
+    final sanitizedMethod =
+        record.method.replaceAll(RegExp(r'[\r\n]'), '').trim().toUpperCase();
 
     if (!_allowedMethods.contains(sanitizedMethod)) {
       throw ArgumentError(

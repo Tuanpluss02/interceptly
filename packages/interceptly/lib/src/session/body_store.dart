@@ -148,8 +148,7 @@ class BodyStore {
 
       final entities = await dir.list().toList();
       final activeBaseName = currentFileName?.split(RegExp(r'[/\\]')).last;
-      final threshold =
-          maxAge != null ? DateTime.now().subtract(maxAge) : null;
+      final threshold = maxAge != null ? DateTime.now().subtract(maxAge) : null;
 
       for (final entity in entities) {
         if (entity is File) {

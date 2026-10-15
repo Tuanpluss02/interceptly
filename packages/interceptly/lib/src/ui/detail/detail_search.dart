@@ -191,8 +191,10 @@ List<DetailMatch> _computeMatchesInternal({
     }
   }
 
-  addMatches(countOccurrences(url, q), overviewTabIndex, DetailSection.overviewUrl);
-  addMatches(countOccurrences(method, q), overviewTabIndex, DetailSection.overviewMethod);
+  addMatches(
+      countOccurrences(url, q), overviewTabIndex, DetailSection.overviewUrl);
+  addMatches(countOccurrences(method, q), overviewTabIndex,
+      DetailSection.overviewMethod);
   addMatches(
     countOccurrences(statusCode > 0 ? statusCode.toString() : 'N/A', q),
     overviewTabIndex,
@@ -209,9 +211,11 @@ List<DetailMatch> _computeMatchesInternal({
     DetailSection.overviewRequestSize,
   );
   addMatches(
-    countOccurrences(statusCode == 0 && !hasError
-        ? 'loading…'
-        : formatBytes(responseSizeBytes), q),
+    countOccurrences(
+        statusCode == 0 && !hasError
+            ? 'loading…'
+            : formatBytes(responseSizeBytes),
+        q),
     overviewTabIndex,
     DetailSection.overviewResponseSize,
   );
@@ -220,7 +224,8 @@ List<DetailMatch> _computeMatchesInternal({
       errorType: errorType,
       errorMessage: errorMessage,
     );
-    addMatches(countOccurrences(shortErr, q), overviewTabIndex, DetailSection.overviewError);
+    addMatches(countOccurrences(shortErr, q), overviewTabIndex,
+        DetailSection.overviewError);
   }
   addMatches(
     countOccurrences(timestampString, q),
@@ -231,7 +236,8 @@ List<DetailMatch> _computeMatchesInternal({
     ...bodyTruncationNotices(requestTruncation),
     ...bodyTruncationNotices(responseTruncation),
   ]) {
-    addMatches(countOccurrences(notice, q), overviewTabIndex, DetailSection.requestBody);
+    addMatches(countOccurrences(notice, q), overviewTabIndex,
+        DetailSection.requestBody);
   }
 
   if (!isWs) {

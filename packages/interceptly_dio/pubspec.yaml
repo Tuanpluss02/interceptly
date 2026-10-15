@@ -1,6 +1,10 @@
 name: interceptly_dio
 description: "Dio interceptor for Interceptly network inspector."
 version: 1.0.0
+homepage: https://github.com/Tuanpluss02/interceptly
+repository: https://github.com/Tuanpluss02/interceptly
+issue_tracker: https://github.com/Tuanpluss02/interceptly/issues
+documentation: https://pub.dev/documentation/interceptly_dio/latest/
 
 environment:
   sdk: '>=3.5.0 <4.0.0'
@@ -9,8 +13,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  interceptly:
-    path: ../interceptly
+  interceptly: ^2.1.0
   dio: ^5.0.0
 
 dev_dependencies:

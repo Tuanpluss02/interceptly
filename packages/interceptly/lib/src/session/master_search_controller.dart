@@ -192,7 +192,9 @@ class MasterSearchController extends ChangeNotifier {
             }
           } else {
             final batchSize = fileEntries.length > 100 ? 32 : 16;
-            for (var start = 0; start < fileEntries.length; start += batchSize) {
+            for (var start = 0;
+                start < fileEntries.length;
+                start += batchSize) {
               if (gen != _generation || _isDisposed) return;
               final batch = fileEntries.sublist(
                 start,
@@ -204,11 +206,13 @@ class MasterSearchController extends ChangeNotifier {
                 if (gen != _generation || _isDisposed) return;
                 try {
                   final (e, offset, length) = item;
-                  final raw = await BodyStore.readWithHandle(raf, offset, length);
+                  final raw =
+                      await BodyStore.readWithHandle(raf, offset, length);
                   batchPayloads.add((e, raw));
                 } catch (e) {
                   if (kDebugMode) {
-                    debugPrint('[Interceptly] master search file read error: $e');
+                    debugPrint(
+                        '[Interceptly] master search file read error: $e');
                   }
                   batchPayloads.add(null);
                 }
@@ -218,9 +222,10 @@ class MasterSearchController extends ChangeNotifier {
                 if (payload == null) return (false, null);
                 final (e, raw) = payload;
                 try {
-                  final decoded = raw.length > BodyDecodeService.computeThreshold
-                      ? await compute(BodyDecodeService.unpackToText, raw)
-                      : BodyDecodeService.unpackToText(raw);
+                  final decoded =
+                      raw.length > BodyDecodeService.computeThreshold
+                          ? await compute(BodyDecodeService.unpackToText, raw)
+                          : BodyDecodeService.unpackToText(raw);
                   final combined =
                       '${decoded.$1 ?? ''}\n${decoded.$2 ?? ''}'.toLowerCase();
                   if (combined.contains(q)) return (true, e);
@@ -302,8 +307,7 @@ class MasterSearchController extends ChangeNotifier {
 
   static Set<SearchMatchScope> _checkStructuredScopes(IndexEntry e, String q) {
     final scopes = <SearchMatchScope>{};
-    if (e.url.toLowerCase().contains(q) ||
-        e.method.toLowerCase().contains(q)) {
+    if (e.url.toLowerCase().contains(q) || e.method.toLowerCase().contains(q)) {
       scopes.add(SearchMatchScope.url);
     }
     if (e.errorMessage?.toLowerCase().contains(q) ?? false) {

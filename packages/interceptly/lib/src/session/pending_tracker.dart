@@ -98,8 +98,7 @@ class PendingTracker {
     _memoryIndex.add(
       current.copyWith(
         statusCode: closeCode,
-        durationMs:
-            DateTime.now().difference(current.timestamp).inMilliseconds,
+        durationMs: DateTime.now().difference(current.timestamp).inMilliseconds,
         hasError: closeCode > 1000 && closeCode != 1005,
         errorMessage: closeReason ?? current.errorMessage,
       ),

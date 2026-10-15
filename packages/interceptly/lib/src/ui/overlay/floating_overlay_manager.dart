@@ -148,7 +148,9 @@ class FloatingOverlayManager {
         if (!_inspectorIsOpen) {
           _tryInsertOverlays();
         }
-      } else if (_fabEntry == null && showFloatingButton && !_hiddenForSession) {
+      } else if (_fabEntry == null &&
+          showFloatingButton &&
+          !_hiddenForSession) {
         _tryInsertOverlays();
       } else if (configChanged) {
         _fabEntry?.markNeedsBuild();

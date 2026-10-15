@@ -79,7 +79,6 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     return '${time}_$seq';
   }
 
-
   static InspectorSession? _instance;
 
   /// Returns the shared default session singleton.
@@ -394,7 +393,8 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   }
 
   /// Applies simulated upload network latency and bandwidth throttling.
-  Future<void> applyNetworkSimulationBeforeRequest({required int uploadBytes}) =>
+  Future<void> applyNetworkSimulationBeforeRequest(
+          {required int uploadBytes}) =>
       NetworkSimulationService.applyBeforeRequest(
         _networkSimulation,
         uploadBytes: uploadBytes,

@@ -35,7 +35,7 @@ class IndexEntry extends RequestSummary {
     this.fileOffset,
     this.fileLength,
     String? domain,
-  })  : domain = domain ?? RequestFilter.extractDomain(url);
+  }) : domain = domain ?? RequestFilter.extractDomain(url);
 
   /// Where the full body lives.
   final BodyLocation bodyLocation;
@@ -102,7 +102,9 @@ class IndexEntry extends RequestSummary {
       fileOffset: fileOffset ?? this.fileOffset,
       fileLength: fileLength ?? this.fileLength,
       domain: domain ??
-          (url != null ? RequestFilter.extractDomain(effectiveUrl) : this.domain),
+          (url != null
+              ? RequestFilter.extractDomain(effectiveUrl)
+              : this.domain),
     );
   }
 }

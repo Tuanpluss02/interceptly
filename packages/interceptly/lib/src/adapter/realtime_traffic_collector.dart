@@ -210,10 +210,8 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
     final effectivePayload = normalized?.payload ?? payload;
     final effectiveSize =
         normalized?.originalSizeBytes ?? payloadSizeBytes ?? 0;
-    final effectivePreview =
-        normalized?.shortPreview ?? shortPreview ?? '';
-    final effectiveBytes =
-        normalized?.preEncodedBytes ?? preEncodedBytes;
+    final effectivePreview = normalized?.shortPreview ?? shortPreview ?? '';
+    final effectiveBytes = normalized?.preEncodedBytes ?? preEncodedBytes;
 
     String? textPayload;
     Uint8List? binaryPayload;

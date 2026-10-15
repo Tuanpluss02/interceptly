@@ -1,7 +1,10 @@
 name: interceptly_web_socket
 description: "WebSocketChannel adapter for Interceptly network inspector."
 version: 1.0.0
-publish_to: "none"
+homepage: https://github.com/Tuanpluss02/interceptly
+repository: https://github.com/Tuanpluss02/interceptly
+issue_tracker: https://github.com/Tuanpluss02/interceptly/issues
+documentation: https://pub.dev/documentation/interceptly_web_socket/latest/
 environment:
   sdk: '>=3.5.0 <4.0.0'
   flutter: ">=3.24.0"
@@ -9,8 +12,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  interceptly:
-    path: ../interceptly
+  interceptly: ^2.1.0
   stream_channel: '>=2.1.0 <3.0.0'
   web_socket_channel: '>=2.4.0 <4.0.0'
 
