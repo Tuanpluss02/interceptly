@@ -13,6 +13,11 @@ on:
         required: false
         type: boolean
         default: false
+      manual_version:
+        description: 'Manual version override (e.g. interceptly:2.1.1, interceptly:patch, or leave empty for auto)'
+        required: false
+        type: string
+        default: ''
   push:
     tags:
       - '*-v*'
@@ -62,7 +67,14 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' }}
         run: |
           echo "::notice::Running Melos versioning in DRY RUN mode..."
-          melos version --yes --no-git-tag-version ${{ github.event.inputs.prerelease == 'true' && '--prerelease' || '' }}
+          EXTRA_ARGS=""
+          if [ "${{ github.event.inputs.prerelease }}" = "true" ]; then
+            EXTRA_ARGS="$EXTRA_ARGS --prerelease"
+          fi
+          if [ -n "${{ github.event.inputs.manual_version }}" ]; then
+            EXTRA_ARGS="$EXTRA_ARGS --manual-version=${{ github.event.inputs.manual_version }}"
+          fi
+          melos version --yes --no-git-tag-version $EXTRA_ARGS
           echo "=== CHANGELOG DIFF PREVIEW ==="
           git diff
 
@@ -70,7 +82,14 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run != 'true' }}
         run: |
           echo "::notice::Applying Melos versioning and pushing release tags..."
-          melos version --yes ${{ github.event.inputs.prerelease == 'true' && '--prerelease' || '' }}
+          EXTRA_ARGS=""
+          if [ "${{ github.event.inputs.prerelease }}" = "true" ]; then
+            EXTRA_ARGS="$EXTRA_ARGS --prerelease"
+          fi
+          if [ -n "${{ github.event.inputs.manual_version }}" ]; then
+            EXTRA_ARGS="$EXTRA_ARGS --manual-version=${{ github.event.inputs.manual_version }}"
+          fi
+          melos version --yes $EXTRA_ARGS
           git push --follow-tags origin main
 
       # --- 2. Pub.dev Publishing via OIDC ---
