@@ -157,7 +157,8 @@ class _WebSocketChannelSender implements RealtimeConnectionSender {
   bool get canSend => !_channel.scope.isClosed;
 
   @override
-  Future<void> send(RealtimeMessageDraft draft) async {
+  Future<void> send(RealtimeMessageDraft draft) {
     _channel.sink.add(draft.payload);
+    return Future<void>.value();
   }
 }

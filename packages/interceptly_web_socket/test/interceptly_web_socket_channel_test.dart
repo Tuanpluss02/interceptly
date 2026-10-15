@@ -755,6 +755,20 @@ void main() {
         throwsStateError,
       );
     });
+
+    test('sender.send immediately and synchronously invokes sink.add without microtask delay', () async {
+      final channel = InterceptlyWebSocketChannel(
+        fakeChannel,
+        sessionId: 'sync-send-session',
+      );
+      final sender = channel.scope.sender!;
+      const draft = RealtimeMessageDraft(payload: 'sync-payload');
+
+      final future = sender.send(draft);
+      await pumpEventQueue();
+      expect(fakeChannel.sentData, contains('sync-payload'));
+      await expectLater(future, completes);
+    });
   });
 }
 
@@ -852,6 +866,7 @@ class _SpyRealtimeTrafficCollector implements RealtimeTrafficCollector {
     String? shortPreview,
     bool? shouldOffload,
     String? eventName,
+    Uint8List? preEncodedBytes,
   }) {
     if (throwOnFrame) throw Exception('Simulated recordFrame error');
     recordFrameCalls.add({

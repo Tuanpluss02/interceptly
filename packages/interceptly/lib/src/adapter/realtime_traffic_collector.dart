@@ -197,50 +197,48 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
     String? eventName,
     Uint8List? preEncodedBytes,
   }) {
-    guardCapture(() {
-      final normalized = (shortPreview != null && payloadSizeBytes != null)
-          ? null
-          : FrameNormalizer.normalize(
-              payload,
-              offloadThreshold: offloadThreshold,
-              maxBodyBytes: maxBodyBytes,
-              explicitType: type,
-            );
+    final normalized = (shortPreview != null && payloadSizeBytes != null)
+        ? null
+        : FrameNormalizer.normalize(
+            payload,
+            offloadThreshold: offloadThreshold,
+            maxBodyBytes: maxBodyBytes,
+            explicitType: type,
+          );
 
-      final effectiveType = normalized?.type ?? type;
-      final effectivePayload = normalized?.payload ?? payload;
-      final effectiveSize =
-          normalized?.originalSizeBytes ?? payloadSizeBytes ?? 0;
-      final effectivePreview =
-          normalized?.shortPreview ?? shortPreview ?? '';
-      final effectiveBytes =
-          normalized?.preEncodedBytes ?? preEncodedBytes;
+    final effectiveType = normalized?.type ?? type;
+    final effectivePayload = normalized?.payload ?? payload;
+    final effectiveSize =
+        normalized?.originalSizeBytes ?? payloadSizeBytes ?? 0;
+    final effectivePreview =
+        normalized?.shortPreview ?? shortPreview ?? '';
+    final effectiveBytes =
+        normalized?.preEncodedBytes ?? preEncodedBytes;
 
-      String? textPayload;
-      Uint8List? binaryPayload;
+    String? textPayload;
+    Uint8List? binaryPayload;
 
-      if (effectiveType == FrameType.binary && effectivePayload is Uint8List) {
-        binaryPayload = effectivePayload;
-      } else if (effectiveType == FrameType.text && effectivePayload is String) {
-        textPayload = effectivePayload;
-      }
+    if (effectiveType == FrameType.binary && effectivePayload is Uint8List) {
+      binaryPayload = effectivePayload;
+    } else if (effectiveType == FrameType.text && effectivePayload is String) {
+      textPayload = effectivePayload;
+    }
 
-      final frame = RealtimeFrame(
-        id: RequestId.generate(),
-        sessionId: sessionId,
-        direction: direction,
-        type: effectiveType,
-        textPayload: textPayload,
-        binaryPayload: binaryPayload,
-        shortPreview: effectivePreview,
-        payloadSizeBytes: effectiveSize,
-        timestamp: timestamp,
-        eventName: eventName,
-        preEncodedBytes: effectiveBytes,
-      );
+    final frame = RealtimeFrame(
+      id: RequestId.generate(),
+      sessionId: sessionId,
+      direction: direction,
+      type: effectiveType,
+      textPayload: textPayload,
+      binaryPayload: binaryPayload,
+      shortPreview: effectivePreview,
+      payloadSizeBytes: effectiveSize,
+      timestamp: timestamp,
+      eventName: eventName,
+      preEncodedBytes: effectiveBytes,
+    );
 
-      session.recordRealtimeFrame(frame);
-    });
+    session.recordRealtimeFrame(frame);
   }
 
   @override
@@ -250,12 +248,10 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
     String? closeReason,
   }) {
     _activeScopes.remove(sessionId);
-    guardCapture(() {
-      session.closeRealtimeConnection(
-        sessionId,
-        closeCode: closeCode ?? 1000,
-        closeReason: closeReason,
-      );
-    });
+    session.closeRealtimeConnection(
+      sessionId,
+      closeCode: closeCode ?? 1000,
+      closeReason: closeReason,
+    );
   }
 }

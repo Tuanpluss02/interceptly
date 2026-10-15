@@ -17,10 +17,17 @@ class RealtimeBodyStore {
   /// Default maximum file size before automatic rotation occurs (50 MB).
   static const int kDefaultMaxFileBytes = 50 * 1024 * 1024;
 
-  RealtimeBodyStore({int maxFileBytes = kDefaultMaxFileBytes})
-      : _maxFileBytes = maxFileBytes;
+  /// Default queue saturation limit for backpressure before fallback to memory occurs.
+  static const int kDefaultMaxPendingWrites = 1000;
+
+  RealtimeBodyStore({
+    int maxFileBytes = kDefaultMaxFileBytes,
+    int maxPendingWrites = kDefaultMaxPendingWrites,
+  })  : _maxFileBytes = maxFileBytes,
+        _maxPendingWrites = maxPendingWrites;
 
   final int _maxFileBytes;
+  final int _maxPendingWrites;
   late File _file;
   RandomAccessFile? _raf;
   int _currentOffset = 0;
@@ -41,6 +48,9 @@ class RealtimeBodyStore {
 
   /// Number of write operations currently queued in the FIFO async backlog.
   int get pendingWrites => _pendingWrites;
+
+  /// Maximum number of queued write operations permitted before backpressure triggers.
+  int get maxPendingWrites => _maxPendingWrites;
 
   /// Maximum byte capacity before rotation occurs.
   int get maxFileBytes => _maxFileBytes;
@@ -90,9 +100,9 @@ class RealtimeBodyStore {
         'RealtimeBodyStore is not initialized for writing. Call initForWrite() first.',
       );
     }
-    if (_pendingWrites >= 100) {
+    if (_pendingWrites >= _maxPendingWrites) {
       throw StateError(
-        'RealtimeBodyStore write queue saturated (backpressure limit 100 exceeded).',
+        'RealtimeBodyStore write queue saturated (backpressure limit $_maxPendingWrites exceeded).',
       );
     }
 

@@ -141,21 +141,21 @@ void main() {
     });
 
     test('enforces backpressure guard when pending writes exceed limit', () async {
-      final store = RealtimeBodyStore();
+      final store = RealtimeBodyStore(maxPendingWrites: 20);
       addTearDown(store.dispose);
       await store.initForWrite(tempDir.path);
 
       final futures = <Future<dynamic>>[];
-      for (var i = 0; i < 100; i++) {
+      for (var i = 0; i < 20; i++) {
         futures.add(store.append(Uint8List.fromList([i])));
       }
 
       expect(
-        () => store.append(Uint8List.fromList([101])),
+        () => store.append(Uint8List.fromList([21])),
         throwsA(isA<StateError>().having(
           (e) => e.message,
           'message',
-          contains('saturated'),
+          contains('saturated (backpressure limit 20 exceeded)'),
         )),
       );
 
