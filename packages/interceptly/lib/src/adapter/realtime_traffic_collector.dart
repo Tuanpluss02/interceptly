@@ -74,6 +74,7 @@ abstract interface class RealtimeTrafficCollector {
     String? shortPreview,
     bool? shouldOffload,
     String? eventName,
+    Uint8List? preEncodedBytes,
   });
 
   /// Records the closure of an active realtime connection.
@@ -194,6 +195,7 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
     String? shortPreview,
     bool? shouldOffload,
     String? eventName,
+    Uint8List? preEncodedBytes,
   }) {
     guardCapture(() {
       final normalized = (shortPreview != null && payloadSizeBytes != null)
@@ -211,6 +213,8 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
           normalized?.originalSizeBytes ?? payloadSizeBytes ?? 0;
       final effectivePreview =
           normalized?.shortPreview ?? shortPreview ?? '';
+      final effectiveBytes =
+          normalized?.preEncodedBytes ?? preEncodedBytes;
 
       String? textPayload;
       Uint8List? binaryPayload;
@@ -232,6 +236,7 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
         payloadSizeBytes: effectiveSize,
         timestamp: timestamp,
         eventName: eventName,
+        preEncodedBytes: effectiveBytes,
       );
 
       session.recordRealtimeFrame(frame);

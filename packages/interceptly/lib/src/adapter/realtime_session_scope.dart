@@ -107,6 +107,7 @@ class RealtimeSessionScope {
       shortPreview: normalized.shortPreview,
       shouldOffload: normalized.shouldOffload,
       eventName: eventName,
+      preEncodedBytes: normalized.preEncodedBytes,
     );
   }
 }

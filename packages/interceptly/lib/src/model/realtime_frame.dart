@@ -50,12 +50,14 @@ class RealtimeFrame {
     this.fileLength,
     this.rotationCount,
     this.eventName,
+    this.preEncodedBytes,
     int? payloadSizeBytes,
     DateTime? timestamp,
   })  : shortPreview = shortPreview ??
             extractShortPreview(textPayload ?? binaryPayload, type),
         payloadSizeBytes = payloadSizeBytes ??
             fileLength ??
+            preEncodedBytes?.lengthInBytes ??
             binaryPayload?.lengthInBytes ??
             (textPayload != null ? utf8ByteLength(textPayload) : 0),
         timestamp = timestamp ?? DateTime.now();
@@ -76,6 +78,7 @@ class RealtimeFrame {
     this.fileLength,
     this.rotationCount,
     this.eventName,
+    this.preEncodedBytes,
   });
 
   /// Convenience factory for creating a text frame retained in memory.
@@ -88,6 +91,7 @@ class RealtimeFrame {
     DateTime? timestamp,
     int? payloadSizeBytes,
     String? shortPreview,
+    Uint8List? preEncodedBytes,
   }) {
     return RealtimeFrame(
       id: id,
@@ -100,6 +104,7 @@ class RealtimeFrame {
       payloadSizeBytes: payloadSizeBytes,
       timestamp: timestamp,
       shortPreview: shortPreview,
+      preEncodedBytes: preEncodedBytes,
     );
   }
 
@@ -113,6 +118,7 @@ class RealtimeFrame {
     DateTime? timestamp,
     int? payloadSizeBytes,
     String? shortPreview,
+    Uint8List? preEncodedBytes,
   }) {
     return RealtimeFrame(
       id: id,
@@ -125,6 +131,7 @@ class RealtimeFrame {
       payloadSizeBytes: payloadSizeBytes,
       timestamp: timestamp,
       shortPreview: shortPreview,
+      preEncodedBytes: preEncodedBytes ?? bytes,
     );
   }
 
@@ -155,6 +162,7 @@ class RealtimeFrame {
       payloadSizeBytes: payloadSizeBytes,
       eventName: eventName,
       timestamp: timestamp,
+      preEncodedBytes: null,
     );
   }
 
@@ -168,6 +176,7 @@ class RealtimeFrame {
     DateTime? timestamp,
     int? payloadSizeBytes,
     String? shortPreview,
+    Uint8List? preEncodedBytes,
   }) = RealtimeFrame.memoryText;
 
   /// Alias for [RealtimeFrame.memoryBinary].
@@ -180,6 +189,7 @@ class RealtimeFrame {
     DateTime? timestamp,
     int? payloadSizeBytes,
     String? shortPreview,
+    Uint8List? preEncodedBytes,
   }) = RealtimeFrame.memoryBinary;
 
   /// Unique identifier for this frame.
@@ -223,6 +233,9 @@ class RealtimeFrame {
 
   /// When this frame was captured.
   final DateTime timestamp;
+
+  /// Pre-encoded UTF-8 or raw bytes prepared for zero-re-encoding disk offload.
+  final Uint8List? preEncodedBytes;
 
   /// True if this is a text message frame.
   bool get isText => type == FrameType.text;
@@ -310,6 +323,7 @@ class RealtimeFrame {
     String? eventName,
     int? payloadSizeBytes,
     DateTime? timestamp,
+    Uint8List? preEncodedBytes,
   }) {
     return RealtimeFrame(
       id: id ?? this.id,
@@ -326,6 +340,7 @@ class RealtimeFrame {
       eventName: eventName ?? this.eventName,
       payloadSizeBytes: payloadSizeBytes ?? this.payloadSizeBytes,
       timestamp: timestamp ?? this.timestamp,
+      preEncodedBytes: preEncodedBytes ?? this.preEncodedBytes,
     );
   }
 

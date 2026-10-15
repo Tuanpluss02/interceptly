@@ -501,12 +501,10 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
 
   Future<void> _offloadAndReplaceFrame(RealtimeFrame frame) async {
     await _ensureRealtimeBodyStoreInitialized();
-    final Uint8List bytes;
-    if (frame.type == FrameType.text) {
-      bytes = Uint8List.fromList(utf8.encode(frame.textPayload ?? ''));
-    } else {
-      bytes = frame.binaryPayload ?? Uint8List(0);
-    }
+    final Uint8List bytes = frame.preEncodedBytes ??
+        (frame.type == FrameType.text
+            ? Uint8List.fromList(utf8.encode(frame.textPayload ?? ''))
+            : frame.binaryPayload ?? Uint8List(0));
 
     final (offset, length, rotation) = await _realtimeBodyStore.append(bytes);
 

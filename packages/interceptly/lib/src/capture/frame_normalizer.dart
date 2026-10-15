@@ -21,12 +21,16 @@ class NormalizedFrame {
   /// Whether this frame exceeds the offload threshold and should be streamed to disk.
   final bool shouldOffload;
 
+  /// Pre-encoded UTF-8 or raw bytes prepared for zero-re-encoding disk offload.
+  final Uint8List? preEncodedBytes;
+
   const NormalizedFrame({
     required this.type,
     required this.payload,
     required this.originalSizeBytes,
     required this.shortPreview,
     required this.shouldOffload,
+    this.preEncodedBytes,
   });
 }
 
@@ -41,6 +45,7 @@ class FrameNormalizer {
   /// - Avoids cloning [Uint8List] / [ByteData] buffers (uses [Uint8List.sublistView] when truncating).
   /// - Generates a safe Unicode [shortPreview] (<= 128 chars).
   /// - Flags [shouldOffload] when [originalSizeBytes] >= [offloadThreshold] and [offloadThreshold] > 0.
+  /// - Pre-encodes [preEncodedBytes] once when [shouldOffload] is true, eliminating downstream re-encoding.
   static NormalizedFrame normalize(
     dynamic raw, {
     required int offloadThreshold,
@@ -50,10 +55,16 @@ class FrameNormalizer {
     FrameType type;
     dynamic payload;
     int originalSize;
+    Uint8List? preEncodedBytes;
+    bool shouldOffload;
 
     if (raw is Uint8List) {
       type = explicitType ?? FrameType.binary;
       originalSize = raw.lengthInBytes;
+      shouldOffload = offloadThreshold > 0 && originalSize >= offloadThreshold;
+      if (shouldOffload) {
+        preEncodedBytes = raw;
+      }
       if (maxBodyBytes > 0 && originalSize > maxBodyBytes) {
         payload = Uint8List.sublistView(raw, 0, maxBodyBytes);
       } else {
@@ -61,8 +72,13 @@ class FrameNormalizer {
       }
     } else if (raw is ByteData) {
       type = explicitType ?? FrameType.binary;
-      final bytes = raw.buffer.asUint8List(raw.offsetInBytes, raw.lengthInBytes);
+      final bytes =
+          raw.buffer.asUint8List(raw.offsetInBytes, raw.lengthInBytes);
       originalSize = bytes.lengthInBytes;
+      shouldOffload = offloadThreshold > 0 && originalSize >= offloadThreshold;
+      if (shouldOffload) {
+        preEncodedBytes = bytes;
+      }
       if (maxBodyBytes > 0 && originalSize > maxBodyBytes) {
         payload = Uint8List.sublistView(bytes, 0, maxBodyBytes);
       } else {
@@ -71,14 +87,31 @@ class FrameNormalizer {
     } else if (raw is List<int> && explicitType != FrameType.text) {
       type = explicitType ?? FrameType.binary;
       originalSize = raw.length;
+      final bytes = raw is Uint8List ? raw : Uint8List.fromList(raw);
+      shouldOffload = offloadThreshold > 0 && originalSize >= offloadThreshold;
+      if (shouldOffload) {
+        preEncodedBytes = bytes;
+      }
       if (maxBodyBytes > 0 && originalSize > maxBodyBytes) {
-        payload = Uint8List.fromList(raw.sublist(0, maxBodyBytes));
+        payload = Uint8List.sublistView(bytes, 0, maxBodyBytes);
       } else {
-        payload = Uint8List.fromList(raw);
+        payload = bytes;
       }
     } else if (raw is String) {
       type = explicitType ?? FrameType.text;
-      originalSize = utf8ByteLength(raw);
+      if (offloadThreshold > 0 && raw.length >= offloadThreshold) {
+        final bytes = Uint8List.fromList(utf8.encode(raw));
+        originalSize = bytes.lengthInBytes;
+        shouldOffload = true;
+        preEncodedBytes = bytes;
+      } else {
+        originalSize = utf8ByteLength(raw);
+        shouldOffload =
+            offloadThreshold > 0 && originalSize >= offloadThreshold;
+        if (shouldOffload) {
+          preEncodedBytes = Uint8List.fromList(utf8.encode(raw));
+        }
+      }
       if (maxBodyBytes > 0 && originalSize > maxBodyBytes) {
         payload = truncateUtf8(raw, maxBodyBytes);
       } else {
@@ -92,7 +125,19 @@ class FrameNormalizer {
       } catch (_) {
         text = raw.toString();
       }
-      originalSize = utf8ByteLength(text);
+      if (offloadThreshold > 0 && text.length >= offloadThreshold) {
+        final bytes = Uint8List.fromList(utf8.encode(text));
+        originalSize = bytes.lengthInBytes;
+        shouldOffload = true;
+        preEncodedBytes = bytes;
+      } else {
+        originalSize = utf8ByteLength(text);
+        shouldOffload =
+            offloadThreshold > 0 && originalSize >= offloadThreshold;
+        if (shouldOffload) {
+          preEncodedBytes = Uint8List.fromList(utf8.encode(text));
+        }
+      }
       if (maxBodyBytes > 0 && originalSize > maxBodyBytes) {
         payload = truncateUtf8(text, maxBodyBytes);
       } else {
@@ -101,11 +146,24 @@ class FrameNormalizer {
     } else if (raw == null) {
       type = explicitType ?? FrameType.text;
       originalSize = 0;
+      shouldOffload = false;
       payload = '';
     } else {
       type = explicitType ?? FrameType.text;
       final text = raw.toString();
-      originalSize = utf8ByteLength(text);
+      if (offloadThreshold > 0 && text.length >= offloadThreshold) {
+        final bytes = Uint8List.fromList(utf8.encode(text));
+        originalSize = bytes.lengthInBytes;
+        shouldOffload = true;
+        preEncodedBytes = bytes;
+      } else {
+        originalSize = utf8ByteLength(text);
+        shouldOffload =
+            offloadThreshold > 0 && originalSize >= offloadThreshold;
+        if (shouldOffload) {
+          preEncodedBytes = Uint8List.fromList(utf8.encode(text));
+        }
+      }
       if (maxBodyBytes > 0 && originalSize > maxBodyBytes) {
         payload = truncateUtf8(text, maxBodyBytes);
       } else {
@@ -113,8 +171,6 @@ class FrameNormalizer {
       }
     }
 
-    final shouldOffload =
-        offloadThreshold > 0 && originalSize >= offloadThreshold;
     final shortPreview = RealtimeFrame.extractShortPreview(payload, type);
 
     return NormalizedFrame(
@@ -123,6 +179,7 @@ class FrameNormalizer {
       originalSizeBytes: originalSize,
       shortPreview: shortPreview,
       shouldOffload: shouldOffload,
+      preEncodedBytes: preEncodedBytes,
     );
   }
 }

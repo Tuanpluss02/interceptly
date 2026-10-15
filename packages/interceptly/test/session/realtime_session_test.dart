@@ -693,6 +693,18 @@ void main() {
       expect(normalized.type, equals(FrameType.text));
       expect(normalized.payload, contains('[...]'));
     });
+
+    test('FrameNormalizer attaches pre-encoded bytes for frames >= offloadThreshold', () {
+      final largeJson = jsonEncode({'data': 'x' * 35000});
+      final normalized = FrameNormalizer.normalize(
+        largeJson,
+        offloadThreshold: 32 * 1024,
+        maxBodyBytes: 100 * 1024,
+      );
+      expect(normalized.shouldOffload, isTrue);
+      expect(normalized.preEncodedBytes, isNotNull);
+      expect(normalized.preEncodedBytes!.length, equals(normalized.originalSizeBytes));
+    });
   });
 
   group('Clean-Sheet RealtimeStore with Dynamic Circular Buffer & Global Budget', () {
