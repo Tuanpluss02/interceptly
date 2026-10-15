@@ -238,6 +238,7 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
         initialEvent: _eventController.text,
         initialPayload: _chatController.text,
         onSend: (draft) async {
+          if (draft.payload.toString().trim().isEmpty) return;
           await widget.session?.sendRealtimeMessage(widget.sessionId, draft);
           _chatController.clear();
         },

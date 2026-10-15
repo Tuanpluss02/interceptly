@@ -169,5 +169,66 @@ void main() {
       expect(find.byKey(const ValueKey('realtime_composer_sheet')), findsNothing);
       expect(sent, isFalse);
     });
+
+    testWidgets('Send button is disabled when payload is empty or whitespace only', (tester) async {
+      bool sent = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: RealtimeMessageComposerSheet(
+              protocolType: RealtimeProtocolType.webSocket,
+              initialPayload: null,
+              onSend: (draft) async {
+                sent = true;
+              },
+            ),
+          ),
+        ),
+      );
+
+      final sendButtonFinder = find.byKey(const ValueKey('realtime_composer_send_button'));
+      expect(sendButtonFinder, findsOneWidget);
+
+      // Verify disabled initially with null/empty payload
+      final initialButton = tester.widget<FilledButton>(sendButtonFinder);
+      expect(initialButton.onPressed, isNull);
+
+      // Attempt to tap disabled send button
+      await tester.tap(sendButtonFinder);
+      await tester.pump();
+      expect(sent, isFalse);
+
+      // Type whitespace only -> still disabled
+      await tester.enterText(
+        find.byKey(const ValueKey('realtime_composer_payload_input')),
+        '   \n\t  ',
+      );
+      await tester.pump();
+
+      final whitespaceButton = tester.widget<FilledButton>(sendButtonFinder);
+      expect(whitespaceButton.onPressed, isNull);
+
+      // Enter valid text -> enabled
+      await tester.enterText(
+        find.byKey(const ValueKey('realtime_composer_payload_input')),
+        '{"action":"ping"}',
+      );
+      await tester.pump();
+
+      final enabledButton = tester.widget<FilledButton>(sendButtonFinder);
+      expect(enabledButton.onPressed, isNotNull);
+
+      // Clear text -> disabled again
+      await tester.enterText(
+        find.byKey(const ValueKey('realtime_composer_payload_input')),
+        '',
+      );
+      await tester.pump();
+
+      final clearedButton = tester.widget<FilledButton>(sendButtonFinder);
+      expect(clearedButton.onPressed, isNull);
+    });
   });
 }
+

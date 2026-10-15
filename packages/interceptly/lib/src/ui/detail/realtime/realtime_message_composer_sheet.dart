@@ -45,13 +45,27 @@ class _RealtimeMessageComposerSheetState
         TextEditingController(text: widget.initialEvent ?? '');
     _payloadController =
         TextEditingController(text: widget.initialPayload ?? '');
+    _payloadController.addListener(_onTextChanged);
+    _eventController.addListener(_onTextChanged);
+  }
+
+  void _onTextChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    _payloadController.removeListener(_onTextChanged);
+    _eventController.removeListener(_onTextChanged);
     _eventController.dispose();
     _payloadController.dispose();
     super.dispose();
+  }
+
+  bool get _isSendEnabled {
+    if (_isSending) return false;
+    final payload = _payloadController.text.trim();
+    return payload.isNotEmpty;
   }
 
   void _formatJson() {
@@ -70,6 +84,7 @@ class _RealtimeMessageComposerSheetState
   }
 
   Future<void> _handleSend() async {
+    if (!_isSendEnabled) return;
     final payload = _payloadController.text;
     final isSocketIo = widget.protocolType == RealtimeProtocolType.socketIo;
     final event = isSocketIo ? _eventController.text.trim() : null;
@@ -285,7 +300,7 @@ class _RealtimeMessageComposerSheetState
                   const SizedBox(width: 8),
                   FilledButton.icon(
                     key: const ValueKey('realtime_composer_send_button'),
-                    onPressed: _isSending ? null : _handleSend,
+                    onPressed: _isSendEnabled ? _handleSend : null,
                     icon: _isSending
                         ? const SizedBox(
                             width: 14,
@@ -297,6 +312,8 @@ class _RealtimeMessageComposerSheetState
                     style: FilledButton.styleFrom(
                       backgroundColor: InterceptlyTheme.indigo500,
                       foregroundColor: Colors.white,
+                      disabledBackgroundColor: InterceptlyTheme.controlMuted,
+                      disabledForegroundColor: InterceptlyTheme.textMuted,
                     ),
                   ),
                 ],

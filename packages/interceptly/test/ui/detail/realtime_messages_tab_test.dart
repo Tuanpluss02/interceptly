@@ -737,7 +737,24 @@ void main() {
         expect(session.sentDrafts.length, 1);
         expect(session.sentDrafts.first.payload, 'hello server');
       });
+
+      testWidgets('tapping expand when chat input is empty opens composer sheet with disabled send button', (tester) async {
+        final session = _MockSession();
+        session.activeCanSend = true;
+        session.protocol = RealtimeProtocolType.webSocket;
+
+        await tester.pumpWidget(buildTestWidget(sessionId: 'sess_1', session: session));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const ValueKey('realtime_chat_expand_button')));
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(const ValueKey('realtime_composer_sheet')), findsOneWidget);
+        final sendButton = tester.widget<FilledButton>(find.byKey(const ValueKey('realtime_composer_send_button')));
+        expect(sendButton.onPressed, isNull);
+      });
     });
+
 
     group('Auto-scroll & Scroll-to-bottom Behavior', () {
       testWidgets('auto-scrolls to bottom when new frame arrives and user is near bottom', (tester) async {
