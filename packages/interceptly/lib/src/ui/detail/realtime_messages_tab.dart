@@ -147,6 +147,8 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
       try {
         final payload = await widget.session!.loadRealtimePayload(frame);
         if (payload is Uint8List) {
+          final decoded = tryDecodeBinaryToText(payload);
+          if (decoded != null) return decoded;
           return formatBinaryPreview(payload);
         }
         return payload?.toString() ?? frame.shortPreview;
