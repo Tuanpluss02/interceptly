@@ -806,6 +806,43 @@ void main() {
           reason: 'Closed session frames must be prioritized for eviction');
     });
 
+    test('getRealtimeFrames does not pollute or mutate LRU session order', () {
+      final store = RealtimeStore(maxFramesPerSession: 10, maxSessions: 3, onThrottledBatch: () {});
+      addTearDown(store.dispose);
+
+      // Add frames to s1, s2, s3
+      store.recordFrame(RealtimeFrame.text(id: '1', sessionId: 's1', direction: FrameDirection.incoming, text: 'm'));
+      store.recordFrame(RealtimeFrame.text(id: '2', sessionId: 's2', direction: FrameDirection.incoming, text: 'm'));
+      store.recordFrame(RealtimeFrame.text(id: '3', sessionId: 's3', direction: FrameDirection.incoming, text: 'm'));
+
+      // Read s1 (oldest). Reading s1 MUST NOT make it the MRU.
+      store.getRealtimeFrames('s1');
+
+      // Adding s4 should evict s1 (the least recently WRITTEN session)
+      store.recordFrame(RealtimeFrame.text(id: '4', sessionId: 's4', direction: FrameDirection.incoming, text: 'm'));
+
+      expect(store.getRealtimeFrames('s1'), isEmpty, reason: 's1 must be evicted because read does not refresh LRU');
+      expect(store.getRealtimeFrames('s2').length, equals(1));
+      expect(store.getRealtimeFrames('s3').length, equals(1));
+      expect(store.getRealtimeFrames('s4').length, equals(1));
+    });
+
+    test('reading non-existent session does not allocate buffer or count towards maxSessions', () {
+      final store = RealtimeStore(maxFramesPerSession: 10, maxSessions: 2, onThrottledBatch: () {});
+      addTearDown(store.dispose);
+
+      final emptyView = store.getRealtimeFrames('ghost-session');
+      expect(emptyView, isEmpty);
+
+      // Now record to s1 and s2
+      store.recordFrame(RealtimeFrame.text(id: '1', sessionId: 's1', direction: FrameDirection.incoming, text: 'm'));
+      store.recordFrame(RealtimeFrame.text(id: '2', sessionId: 's2', direction: FrameDirection.incoming, text: 'm'));
+
+      // Both s1 and s2 must exist because ghost-session never took a slot
+      expect(store.getRealtimeFrames('s1').length, equals(1));
+      expect(store.getRealtimeFrames('s2').length, equals(1));
+    });
+
     test('frame arrival notifies only that session ValueNotifier<RealtimeFrameCounts>', () {
       final store = RealtimeStore(
         maxFramesPerSession: 100,
