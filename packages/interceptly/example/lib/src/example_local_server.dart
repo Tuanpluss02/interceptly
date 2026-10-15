@@ -587,20 +587,20 @@ class ExampleLocalServer {
         'event': 'connected',
         'room': 'support_channel',
         'message':
-            'Kết nối thành công đến Support Hub. Chuyên viên Sarah đã sẵn sàng!',
+            'Kết nối thành công đến Support Hub. Trợ lý StormX đã sẵn sàng!',
         'timestamp': DateTime.now().millisecondsSinceEpoch,
       }),
     );
 
-    // 2. Delayed Sarah greeting after 400ms
+    // 2. Delayed StormX greeting after 400ms
     Timer(const Duration(milliseconds: 400), () {
       if (socket.readyState == WebSocket.open) {
         socket.add(
           jsonEncode({
             'type': 'agent_message',
-            'from': 'Sarah (Support Specialist)',
+            'from': 'StormX (Support Bot)',
             'message':
-                'Xin chào! Mình là Sarah từ ban kỹ thuật Interceptly. Bạn cần mình hỗ trợ gì hôm nay?',
+                'Xin chào! Mình là StormX từ Interceptly. Bạn cần mình hỗ trợ gì hôm nay?',
             'timestamp': DateTime.now().millisecondsSinceEpoch,
           }),
         );
@@ -637,7 +637,7 @@ class ExampleLocalServer {
           socket.add(
             jsonEncode({
               'type': 'typing',
-              'from': 'Sarah',
+              'from': 'StormX',
               'status': true,
             }),
           );
@@ -651,26 +651,26 @@ class ExampleLocalServer {
 
             if (lower.contains('ping')) {
               reply =
-                  'Pong! 🏓 Kết nối WebSocket đang phản hồi cực nhanh (~10ms).';
+                  'Pong! Kết nối WebSocket đang phản hồi rất nhanh (~10ms).';
             } else if (lower.contains('lỗi') ||
                 lower.contains('bug') ||
                 lower.contains('error') ||
                 lower.contains('fail')) {
               reply =
-                  'Để kiểm tra lỗi này, bạn hãy mở Interceptly Inspector (bấm Floating Bubble hoặc nút Inspect ở trên), chọn tab Realtime để xem chi tiết error code & headers nhé!';
+                  'Để kiểm tra lỗi này, bạn hãy mở Interceptly Inspector, chọn tab Realtime để xem chi tiết frame nhé.';
             } else if (lower.contains('đơn hàng') ||
                 lower.contains('order')) {
               reply =
-                  'Đơn hàng #DH-20261014 của bạn đã được đóng gói và đang được vận chuyển đến bạn!';
+                  'Đơn hàng #DH-20261014 của bạn đã được tiếp nhận và xử lý thành công.';
             } else {
               reply =
-                  'Sarah đã nhận được tin nhắn của bạn: "$userQuery". Bạn có thể vào tab Realtime của Interceptly để xem outgoing & incoming frame của tin nhắn này!';
+                  'StormX đã nhận được tin nhắn của bạn: "$userQuery".';
             }
 
             socket.add(
               jsonEncode({
                 'type': 'agent_message',
-                'from': 'Sarah (Support Specialist)',
+                'from': 'StormX (Support Bot)',
                 'message': reply,
                 'timestamp': DateTime.now().millisecondsSinceEpoch,
               }),

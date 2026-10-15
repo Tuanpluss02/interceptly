@@ -4,9 +4,9 @@ This is an example Flutter application demonstrating the Interceptly network ins
 
 ## Preview
 
-| Inspector Overview | Request Details | Replay Tool |
-| :---: | :---: | :---: |
-| <img src="../assets/images/overview_demo.gif" width="250"> | <img src="../assets/images/request_detail_demo.gif" width="250"> | <img src="../assets/images/relay_tool_demo.gif" width="250"> |
+| REST Inspector | Realtime Inspector |
+| :---: | :---: |
+| <img src="../assets/images/REST_demo.gif" width="250"> | <img src="../assets/images/Realtime_demo.gif" width="250"> |
 
 ## Features Demonstrated
 

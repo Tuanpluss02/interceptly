@@ -787,7 +787,7 @@ mutation UpdateUserStatus(\$id: ID!, \$status: String!) {
       final preview =
           'WebSocket Live Chat Test Completed:\n'
           '• Endpoint: /ws/chat\n'
-          '• Received: ${receivedMessages.length} frames (System welcome, Sarah greeting, Pong)\n'
+          '• Received: ${receivedMessages.length} frames (System welcome, StormX greeting, Pong)\n'
           '• Frames: ${receivedMessages.join("\n")}';
 
       return ExampleRequestResult(
