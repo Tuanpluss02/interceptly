@@ -7,7 +7,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('FilterPanel Redesign', () {
-    testWidgets('allows toggling Errors Only and applying filter', (tester) async {
+    testWidgets('does not show Show errors only and allows toggling methods and applying filter', (tester) async {
       RequestFilter? applied;
       await tester.pumpWidget(
         MaterialApp(
@@ -32,10 +32,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Filter Requests'), findsOneWidget);
-      expect(find.text('Show errors only'), findsOneWidget);
+      expect(find.text('Show errors only'), findsNothing);
 
-      // Toggle Errors Only switch
-      await tester.tap(find.byType(Switch));
+      // Deselect GET method chip
+      await tester.tap(find.text('GET'));
       await tester.pumpAndSettle();
 
       // Tap Apply Filter button
@@ -43,7 +43,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(applied, isNotNull);
-      expect(applied!.onlyErrors, isTrue);
+      expect(applied!.methods, isNot(contains('GET')));
+      expect(applied!.methods, contains('POST'));
     });
 
     testWidgets('domain search field filters the list of available domains', (tester) async {
@@ -94,7 +95,7 @@ void main() {
               builder: (ctx) => ElevatedButton(
                 onPressed: () => FilterPanel.show(
                   context: ctx,
-                  currentFilter: RequestFilter(onlyErrors: true, methods: {'POST'}),
+                  currentFilter: RequestFilter(methods: {'POST'}),
                   availableDomains: {'api.com'},
                   onFilterChanged: (f) => applied = f,
                 ),
@@ -118,7 +119,6 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(applied, isNotNull);
-      expect(applied!.onlyErrors, isFalse);
       expect(applied!.methods, isEmpty);
     });
 

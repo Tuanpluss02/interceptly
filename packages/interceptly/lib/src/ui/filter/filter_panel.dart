@@ -48,7 +48,6 @@ class _FilterPanelState extends State<FilterPanel> {
   late bool include3xx;
   late bool include4xx;
   late bool include5xx;
-  late bool onlyErrors;
   late Set<String> selectedDomains;
 
   String _domainSearchQuery = '';
@@ -66,7 +65,6 @@ class _FilterPanelState extends State<FilterPanel> {
     include3xx = widget.currentFilter.include3xx;
     include4xx = widget.currentFilter.include4xx;
     include5xx = widget.currentFilter.include5xx;
-    onlyErrors = widget.currentFilter.onlyErrors;
 
     if (widget.currentFilter.domains.isEmpty) {
       selectedDomains = Set.from(widget.availableDomains);
@@ -98,7 +96,6 @@ class _FilterPanelState extends State<FilterPanel> {
 
   int get _activeFilterCount {
     int count = 0;
-    if (onlyErrors) count++;
     if (!selectedMethods.containsAll(_allMethods) ||
         selectedMethods.length < _allMethods.length) {
       count++;
@@ -116,7 +113,6 @@ class _FilterPanelState extends State<FilterPanel> {
 
   void _resetFilters() {
     setState(() {
-      onlyErrors = false;
       selectedMethods = Set.from(_allMethods);
       include2xx = true;
       include3xx = true;
@@ -140,7 +136,6 @@ class _FilterPanelState extends State<FilterPanel> {
       include3xx: include3xx,
       include4xx: include4xx,
       include5xx: include5xx,
-      onlyErrors: onlyErrors,
       domains: allDomainsSelected ? <String>{} : selectedDomains,
     ));
     Navigator.pop(context);
@@ -240,23 +235,19 @@ class _FilterPanelState extends State<FilterPanel> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Section 1: Quick Preset - Show errors only
-                    _buildErrorsOnlyPreset(colors, radius),
-                    SizedBox(height: spacing.lg),
-
-                    // Section 2: HTTP Methods
+                    // Section 1: HTTP Methods
                     _SectionHeader(label: 'HTTP Methods'),
                     SizedBox(height: spacing.sm),
                     _buildMethodChips(),
                     SizedBox(height: spacing.lg),
 
-                    // Section 3: Status Codes
+                    // Section 2: Status Codes
                     _SectionHeader(label: 'Status Code Ranges'),
                     SizedBox(height: spacing.sm),
                     _buildStatusGrid(radius),
                     SizedBox(height: spacing.lg),
 
-                    // Section 4: Domains
+                    // Section 3: Domains
                     if (widget.availableDomains.isNotEmpty) ...[
                       _SectionHeader(
                         label: 'Domains',
@@ -312,60 +303,6 @@ class _FilterPanelState extends State<FilterPanel> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildErrorsOnlyPreset(InterceptlyColors colors, InterceptlyRadius radius) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: onlyErrors
-            ? colors.errorDefault.withValues(alpha: 0.12)
-            : InterceptlyTheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(radius.md),
-        border: Border.all(
-          color: onlyErrors
-              ? colors.errorDefault.withValues(alpha: 0.5)
-              : InterceptlyTheme.dividerSubtle,
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.error_outline_rounded,
-            size: 20,
-            color: onlyErrors ? colors.errorDefault : colors.textSecondary,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Show errors only',
-                  style: InterceptlyTheme.typography.bodyMediumMedium.copyWith(
-                    color: onlyErrors ? colors.errorDefault : colors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  '4xx, 5xx, or network failure',
-                  style: InterceptlyTheme.typography.bodySmallRegular.copyWith(
-                    color: colors.textTertiary,
-                    fontSize: 11,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Switch(
-            value: onlyErrors,
-            activeThumbColor: colors.errorDefault,
-            activeTrackColor: colors.errorDefault.withValues(alpha: 0.5),
-            onChanged: (val) => setState(() => onlyErrors = val),
-          ),
-        ],
       ),
     );
   }
