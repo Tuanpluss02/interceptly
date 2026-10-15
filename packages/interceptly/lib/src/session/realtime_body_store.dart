@@ -25,6 +25,7 @@ class RealtimeBodyStore {
   RandomAccessFile? _raf;
   int _currentOffset = 0;
   int _rotationCount = 0;
+  int _pendingWrites = 0;
   bool _isInitialized = false;
   bool _isDisposed = false;
 
@@ -37,6 +38,9 @@ class RealtimeBodyStore {
 
   /// Number of times the file has rotated due to reaching [maxFileBytes].
   int get rotationCount => _rotationCount;
+
+  /// Number of write operations currently queued in the FIFO async backlog.
+  int get pendingWrites => _pendingWrites;
 
   /// Maximum byte capacity before rotation occurs.
   int get maxFileBytes => _maxFileBytes;
@@ -86,27 +90,34 @@ class RealtimeBodyStore {
         'RealtimeBodyStore is not initialized for writing. Call initForWrite() first.',
       );
     }
+    if (_pendingWrites >= 100) {
+      throw StateError(
+        'RealtimeBodyStore write queue saturated (backpressure limit 100 exceeded).',
+      );
+    }
 
+    _pendingWrites++;
     final completer = Completer<(int, int, int)>();
     Future<void> writeOp(_) async {
-      if (_isDisposed || _raf == null) {
-        completer.completeError(
-          StateError('RealtimeBodyStore was disposed before write completed.'),
-        );
-        return;
-      }
       try {
+        if (_isDisposed || _raf == null) {
+          completer.completeError(
+            StateError('RealtimeBodyStore was disposed before write completed.'),
+          );
+          return;
+        }
         if (_currentOffset + bytes.length > _maxFileBytes) {
           await _performRotate();
         }
         final offset = _currentOffset;
         final length = bytes.length;
         await _raf!.writeFrom(bytes);
-        await _raf!.flush();
         _currentOffset += length;
         completer.complete((offset, length, _rotationCount));
       } catch (error, stackTrace) {
         completer.completeError(error, stackTrace);
+      } finally {
+        _pendingWrites--;
       }
     }
 
@@ -156,6 +167,9 @@ class RealtimeBodyStore {
   }
 
   Future<void> _performRotate() async {
+    try {
+      await _raf?.flush();
+    } catch (_) {}
     await _raf?.close();
     _raf = null;
     _currentOffset = 0;
@@ -174,6 +188,9 @@ class RealtimeBodyStore {
     final completer = Completer<void>();
     Future<void> resetOp(_) async {
       try {
+        try {
+          await _raf?.flush();
+        } catch (_) {}
         await _raf?.close();
         _raf = null;
         _currentOffset = 0;
@@ -224,6 +241,9 @@ class RealtimeBodyStore {
       } catch (_) {}
     }
 
+    try {
+      await _raf?.flush();
+    } catch (_) {}
     await _raf?.close();
     _raf = null;
     _initFuture = null;

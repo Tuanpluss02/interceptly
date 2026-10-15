@@ -744,6 +744,16 @@ void main() {
       expect(frames.last.id, equals('f-69'));
     });
 
+    test('replaceById in DynamicCircularBuffer finds newest element in reverse search', () {
+      final buf = DynamicCircularBuffer(maxCapacity: 100);
+      for (var i = 0; i < 50; i++) {
+        buf.add(RealtimeFrame.text(id: 'f-$i', sessionId: 's', direction: FrameDirection.incoming, text: 't'));
+      }
+      final updated = RealtimeFrame.text(id: 'f-49', sessionId: 's', direction: FrameDirection.incoming, text: 'updated');
+      expect(buf.replaceById('f-49', updated), isTrue);
+      expect(buf[49].textPayload, equals('updated'));
+    });
+
     test('getRealtimeFrames returns live zero-allocation ListBase view', () {
       final store = RealtimeStore(
         maxFramesPerSession: 100,

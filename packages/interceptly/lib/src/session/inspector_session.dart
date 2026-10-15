@@ -506,23 +506,29 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
             ? Uint8List.fromList(utf8.encode(frame.textPayload ?? ''))
             : frame.binaryPayload ?? Uint8List(0));
 
-    final (offset, length, rotation) = await _realtimeBodyStore.append(bytes);
+    try {
+      final (offset, length, rotation) = await _realtimeBodyStore.append(bytes);
 
-    final offloaded = RealtimeFrame.offloaded(
-      id: frame.id,
-      sessionId: frame.sessionId,
-      direction: frame.direction,
-      timestamp: frame.timestamp,
-      type: frame.type,
-      payloadSizeBytes: frame.payloadSizeBytes,
-      shortPreview: frame.shortPreview,
-      fileOffset: offset,
-      fileLength: length,
-      rotationCount: rotation,
-      eventName: frame.eventName,
-    );
+      final offloaded = RealtimeFrame.offloaded(
+        id: frame.id,
+        sessionId: frame.sessionId,
+        direction: frame.direction,
+        timestamp: frame.timestamp,
+        type: frame.type,
+        payloadSizeBytes: frame.payloadSizeBytes,
+        shortPreview: frame.shortPreview,
+        fileOffset: offset,
+        fileLength: length,
+        rotationCount: rotation,
+        eventName: frame.eventName,
+      );
 
-    _realtimeStore.replaceFrame(offloaded);
+      _realtimeStore.replaceFrame(offloaded);
+    } catch (error) {
+      debugPrint(
+        '[Interceptly] realtime body offload fallback to memory: $error',
+      );
+    }
   }
 
   @override

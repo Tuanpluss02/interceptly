@@ -91,8 +91,10 @@ class DynamicCircularBuffer {
   }
 
   /// Replaces a frame by its [id] in-place, returning true if found.
+  ///
+  /// Searches backwards from tail (`count - 1` down to 0) for $O(1)$ hits on freshly appended frames.
   bool replaceById(String id, RealtimeFrame newFrame) {
-    for (var i = 0; i < _count; i++) {
+    for (var i = _count - 1; i >= 0; i--) {
       final index = (_head + i) % _capacity;
       if (_buffer[index]?.id == id) {
         _buffer[index] = newFrame;

@@ -139,5 +139,28 @@ void main() {
 
       expect(store.isInitialized, isFalse);
     });
+
+    test('enforces backpressure guard when pending writes exceed limit', () async {
+      final store = RealtimeBodyStore();
+      addTearDown(store.dispose);
+      await store.initForWrite(tempDir.path);
+
+      final futures = <Future<dynamic>>[];
+      for (var i = 0; i < 100; i++) {
+        futures.add(store.append(Uint8List.fromList([i])));
+      }
+
+      expect(
+        () => store.append(Uint8List.fromList([101])),
+        throwsA(isA<StateError>().having(
+          (e) => e.message,
+          'message',
+          contains('saturated'),
+        )),
+      );
+
+      await Future.wait(futures);
+      expect(store.pendingWrites, equals(0));
+    });
   });
 }
