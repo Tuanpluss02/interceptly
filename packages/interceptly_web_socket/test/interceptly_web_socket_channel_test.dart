@@ -830,12 +830,14 @@ class _SpyRealtimeTrafficCollector implements RealtimeTrafficCollector {
     required String sessionId,
     required Uri uri,
     Map<String, String>? headers,
+    RealtimeProtocolType protocolType = RealtimeProtocolType.webSocket,
   }) {
     if (throwOnConnection) throw Exception('Simulated recordConnection error');
     recordConnectionCalls.add({
       'sessionId': sessionId,
       'uri': uri,
       'headers': headers,
+      'protocolType': protocolType,
     });
   }
 
@@ -849,6 +851,7 @@ class _SpyRealtimeTrafficCollector implements RealtimeTrafficCollector {
     DateTime? timestamp,
     String? shortPreview,
     bool? shouldOffload,
+    String? eventName,
   }) {
     if (throwOnFrame) throw Exception('Simulated recordFrame error');
     recordFrameCalls.add({
@@ -860,6 +863,7 @@ class _SpyRealtimeTrafficCollector implements RealtimeTrafficCollector {
       'timestamp': timestamp,
       'shortPreview': shortPreview,
       'shouldOffload': shouldOffload,
+      'eventName': eventName,
     });
   }
 
