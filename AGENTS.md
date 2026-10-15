@@ -4,26 +4,29 @@ You are integrating Interceptly, a client-agnostic network & realtime traffic
 inspector for Flutter, into an existing Flutter project. Follow these steps in
 order. Do not skip verification.
 
-## 1. Detect the project setup
+## 1. Detect & Confirm Setup (MANDATORY STOP GATE)
 
-- Read the app's `pubspec.yaml`. Note the Flutter/Dart SDK constraints and
-  which networking clients are already used: `dio`, `http`, `chopper`,
-  `web_socket_channel` (note each version). Also search imports for raw
-  `dart:io` sockets (`Socket`, `WebSocket`, `HttpClient`) — those need a
-  decision too (see below).
-- Check for existing inspector/debug tools: `alice`, `alice_dio`,
+Do NOT edit any code or add dependencies yet. First inspect the codebase, then
+**STOP and present your findings to the user in a single unified prompt**.
+
+Inspect the project:
+- **Networking clients:** Check `pubspec.yaml` for `dio`, `http`, `chopper`,
+  and `web_socket_channel` (note each version). Also search imports for raw
+  `dart:io` sockets (`Socket`, `WebSocket`, `HttpClient`).
+- **Existing inspectors/loggers:** Search for `alice`, `alice_dio`,
   `alice_lightweight`, `talker`, `talker_dio_logger`, `dio_log`,
-  `http_logger`, `pretty_dio_logger`, `chopper_logger`, or any custom
-  debug overlay / shake-to-inspect wiring. List every hit with file paths.
-  If any is found, STOP and ask the user whether to remove the old tool
-  (recommended: avoid double capture overhead and conflicting overlays) or
-  keep both side by side. Do not add Interceptly on top silently.
-- Find where `runApp` / `MaterialApp` (or `MaterialApp.router`) is built and
-  whether a global `navigatorKey` already exists.
-- Ask the user which detected clients to integrate (dio / http / chopper /
-  WebSocket / raw sockets). Default is all detected, but let them exclude
-  any (e.g. keep analytics on the old logger). Only add adapters for the
-  confirmed list.
+  `http_logger`, `pretty_dio_logger`, `chopper_logger`, or custom debug overlays.
+  List every match with file paths.
+- **Navigation & Entry:** Find where `runApp` / `MaterialApp` (or `MaterialApp.router` /
+  `GoRouter`) is built and whether a global `navigatorKey` exists.
+
+**STOP AND ASK THE USER UPFRONT (Do not split this into multiple steps):**
+1. **REST Traffic:** Which detected REST clients (`dio`, `http`, `chopper`) should be intercepted?
+2. **Realtime / Socket Traffic:** Confirm whether to intercept WebSockets/sockets now (default: yes if `web_socket_channel` or `dart:io.WebSocket` detected; ask if none detected).
+3. **Existing Inspectors:** If any old logger/inspector was detected, ask to remove it (recommended to avoid duplicate capture overhead and UI overlay conflicts) or keep side-by-side.
+4. **Flavors / Environment:** Confirm in which modes to enable (default: everywhere except production release).
+
+**Only proceed to Step 2 once the user has answered all questions.**
 
 ## 2. Add dependencies (hosted only)
 
@@ -111,14 +114,18 @@ final chopper = ChopperClient(
 );
 ```
 
-WebSocket:
+WebSocket (`web_socket_channel` or raw `dart:io.WebSocket`):
 
 ```dart
 import 'package:interceptly_web_socket/interceptly_web_socket.dart';
 
+// Option A: Direct connect
 final channel = InterceptlyWebSocketChannel.connect(
   Uri.parse('wss://example.com/socket'),
 );
+
+// Option B: Wrap an existing WebSocketChannel (or IOWebSocketChannel for dart:io.WebSocket)
+final channel = InterceptlyWebSocketChannel(existingChannel);
 ```
 
 Optional: skip noisy URLs so they cost zero memory/disk:
