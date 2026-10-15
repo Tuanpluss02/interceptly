@@ -1,0 +1,26 @@
+name: interceptly_monorepo
+packages:
+  - packages/*
+
+scripts:
+  analyze:
+    exec: dart analyze .
+    description: Run analyzer in all packages.
+  test:
+    exec: flutter test
+    concurrency: 1
+    description: Run tests in all packages.
+  test:core:
+    exec: flutter test --exclude-tags=stress,perf
+    description: Run core test suites excluding stress and perf tests.
+  test:stress:
+    exec: flutter test --tags=stress
+    packageFilters:
+      dirExists: test/stress
+    description: Run stress test suites.
+  coverage:
+    exec: flutter test --coverage
+    description: Run test suites and generate coverage reports.
+  clean:
+    exec: flutter clean
+    description: Clean build artifacts in all packages.

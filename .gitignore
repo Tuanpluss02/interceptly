@@ -1,5 +1,6 @@
 # -------- Flutter / Dart --------
 .dart_tool/
+packages/*/.dart_tool/
 .packages
 .flutter-plugins
 .flutter-plugins-dependencies
@@ -7,6 +8,14 @@
 .pub/
 build/
 **/build/
+
+# -------- Melos --------
+.melos/
+pubspec_overrides.yaml
+**/pubspec_overrides.yaml
+
+# -------- SDD / Superpowers --------
+.superpowers/
 
 # Package lockfiles (library package)
 pubspec.lock

@@ -1,186 +1,230 @@
-# Interceptly
+# Interceptly Monorepo
 
-[![pub package](https://img.shields.io/pub/v/interceptly.svg)](https://pub.dev/packages/interceptly)
-[![pub points](https://img.shields.io/pub/points/interceptly.svg)](https://pub.dev/packages/interceptly)
 [![license](https://img.shields.io/github/license/Tuanpluss02/interceptly.svg)](https://github.com/Tuanpluss02/interceptly/blob/main/LICENSE)
+[![melos](https://img.shields.io/badge/maintained%20with-melos-f700ff.svg)](https://github.com/invertase/melos)
 
-Interceptly is a high-performance network inspector for Flutter. It provides real-time traffic visualization for Dio, Http, and Chopper with minimal impact on UI performance.
-
----
-
-## Preview
-
-|                                             Inspector Overview                                              |                                                 Request Details                                                  |                                                 Replay Tool                                                 |
-| :---------------------------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------------------------------------------: |
-| ![Overview](https://raw.githubusercontent.com/Tuanpluss02/interceptly/main/assets/images/overview_demo.gif) | ![Details](https://raw.githubusercontent.com/Tuanpluss02/interceptly/main/assets/images/request_detail_demo.gif) | ![Replay](https://raw.githubusercontent.com/Tuanpluss02/interceptly/main/assets/images/relay_tool_demo.gif) |
+High-performance, client-agnostic network & realtime traffic inspector for Flutter applications. Interceptly provides real-time visualization of HTTP requests, responses, and bidirectional WebSocket frames with zero UI jank and minimal memory footprint.
 
 ---
 
-## Features
+## Architecture Overview
 
-- **High Performance**: Background isolates handle all serialization logic to prevent UI jank.
-- **Hybrid Storage**: Smart memory management that offloads large payloads to temporary files.
-- **Postman-like Replay**: Built-in request editor to modify headers/body and re-send requests.
-- **Network Simulation**: Global profiles for Offline, 3G, 4G, or custom latency/bandwidth.
-- **Advanced Formatters**: Specialized views for GraphQL, Multipart, cURL, and Binary data.
-- **Master Search**: One query across URLs, headers, bodies, and errors with match navigation.
-- **Safe by Default**: Sensitive headers are redacted before storage; `shouldCapture` filters URLs.
-- **Export**: Share or export records as HAR, cURL, or Postman collections.
-- **Flexible Triggers**: Floating bug button or custom streams.
+Interceptly is organized as a modular monorepo managed with [Melos](https://melos.invertase.dev/). The core inspection engine and UI are completely client-agnostic, while lightweight satellite adapter packages provide seamless integration with popular networking libraries.
+
+```
+├── packages/
+│   ├── interceptly              # Core engine, UI overlay, isolate processing & storage
+│   ├── interceptly_dio          # Adapter for Dio (InterceptlyDioInterceptor)
+│   ├── interceptly_http         # Adapter for package:http (InterceptlyHttpClient)
+│   ├── interceptly_chopper      # Adapter for Chopper (InterceptlyChopperInterceptor)
+│   └── interceptly_web_socket   # Adapter for WebSocketChannel (InterceptlyWebSocketChannel)
+└── packages/interceptly/example # Interactive Flutter showcase app
+```
+
+### Packages
+
+| Package | Version | Description |
+| :--- | :--- | :--- |
+| [`interceptly`](packages/interceptly) | `^2.0.3` | **Core package**: Flutter UI inspector overlay, background isolate pipeline, hybrid disk/RAM storage, throttling buffer, and realtime inspection. |
+| [`interceptly_dio`](packages/interceptly_dio) | `^1.0.0` | **Dio Adapter**: Non-intrusive `Interceptor` recording HTTP requests, responses, and errors. |
+| [`interceptly_http`](packages/interceptly_http) | `^1.0.0` | **HTTP Adapter**: Stream-teeing `http.Client` wrapper preserving single-subscription response streams. |
+| [`interceptly_chopper`](packages/interceptly_chopper) | `^1.0.0` | **Chopper Adapter**: `ResponseInterceptor` and `RequestInterceptor` capturing Chopper network traffic. |
+| [`interceptly_web_socket`](packages/interceptly_web_socket) | `^1.0.0` | **WebSocket Adapter**: `WebSocketChannel` wrapper capturing bidirectional text/binary frames in real time. |
 
 ---
 
-## Install
+## Quick Start
 
-Run the following command in your terminal:
+### 1. Install Packages
+
+Add the core package and the adapter(s) corresponding to your network client:
 
 ```bash
 flutter pub add interceptly
+
+# Add the adapter(s) you need:
+flutter pub add interceptly_dio
+flutter pub add interceptly_http
+flutter pub add interceptly_chopper
+flutter pub add interceptly_web_socket
 ```
 
----
+For local monorepo development, path dependencies can also be used:
 
-## Quick Start (Dio)
+```yaml
+dependencies:
+  interceptly:
+    path: packages/interceptly
+  interceptly_dio:
+    path: packages/interceptly_dio
+```
+
+### 2. Initialize Interceptly
+
+Initialize Interceptly in your app startup:
 
 ```dart
-import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:interceptly/interceptly.dart';
 
-final _navKey = GlobalKey<NavigatorState>();
-final _dio = Dio()..interceptors.add(InterceptlyDioInterceptor());
+final navigatorKey = GlobalKey<NavigatorState>();
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(MaterialApp(navigatorKey: _navKey, home: MyApp(dio: _dio)));
+  runApp(MyApp(navigatorKey: navigatorKey));
 
   if (kDebugMode || kProfileMode) {
-    Interceptly.init(navigatorKey: _navKey);
+    Interceptly.init(
+      navigatorKey: navigatorKey,
+      settings: const InterceptlySettings(
+        maxEntries: 1000,
+        maxFramesPerSession: 1000,
+      ),
+    );
   }
 }
 ```
 
----
+### 3. Attach Network Adapters
 
-## Integrations
-
-### HTTP (package:http)
+#### Dio
 ```dart
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
+import 'package:interceptly_dio/interceptly_dio.dart';
 
-final client = InterceptlyHttpClient.wrap(http.Client());
-final res = await client.get(Uri.parse('https://api.example.com/data'));
+final dio = Dio()..interceptors.add(InterceptlyDioInterceptor());
 ```
 
-### Chopper
+#### HTTP (`package:http`)
 ```dart
+import 'package:http/http.dart' as http;
+import 'package:interceptly_http/interceptly_http.dart';
+
+final client = InterceptlyHttpClient.wrap(http.Client());
+```
+
+#### Chopper
+```dart
+import 'package:chopper/chopper.dart';
+import 'package:interceptly_chopper/interceptly_chopper.dart';
+
 final chopper = ChopperClient(
   interceptors: [InterceptlyChopperInterceptor()],
 );
 ```
 
----
-
-## Network Simulation
-
-Simulate various network conditions globally for all intercepted requests:
-
+#### WebSocket (`package:web_socket_channel`)
 ```dart
-// Apply built-in profiles
-Interceptly.instance.setNetworkSimulation(NetworkSimulationProfile.slow3G);
+import 'package:interceptly_web_socket/interceptly_web_socket.dart';
 
-// Custom profile definition
-Interceptly.instance.setNetworkSimulation(
-  const NetworkSimulationProfile(
-    name: 'Custom Profile',
-    latencyMs: 500,
-    downloadKbps: 1000,
-    uploadKbps: 500,
-  ),
-);
-```
-
----
-
-## Configuration
-
-All capture behavior is configured through a single `InterceptlySettings` object. Pass it to `Interceptly.init` once at startup:
-
-```dart
-Interceptly.init(
-  navigatorKey: _navKey,
-  settings: const InterceptlySettings(
-    // Security & Filtering
-    redactedHeaders: {'authorization', 'cookie', 'set-cookie', 'x-api-key'},
-    shouldCapture: _skipAnalytics,
-    // Storage & Retention
-    maxBodyBytes: 1024 * 1024, // 1 MB
-    maxEntries: 1000,
-  ),
-  showFloatingButton: true, // false to hide FAB
-  customTrigger: myTriggerStream, // optional custom stream trigger
+final channel = InterceptlyWebSocketChannel.connect(
+  Uri.parse('wss://echo.websocket.events'),
 );
 
-bool _skipAnalytics(String url) => !url.contains('/analytics');
-```
-
-### InterceptlySettings Reference
-
-| Parameter                 | Default        | Description                                                     |
-| :------------------------ | :------------- | :-------------------------------------------------------------- |
-| `bodyOffloadThreshold`    | `50 KB`        | Body size above which payloads move to a temp file               |
-| `previewTruncationBytes`  | `16 KB`        | Inline byte budget for pending request rows awaiting a response  |
-| `maxBodyBytes`            | `5 MB`         | Hard cap before body truncation; `<= 0` means unlimited          |
-| `maxUiPreviewBytes`       | `2 MB`         | Max bytes decoded for the detail preview; `<= 0` means unlimited |
-| `maxQueuedEvents`         | `500`          | Pending capture events buffered before the isolate is ready      |
-| `maxEntries`              | `5000`         | Maximum requests kept in history                                 |
-| `pendingTimeout`          | `45 s`         | Marks an unfinished pending request as timed out                  |
-| `urlDecodeEnabled`        | `true`         | Decode URL encodings in the UI                                   |
-| `redactedHeaders`         | 4 auth headers | Header names replaced with `[REDACTED]` (case-insensitive)       |
-| `shouldCapture`           | `null`         | `bool Function(String url)` predicate; return `false` to skip    |
-
-`shouldCapture` holds a closure and is evaluated on the main isolate, so it never crosses an isolate boundary.
-
-### FAB Session Control
-
-```dart
-Interceptly.hideFloatingButtonForSession(); // stays hidden until app restart
-Interceptly.showFloatingButtonForSession();
-Interceptly.isFloatingButtonHiddenForSession;
+// Listen and send frames normally — Interceptly captures them live!
+channel.stream.listen((message) => print('Received: $message'));
+channel.sink.add('Hello Interceptly!');
 ```
 
 ---
 
-## Navigator Setup (MaterialApp.router / GoRouter)
+## Entry-Point Configuration & Triggers
 
-Pass the same navigator key you registered on the router:
+### `Interceptly.init` Parameters
+
+| Parameter | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `navigatorKey` | `GlobalKey<NavigatorState>` | *Required* | Global navigator key used to mount overlay and push inspector screen |
+| `showFloatingButton` | `bool` | `true` | Whether to display the draggable floating action button overlay |
+| `fabChild` | `Widget?` | `null` | Optional custom widget rendered inside the floating action button |
+| `customTrigger` | `Stream<void>?` | `null` | Stream triggering inspector opening (e.g. shake detector, volume keys, gesture) |
+| `settings` | `InterceptlySettings?` | Default settings | Storage thresholds, body caps, filtering predicates, and timeout durations |
+| `allowInRelease` | `bool` | `false` | Security guard preventing accidental release-mode exposure unless set to `true` |
+
+### Overlay & Navigation Triggers
+
+- **Route Transition Observer**: Set `navigatorObservers: [Interceptly.navigatorObserver]` on `MaterialApp` to ensure the floating overlay button always remains on top across route changes.
+- **Custom Trigger Stream**: Supply `customTrigger: shakeSensorStream` to open the inspector on device shake or hardware buttons.
+- **Custom Button Icon**: Pass `fabChild: Icon(Icons.bug_report, color: Colors.amber)` to customize button appearance.
+- **Programmatic Control**:
+  ```dart
+  Interceptly.showInspector(context); // Open inspector view directly
+  Interceptly.hideFloatingButtonForSession(); // Hide floating button for session
+  Interceptly.showFloatingButtonForSession(); // Restore floating button
+  final isHidden = Interceptly.isFloatingButtonHiddenForSession;
+  Interceptly.detach(); // Remove overlay and cancel subscriptions
+  ```
+
+### Filtering Requests with `shouldCapture`
+
+You can pass a custom filter predicate to `InterceptlySettings.shouldCapture`:
 
 ```dart
-final _navKey = GlobalKey<NavigatorState>();
+InterceptlySettings(
+  shouldCapture: (url) {
+    // Return false to skip capture entirely
+    return !url.contains('/health-check') && !url.contains('/analytics');
+  },
+)
+```
 
-GoRouter(navigatorKey: _navKey, routes: [...]);
+> [!NOTE]
+> `shouldCapture` is executed synchronously on every outbound request before dispatch. It must be fast, non-blocking, and lightweight. Requests returning `false` are completely ignored and consume zero memory or disk storage.
 
-// After runApp:
-if (kDebugMode || kProfileMode) {
-  Interceptly.init(navigatorKey: _navKey);
-}
+---
+
+## Architecture: Bridge Pattern & Traffic Collectors SPI
+
+All satellite adapters in Interceptly follow a unified **Bridge & SPI** pattern, delegating coordination to core collectors:
+
+- **`HttpTrafficCollector` & `DefaultHttpTrafficCollector`**: Handles request lifecycle coordination, timing & duration calculation, network simulation (latency, bandwidth throttling, offline exceptions), request body/response body serialization to isolates, and session persistence.
+- **`RealtimeTrafficCollector` & `DefaultRealtimeTrafficCollector`**: Handles WebSocket/SSE connection tracking, frame type conversion (text vs. binary), payload serialization, and 60fps throttled ring buffer storage.
+- **Marker Contracts**: Satellite adapters implement `HttpCaptureAdapter` or `RealtimeCaptureAdapter` to guarantee access to their underlying collector and session.
+
+This design decouples application networking frameworks from Interceptly's internal storage and simulation engines, making it trivial to create custom adapters for any protocol (gRPC, GraphQL, MQTT, Socket.IO) without duplicating code or leaking exceptions.
+
+---
+
+## Monorepo Development & Contribution
+
+This repository uses [Melos](https://pub.dev/packages/melos) to manage dependencies and multi-package scripts.
+
+### Prerequisites
+
+- Flutter SDK `>=3.10.0`
+- Dart SDK `>=3.5.0 <4.0.0`
+- Melos CLI (`dart pub global activate melos`)
+
+### Common Commands
+
+```bash
+# Bootstrap all packages and link local path dependencies
+melos bootstrap
+
+# Run static analysis across all packages and the example
+melos run analyze
+
+# Run all test suites across all packages
+melos run test
+
+# Clean build artifacts across all packages
+melos run clean
 ```
 
 ---
 
-## Storage Model
+## Example Application
 
-- **Small Payloads**: Kept in memory for instant access.
-- **Large Payloads**: Written to temporary files via background isolates.
-- **Lazy Loading**: Data is only read from disk when a record is selected.
-- **Three-tier size limits**: `previewTruncationBytes` caps pending rows in RAM, `maxBodyBytes` caps what is stored, and `maxUiPreviewBytes` caps what gets decoded for the detail view.
+An interactive Flutter showcase application demonstrating all adapters (Dio, HTTP, Chopper, WebSocket) is provided in [`packages/interceptly/example`](packages/interceptly/example):
+
+```bash
+cd packages/interceptly/example
+flutter run
+```
 
 ---
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
-
----
-Published by [stormx.dev](https://stormx.dev)
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
