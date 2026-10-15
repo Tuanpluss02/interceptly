@@ -15,16 +15,18 @@ order. Do not skip verification.
 ## 2. Add dependencies (hosted only)
 
 ```bash
-flutter pub add interceptly:^2.1.0
+flutter pub add interceptly
 ```
 
-Then add only the adapters matching the clients detected in step 1:
+Then add only the adapters matching the clients detected in step 1
+(`flutter pub add` resolves the latest compatible version; do not pin
+versions here so this guide stays correct across releases):
 
 ```bash
-flutter pub add interceptly_dio:^1.0.0        # if dio is used
-flutter pub add interceptly_http:^1.0.0       # if package:http is used
-flutter pub add interceptly_chopper:^1.0.0    # if chopper is used
-flutter pub add interceptly_web_socket:^1.0.0 # if web_socket_channel is used
+flutter pub add interceptly_dio         # if dio is used
+flutter pub add interceptly_http       # if package:http is used
+flutter pub add interceptly_chopper    # if chopper is used
+flutter pub add interceptly_web_socket # if web_socket_channel is used
 ```
 
 Rules:
