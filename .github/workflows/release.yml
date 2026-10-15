@@ -42,6 +42,9 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Setup Dart SDK (provision pub.dev OIDC token)
+        uses: dart-lang/setup-dart@v1
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
