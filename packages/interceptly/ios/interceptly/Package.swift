@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
     name: "interceptly",
     platforms: [
-        .iOS("12.0")
+        .iOS("15.0")
     ],
     products: [
         .library(name: "interceptly", targets: ["interceptly"])
