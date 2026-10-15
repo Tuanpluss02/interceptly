@@ -28,15 +28,13 @@ class ExampleHomePage extends StatefulWidget {
 }
 
 class _ExampleHomePageState extends State<ExampleHomePage> {
-  String _status = 'Select any test case below to generate network traffic.';
+  int _selectedTab = 0;
+  String _status = 'Select any action below to generate network traffic.';
   ExampleRequestResult? _lastResult;
   bool _isLoading = false;
   String _presetId = truncationPresets.first.id;
 
   late final ExampleRequestRunner _runner;
-
-  TruncationPreset get _preset =>
-      truncationPresets.firstWhere((p) => p.id == _presetId);
 
   @override
   void initState() {
@@ -50,8 +48,6 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
     _applyPreset(truncationPresets.first);
   }
 
-  /// Size caps only affect captures recorded after they are applied, so the
-  /// preset has to be chosen before firing the request under test.
   void _applyPreset(TruncationPreset preset) {
     InspectorSession.instance.configureSession(preset.toSettings());
   }
@@ -128,430 +124,362 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
           const SizedBox(width: 8),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color:
-                    colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: colorScheme.outlineVariant),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.circle, size: 10, color: Colors.green),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Local Server: \n${widget.server.baseUrl}',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontFamily: 'monospace',
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            _buildSectionHeader(
-              title: 'RESTful Methods & Status Codes',
-              subtitle:
-                  'Test GET, POST 201, PUT, PATCH, DELETE 204, 400, 401, 404, 503 badges.',
-              color: Colors.blue,
-            ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                FilledButton.tonal(
-                  onPressed: _isLoading
-                      ? null
-                      : () => _runRequest('Dio GET (200)', _runner.runDioGet),
-                  child: const Text('Dio GET 200'),
-                ),
-                FilledButton.tonal(
-                  onPressed: _isLoading
-                      ? null
-                      : () => _runRequest('HTTP GET (200)', _runner.runHttpGet),
-                  child: const Text('HTTP GET 200'),
-                ),
-                FilledButton.tonal(
-                  onPressed: _isLoading
-                      ? null
-                      : () => _runRequest(
-                          'Chopper GET (200)', _runner.runChopperGet),
-                  child: const Text('Chopper GET 200'),
-                ),
-                FilledButton.tonal(
-                  onPressed: _isLoading
-                      ? null
-                      : () =>
-                          _runRequest('POST User (201)', _runner.runPostUser),
-                  child: const Text('POST (201 Created)'),
-                ),
-                FilledButton.tonal(
-                  onPressed: _isLoading
-                      ? null
-                      : () => _runRequest('PUT User (200)', _runner.runPutUser),
-                  child: const Text('PUT (200)'),
-                ),
-                FilledButton.tonal(
-                  onPressed: _isLoading
-                      ? null
-                      : () =>
-                          _runRequest('PATCH User (200)', _runner.runPatchUser),
-                  child: const Text('PATCH (200)'),
-                ),
-                FilledButton.tonal(
-                  onPressed: _isLoading
-                      ? null
-                      : () => _runRequest(
-                          'DELETE User (204)', _runner.runDeleteUser),
-                  child: const Text('DELETE (204 No Content)'),
-                ),
-                OutlinedButton(
-                  onPressed: _isLoading
-                      ? null
-                      : () => _runRequest(
-                          'Bad Request (400)', _runner.run400BadRequest),
-                  child: const Text('400 Bad Request'),
-                ),
-                OutlinedButton(
-                  onPressed: _isLoading
-                      ? null
-                      : () => _runRequest(
-                          'Unauthorized (401)', _runner.run401Unauthorized),
-                  child: const Text('401 Unauthorized'),
-                ),
-                OutlinedButton(
-                  onPressed: _isLoading
-                      ? null
-                      : () => _runRequest(
-                          'Not Found (404)', _runner.run404NotFound),
-                  child: const Text('404 Not Found'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: _isLoading
-                      ? null
-                      : () =>
-                          _runRequest('Server Error (503)', _runner.runError),
-                  icon: const Icon(Icons.error_outline, size: 18),
-                  label: const Text('503 Error'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            _buildSectionHeader(
-              title: 'Specialized Formats & Viewers',
-              subtitle:
-                  'Test GraphQL Operation parsing, Multipart FormData summary, and Binary Image preview.',
-              color: Colors.purple,
-            ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                FilledButton.tonal(
-                  onPressed: _isLoading
-                      ? null
-                      : () =>
-                          _runRequest('GraphQL Query', _runner.runGraphQLQuery),
-                  child: const Text('GraphQL Query'),
-                ),
-                FilledButton.tonal(
-                  onPressed: _isLoading
-                      ? null
-                      : () => _runRequest(
-                          'GraphQL Mutation', _runner.runGraphQLMutation),
-                  child: const Text('GraphQL Mutation'),
-                ),
-                FilledButton.tonal(
-                  onPressed: _isLoading
-                      ? null
-                      : () => _runRequest(
-                          'Multipart Upload', _runner.runMultipartUpload),
-                  child: const Text('Multipart Upload (FormData)'),
-                ),
-                FilledButton.tonal(
-                  onPressed: _isLoading
-                      ? null
-                      : () => _runRequest(
-                          'Binary Image (PNG)', _runner.runGetImage),
-                  child: const Text('Binary Image (PNG)'),
-                ),
-                FilledButton.tonal(
-                  onPressed: _isLoading
-                      ? null
-                      : () =>
-                          _runRequest('Vector Image (SVG)', _runner.runGetSvg),
-                  child: const Text('Vector Image (SVG)'),
-                ),
-              ],
-            ),
-            _buildSectionHeader(
-              title: 'Realtime WebSocket: Live Support Chat',
-              subtitle:
-                  'Trải nghiệm phòng chat hỗ trợ khách hàng realtime với bot tư vấn tự động (Sarah), typing indicators, và Interceptly realtime frame inspection.',
-              color: Colors.indigo,
-            ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                FilledButton.icon(
-                  key: const ValueKey('open_support_chat_button'),
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => ExampleChatPage(baseUrl: widget.server.baseUrl),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.chat_bubble_outline, size: 18),
-                  label: const Text('Mở Live Support Chat (Full Demo)'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.indigo,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-                OutlinedButton.icon(
-                  onPressed: _isLoading
-                      ? null
-                      : () => _runRequest(
-                          'WebSocket Chat Test', _runner.runWebSocketEcho),
-                  icon: const Icon(Icons.sync_alt, size: 18),
-                  label: const Text('Test nhanh (Quick Run)'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            _buildSectionHeader(
-              title: 'URL Filtering',
-              subtitle: 'Verify URL blacklist exclusion via shouldCapture filter.',
-              color: Colors.teal,
-            ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: _isLoading
-                      ? null
-                      : () => _runRequest(
-                          'Analytics Request', _runner.runAnalyticsRequest),
-                  icon: const Icon(Icons.filter_alt_off_outlined, size: 18),
-                  label: const Text('Analytics (Filtered by shouldCapture)'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            _buildSectionHeader(
-              title: 'Stress Test & Heavy Payloads',
-              subtitle:
-                  'Test JsonViewer virtualization, deep nesting, and memory truncation.',
-              color: Colors.deepOrange,
-            ),
-            _buildPresetSelector(),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                FilledButton(
-                  onPressed: _isLoading
-                      ? null
-                      : () => _runRequest(
-                          'Heavy List (3k items)', _runner.runHeavyListGet),
-                  child: const Text('Heavy List (~1MB)'),
-                ),
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                      backgroundColor: Colors.deepOrange),
-                  onPressed: _isLoading
-                      ? null
-                      : () => _runRequest('Extreme List (20k items)',
-                          _runner.runExtremeListGet),
-                  child: const Text('Extreme List (>6MB Truncate)'),
-                ),
-                FilledButton.tonal(
-                  onPressed: _isLoading
-                      ? null
-                      : () => _runRequest(
-                          'Deep Nested (35 levels)', _runner.runDeepNestedGet),
-                  child: const Text('Deep Nested (35 lvls)'),
-                ),
-                FilledButton.tonal(
-                  onPressed: _isLoading
-                      ? null
-                      : () => _runRequest(
-                          'Wide Text (100k chars)', _runner.runWideTextGet),
-                  child: const Text('Wide Text (100k)'),
-                ),
-                FilledButton.tonal(
-                  onPressed: _isLoading
-                      ? null
-                      : () => _runRequest(
-                          'Heavy POST (1k items)', _runner.runHeavyPost),
-                  child: const Text('Heavy POST (1k)'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: _isLoading
-                      ? null
-                      : () =>
-                          _runRequest('Delayed (1.5s)', _runner.runDelayedGet),
-                  icon: const Icon(Icons.timer_outlined, size: 18),
-                  label: const Text('Delayed (1.5s)'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            if (_isLoading) ...[
-              const LinearProgressIndicator(),
-              const SizedBox(height: 8),
-            ],
-            Text(_status, style: theme.textTheme.bodyMedium),
-            const SizedBox(height: 12),
-
-            if (_lastResult != null) ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainer,
-                  border: Border.all(color: colorScheme.outlineVariant),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        _Badge(
-                          label: 'Status ${_lastResult!.statusCode}',
-                          color: _lastResult!.statusCode >= 200 &&
-                                  _lastResult!.statusCode < 300
-                              ? Colors.green
-                              : (_lastResult!.statusCode >= 400 &&
-                                      _lastResult!.statusCode < 500
-                                  ? Colors.orange
-                                  : Colors.red),
-                        ),
-                        const SizedBox(width: 8),
-                        _Badge(
-                          label: '${_lastResult!.durationMs} ms',
-                          color: Colors.blue,
-                        ),
-                        const SizedBox(width: 8),
-                        _Badge(
-                          label: _lastResult!.formattedBytes,
-                          color: Colors.purple,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      _lastResult!.preview,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(fontFamily: 'monospace'),
-                      maxLines: 6,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
-          ],
-        ),
+      body: IndexedStack(
+        index: _selectedTab,
+        children: [
+          _buildHttpTab(theme, colorScheme),
+          ExampleChatPage(baseUrl: widget.server.baseUrl, showAppBar: false),
+          _buildStressLabTab(theme, colorScheme),
+        ],
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedTab,
+        onDestinationSelected: (index) => setState(() => _selectedTab = index),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.http),
+            label: 'HTTP',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.chat_bubble_outline),
+            label: 'WebSocket',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.speed),
+            label: 'Stress Lab',
+          ),
+        ],
       ),
     );
   }
 
-  /// Lets a tester switch the size caps before firing a request, so every
-  /// truncation stage can be observed without restarting the app.
-  Widget _buildPresetSelector() {
+  Widget _buildHttpTab(ThemeData theme, ColorScheme colorScheme) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildServerBadge(theme, colorScheme),
+          const SizedBox(height: 16),
+          _buildSectionTitle('RESTful Methods & Status Codes'),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton.tonal(
+                onPressed: _isLoading
+                    ? null
+                    : () => _runRequest('Dio GET (200)', _runner.runDioGet),
+                child: const Text('Dio GET 200'),
+              ),
+              FilledButton.tonal(
+                onPressed: _isLoading
+                    ? null
+                    : () => _runRequest('HTTP GET (200)', _runner.runHttpGet),
+                child: const Text('HTTP GET 200'),
+              ),
+              FilledButton.tonal(
+                onPressed: _isLoading
+                    ? null
+                    : () => _runRequest('Chopper GET (200)', _runner.runChopperGet),
+                child: const Text('Chopper GET 200'),
+              ),
+              FilledButton.tonal(
+                onPressed: _isLoading
+                    ? null
+                    : () => _runRequest('POST User (201)', _runner.runPostUser),
+                child: const Text('POST (201 Created)'),
+              ),
+              FilledButton.tonal(
+                onPressed: _isLoading
+                    ? null
+                    : () => _runRequest('PUT User (200)', _runner.runPutUser),
+                child: const Text('PUT (200)'),
+              ),
+              FilledButton.tonal(
+                onPressed: _isLoading
+                    ? null
+                    : () => _runRequest('PATCH User (200)', _runner.runPatchUser),
+                child: const Text('PATCH (200)'),
+              ),
+              FilledButton.tonal(
+                onPressed: _isLoading
+                    ? null
+                    : () => _runRequest('DELETE User (204)', _runner.runDeleteUser),
+                child: const Text('DELETE (204)'),
+              ),
+              OutlinedButton(
+                onPressed: _isLoading
+                    ? null
+                    : () => _runRequest('Bad Request (400)', _runner.run400BadRequest),
+                child: const Text('400 Bad Request'),
+              ),
+              OutlinedButton(
+                onPressed: _isLoading
+                    ? null
+                    : () => _runRequest('Unauthorized (401)', _runner.run401Unauthorized),
+                child: const Text('401 Unauthorized'),
+              ),
+              OutlinedButton(
+                onPressed: _isLoading
+                    ? null
+                    : () => _runRequest('Not Found (404)', _runner.run404NotFound),
+                child: const Text('404 Not Found'),
+              ),
+              OutlinedButton.icon(
+                onPressed: _isLoading
+                    ? null
+                    : () => _runRequest('Server Error (503)', _runner.runError),
+                icon: const Icon(Icons.error_outline, size: 18),
+                label: const Text('503 Error'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _buildSectionTitle('Specialized Formats & Viewers'),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton.tonal(
+                onPressed: _isLoading
+                    ? null
+                    : () => _runRequest('GraphQL Query', _runner.runGraphQLQuery),
+                child: const Text('GraphQL Query'),
+              ),
+              FilledButton.tonal(
+                onPressed: _isLoading
+                    ? null
+                    : () => _runRequest('GraphQL Mutation', _runner.runGraphQLMutation),
+                child: const Text('GraphQL Mutation'),
+              ),
+              FilledButton.tonal(
+                onPressed: _isLoading
+                    ? null
+                    : () => _runRequest('Multipart Upload', _runner.runMultipartUpload),
+                child: const Text('Multipart Upload (FormData)'),
+              ),
+              FilledButton.tonal(
+                onPressed: _isLoading
+                    ? null
+                    : () => _runRequest('Binary Image (PNG)', _runner.runGetImage),
+                child: const Text('Binary Image (PNG)'),
+              ),
+              FilledButton.tonal(
+                onPressed: _isLoading
+                    ? null
+                    : () => _runRequest('Vector Image (SVG)', _runner.runGetSvg),
+                child: const Text('Vector Image (SVG)'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _buildResultSection(theme, colorScheme),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStressLabTab(ThemeData theme, ColorScheme colorScheme) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildServerBadge(theme, colorScheme),
+          const SizedBox(height: 16),
+          _buildSectionTitle('Size Limits Preset'),
+          const SizedBox(height: 8),
+          _buildPresetSelector(),
+          const SizedBox(height: 24),
+          _buildSectionTitle('Stress Test & Heavy Payloads'),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton(
+                onPressed: _isLoading
+                    ? null
+                    : () => _runRequest('Heavy List (3k items)', _runner.runHeavyListGet),
+                child: const Text('Heavy List (~1MB)'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: Colors.deepOrange),
+                onPressed: _isLoading
+                    ? null
+                    : () => _runRequest('Extreme List (20k items)', _runner.runExtremeListGet),
+                child: const Text('Extreme List (>6MB Truncate)'),
+              ),
+              FilledButton.tonal(
+                onPressed: _isLoading
+                    ? null
+                    : () => _runRequest('Deep Nested (35 levels)', _runner.runDeepNestedGet),
+                child: const Text('Deep Nested (35 lvls)'),
+              ),
+              FilledButton.tonal(
+                onPressed: _isLoading
+                    ? null
+                    : () => _runRequest('Wide Text (100k chars)', _runner.runWideTextGet),
+                child: const Text('Wide Text (100k)'),
+              ),
+              FilledButton.tonal(
+                onPressed: _isLoading
+                    ? null
+                    : () => _runRequest('Heavy POST (1k items)', _runner.runHeavyPost),
+                child: const Text('Heavy POST (1k)'),
+              ),
+              OutlinedButton.icon(
+                onPressed: _isLoading
+                    ? null
+                    : () => _runRequest('Delayed (1.5s)', _runner.runDelayedGet),
+                icon: const Icon(Icons.timer_outlined, size: 18),
+                label: const Text('Delayed (1.5s)'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _buildSectionTitle('URL Filtering'),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: _isLoading
+                    ? null
+                    : () => _runRequest('Analytics Request', _runner.runAnalyticsRequest),
+                icon: const Icon(Icons.filter_alt_off_outlined, size: 18),
+                label: const Text('Analytics (Filtered by shouldCapture)'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _buildResultSection(theme, colorScheme),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildServerBadge(ThemeData theme, ColorScheme colorScheme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.circle, size: 8, color: Colors.green),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Server: ${widget.server.baseUrl}',
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontFamily: 'monospace',
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
     final theme = Theme.of(context);
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    return Text(
+      title,
+      style: theme.textTheme.titleSmall?.copyWith(
+        fontWeight: FontWeight.bold,
+      ),
+    );
+  }
+
+  Widget _buildResultSection(ThemeData theme, ColorScheme colorScheme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (_isLoading) ...[
+          const LinearProgressIndicator(),
+          const SizedBox(height: 8),
+        ],
+        Text(_status, style: theme.textTheme.bodyMedium),
+        if (_lastResult != null) ...[
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainer,
+              border: Border.all(color: colorScheme.outlineVariant),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.tune, size: 16, color: Colors.deepOrange),
-                const SizedBox(width: 6),
+                Row(
+                  children: [
+                    _Badge(
+                      label: 'Status ${_lastResult!.statusCode}',
+                      color: _lastResult!.statusCode >= 200 &&
+                              _lastResult!.statusCode < 300
+                          ? Colors.green
+                          : (_lastResult!.statusCode >= 400 &&
+                                  _lastResult!.statusCode < 500
+                              ? Colors.orange
+                              : Colors.red),
+                    ),
+                    const SizedBox(width: 8),
+                    _Badge(
+                      label: '${_lastResult!.durationMs} ms',
+                      color: Colors.blue,
+                    ),
+                    const SizedBox(width: 8),
+                    _Badge(
+                      label: _lastResult!.formattedBytes,
+                      color: Colors.purple,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
                 Text(
-                  'Size limits preset',
-                  style: theme.textTheme.labelLarge,
+                  _lastResult!.preview,
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(fontFamily: 'monospace'),
+                  maxLines: 6,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Caps apply to requests captured after you pick them. Choose a '
-              'preset, then fire "Extreme List (>6MB Truncate)".',
-              style: theme.textTheme.bodySmall,
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final preset in truncationPresets)
-                  ChoiceChip(
-                    label: Text(preset.label),
-                    selected: preset.id == _presetId,
-                    onSelected: (_) {
-                      setState(() => _presetId = preset.id);
-                      _applyPreset(preset);
-                      setState(() {
-                        _status =
-                            'Preset "${preset.label}" applied — maxBodyBytes '
-                            '${_formatMb(preset.maxBodyBytes)}, '
-                            'maxUiPreviewBytes ${_formatMb(preset.maxUiPreviewBytes)}';
-                      });
-                    },
-                  ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Expected notice',
-                    style: theme.textTheme.labelMedium,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _preset.description,
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildPresetSelector() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final preset in truncationPresets)
+          ChoiceChip(
+            label: Text(preset.label),
+            selected: preset.id == _presetId,
+            onSelected: (_) {
+              setState(() => _presetId = preset.id);
+              _applyPreset(preset);
+              setState(() {
+                _status =
+                    'Preset "${preset.label}" applied (maxBody: ${_formatMb(preset.maxBodyBytes)}, maxPreview: ${_formatMb(preset.maxUiPreviewBytes)})';
+              });
+            },
+          ),
+      ],
     );
   }
 
@@ -561,38 +489,6 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
       return '${bytes ~/ (1024 * 1024)} MB';
     }
     return '${bytes ~/ 1024} KB';
-  }
-
-  Widget _buildSectionHeader({
-    required String title,
-    required String subtitle,
-    required Color color,
-  }) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                title,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 2),
-          Text(
-            subtitle,
-            style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
-          ),
-        ],
-      ),
-    );
   }
 }
 

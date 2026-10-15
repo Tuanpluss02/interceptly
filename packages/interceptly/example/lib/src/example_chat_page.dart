@@ -29,11 +29,13 @@ class ChatMessage {
 class ExampleChatPage extends StatefulWidget {
   final String baseUrl;
   final bool autoConnect;
+  final bool showAppBar;
 
   const ExampleChatPage({
     super.key,
     required this.baseUrl,
     this.autoConnect = true,
+    this.showAppBar = true,
   });
 
   @override
@@ -196,7 +198,7 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
             ChatMessage(
               id: 'agent_${DateTime.now().millisecondsSinceEpoch}',
               text: decoded['message']?.toString() ?? text,
-              from: decoded['from']?.toString() ?? 'Sarah',
+              from: decoded['from']?.toString() ?? 'StormX',
               isMe: false,
             ),
           );
@@ -211,7 +213,7 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
           ChatMessage(
             id: 'raw_${DateTime.now().millisecondsSinceEpoch}',
             text: text,
-            from: 'Sarah',
+            from: 'StormX',
             isMe: false,
           ),
         );
@@ -259,97 +261,139 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        titleSpacing: 0,
-        title: Row(
-          children: [
-            CircleAvatar(
-              backgroundColor: Colors.indigo.shade100,
-              child: const Icon(Icons.support_agent, color: Colors.indigo),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
+      appBar: widget.showAppBar
+          ? AppBar(
+              titleSpacing: 0,
+              title: Row(
                 children: [
-                  const Text(
-                    'Sarah (Support Specialist)',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  CircleAvatar(
+                    backgroundColor: Colors.indigo.shade100,
+                    child: const Icon(Icons.support_agent, color: Colors.indigo),
                   ),
-                  Row(
-                    children: [
-                      Container(
-                        key: const ValueKey('chat_connection_status'),
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: _isConnected
-                              ? Colors.green
-                              : _isConnecting
-                                  ? Colors.orange
-                                  : Colors.grey,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'StormX (Support Bot)',
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                         ),
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        _isConnected
-                            ? 'Online (Connected)'
-                            : _isConnecting
-                                ? 'Đang kết nối...'
-                                : 'Offline',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: _isConnected ? Colors.green.shade700 : Colors.grey.shade600,
+                        Row(
+                          children: [
+                            Container(
+                              key: const ValueKey('chat_connection_status'),
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: _isConnected
+                                    ? Colors.green
+                                    : _isConnecting
+                                        ? Colors.orange
+                                        : Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              _isConnected
+                                  ? 'Online (Connected)'
+                                  : _isConnecting
+                                      ? 'Đang kết nối...'
+                                      : 'Offline',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: _isConnected ? Colors.green.shade700 : Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            key: const ValueKey('chat_toggle_connection'),
-            icon: Icon(
-              _isConnected ? Icons.link_off : Icons.link,
-              color: _isConnected ? Colors.red.shade400 : Colors.indigo,
-            ),
-            tooltip: _isConnected ? 'Ngắt kết nối' : 'Kết nối lại',
-            onPressed: _isConnected ? _disconnect : _connect,
-          ),
-          IconButton(
-            key: const ValueKey('chat_open_inspector'),
-            icon: const Icon(Icons.bug_report, color: Colors.indigo),
-            tooltip: 'Mở Interceptly Inspector',
-            onPressed: () => Interceptly.showInspector(context),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Guidance banner
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 8.0),
-              color: Colors.indigo.shade50,
-              child: Row(
-                children: [
-                  const Icon(Icons.tips_and_updates, size: 16, color: Colors.indigo),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text(
-                      'Mở Interceptly Inspector -> Realtime Tab để xem frame live hoặc gửi thử message bằng Chat Bar!',
-                      style: TextStyle(fontSize: 11.5, color: Colors.indigo),
+                      ],
                     ),
                   ),
                 ],
               ),
-            ),
+              actions: [
+                IconButton(
+                  key: const ValueKey('chat_toggle_connection'),
+                  icon: Icon(
+                    _isConnected ? Icons.link_off : Icons.link,
+                    color: _isConnected ? Colors.red.shade400 : Colors.indigo,
+                  ),
+                  tooltip: _isConnected ? 'Ngắt kết nối' : 'Kết nối lại',
+                  onPressed: _isConnected ? _disconnect : _connect,
+                ),
+                IconButton(
+                  key: const ValueKey('chat_open_inspector'),
+                  icon: const Icon(Icons.bug_report, color: Colors.indigo),
+                  tooltip: 'Mở Interceptly Inspector',
+                  onPressed: () => Interceptly.showInspector(context),
+                ),
+              ],
+            )
+          : null,
+      body: SafeArea(
+        child: Column(
+          children: [
+            if (!widget.showAppBar)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: Theme.of(context).dividerColor.withValues(alpha: 0.2),
+                    ),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 14,
+                      backgroundColor: Colors.indigo.shade100,
+                      child: const Icon(Icons.support_agent, size: 16, color: Colors.indigo),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Row(
+                        children: [
+                          const Text(
+                            'StormX',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            width: 7,
+                            height: 7,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _isConnected
+                                  ? Colors.green
+                                  : _isConnecting
+                                      ? Colors.orange
+                                      : Colors.grey,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            _isConnected ? 'Online' : (_isConnecting ? 'Connecting' : 'Offline'),
+                            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        _isConnected ? Icons.link_off : Icons.link,
+                        size: 20,
+                        color: _isConnected ? Colors.red.shade400 : Colors.indigo,
+                      ),
+                      tooltip: _isConnected ? 'Ngắt kết nối' : 'Kết nối lại',
+                      onPressed: _isConnected ? _disconnect : _connect,
+                    ),
+                  ],
+                ),
+              ),
 
             // Message list
             Expanded(
@@ -377,7 +421,7 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                               borderRadius: BorderRadius.circular(16),
                             ),
                             child: const Text(
-                              'Sarah đang gõ...',
+                              'StormX đang gõ...',
                               style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.black54),
                             ),
                           ),

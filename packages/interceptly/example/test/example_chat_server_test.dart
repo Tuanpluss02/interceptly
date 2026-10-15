@@ -37,10 +37,10 @@ void main() {
 
       expect(messages.length, greaterThanOrEqualTo(2));
       expect(messages[0]['type'], 'system');
-      expect(messages[0]['message'], contains('Sarah'));
+      expect(messages[0]['message'], contains('StormX'));
 
       expect(messages[1]['type'], 'agent_message');
-      expect(messages[1]['from'], contains('Sarah'));
+      expect(messages[1]['from'], contains('StormX'));
 
       // Test ping response
       final pongCompleter = Completer<void>();

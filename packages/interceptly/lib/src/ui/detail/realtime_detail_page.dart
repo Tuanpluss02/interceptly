@@ -157,105 +157,120 @@ class _RealtimeDetailPageState extends State<RealtimeDetailPage>
 
   @override
   Widget build(BuildContext context) {
-    final themeMode = widget.session.preferences.themeMode;
-    InterceptlyTheme.bind(
-      context: context,
-      themeMode: themeMode,
-    );
-    final colors = InterceptlyTheme.colorsOf(context);
-    final themedData = InterceptlyTheme.themeData(
-      context: context,
-      themeMode: themeMode,
-    );
-    final entry = _currentEntry;
-    final (:path, :host) = _splitUrl(entry.url);
-    final isPending = entry.statusCode == 0 && !entry.hasError;
+    return ListenableBuilder(
+      listenable: widget.session.preferences,
+      builder: (context, _) {
+        final themeMode = widget.session.preferences.themeMode;
+        InterceptlyTheme.bind(
+          context: context,
+          themeMode: themeMode,
+        );
+        final themedData = InterceptlyTheme.themeData(
+          context: context,
+          themeMode: themeMode,
+        );
+        final entry = _currentEntry;
+        final (:path, :host) = _splitUrl(entry.url);
+        final isPending = entry.statusCode == 0 && !entry.hasError;
 
-    return Theme(
-      data: themedData,
-      child: Scaffold(
-        backgroundColor: colors.surfacePrimary,
-        appBar: AppBar(
-          backgroundColor: colors.surfacePrimary,
-          elevation: 0,
-          leading: IconButton(
-            icon: Icon(Icons.arrow_back, color: colors.textPrimary),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-          title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                path,
-                style: InterceptlyTheme.typography.bodyMediumBold.copyWith(
-                  fontSize: 14,
-                  color: colors.textPrimary,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              if (host.isNotEmpty) ...[
-                const SizedBox(height: 2),
-                Text(
-                  host,
-                  style: InterceptlyTheme.typography.bodySmallRegular.copyWith(
-                    fontSize: 11,
-                    color: colors.textTertiary,
+        return Theme(
+          data: themedData,
+          child: Builder(
+            builder: (themedContext) {
+              final colors = InterceptlyTheme.colorsOf(themedContext);
+              return Scaffold(
+                backgroundColor: InterceptlyTheme.surface,
+                appBar: AppBar(
+                  backgroundColor: InterceptlyTheme.surface,
+                  elevation: 0,
+                  scrolledUnderElevation: 0,
+                  iconTheme:
+                      IconThemeData(color: InterceptlyTheme.textSecondary),
+                  leading: IconButton(
+                    icon: Icon(Icons.arrow_back,
+                        color: InterceptlyTheme.textPrimary),
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ],
-          ),
-          actions: [
-            Padding(
-              padding: const EdgeInsets.only(right: 16.0),
-              child: _buildStatusBadge(
-                entry: entry,
-                isPending: isPending,
-                colors: colors,
-              ),
-            ),
-          ],
-          bottom: TabBar(
-            controller: _tabController,
-            indicatorColor: InterceptlyTheme.indigo500,
-            labelColor: InterceptlyTheme.indigo400,
-            unselectedLabelColor: colors.textTertiary,
-            dividerColor: InterceptlyGlobalColor.transparent,
-            tabs: const [
-              Tab(text: 'Messages'),
-              Tab(text: 'Overview'),
-            ],
-          ),
-        ),
-        body: FutureBuilder<RequestRecord>(
-          future: _recordFuture,
-          initialData: _cachedRecord,
-          builder: (context, snapshot) {
-            final record = snapshot.data ?? _cachedRecord;
-            return TabBarView(
-              controller: _tabController,
-              children: [
-                RealtimeMessagesTab(
-                  session: widget.session,
-                  sessionId: entry.id,
-                ),
-                if (record != null)
-                  _buildOverviewTab(record, isPending, colors)
-                else
-                  const Center(
-                    child: CircularProgressIndicator(
-                      color: InterceptlyTheme.indigo500,
+                  title: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        path,
+                        style:
+                            InterceptlyTheme.typography.bodyMediumBold.copyWith(
+                          fontSize: 14,
+                          color: InterceptlyTheme.textPrimary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (host.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          host,
+                          style: InterceptlyTheme.typography.bodySmallRegular
+                              .copyWith(
+                            fontSize: 11,
+                            color: InterceptlyTheme.textTertiary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
+                  ),
+                  actions: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 16.0),
+                      child: _buildStatusBadge(
+                        entry: entry,
+                        isPending: isPending,
+                        colors: colors,
+                      ),
                     ),
+                  ],
+                  bottom: TabBar(
+                    controller: _tabController,
+                    indicatorColor: InterceptlyTheme.indigo500,
+                    labelColor: InterceptlyTheme.indigo400,
+                    unselectedLabelColor: InterceptlyTheme.textTertiary,
+                    dividerColor: InterceptlyGlobalColor.transparent,
+                    tabs: const [
+                      Tab(text: 'Messages'),
+                      Tab(text: 'Overview'),
+                    ],
                   ),
-              ],
-            );
-          },
-        ),
-      ),
+                ),
+                body: FutureBuilder<RequestRecord>(
+                  future: _recordFuture,
+                  initialData: _cachedRecord,
+                  builder: (context, snapshot) {
+                    final record = snapshot.data ?? _cachedRecord;
+                    return TabBarView(
+                      controller: _tabController,
+                      children: [
+                        RealtimeMessagesTab(
+                          session: widget.session,
+                          sessionId: entry.id,
+                        ),
+                        if (record != null)
+                          _buildOverviewTab(record, isPending, colors)
+                        else
+                          const Center(
+                            child: CircularProgressIndicator(
+                              color: InterceptlyTheme.indigo500,
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 

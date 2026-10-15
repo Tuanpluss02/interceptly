@@ -7,6 +7,18 @@ High-performance, client-agnostic network & realtime traffic inspector for Flutt
 
 ---
 
+## Install with AI agent
+
+Paste this into your coding agent (OpenCode, Claude Code, Codex, ...):
+
+```
+Fetch and follow instructions from https://raw.githubusercontent.com/Tuanpluss02/interceptly/main/AGENTS.md
+```
+
+The agent will detect your HTTP clients, add the right packages, wire up the inspector, and verify it works.
+
+---
+
 ## Architecture Overview
 
 Interceptly is organized as a modular monorepo managed with [Melos](https://melos.invertase.dev/). The core inspection engine and UI are completely client-agnostic, while lightweight satellite adapter packages provide seamless integration with popular networking libraries.
@@ -25,7 +37,7 @@ Interceptly is organized as a modular monorepo managed with [Melos](https://melo
 
 | Package | Version | Description |
 | :--- | :--- | :--- |
-| [`interceptly`](packages/interceptly) | `^2.0.3` | **Core package**: Flutter UI inspector overlay, background isolate pipeline, hybrid disk/RAM storage, throttling buffer, and realtime inspection. |
+| [`interceptly`](packages/interceptly) | `^2.1.0` | **Core package**: Flutter UI inspector overlay, background isolate pipeline, hybrid disk/RAM storage, throttling buffer, and realtime inspection. |
 | [`interceptly_dio`](packages/interceptly_dio) | `^1.0.0` | **Dio Adapter**: Non-intrusive `Interceptor` recording HTTP requests, responses, and errors. |
 | [`interceptly_http`](packages/interceptly_http) | `^1.0.0` | **HTTP Adapter**: Stream-teeing `http.Client` wrapper preserving single-subscription response streams. |
 | [`interceptly_chopper`](packages/interceptly_chopper) | `^1.0.0` | **Chopper Adapter**: `ResponseInterceptor` and `RequestInterceptor` capturing Chopper network traffic. |
@@ -140,7 +152,9 @@ channel.sink.add('Hello Interceptly!');
 | `fabChild` | `Widget?` | `null` | Optional custom widget rendered inside the floating action button |
 | `customTrigger` | `Stream<void>?` | `null` | Stream triggering inspector opening (e.g. shake detector, volume keys, gesture) |
 | `settings` | `InterceptlySettings?` | Default settings | Storage thresholds, body caps, filtering predicates, and timeout durations |
-| `allowInRelease` | `bool` | `false` | Security guard preventing accidental release-mode exposure unless set to `true` |
+
+> [!WARNING]
+> `Interceptly.init` has no release guard: calling it in a release build ships the inspector to users. Always wrap the call in `if (kDebugMode || kProfileMode)`.
 
 ### Overlay & Navigation Triggers
 
