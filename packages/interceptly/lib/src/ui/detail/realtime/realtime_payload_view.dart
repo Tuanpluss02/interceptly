@@ -229,8 +229,7 @@ class _RealtimePayloadViewState extends State<RealtimePayloadView> {
                       color: showHex
                           ? InterceptlyTheme.indigo400
                           : InterceptlyTheme.textMuted,
-                      fontWeight:
-                          showHex ? FontWeight.w600 : FontWeight.normal,
+                      fontWeight: showHex ? FontWeight.w600 : FontWeight.normal,
                     ),
                   ),
                 ),

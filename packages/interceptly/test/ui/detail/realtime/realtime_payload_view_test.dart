@@ -10,7 +10,8 @@ import 'package:interceptly/src/ui/widgets/json_viewer/json_viewer.dart';
 
 void main() {
   group('RealtimePayloadView Binary Decoding & Toggle Tests', () {
-    testWidgets('binary frame with valid JSON renders JsonViewer and allows Hex toggle',
+    testWidgets(
+        'binary frame with valid JSON renders JsonViewer and allows Hex toggle',
         (tester) async {
       final jsonBytes = Uint8List.fromList(
         utf8.encode('{"event":"status","online":true}'),
@@ -43,7 +44,8 @@ void main() {
       expect(find.byType(JsonViewer), findsOneWidget);
 
       // Toggle buttons exist
-      final hexToggle = find.byKey(const ValueKey('frame_toggle_hex_frame_bin_json'));
+      final hexToggle =
+          find.byKey(const ValueKey('frame_toggle_hex_frame_bin_json'));
       final decodedToggle =
           find.byKey(const ValueKey('frame_toggle_decoded_frame_bin_json'));
       expect(hexToggle, findsOneWidget);
@@ -63,7 +65,8 @@ void main() {
       expect(find.byType(JsonViewer), findsOneWidget);
     });
 
-    testWidgets('binary frame with plain text displays text and allows Hex toggle',
+    testWidgets(
+        'binary frame with plain text displays text and allows Hex toggle',
         (tester) async {
       final textBytes = Uint8List.fromList(
         utf8.encode('Plain WebSocket text inside binary frame'),
@@ -89,8 +92,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Plain WebSocket text inside binary frame'), findsOneWidget);
-      final hexToggle = find.byKey(const ValueKey('frame_toggle_hex_frame_bin_text'));
+      expect(find.text('Plain WebSocket text inside binary frame'),
+          findsOneWidget);
+      final hexToggle =
+          find.byKey(const ValueKey('frame_toggle_hex_frame_bin_text'));
       expect(hexToggle, findsOneWidget);
 
       await tester.tap(hexToggle);
@@ -99,7 +104,8 @@ void main() {
       expect(find.textContaining('[binary:'), findsOneWidget);
     });
 
-    testWidgets('raw un-decodable binary frame shows hex only without toggle buttons',
+    testWidgets(
+        'raw un-decodable binary frame shows hex only without toggle buttons',
         (tester) async {
       final rawBytes = Uint8List.fromList([0x00, 0x01, 0xFF, 0xFE, 0x02]);
       final frame = RealtimeFrame.binary(

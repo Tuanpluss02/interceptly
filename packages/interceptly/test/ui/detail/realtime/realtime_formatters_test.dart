@@ -148,7 +148,9 @@ void main() {
       });
     });
 
-    test('getFramePayloadString returns decoded text when binary contains valid text', () {
+    test(
+        'getFramePayloadString returns decoded text when binary contains valid text',
+        () {
       final binFrame = RealtimeFrame.binary(
         id: 'f_bin_text',
         sessionId: 's1',
