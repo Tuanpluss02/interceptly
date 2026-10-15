@@ -77,6 +77,8 @@ jobs:
           melos version --yes --no-git-tag-version $EXTRA_ARGS
           echo "=== CHANGELOG DIFF PREVIEW ==="
           git diff
+          git add -A
+          git commit -m "chore(release): temporary dry-run commit" || true
 
       - name: Apply Versioning & Push Tags
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run != 'true' }}
@@ -97,6 +99,8 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' }}
         run: |
           echo "::notice::Running Melos publish in DRY RUN mode..."
+          echo "=== GIT STATUS BEFORE PUBLISH DRY-RUN (must be clean) ==="
+          git status --porcelain
           melos publish --yes --dry-run
 
       - name: Publish Packages to Pub.dev via OIDC
