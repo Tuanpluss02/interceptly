@@ -1,0 +1,47 @@
+name: Feature Request
+description: Propose a new feature, improvement, or adapter for Interceptly
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting an improvement! Please describe the use case and how this feature will help Flutter developers.
+
+  - type: dropdown
+    id: package
+    attributes:
+      label: Target Package / Component
+      description: Where should this feature be added?
+      options:
+        - interceptly (Core & UI overlay)
+        - interceptly_dio
+        - interceptly_http
+        - interceptly_chopper
+        - interceptly_web_socket
+        - New adapter (please specify below)
+        - Tooling / CI / Documentation
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or Motivation
+      description: Is your feature request related to a specific problem or limitation?
+      placeholder: "I'm always frustrated when..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the solution you'd like to see implemented, including API sketch or UI behavior if applicable.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any alternative solutions or workarounds you've considered.
