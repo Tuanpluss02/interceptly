@@ -1,3 +1,7 @@
+## 2.1.1
+
+ - **REFACTOR**: remove redundant message composer title from header in realtime message composer sheet. ([397b5792](https://github.com/Tuanpluss02/interceptly/commit/397b5792c30f933775575b38c7fe3cc380e5d726))
+
 ## 2.1.0
 
 ### Added
