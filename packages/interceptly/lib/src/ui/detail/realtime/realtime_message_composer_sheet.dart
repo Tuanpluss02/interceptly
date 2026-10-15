@@ -133,32 +133,21 @@ class _RealtimeMessageComposerSheetState
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: InterceptlyTheme.indigo500
-                              .withValues(alpha: 0.15),
-                          borderRadius:
-                              BorderRadius.circular(InterceptlyTheme.radius.sm),
-                        ),
-                        child: Text(
-                          protocolName.toUpperCase(),
-                          style: InterceptlyTheme.typography
-                              .monospace(
-                                  InterceptlyTheme.typography.bodySmallMedium)
-                              .copyWith(color: InterceptlyTheme.indigo500),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Message Composer',
-                        style: InterceptlyTheme.typography.bodyMediumBold
-                            .copyWith(color: InterceptlyTheme.textPrimary),
-                      ),
-                    ],
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: InterceptlyTheme.indigo500.withValues(alpha: 0.15),
+                      borderRadius:
+                          BorderRadius.circular(InterceptlyTheme.radius.sm),
+                    ),
+                    child: Text(
+                      protocolName.toUpperCase(),
+                      style: InterceptlyTheme.typography
+                          .monospace(
+                              InterceptlyTheme.typography.bodySmallMedium)
+                          .copyWith(color: InterceptlyTheme.indigo500),
+                    ),
                   ),
                   OutlinedButton.icon(
                     key: const ValueKey('realtime_composer_format_button'),
