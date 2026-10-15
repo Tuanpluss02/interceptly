@@ -448,6 +448,13 @@ BodyTruncation _storageTruncation(
   if (maxBody <= 0 || originalBytes <= keptBytes) {
     return BodyTruncation.complete(originalBytes);
   }
+  if (originalBytes <= maxBody) {
+    return BodyTruncation(
+      originalBytes: originalBytes,
+      retainedBytes: keptBytes,
+      stage: TruncationStage.none,
+    );
+  }
   return BodyTruncation(
     originalBytes: originalBytes,
     retainedBytes: keptBytes,
