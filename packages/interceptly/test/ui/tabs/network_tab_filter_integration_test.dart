@@ -17,18 +17,14 @@ void main() {
   });
 
   group('NetworkTab Filter Integration', () {
-    testWidgets('shows FilterBadge and QuickFilterBar for REST protocol',
-        (tester) async {
+    testWidgets('shows FilterBadge and QuickFilterBar', (tester) async {
       final session = InspectorSession();
       addTearDown(session.dispose);
 
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: NetworkTab(
-              session: session,
-              protocol: NetworkProtocol.rest,
-            ),
+            body: NetworkTab(session: session),
           ),
         ),
       );
@@ -46,10 +42,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: NetworkTab(
-              session: session,
-              protocol: NetworkProtocol.rest,
-            ),
+            body: NetworkTab(session: session),
           ),
         ),
       );
@@ -66,23 +59,27 @@ void main() {
       expect(badgeActive.activeFiltersCount, equals(2));
     });
 
-    testWidgets('hides QuickFilterBar for Realtime protocol', (tester) async {
+    testWidgets('always shows QuickFilterBar even with realtime entries',
+        (tester) async {
       final session = InspectorSession();
       addTearDown(session.dispose);
+      session.recordRealtimeConnection(
+        id: 'ws_1',
+        url: 'wss://socket.example.com/feed',
+        timestamp: DateTime(2026, 10, 14, 10, 1, 0),
+      );
 
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: NetworkTab(
-              session: session,
-              protocol: NetworkProtocol.realtime,
-            ),
+            body: NetworkTab(session: session),
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.byType(QuickFilterBar), findsNothing);
+      expect(find.byType(QuickFilterBar), findsOneWidget);
+      expect(find.text('/feed'), findsNothing);
     });
   });
 }

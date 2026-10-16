@@ -105,6 +105,12 @@ class _FakeSessionView extends ChangeNotifier implements InspectorSessionView {
   Future<void> clear() async {}
 
   @override
+  Future<void> clearRest() async {}
+
+  @override
+  Future<void> clearRealtime() async {}
+
+  @override
   void applyFilter(RequestFilter filter) {}
 
   @override

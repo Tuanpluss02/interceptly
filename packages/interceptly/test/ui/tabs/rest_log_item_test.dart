@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/model/realtime_frame.dart';
 import 'package:interceptly/src/model/search_match_scope.dart';
-import 'package:interceptly/src/ui/tabs/request_log_item.dart';
+import 'package:interceptly/src/ui/tabs/rest_log_item.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -20,14 +19,12 @@ void main() {
     bool isSelected = false,
     Set<SearchMatchScope>? searchScopes,
     String? highlightQuery,
-    bool isRealtime = false,
-    RealtimeFrameCounts? realtimeFrameCounts,
     VoidCallback? onTap,
     VoidCallback? onLongPress,
   }) {
     return MaterialApp(
       home: Scaffold(
-        body: RequestLogItem(
+        body: RestLogItem(
           method: method,
           url: url,
           time: time,
@@ -40,8 +37,6 @@ void main() {
           isSelected: isSelected,
           searchScopes: searchScopes,
           highlightQuery: highlightQuery,
-          isRealtime: isRealtime,
-          realtimeFrameCounts: realtimeFrameCounts,
           onTap: onTap ?? () {},
           onLongPress: onLongPress ?? () {},
         ),
@@ -49,7 +44,7 @@ void main() {
     );
   }
 
-  group('RequestLogItem Widget Tests', () {
+  group('RestLogItem Widget Tests', () {
     testWidgets('renders basic method, path, host and status pill',
         (tester) async {
       await tester.pumpWidget(buildItem());
@@ -59,6 +54,14 @@ void main() {
       expect(find.text('api.example.com'), findsOneWidget);
       expect(find.text('200'), findsOneWidget);
       expect(find.textContaining('11:20:00 · 25ms'), findsOneWidget);
+    });
+
+    testWidgets('renders status number without frame counts',
+        (tester) async {
+      await tester.pumpWidget(buildItem());
+
+      expect(find.text('200'), findsOneWidget);
+      expect(find.textContaining('↓'), findsNothing);
     });
 
     testWidgets('displays match scope badges when searchScopes is non-empty',
@@ -135,112 +138,11 @@ void main() {
         ),
       );
 
-      await tester.tap(find.byType(RequestLogItem));
+      await tester.tap(find.byType(RestLogItem));
       expect(tapped, isTrue);
 
-      await tester.longPress(find.byType(RequestLogItem));
+      await tester.longPress(find.byType(RestLogItem));
       expect(longPressed, isTrue);
-    });
-
-    testWidgets(
-        'renders CONNECTED badge and frame counts for active realtime connection',
-        (tester) async {
-      await tester.pumpWidget(
-        buildItem(
-          method: 'WS',
-          url: 'wss://realtime.example.com/socket',
-          time: '12:00:00',
-          duration: '45s',
-          status: 0,
-          isPending: true,
-          isRealtime: true,
-          realtimeFrameCounts:
-              const RealtimeFrameCounts(incoming: 12, outgoing: 5),
-        ),
-      );
-
-      expect(find.text('WS'), findsOneWidget);
-      expect(find.text('CONNECTED'), findsOneWidget);
-      expect(find.textContaining('12:00:00 · 45s · ↓ 12  ↑ 5'), findsOneWidget);
-      expect(find.byType(CircularProgressIndicator), findsNothing);
-    });
-
-    testWidgets('renders CLOSED badge for normally closed realtime connection',
-        (tester) async {
-      await tester.pumpWidget(
-        buildItem(
-          method: 'WS',
-          url: 'wss://realtime.example.com/socket',
-          time: '12:00:00',
-          duration: '2m 15s',
-          status: 1000,
-          isPending: false,
-          isRealtime: true,
-          realtimeFrameCounts:
-              const RealtimeFrameCounts(incoming: 20, outgoing: 10),
-        ),
-      );
-
-      expect(find.text('CLOSED'), findsOneWidget);
-      expect(find.text('1000'), findsNothing);
-      expect(find.textContaining('12:00:00 · 2m 15s · ↓ 20  ↑ 10'),
-          findsOneWidget);
-    });
-
-    testWidgets(
-        'renders DROPPED badge for abnormally closed realtime connection',
-        (tester) async {
-      await tester.pumpWidget(
-        buildItem(
-          method: 'WS',
-          url: 'wss://realtime.example.com/socket',
-          time: '12:00:00',
-          duration: '30s',
-          status: 1006,
-          hasError: true,
-          isPending: false,
-          isRealtime: true,
-          realtimeFrameCounts:
-              const RealtimeFrameCounts(incoming: 3, outgoing: 1),
-        ),
-      );
-
-      expect(find.text('DROPPED'), findsOneWidget);
-      expect(find.text('1006'), findsNothing);
-      expect(find.textContaining('12:00:00 · 30s · ↓ 3  ↑ 1'), findsOneWidget);
-    });
-
-    testWidgets('metadata line width is not constrained by status badge width',
-        (tester) async {
-      tester.view.physicalSize = const Size(360, 640);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-
-      await tester.pumpWidget(
-        buildItem(
-          method: 'WS',
-          url: 'wss://realtime.example.com/socket/v1/stream',
-          time: '12:00:00',
-          duration: '1h 30m 15s',
-          status: 0,
-          isPending: true,
-          isRealtime: true,
-          realtimeFrameCounts:
-              const RealtimeFrameCounts(incoming: 1234, outgoing: 5678),
-        ),
-      );
-
-      final badgeFinder = find.text('CONNECTED');
-      final metaFinder =
-          find.textContaining('12:00:00 · 1h 30m 15s · ↓ 1234  ↑ 5678');
-      expect(badgeFinder, findsOneWidget);
-      expect(metaFinder, findsOneWidget);
-
-      final badgeRenderBox = tester.renderObject(badgeFinder) as RenderBox;
-      final metaRenderBox = tester.renderObject(metaFinder) as RenderBox;
-
-      expect(metaRenderBox.size.width, greaterThan(220));
-      expect(badgeRenderBox.size.width, greaterThan(50));
     });
   });
 }

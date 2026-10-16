@@ -3,10 +3,10 @@ import 'package:interceptly/src/ui/filter/filter_panel.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
 import 'package:interceptly/src/ui/settings/settings_bottom_sheet.dart';
 import 'package:interceptly/src/ui/tabs/network_tab.dart';
+import 'package:interceptly/src/ui/tabs/realtime_list_tab.dart';
 import 'package:interceptly/src/ui/widgets/interceptly_confirm_dialog.dart';
 import 'package:interceptly/src/ui/widgets/toast_notification.dart';
 
-import '../../model/network_protocol.dart';
 import '../../session/inspector_session.dart';
 import '../../session/inspector_session_view.dart';
 
@@ -39,19 +39,28 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
     );
   }
 
-  Future<void> _clearLogs(BuildContext ctx) async {
+  Future<void> _clearLogs(BuildContext ctx, {required bool realtime}) async {
     final shouldClear = await InterceptlyConfirmDialog.show(
       ctx,
-      title: 'Clear all logs?',
-      message: 'This action cannot be undone.',
+      title: realtime ? 'Clear realtime logs?' : 'Clear REST logs?',
+      message: realtime
+          ? 'This will remove all realtime connections and cannot be undone.'
+          : 'This will remove all REST requests and cannot be undone.',
       confirmText: 'Clear',
       cancelText: 'Cancel',
     );
 
     if (!shouldClear) return;
-    widget.session.clear();
+    if (realtime) {
+      await widget.session.clearRealtime();
+    } else {
+      await widget.session.clearRest();
+    }
     if (!mounted) return;
-    ToastNotification.show('Cleared all logs!', contextHint: context);
+    ToastNotification.show(
+      realtime ? 'Cleared realtime logs!' : 'Cleared REST logs!',
+      contextHint: context,
+    );
   }
 
   @override
@@ -89,7 +98,10 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
                       ),
                       IconButton(
                         icon: const Icon(Icons.delete_outline),
-                        onPressed: () => _clearLogs(themedContext),
+                        onPressed: () => _clearLogs(
+                          themedContext,
+                          realtime: isRealtime && selectedTabIndex == 1,
+                        ),
                         tooltip: 'Clear logs',
                       ),
                       IconButton(
@@ -109,7 +121,6 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
                   body: !isRealtime
                       ? NetworkTab(
                           session: widget.session,
-                          protocol: NetworkProtocol.rest,
                           groupingEnabled: widget.session.groupingEnabled,
                           onShowFilterPanel: () =>
                               _showFilterPanel(themedContext),
@@ -120,18 +131,13 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
                             NetworkTab(
                               key: const ValueKey('tab_rest'),
                               session: widget.session,
-                              protocol: NetworkProtocol.rest,
                               groupingEnabled: widget.session.groupingEnabled,
                               onShowFilterPanel: () =>
                                   _showFilterPanel(themedContext),
                             ),
-                            NetworkTab(
+                            RealtimeListTab(
                               key: const ValueKey('tab_realtime'),
                               session: widget.session,
-                              protocol: NetworkProtocol.realtime,
-                              groupingEnabled: widget.session.groupingEnabled,
-                              onShowFilterPanel: () =>
-                                  _showFilterPanel(themedContext),
                             ),
                           ],
                         ),

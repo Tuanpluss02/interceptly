@@ -1,20 +1,16 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:interceptly/src/ui/detail/realtime_detail_page.dart';
 import 'package:interceptly/src/ui/detail/request_detail_page.dart';
 import 'package:interceptly/src/ui/detail/share_handler.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
-import 'package:interceptly/src/ui/tabs/request_log_item.dart';
+import 'package:interceptly/src/ui/tabs/rest_log_item.dart';
 import 'package:interceptly/src/ui/widgets/domain_group_header.dart';
 import 'package:interceptly/src/ui/widgets/error_summary.dart';
 import 'package:interceptly/src/ui/widgets/interceptly_text_field.dart';
 import 'package:interceptly/src/ui/widgets/toast_notification.dart';
 
-import '../format.dart';
-
 import '../../model/domain_group.dart';
-import '../../model/network_protocol.dart';
 import '../../model/request_record.dart';
 import '../../model/request_summary.dart';
 import '../../session/inspector_session_view.dart';
@@ -23,22 +19,24 @@ import 'quick_filter_bar.dart';
 
 part 'network_tab_widgets.dart';
 
+/// REST-only traffic list with search, quick filters, grouping and export.
 class NetworkTab extends StatefulWidget {
-  final InspectorSessionView session;
-  final bool groupingEnabled;
-  final NetworkProtocol protocol;
-  final VoidCallback? onShowFilterPanel;
-  @visibleForTesting
-  final DateTime Function()? nowProvider;
-
+  /// Creates a REST-only list bound to [session].
   const NetworkTab({
     super.key,
     required this.session,
     this.groupingEnabled = false,
-    this.protocol = NetworkProtocol.all,
     this.onShowFilterPanel,
-    @visibleForTesting this.nowProvider,
   });
+
+  /// Session providing filtered REST entries and search scopes.
+  final InspectorSessionView session;
+
+  /// Whether entries render grouped by domain.
+  final bool groupingEnabled;
+
+  /// Opens the full filter panel when set.
+  final VoidCallback? onShowFilterPanel;
 
   @override
   State<NetworkTab> createState() => _NetworkTabState();
@@ -52,7 +50,6 @@ class _NetworkTabState extends State<NetworkTab> {
   bool _isExporting = false;
   final Map<String, String> _displayUrlCache = {};
   bool? _cachedUrlDecodeSetting;
-  Timer? _liveTicker;
 
   @override
   void initState() {
@@ -60,48 +57,16 @@ class _NetworkTabState extends State<NetworkTab> {
     _searchController = TextEditingController(
       text: widget.session.masterQuery ?? '',
     );
-    widget.session.addListener(_onSessionUpdated);
-    _updateLiveTicker();
-  }
-
-  @override
-  void didUpdateWidget(covariant NetworkTab oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.session != oldWidget.session) {
-      oldWidget.session.removeListener(_onSessionUpdated);
-      widget.session.addListener(_onSessionUpdated);
-      _updateLiveTicker();
-    }
   }
 
   @override
   void dispose() {
-    _liveTicker?.cancel();
-    _liveTicker = null;
-    widget.session.removeListener(_onSessionUpdated);
     _displayUrlCache.clear();
     _searchController.dispose();
     super.dispose();
   }
 
-  void _onSessionUpdated() {
-    _updateLiveTicker();
-  }
-
-  void _updateLiveTicker() {
-    final hasActiveRealtime = widget.session.entries.any(
-      (e) => e.isRealtime && e.statusCode == 0 && !e.hasError,
-    );
-    if (hasActiveRealtime) {
-      _liveTicker ??= Timer.periodic(const Duration(seconds: 1), (_) {
-        if (mounted) setState(() {});
-      });
-    } else {
-      _liveTicker?.cancel();
-      _liveTicker = null;
-    }
-  }
-
+  /// Display URL honoring the url-decode preference with per-row caching.
   String _getDisplayUrl(RequestSummary entry) {
     final decodeEnabled = widget.session.preferences.urlDecodeEnabled;
     if (_cachedUrlDecodeSetting != decodeEnabled) {
@@ -121,6 +86,7 @@ class _NetworkTabState extends State<NetworkTab> {
     return displayUrl;
   }
 
+  /// Enters multi-select mode with [id] pre-selected.
   void _enterSelectionMode(String id) {
     setState(() {
       _isSelectionMode = true;
@@ -128,6 +94,7 @@ class _NetworkTabState extends State<NetworkTab> {
     });
   }
 
+  /// Leaves multi-select mode and clears the selection.
   void _exitSelectionMode() {
     setState(() {
       _isSelectionMode = false;
@@ -135,6 +102,7 @@ class _NetworkTabState extends State<NetworkTab> {
     });
   }
 
+  /// Toggles selection of a single row, exiting mode when empty.
   void _toggleSelection(String id) {
     setState(() {
       if (_selectedIds.contains(id)) {
@@ -146,6 +114,7 @@ class _NetworkTabState extends State<NetworkTab> {
     });
   }
 
+  /// Toggles selection of every row in a domain group.
   void _toggleGroupSelection(List<String> groupIds) {
     setState(() {
       final allSelected = groupIds.every((id) => _selectedIds.contains(id));
@@ -158,6 +127,7 @@ class _NetworkTabState extends State<NetworkTab> {
     });
   }
 
+  /// Exports selected rows to Postman in chunks of ten.
   Future<void> _exportSelectedAsPostman() async {
     if (_selectedIds.isEmpty || _isExporting) return;
     setState(() => _isExporting = true);
@@ -238,8 +208,7 @@ class _NetworkTabState extends State<NetworkTab> {
                   onShowFilter: widget.onShowFilterPanel,
                 ),
               ),
-              if (widget.protocol != NetworkProtocol.realtime)
-                QuickFilterBar(session: widget.session),
+              QuickFilterBar(session: widget.session),
             ],
             Divider(height: 1, color: InterceptlyTheme.dividerSubtle),
             Expanded(
@@ -263,29 +232,17 @@ class _NetworkTabState extends State<NetworkTab> {
     );
   }
 
-  List<RequestSummary> _filterByProtocol(List<RequestSummary> list) {
-    switch (widget.protocol) {
-      case NetworkProtocol.rest:
-        return list.where((e) => !e.isRealtime).toList();
-      case NetworkProtocol.realtime:
-        return list.where((e) => e.isRealtime).toList();
-      case NetworkProtocol.all:
-        return list;
-    }
+  /// Drops realtime connections so only REST exchanges render.
+  List<RequestSummary> _restOnly(List<RequestSummary> list) {
+    return list.where((e) => !e.isRealtime).toList();
   }
 
-  String get _emptyMessage {
-    switch (widget.protocol) {
-      case NetworkProtocol.realtime:
-        return 'No WebSocket connections yet.';
-      case NetworkProtocol.rest:
-      case NetworkProtocol.all:
-        return 'No network requests yet.';
-    }
-  }
+  /// Empty-state copy for the REST-only list.
+  String get _emptyMessage => 'No network requests yet.';
 
+  /// Flat newest-first list of REST rows.
   Widget _buildFlatList(BuildContext context) {
-    final entries = _filterByProtocol(widget.session.entries);
+    final entries = _restOnly(widget.session.entries);
 
     if (entries.isEmpty) {
       return Center(
@@ -313,17 +270,11 @@ class _NetworkTabState extends State<NetworkTab> {
             entry: req,
             onTapNavigate: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => req.isRealtime
-                    ? RealtimeDetailPage(
-                        entry: req,
-                        session: widget.session,
-                        nowProvider: widget.nowProvider,
-                      )
-                    : RequestDetailPage(
-                        entry: req,
-                        session: widget.session,
-                        initialQuery: widget.session.masterQuery,
-                      ),
+                builder: (_) => RequestDetailPage(
+                  entry: req,
+                  session: widget.session,
+                  initialQuery: widget.session.masterQuery,
+                ),
               ),
             ),
           ),
@@ -332,15 +283,16 @@ class _NetworkTabState extends State<NetworkTab> {
     );
   }
 
+  /// Domain-grouped list of REST rows with expandable headers.
   Widget _buildGroupedList(BuildContext context) {
     final rawGroups = widget.session.getGroupedRecords();
     final groups = <DomainGroup>[];
     for (final g in rawGroups) {
-      final filteredRequests = _filterByProtocol(g.requests);
-      if (filteredRequests.isNotEmpty) {
+      final restRequests = _restOnly(g.requests);
+      if (restRequests.isNotEmpty) {
         groups.add(DomainGroup(
           domain: g.domain,
-          requests: filteredRequests,
+          requests: restRequests,
           isExpanded: g.isExpanded,
         ));
       }
@@ -433,17 +385,11 @@ class _NetworkTabState extends State<NetworkTab> {
                 entry: entry,
                 onTapNavigate: () => Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => entry.isRealtime
-                        ? RealtimeDetailPage(
-                            entry: entry,
-                            session: widget.session,
-                            nowProvider: widget.nowProvider,
-                          )
-                        : RequestDetailPage(
-                            entry: entry,
-                            session: widget.session,
-                            initialQuery: widget.session.masterQuery,
-                          ),
+                    builder: (_) => RequestDetailPage(
+                      entry: entry,
+                      session: widget.session,
+                      initialQuery: widget.session.masterQuery,
+                    ),
                   ),
                 ),
               ),
@@ -455,6 +401,7 @@ class _NetworkTabState extends State<NetworkTab> {
     );
   }
 
+  /// Single REST row with status, highlight, scope badges and selection.
   Widget _buildRequestItem({
     required BuildContext context,
     required RequestSummary entry,
@@ -466,22 +413,8 @@ class _NetworkTabState extends State<NetworkTab> {
       errorType: entry.errorType,
       errorMessage: entry.errorMessage,
     );
-    final isRealtime = entry.isRealtime;
-    final realtimeCounts =
-        isRealtime ? widget.session.getRealtimeFrameCounts(entry.id) : null;
-    final realtimeCountsNotifier = isRealtime
-        ? widget.session.getRealtimeFrameCountsNotifier(entry.id)
-        : null;
     final String durationText;
-    if (isRealtime) {
-      if (isPending) {
-        final currentNow = (widget.nowProvider ?? DateTime.now)();
-        final elapsed = currentNow.difference(entry.timestamp);
-        durationText = formatDuration(elapsed);
-      } else {
-        durationText = formatDuration(Duration(milliseconds: entry.durationMs));
-      }
-    } else if (isPending) {
+    if (isPending) {
       durationText = 'loading…';
     } else if (isErrorWithoutStatus) {
       durationText = shortError;
@@ -499,7 +432,7 @@ class _NetworkTabState extends State<NetworkTab> {
         ? widget.session.getSearchScopes(entry.id)
         : null;
 
-    return RequestLogItem(
+    return RestLogItem(
       method: entry.method,
       url: displayUrl,
       time: time,
@@ -512,9 +445,6 @@ class _NetworkTabState extends State<NetworkTab> {
       isSelected: _selectedIds.contains(entry.id),
       searchScopes: scopes,
       highlightQuery: activeQuery,
-      isRealtime: isRealtime,
-      realtimeFrameCounts: realtimeCounts,
-      realtimeFrameCountsNotifier: realtimeCountsNotifier,
       onLongPress: () => _enterSelectionMode(entry.id),
       onTap: () {
         if (_isSelectionMode) {
@@ -527,34 +457,38 @@ class _NetworkTabState extends State<NetworkTab> {
   }
 }
 
+/// Flattened node for the grouped list builder.
 sealed class _GroupedItem {
   const _GroupedItem();
 }
 
+/// Expandable domain header node.
 final class _GroupHeaderItem extends _GroupedItem {
-  final DomainGroup group;
-  final List<String> groupIds;
-  final bool allSelected;
-  final bool someSelected;
-
   _GroupHeaderItem({
     required this.group,
     required this.groupIds,
     required this.allSelected,
     required this.someSelected,
   });
+
+  final DomainGroup group;
+  final List<String> groupIds;
+  final bool allSelected;
+  final bool someSelected;
 }
 
+/// Single request row node inside an expanded group.
 final class _GroupRequestItem extends _GroupedItem {
-  final RequestSummary entry;
-  final bool isLastInGroup;
-
   _GroupRequestItem({
     required this.entry,
     required this.isLastInGroup,
   });
+
+  final RequestSummary entry;
+  final bool isLastInGroup;
 }
 
+/// Hairline divider node between groups.
 final class _GroupDividerItem extends _GroupedItem {
   const _GroupDividerItem();
 }

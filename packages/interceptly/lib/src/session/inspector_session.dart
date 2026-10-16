@@ -694,7 +694,79 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   @override
   Future<void> clear() async {
     if (_clearFuture != null) return _clearFuture!;
-    return _clearFuture = _performClear();
+    final future = _performClear();
+    _clearFuture = future;
+    try {
+      await future;
+    } finally {
+      if (identical(_clearFuture, future)) _clearFuture = null;
+    }
+  }
+
+  @override
+  Future<void> clearRest() async {
+    if (_clearFuture != null) return _clearFuture!;
+    final future = _performScopedClear(isRealtime: false);
+    _clearFuture = future;
+    try {
+      await future;
+    } finally {
+      if (identical(_clearFuture, future)) _clearFuture = null;
+    }
+  }
+
+  @override
+  Future<void> clearRealtime() async {
+    if (_clearFuture != null) return _clearFuture!;
+    final future = _performScopedClear(isRealtime: true);
+    _clearFuture = future;
+    try {
+      await future;
+    } finally {
+      if (identical(_clearFuture, future)) _clearFuture = null;
+    }
+  }
+
+  /// Removes entries of one scope while keeping the other intact.
+  Future<void> _performScopedClear({required bool isRealtime}) async {
+    try {
+      _coalesceNotifyTimer?.cancel();
+      _coalesceNotifyTimer = null;
+      _hasPendingCoalescedNotify = false;
+      _entriesVersion++;
+      final ids = _memoryIndex.entries
+          .where((e) => e.isRealtime == isRealtime)
+          .map((e) => e.id)
+          .toList();
+      if (!isRealtime) {
+        if (_capturePipeline.isInitialized) {
+          await _capturePipeline.clear();
+        } else {
+          _capturePipeline.clearSync();
+        }
+      }
+      for (final id in ids) {
+        _pendingTracker.cancel(id);
+      }
+      _memoryIndex.removeWhere((e) => e.isRealtime == isRealtime);
+      if (isRealtime) {
+        _realtimeStore.clear();
+      }
+      _invalidateGroupedCache();
+      _filter = RequestFilter();
+      _search.reset();
+      if (!_isDisposed) {
+        notifyListeners();
+      }
+      if (isRealtime &&
+          _realtimeBodyStore.isInitialized &&
+          _realtimeDirPath != null) {
+        await _realtimeBodyStore.resetFile(_realtimeDirPath!);
+        _realtimeBodyStoreInitFuture = null;
+      }
+    } finally {
+      _clearFuture = null;
+    }
   }
 
   Future<void> _performClear() async {
