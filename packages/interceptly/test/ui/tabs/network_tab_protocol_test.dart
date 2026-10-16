@@ -63,8 +63,7 @@ void main() {
       expect(find.text('No network requests yet.'), findsOneWidget);
     });
 
-    testWidgets('tapping REST request opens RequestDetailPage',
-        (tester) async {
+    testWidgets('tapping REST request opens RequestDetailPage', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(

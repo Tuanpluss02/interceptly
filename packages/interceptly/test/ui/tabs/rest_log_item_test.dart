@@ -56,8 +56,7 @@ void main() {
       expect(find.textContaining('11:20:00 · 25ms'), findsOneWidget);
     });
 
-    testWidgets('renders status number without frame counts',
-        (tester) async {
+    testWidgets('renders status number without frame counts', (tester) async {
       await tester.pumpWidget(buildItem());
 
       expect(find.text('200'), findsOneWidget);

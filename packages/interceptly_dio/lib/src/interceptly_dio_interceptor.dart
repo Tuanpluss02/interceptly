@@ -68,10 +68,11 @@ class InterceptlyDioInterceptor extends Interceptor {
     Response<dynamic> response,
     ResponseInterceptorHandler handler,
   ) async {
-    final scope = response.requestOptions.extra.remove(_scopeKey)
-        as HttpCaptureScope?;
+    final scope =
+        response.requestOptions.extra.remove(_scopeKey) as HttpCaptureScope?;
 
-    if (scope == null && !collector.shouldCapture(response.requestOptions.uri)) {
+    if (scope == null &&
+        !collector.shouldCapture(response.requestOptions.uri)) {
       handler.next(response);
       return;
     }

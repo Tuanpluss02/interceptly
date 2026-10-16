@@ -325,7 +325,8 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
         durationMs: elapsed < 0 ? 0 : elapsed,
         timestamp: context.startedAt,
         requestBodyBytes: RawCapture.wrapBytes(reqBytes, maxBodyBytes),
-        responseBodyBytes: RawCapture.wrapBytes(responseBodyBytes, maxBodyBytes),
+        responseBodyBytes:
+            RawCapture.wrapBytes(responseBodyBytes, maxBodyBytes),
         requestSizeBytes: reqSize,
         responseSizeBytes: actualResponseSize,
         requestContentType: context.requestContentType,

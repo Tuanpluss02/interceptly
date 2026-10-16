@@ -37,13 +37,13 @@ void main() {
   }
 
   group('RealtimeLogItem Widget Tests', () {
-    testWidgets('renders CONNECTED badge and frame counts for active connection',
+    testWidgets(
+        'renders CONNECTED badge and frame counts for active connection',
         (tester) async {
       await tester.pumpWidget(
         buildItem(
           duration: '45s',
-          frameCounts:
-              const RealtimeFrameCounts(incoming: 12, outgoing: 5),
+          frameCounts: const RealtimeFrameCounts(incoming: 12, outgoing: 5),
         ),
       );
 
@@ -61,8 +61,7 @@ void main() {
           duration: '2m 15s',
           status: 1000,
           isPending: false,
-          frameCounts:
-              const RealtimeFrameCounts(incoming: 20, outgoing: 10),
+          frameCounts: const RealtimeFrameCounts(incoming: 20, outgoing: 10),
         ),
       );
 
@@ -80,8 +79,7 @@ void main() {
           status: 1006,
           hasError: true,
           isPending: false,
-          frameCounts:
-              const RealtimeFrameCounts(incoming: 3, outgoing: 1),
+          frameCounts: const RealtimeFrameCounts(incoming: 3, outgoing: 1),
         ),
       );
 

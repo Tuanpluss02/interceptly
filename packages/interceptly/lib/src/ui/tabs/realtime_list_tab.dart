@@ -138,8 +138,7 @@ class _RealtimeListTabState extends State<RealtimeListTab> {
       final currentNow = (widget.nowProvider ?? DateTime.now)();
       durationText = formatDuration(currentNow.difference(entry.timestamp));
     } else {
-      durationText =
-          formatDuration(Duration(milliseconds: entry.durationMs));
+      durationText = formatDuration(Duration(milliseconds: entry.durationMs));
     }
 
     final time =

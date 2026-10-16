@@ -58,7 +58,8 @@ class RawCapture {
   bool get hasError => errorType != null;
 
   /// Convenience: wrap [Uint8List] into [TransferableTypedData], optionally capping at [maxBytes].
-  static TransferableTypedData? wrapBytes(Uint8List? bytes, [int maxBytes = 0]) {
+  static TransferableTypedData? wrapBytes(Uint8List? bytes,
+      [int maxBytes = 0]) {
     if (bytes == null || bytes.isEmpty) return null;
     final slice = (maxBytes > 0 && bytes.length > maxBytes)
         ? bytes.sublist(0, maxBytes)

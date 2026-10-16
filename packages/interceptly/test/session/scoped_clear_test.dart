@@ -41,8 +41,7 @@ void main() {
       expect(ids, isNot(contains('ws_1')));
     });
 
-    test('clearRealtime drops realtime frames, clearRest keeps them',
-        () async {
+    test('clearRealtime drops realtime frames, clearRest keeps them', () async {
       await session.recordRealtimeFrame(
         RealtimeFrame(
           id: 'f_1',

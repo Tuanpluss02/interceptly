@@ -81,8 +81,7 @@ class RestLogItem extends StatelessWidget {
       onTap: onTap,
       onLongPress: onLongPress,
       highlightQuery: highlightQuery,
-      scopeBadges:
-          hasScopes ? LogScopeBadges(scopes: searchScopes!) : null,
+      scopeBadges: hasScopes ? LogScopeBadges(scopes: searchScopes!) : null,
       isSelectionMode: isSelectionMode,
       isSelected: isSelected,
       semanticsLabel: '$method $url, status $statusLabel',

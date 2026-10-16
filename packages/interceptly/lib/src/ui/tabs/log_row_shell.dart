@@ -97,8 +97,7 @@ class LogStatusLook {
 ({String path, String host}) splitLogUrl(String url) {
   final uri = Uri.tryParse(url);
   if (uri != null && uri.hasAuthority) {
-    final pathWithQuery =
-        uri.hasQuery ? '${uri.path}?${uri.query}' : uri.path;
+    final pathWithQuery = uri.hasQuery ? '${uri.path}?${uri.query}' : uri.path;
     final path = pathWithQuery.isEmpty ? '/' : pathWithQuery;
     return (path: path, host: uri.host);
   }
@@ -297,8 +296,7 @@ class LogStatusBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: look.background,
         borderRadius: BorderRadius.circular(10),
-        border:
-            look.border != null ? Border.all(color: look.border!) : null,
+        border: look.border != null ? Border.all(color: look.border!) : null,
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(

@@ -357,7 +357,8 @@ Future<void> _isolateEntry(_InitMessage init) async {
         Uint8List? reqRaw;
         Uint8List? resRaw;
         try {
-          reqRaw = message.capture.requestBodyBytes?.materialize().asUint8List();
+          reqRaw =
+              message.capture.requestBodyBytes?.materialize().asUint8List();
         } catch (_) {}
         try {
           resRaw =
