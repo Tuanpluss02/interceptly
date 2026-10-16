@@ -25,6 +25,9 @@ class InterceptlyHttpClient extends http.BaseClient {
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    if (!collector.shouldCapture(request.url)) {
+      return _inner.send(request);
+    }
     final bodyBytes = _extractRequestBody(request);
 
     final HttpCaptureScope scope;

@@ -88,6 +88,104 @@ void main() {
   });
 
   test(
+      'payload within maxBodyBytes does not trigger false positive storage truncation when length differs from responseSizeBytes',
+      () async {
+    final session = InspectorSession.instance;
+    session.configureSession(
+      const InterceptlySettings(
+        maxBodyBytes: 5 * 1024 * 1024, // 5 MB default
+      ),
+    );
+
+    // Simulate a JSON response where Content-Length was 20480 (20 KB),
+    // but re-encoded JSON body in RAM is 20150 bytes.
+    final jsonBody = Uint8List(20150);
+    final capture = RawCapture(
+      id: 'no-trunc-1',
+      method: 'GET',
+      url: 'https://api.example.com/data',
+      requestHeaders: const {},
+      responseHeaders: const {
+        'content-type': 'application/json',
+        'content-length': '20480',
+      },
+      statusCode: 200,
+      durationMs: 15,
+      timestamp: DateTime.now(),
+      responseBodyBytes: RawCapture.wrapBytes(jsonBody),
+      responseSizeBytes: 20480, // Content-Length
+      responseContentType: 'application/json',
+    );
+
+    session.record(capture);
+
+    final end = DateTime.now().add(const Duration(seconds: 5));
+    while (session.entries.isEmpty && DateTime.now().isBefore(end)) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+
+    expect(session.entries.length, equals(1));
+    final entry = session.entries.first;
+
+    expect(entry.responseSizeBytes, equals(20480));
+    expect(entry.responseTruncation.isTruncated, isFalse);
+    expect(entry.responseTruncation.stage, equals(TruncationStage.none));
+    expect(entry.responseTruncation.hasDataLoss, isFalse);
+    expect(entry.hasDataLoss, isFalse);
+  });
+
+  test(
+      'HEAD or 304 response with large content-length and empty body does not falsely report truncation',
+      () async {
+    final session = InspectorSession.instance;
+    session.configureSession(
+      const InterceptlySettings(
+        maxBodyBytes: 5 * 1024 * 1024, // 5 MB
+      ),
+    );
+
+    final capture = RawCapture(
+      id: 'head-1',
+      method: 'HEAD',
+      url: 'https://api.example.com/large-asset.zip',
+      requestHeaders: const {},
+      responseHeaders: const {
+        'content-length': '10485760', // 10 MB
+      },
+      statusCode: 200,
+      durationMs: 5,
+      timestamp: DateTime.now(),
+      responseBodyBytes: null,
+      responseSizeBytes: 10485760,
+    );
+
+    session.record(capture);
+
+    final end = DateTime.now().add(const Duration(seconds: 5));
+    while (session.entries.isEmpty && DateTime.now().isBefore(end)) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+
+    expect(session.entries.length, equals(1));
+    final entry = session.entries.first;
+
+    expect(entry.responseSizeBytes, equals(10485760));
+    expect(entry.responseTruncation.isTruncated, isFalse);
+    expect(entry.responseTruncation.stage, equals(TruncationStage.none));
+    expect(entry.responseTruncation.hasDataLoss, isFalse);
+    expect(entry.hasDataLoss, isFalse);
+  });
+
+  test('RawCapture.wrapBytes slices before TransferableTypedData allocation',
+      () {
+    final largeBytes = Uint8List(1000);
+    final wrapped = RawCapture.wrapBytes(largeBytes, 100);
+    expect(wrapped, isNotNull);
+    final materialized = wrapped!.materialize().asUint8List();
+    expect(materialized.length, equals(100));
+  });
+
+  test(
       'truncate returns entire byte array unmodified when maxBody <= 0 (unlimited)',
       () {
     final payload = Uint8List.fromList(List.generate(100, (i) => i));

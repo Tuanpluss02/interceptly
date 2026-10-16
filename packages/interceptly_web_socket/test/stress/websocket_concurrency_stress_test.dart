@@ -117,6 +117,8 @@ class _StressFakeWebSocketSink implements WebSocketSink {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('WebSocket Concurrency Stress & Load Tests', () {
     test(
       'Test 1: Multi-channel bidirectional message bombardment (10 channels x 1,000 messages = 10,000 messages)',

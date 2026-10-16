@@ -131,6 +131,40 @@ void main() {
         reason: 'post-clear body must not read pre-clear bytes at offset 0',
       );
     });
+
+    test(
+        'DetailLoader marks body as unavailable when entry fileRotationCount is older than current rotation',
+        () async {
+      final session = InspectorSession();
+      addTearDown(session.dispose);
+      await session.initialize();
+
+      // Create an index entry that points to an older fileRotationCount
+      final staleEntry = IndexEntry(
+        id: 'stale-rot',
+        method: 'GET',
+        url: 'https://api.example.com/stale',
+        statusCode: 200,
+        durationMs: 10,
+        requestSizeBytes: 0,
+        responseSizeBytes: 500,
+        timestamp: DateTime(2026),
+        hasError: false,
+        requestTruncation: const BodyTruncation.complete(0),
+        responseTruncation: const BodyTruncation.complete(500),
+        bodyLocation: BodyLocation.file,
+        fileOffset: 0,
+        fileLength: 500,
+        fileRotationCount: 0,
+      );
+
+      // Trigger pipeline clear/reset which increments rotation
+      await session.clear();
+
+      final record = await session.loadDetail(staleEntry);
+      expect(record.responseBodyPreview, equals('\x00[body unavailable]'));
+      expect(record.responseBodyBytes, isNull);
+    });
   });
 
   group('capacity clamps', () {

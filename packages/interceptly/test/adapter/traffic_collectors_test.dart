@@ -169,6 +169,76 @@ void main() {
       expect(entry.durationMs, greaterThanOrEqualTo(0));
     });
 
+    test(
+        'completeResponse with content-length differing from bodyBytes within maxBody does not flag truncation',
+        () async {
+      final session = InspectorSession.instance;
+      await session.initialize();
+
+      final collector = DefaultHttpTrafficCollector();
+      final uri = Uri.parse('https://api.example.com/json-length-mismatch');
+
+      final context = await collector.startRequest(
+        method: 'GET',
+        uri: uri,
+      );
+      expect(context, isNotNull);
+
+      // Simulated 20 KB JSON with whitespace differences
+      final responseBytes = Uint8List(20150);
+      final responseHeaders = {
+        'content-type': 'application/json',
+        'content-length': '20480',
+      };
+
+      await collector.completeResponse(
+        context: context!,
+        statusCode: 200,
+        headers: responseHeaders,
+        bodyBytes: responseBytes,
+        responseContentType: 'application/json',
+      );
+
+      final entry = await _waitForEntry(session, context.id);
+      expect(entry.responseSizeBytes, equals(20480));
+      expect(entry.responseTruncation.isTruncated, isFalse);
+      expect(entry.responseTruncation.stage, equals(TruncationStage.none));
+      expect(entry.responseTruncation.hasDataLoss, isFalse);
+    });
+
+    test(
+        'completeResponse ignores negative content-length (-1) and falls back to bodyBytes length',
+        () async {
+      final session = InspectorSession.instance;
+      await session.initialize();
+
+      final collector = DefaultHttpTrafficCollector();
+      final uri = Uri.parse('https://api.example.com/chunked-response');
+
+      final context = await collector.startRequest(
+        method: 'GET',
+        uri: uri,
+      );
+      expect(context, isNotNull);
+
+      final responseBytes = Uint8List(500);
+      final responseHeaders = {
+        'content-type': 'application/json',
+        'content-length': '-1',
+      };
+
+      await collector.completeResponse(
+        context: context!,
+        statusCode: 200,
+        headers: responseHeaders,
+        bodyBytes: responseBytes,
+        responseContentType: 'application/json',
+      );
+
+      final entry = await _waitForEntry(session, context.id);
+      expect(entry.responseSizeBytes, equals(500));
+    });
+
     test('completeResponse respects explicit durationMs when provided',
         () async {
       final session = InspectorSession.instance;

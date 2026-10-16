@@ -81,6 +81,16 @@ class MemoryIndex {
     return entries.where(filter.matches).toList();
   }
 
+  /// Removes entries matching [test], preserving newest-first order.
+  void removeWhere(bool Function(IndexEntry entry) test) {
+    final retained = entries.where((e) => !test(e)).toList();
+    if (retained.length == _count) return;
+    clear();
+    for (var i = retained.length - 1; i >= 0; i--) {
+      add(retained[i]);
+    }
+  }
+
   /// Clears all entries and resets the ring buffer state.
   void clear() {
     _buffer.fillRange(0, _buffer.length, null);

@@ -87,6 +87,7 @@ class MasterSearchController extends ChangeNotifier {
     required String query,
     required List<IndexEntry> allEntries,
     required String? filePath,
+    int? currentFileRotationCount,
   }) async {
     if (_isDisposed) return;
     final trimmed = query.trim();
@@ -155,7 +156,11 @@ class MasterSearchController extends ChangeNotifier {
 
       final fileEntries = <(IndexEntry, int, int)>[];
       for (final e in entriesSnapshot) {
-        if (e.bodyLocation == BodyLocation.file &&
+        final isExpiredByRotation = currentFileRotationCount != null &&
+            e.fileRotationCount != null &&
+            e.fileRotationCount! < currentFileRotationCount;
+        if (!isExpiredByRotation &&
+            e.bodyLocation == BodyLocation.file &&
             !matchedIds.contains(e.id) &&
             e.fileOffset != null &&
             e.fileLength != null) {

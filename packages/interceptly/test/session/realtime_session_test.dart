@@ -753,6 +753,20 @@ void main() {
       expect(normalized.preEncodedBytes!.length,
           equals(normalized.originalSizeBytes));
     });
+
+    test(
+        'FrameNormalizer truncates binary frame with dedicated slice and does not retain backing buffer',
+        () {
+      final bigBuffer = Uint8List(2000);
+      final normalized = FrameNormalizer.normalize(
+        bigBuffer,
+        offloadThreshold: 0,
+        maxBodyBytes: 100,
+      );
+      final payload = normalized.payload as Uint8List;
+      expect(payload.length, equals(100));
+      expect(payload.buffer.lengthInBytes, equals(100));
+    });
   });
 
   group(

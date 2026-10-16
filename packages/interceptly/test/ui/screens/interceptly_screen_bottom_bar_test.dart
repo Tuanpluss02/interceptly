@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
 import 'package:interceptly/src/ui/screens/interceptly_screen.dart';
 import 'package:interceptly/src/ui/tabs/network_tab.dart';
+import 'package:interceptly/src/ui/tabs/realtime_list_tab.dart';
+import 'package:interceptly/src/ui/widgets/interceptly_text_field.dart';
 
 void main() {
   group('InterceptlyScreen Bottom Navigation Bar', () {
@@ -123,6 +125,24 @@ void main() {
 
       await session.clear();
       await tester.pump();
+    });
+
+    testWidgets('realtime tab shows RealtimeListTab without search field',
+        (tester) async {
+      session.configureSession(const InterceptlySettings(enableRealtime: true));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: InterceptlyScreen(session: session),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.cable));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RealtimeListTab), findsOneWidget);
+      expect(find.byType(InterceptlySearchField), findsNothing);
     });
 
     testWidgets('persists selected tab index across screen dismiss and re-open',

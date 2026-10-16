@@ -23,6 +23,8 @@ class RawCapture {
     this.responseContentType,
     this.errorType,
     this.errorMessage,
+    this.requestTruncatedAtStorage = false,
+    this.responseTruncatedAtStorage = false,
   });
 
   final String id;
@@ -45,15 +47,23 @@ class RawCapture {
   final String? requestContentType;
   final String? responseContentType;
 
+  /// Explicit indicators for storage truncation (exceeding maxBodyBytes).
+  final bool requestTruncatedAtStorage;
+  final bool responseTruncatedAtStorage;
+
   /// Non-null when the request failed.
   final String? errorType;
   final String? errorMessage;
 
   bool get hasError => errorType != null;
 
-  /// Convenience: wrap [Uint8List] into [TransferableTypedData].
-  static TransferableTypedData? wrapBytes(Uint8List? bytes) {
+  /// Convenience: wrap [Uint8List] into [TransferableTypedData], optionally capping at [maxBytes].
+  static TransferableTypedData? wrapBytes(Uint8List? bytes,
+      [int maxBytes = 0]) {
     if (bytes == null || bytes.isEmpty) return null;
-    return TransferableTypedData.fromList([bytes]);
+    final slice = (maxBytes > 0 && bytes.length > maxBytes)
+        ? bytes.sublist(0, maxBytes)
+        : bytes;
+    return TransferableTypedData.fromList([slice]);
   }
 }
