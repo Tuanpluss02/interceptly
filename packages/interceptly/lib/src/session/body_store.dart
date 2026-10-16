@@ -66,6 +66,9 @@ class BodyStore {
 
   /// Closes the current file and recreates it empty at offset 0.
   Future<void> rotate() async {
+    try {
+      await _raf?.flush();
+    } catch (_) {}
     await _raf?.close();
     _raf = null;
     _currentOffset = 0;
@@ -81,9 +84,13 @@ class BodyStore {
 
   /// Resets the file: deletes and recreates it.
   Future<void> resetFile(String dirPath, {String fileName = kFileName}) async {
+    try {
+      await _raf?.flush();
+    } catch (_) {}
     await _raf?.close();
     _raf = null;
     _currentOffset = 0;
+    _rotationCount++;
     _file = File('$dirPath/$fileName');
     if (await _file.exists()) await _file.delete();
     await _file.create(recursive: true);

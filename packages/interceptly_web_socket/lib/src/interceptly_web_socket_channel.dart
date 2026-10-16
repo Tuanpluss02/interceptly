@@ -48,6 +48,16 @@ class InterceptlyWebSocketChannel extends StreamChannelMixin
         },
       ),
     );
+    unawaited(
+      _inner.sink.done.then(
+        (_) {
+          scope.close(code: _inner.closeCode, reason: _inner.closeReason);
+        },
+        onError: (Object error, StackTrace? _) {
+          scope.close(code: 1006, reason: error.toString());
+        },
+      ),
+    );
   }
 
   /// Connects to [uri] and wraps the resulting channel with Interceptly capture.

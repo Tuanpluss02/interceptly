@@ -64,6 +64,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       memoryIndex: _memoryIndex,
       tempFilePathProvider: () => _capturePipeline.tempFilePath,
       maxUiPreviewBytesProvider: () => _settings.maxUiPreviewBytes,
+      fileRotationCountProvider: () => _capturePipeline.fileRotationCount,
     );
     _search.addListener(_onSearchChanged);
     _grouping.addListener(_onGroupingChanged);
@@ -417,10 +418,13 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
 
   /// Enqueues [capture] for asynchronous background processing.
   void record(RawCapture capture) {
-    if (!_enabled) return;
-    if (_settings.shouldCapture != null &&
-        !_settings.shouldCapture!(capture.url)) {
-      return;
+    final isPending = _memoryIndex.byId(capture.id)?.statusCode == 0;
+    if (!isPending) {
+      if (!_enabled) return;
+      if (_settings.shouldCapture != null &&
+          !_settings.shouldCapture!(capture.url)) {
+        return;
+      }
     }
     _capturePipeline.record(capture);
   }
@@ -666,6 +670,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
         query: query,
         allEntries: _memoryIndex.entries,
         filePath: _capturePipeline.tempFilePath,
+        currentFileRotationCount: _capturePipeline.fileRotationCount,
       );
 
   /// Looks up an entry by its unique [id] in O(1) time.

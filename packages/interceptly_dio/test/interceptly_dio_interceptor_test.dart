@@ -96,6 +96,9 @@ class _SpyHttpTrafficCollector implements HttpTrafficCollector {
       session.throughputDelayForChunk(chunkBytes);
 
   @override
+  bool shouldCapture(Uri? uri) => true;
+
+  @override
   Future<HttpCaptureScope> begin({
     required String method,
     required Uri uri,
@@ -159,6 +162,7 @@ class _SpyHttpTrafficCollector implements HttpTrafficCollector {
     int? responseSizeBytes,
     int? durationMs,
     String? responseContentType,
+    bool? responseTruncatedAtStorage,
   }) async {
     completeResponseCalls.add({
       'context': context,
@@ -168,6 +172,7 @@ class _SpyHttpTrafficCollector implements HttpTrafficCollector {
       'responseSizeBytes': responseSizeBytes,
       'durationMs': durationMs,
       'responseContentType': responseContentType,
+      'responseTruncatedAtStorage': responseTruncatedAtStorage,
     });
   }
 
@@ -182,6 +187,7 @@ class _SpyHttpTrafficCollector implements HttpTrafficCollector {
     Uint8List? responseBodyBytes,
     int? responseSizeBytes,
     int? durationMs,
+    bool? responseTruncatedAtStorage,
   }) {
     failRequestCalls.add({
       'context': context,
@@ -517,5 +523,152 @@ void main() {
       final detail = await session.loadDetail(entry);
       expect(detail.responseBodyPreview, contains('streaming-chunk-data'));
     });
+
+    test(
+        'completes pending request when redirected to a URL that does not match shouldCapture',
+        () async {
+      session.configureSession(
+        InterceptlySettings(
+          shouldCapture: (url) => !url.contains('cdn.external.com'),
+        ),
+      );
+
+      final dio = Dio()
+        ..httpClientAdapter = _RedirectAdapter(
+          redirectUrl: 'https://cdn.external.com/file.zip',
+          responseBody: '{"download":true}',
+        );
+      dio.interceptors.add(InterceptlyDioInterceptor());
+
+      final response =
+          await dio.get<dynamic>('https://api.example.com/download');
+      expect(response.statusCode, equals(200));
+
+      await _waitFor(
+        () =>
+            session.entries.isNotEmpty &&
+            session.entries.first.statusCode == 200,
+      );
+
+      expect(session.entries.length, equals(1));
+      final entry = session.entries.first;
+      expect(entry.statusCode, equals(200));
+      expect(entry.hasError, isFalse);
+    });
+
+    test(
+        'fails pending request when redirected to a non-matching URL and throws',
+        () async {
+      session.configureSession(
+        InterceptlySettings(
+          shouldCapture: (url) => !url.contains('cdn.external.com'),
+        ),
+      );
+
+      final dio = Dio()
+        ..httpClientAdapter = _ThrowingAdapter(
+          (options) {
+            options.path = 'https://cdn.external.com/file.zip';
+            return DioException.connectionError(
+              requestOptions: options,
+              reason: 'CDN connection dropped',
+            );
+          },
+        );
+      dio.interceptors.add(InterceptlyDioInterceptor());
+
+      await expectLater(
+        dio.get<dynamic>('https://api.example.com/download'),
+        throwsA(isA<DioException>()),
+      );
+
+      await _waitFor(
+        () => session.entries.isNotEmpty && session.entries.first.hasError,
+      );
+
+      expect(session.entries.length, equals(1));
+      final entry = session.entries.first;
+      expect(entry.hasError, isTrue);
+      expect(entry.errorType, equals(DioExceptionType.connectionError.name));
+    });
+
+    test(
+        'settles in-flight request properly when session is disabled mid-flight',
+        () async {
+      final dio = Dio()
+        ..httpClientAdapter = _MidFlightDisableAdapter(
+          onFetch: () => session.disable(),
+        );
+      dio.interceptors.add(InterceptlyDioInterceptor());
+
+      final response =
+          await dio.get<dynamic>('https://api.example.com/midflight');
+      expect(response.statusCode, equals(200));
+
+      await _waitFor(
+        () =>
+            session.entries.isNotEmpty &&
+            session.entries.first.statusCode == 200,
+      );
+
+      expect(session.entries.length, equals(1));
+      final entry = session.entries.first;
+      expect(entry.statusCode, equals(200));
+      expect(entry.hasError, isFalse);
+    });
   });
+}
+
+class _RedirectAdapter implements HttpClientAdapter {
+  _RedirectAdapter({
+    required this.redirectUrl,
+    this.responseBody = '{"ok":true}',
+  });
+
+  final String redirectUrl;
+  final String responseBody;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    options.path = redirectUrl;
+    return ResponseBody.fromString(
+      responseBody,
+      200,
+      headers: {
+        Headers.contentTypeHeader: ['application/json'],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+class _MidFlightDisableAdapter implements HttpClientAdapter {
+  _MidFlightDisableAdapter({required this.onFetch});
+
+  final void Function() onFetch;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    onFetch();
+    return ResponseBody.fromString(
+      '{"disabled":true}',
+      200,
+      headers: {
+        Headers.contentTypeHeader: ['application/json'],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
 }

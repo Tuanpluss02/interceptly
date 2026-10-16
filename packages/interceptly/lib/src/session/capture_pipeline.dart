@@ -45,6 +45,7 @@ class CapturePipeline {
   int _inFlightBytes = 0;
   int _droppedCount = 0;
   int _generation = 0;
+  int _fileRotationCount = 0;
   int _respawnCount = 0;
   final Map<String, int> _sentGenerations = {};
   final Map<String, int> _sentBytes = {};
@@ -91,6 +92,9 @@ class CapturePipeline {
 
   /// Current generation number for fence verification.
   int get generation => _generation;
+
+  /// Latest file rotation count observed from the writer isolate.
+  int get fileRotationCount => _fileRotationCount;
 
   /// Updates settings propagated from session reconfiguration.
   void updateSettings(InterceptlySettings newSettings) {
@@ -293,6 +297,11 @@ class CapturePipeline {
     final rem = _inFlightBytes - bytes;
     _inFlightBytes = rem > 0 ? rem : 0;
 
+    if (entry.fileRotationCount != null &&
+        entry.fileRotationCount! > _fileRotationCount) {
+      _fileRotationCount = entry.fileRotationCount!;
+    }
+
     _onEntryReceived?.call(entry.id);
     final sentGeneration = _sentGenerations.remove(entry.id);
     if (sentGeneration != _generation) {
@@ -314,18 +323,11 @@ class CapturePipeline {
 
   /// Clears in-flight and queued items, bumping generation to drop stale entries.
   Future<void> clear() async {
+    clearSync();
     if (_initialized && !_fallbackMode) {
       await _writerIsolate.clear();
-    } else {
       clearSync();
-      return;
     }
-    _droppedCount = 0;
-    _generation++;
-    _sentGenerations.clear();
-    _sentBytes.clear();
-    _inFlight = 0;
-    _inFlightBytes = 0;
   }
 
   /// Disposes background writer isolate and associated stream subscriptions.

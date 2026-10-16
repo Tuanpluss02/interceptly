@@ -23,6 +23,11 @@ class InterceptlyDioInterceptor extends Interceptor {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
+    if (!collector.shouldCapture(options.uri)) {
+      handler.next(options);
+      return;
+    }
+
     final reqBytes = guardCapture(
       () => _toBytes(options.data, options.contentType),
     );
@@ -63,8 +68,15 @@ class InterceptlyDioInterceptor extends Interceptor {
     Response<dynamic> response,
     ResponseInterceptorHandler handler,
   ) async {
-    final scope = (response.requestOptions.extra.remove(_scopeKey)
-            as HttpCaptureScope?) ??
+    final scope = response.requestOptions.extra.remove(_scopeKey)
+        as HttpCaptureScope?;
+
+    if (scope == null && !collector.shouldCapture(response.requestOptions.uri)) {
+      handler.next(response);
+      return;
+    }
+
+    final effectiveScope = scope ??
         HttpCaptureScope(
           collector: collector,
           context: HttpRequestContext(
@@ -82,7 +94,7 @@ class InterceptlyDioInterceptor extends Interceptor {
 
     if (response.data is ResponseBody) {
       final responseBody = response.data as ResponseBody;
-      final boundStream = scope.bindResponseStream(
+      final boundStream = effectiveScope.bindResponseStream(
         responseBody.stream,
         statusCode: response.statusCode ?? 200,
         headers: normalizeHeaders(response.headers.map),
@@ -125,6 +137,9 @@ class InterceptlyDioInterceptor extends Interceptor {
 
     handler.next(response);
 
+    final durationMs = effectiveScope.startedAt != null
+        ? DateTime.now().difference(effectiveScope.startedAt!).inMilliseconds
+        : null;
     final statusCode = response.statusCode ?? 200;
     final headers = normalizeHeaders(response.headers.map);
     final responseData = response.data;
@@ -132,11 +147,12 @@ class InterceptlyDioInterceptor extends Interceptor {
     unawaited(
       guardCaptureAsync(() async {
         final resBytes = _toBytes(responseData, resContentType);
-        await scope.complete(
+        await effectiveScope.complete(
           statusCode: statusCode,
           headers: headers,
           bodyBytes: resBytes,
           contentType: resContentType,
+          durationMs: durationMs,
         );
       }),
     );
@@ -151,17 +167,24 @@ class InterceptlyDioInterceptor extends Interceptor {
     }
 
     final scope =
-        (err.requestOptions.extra.remove(_scopeKey) as HttpCaptureScope?) ??
-            HttpCaptureScope(
-              collector: collector,
-              context: HttpRequestContext(
-                id: RequestId.generate(),
-                method: err.requestOptions.method,
-                uri: err.requestOptions.uri,
-                startedAt: DateTime.now(),
-                requestHeaders: normalizeHeaders(err.requestOptions.headers),
-              ),
-            );
+        err.requestOptions.extra.remove(_scopeKey) as HttpCaptureScope?;
+
+    if (scope == null && !collector.shouldCapture(err.requestOptions.uri)) {
+      handler.next(err);
+      return;
+    }
+
+    final effectiveScope = scope ??
+        HttpCaptureScope(
+          collector: collector,
+          context: HttpRequestContext(
+            id: RequestId.generate(),
+            method: err.requestOptions.method,
+            uri: err.requestOptions.uri,
+            startedAt: DateTime.now(),
+            requestHeaders: normalizeHeaders(err.requestOptions.headers),
+          ),
+        );
     err.requestOptions.extra.remove('interceptly_http_context');
     err.requestOptions.extra.remove('interceptly_req_bytes');
 
@@ -171,7 +194,7 @@ class InterceptlyDioInterceptor extends Interceptor {
       unawaited(
         guardCaptureAsync(() async {
           final resBytes = _toBytes(response.data, resContentType);
-          await scope.complete(
+          await effectiveScope.complete(
             statusCode: response.statusCode ?? 0,
             headers: normalizeHeaders(response.headers.map),
             bodyBytes: resBytes,
@@ -186,7 +209,7 @@ class InterceptlyDioInterceptor extends Interceptor {
       final responseHeaders =
           response != null ? normalizeHeaders(response.headers.map) : null;
 
-      scope.fail(
+      effectiveScope.fail(
         err.error ?? err,
         errorType: err.type.name,
         errorMessage: err.message ?? err.error?.toString(),

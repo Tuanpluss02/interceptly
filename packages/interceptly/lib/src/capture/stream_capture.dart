@@ -95,6 +95,8 @@ Stream<List<int>> teeStreamCapture(
 
   controller = StreamController<List<int>>(
     onListen: () {
+      Future<void> deliveryChain = Future<void>.value();
+
       void handleChunk(List<int> chunk) {
         if (settled || controller.isClosed) return;
         controller.add(chunk);
@@ -108,28 +110,41 @@ Stream<List<int>> teeStreamCapture(
             try {
               if (!isCanceled) sub.pause();
             } catch (_) {}
-            Future<void>.delayed(delay, () {
-              handleChunk(chunk);
-              if (!controller.isClosed && !isCanceled) {
+            deliveryChain = deliveryChain.then((_) async {
+              await Future<void>.delayed(delay);
+              if (!isCanceled && !controller.isClosed) {
+                handleChunk(chunk);
                 try {
-                  if (sub.isPaused) {
+                  if (sub.isPaused && !isCanceled) {
                     sub.resume();
                   }
                 } catch (_) {}
               }
-            });
-            return;
+            }).catchError((_) {});
+          } else {
+            deliveryChain = deliveryChain.then((_) {
+              if (!isCanceled && !controller.isClosed) {
+                handleChunk(chunk);
+              }
+            }).catchError((_) {});
           }
-          handleChunk(chunk);
         },
         onDone: () {
-          finishDone();
-          controller.close();
+          deliveryChain = deliveryChain.then((_) {
+            if (!isCanceled) {
+              finishDone();
+              controller.close();
+            }
+          }).catchError((_) {});
         },
         onError: (Object e, StackTrace st) {
-          finishError(e, st);
-          controller.addError(e, st);
-          controller.close();
+          deliveryChain = deliveryChain.then((_) {
+            if (!isCanceled) {
+              finishError(e, st);
+              controller.addError(e, st);
+              controller.close();
+            }
+          }).catchError((_) {});
         },
         cancelOnError: false,
       );

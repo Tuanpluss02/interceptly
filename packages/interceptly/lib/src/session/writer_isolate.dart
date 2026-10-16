@@ -324,14 +324,16 @@ class WriterIsolate {
       errorType: capture.errorType,
       errorMessage: capture.errorMessage,
       requestTruncation: _storageTruncation(
-        reqSize,
-        maxBodyBytes,
-        _keptBytes(reqKept, maxBodyBytes),
+        originalBytes: reqSize,
+        maxBody: maxBodyBytes,
+        keptBytes: _keptBytes(reqKept, maxBodyBytes),
+        isTruncated: capture.requestTruncatedAtStorage,
       ),
       responseTruncation: _storageTruncation(
-        resSize,
-        maxBodyBytes,
-        _keptBytes(resKept, maxBodyBytes),
+        originalBytes: resSize,
+        maxBody: maxBodyBytes,
+        keptBytes: _keptBytes(resKept, maxBodyBytes),
+        isTruncated: capture.responseTruncatedAtStorage,
       ),
       fileOffset: null,
       fileLength: null,
@@ -352,14 +354,30 @@ Future<void> _isolateEntry(_InitMessage init) async {
   await for (final message in receivePort) {
     try {
       if (message is _WriteMessage) {
-        final entry = await _processCapture(
-          message.capture,
-          bodyStore,
-          message.bodyOffloadThreshold,
-          message.maxBodyBytes,
-          persistToDisk: message.persistToDisk,
-        );
-        init.replyPort.send(entry);
+        Uint8List? reqRaw;
+        Uint8List? resRaw;
+        try {
+          reqRaw = message.capture.requestBodyBytes?.materialize().asUint8List();
+        } catch (_) {}
+        try {
+          resRaw =
+              message.capture.responseBodyBytes?.materialize().asUint8List();
+        } catch (_) {}
+
+        try {
+          final entry = await _processCapture(
+            message.capture,
+            bodyStore,
+            message.bodyOffloadThreshold,
+            message.maxBodyBytes,
+            persistToDisk: message.persistToDisk,
+            materializedReq: reqRaw,
+            materializedRes: resRaw,
+          );
+          init.replyPort.send(entry);
+        } catch (_) {
+          init.replyPort.send(_fallbackEntry(message.capture, reqRaw, resRaw));
+        }
       } else if (message is _ClearMessage) {
         try {
           await bodyStore.resetFile(init.tempDirPath, fileName: init.fileName);
@@ -381,21 +399,33 @@ Future<void> _isolateEntry(_InitMessage init) async {
 }
 
 @visibleForTesting
-IndexEntry fallbackEntryForTesting(RawCapture capture) =>
-    _fallbackEntry(capture);
+IndexEntry fallbackEntryForTesting(
+  RawCapture capture, [
+  Uint8List? materializedReq,
+  Uint8List? materializedRes,
+]) =>
+    _fallbackEntry(capture, materializedReq, materializedRes);
 
-IndexEntry _fallbackEntry(RawCapture capture) {
-  int? reqLen;
-  try {
-    reqLen = capture.requestBodyBytes?.materialize().asUint8List().length;
-  } catch (_) {}
+IndexEntry _fallbackEntry(
+  RawCapture capture, [
+  Uint8List? materializedReq,
+  Uint8List? materializedRes,
+]) {
+  int? reqLen = materializedReq?.length;
+  if (reqLen == null) {
+    try {
+      reqLen = capture.requestBodyBytes?.materialize().asUint8List().length;
+    } catch (_) {}
+  }
   final reqSize = capture.requestSizeBytes ?? reqLen ?? 0;
   final hasReq = reqSize > 0 || capture.requestBodyBytes != null;
 
-  int? resLen;
-  try {
-    resLen = capture.responseBodyBytes?.materialize().asUint8List().length;
-  } catch (_) {}
+  int? resLen = materializedRes?.length;
+  if (resLen == null) {
+    try {
+      resLen = capture.responseBodyBytes?.materialize().asUint8List().length;
+    } catch (_) {}
+  }
   final resSize = capture.responseSizeBytes ?? resLen ?? 0;
   final hasRes = resSize > 0 || capture.responseBodyBytes != null;
 
@@ -440,20 +470,22 @@ IndexEntry _fallbackEntry(RawCapture capture) {
 /// Builds the [BodyTruncation] for one body given how many bytes storage kept.
 ///
 /// `maxBody <= 0` means unlimited, matching [InterceptlySettings.maxBodyBytes].
-BodyTruncation _storageTruncation(
-  int originalBytes,
-  int maxBody,
-  int keptBytes,
-) {
-  if (maxBody <= 0 || originalBytes <= keptBytes) {
-    return BodyTruncation.complete(originalBytes);
+BodyTruncation _storageTruncation({
+  required int originalBytes,
+  required int maxBody,
+  required int keptBytes,
+  required bool isTruncated,
+}) {
+  if (maxBody <= 0) {
+    return BodyTruncation.complete(keptBytes > 0 ? keptBytes : originalBytes);
   }
-  if (originalBytes <= maxBody) {
-    return BodyTruncation(
-      originalBytes: originalBytes,
-      retainedBytes: keptBytes,
-      stage: TruncationStage.none,
-    );
+  final actuallyTruncated = isTruncated ||
+      (maxBody > 0 &&
+          keptBytes > 0 &&
+          originalBytes > keptBytes &&
+          keptBytes == maxBody);
+  if (!actuallyTruncated) {
+    return BodyTruncation.complete(keptBytes > 0 ? keptBytes : originalBytes);
   }
   return BodyTruncation(
     originalBytes: originalBytes,
@@ -468,9 +500,21 @@ Future<IndexEntry> _processCapture(
   int threshold,
   int maxBody, {
   bool persistToDisk = true,
+  Uint8List? materializedReq,
+  Uint8List? materializedRes,
 }) async {
-  final reqRaw = capture.requestBodyBytes?.materialize().asUint8List();
-  final resRaw = capture.responseBodyBytes?.materialize().asUint8List();
+  Uint8List? reqRaw = materializedReq;
+  if (reqRaw == null) {
+    try {
+      reqRaw = capture.requestBodyBytes?.materialize().asUint8List();
+    } catch (_) {}
+  }
+  Uint8List? resRaw = materializedRes;
+  if (resRaw == null) {
+    try {
+      resRaw = capture.responseBodyBytes?.materialize().asUint8List();
+    } catch (_) {}
+  }
 
   final reqKept = reqRaw?.length ?? 0;
   final resKept = resRaw?.length ?? 0;
@@ -487,6 +531,7 @@ Future<IndexEntry> _processCapture(
   Uint8List? inlineRes;
   int? fileOffset;
   int? fileLength;
+  int? fileRotation;
 
   if (useFile) {
     try {
@@ -494,6 +539,7 @@ Future<IndexEntry> _processCapture(
       final result = await bodyStore.append(packed);
       fileOffset = result.$1;
       fileLength = result.$2;
+      fileRotation = bodyStore.rotationCount;
     } catch (_) {
       useFile = false;
     }
@@ -517,6 +563,9 @@ Future<IndexEntry> _processCapture(
     bodyLocation: useFile ? BodyLocation.file : BodyLocation.memory,
     inlineRequestBody: inlineReq,
     inlineResponseBody: inlineRes,
+    fileOffset: fileOffset,
+    fileLength: fileLength,
+    fileRotationCount: fileRotation,
     requestHeaders: capture.requestHeaders,
     responseHeaders: capture.responseHeaders,
     requestContentType: capture.requestContentType,
@@ -524,17 +573,17 @@ Future<IndexEntry> _processCapture(
     errorType: capture.errorType,
     errorMessage: capture.errorMessage,
     requestTruncation: _storageTruncation(
-      reqSize,
-      maxBody,
-      _keptBytes(reqKept, maxBody),
+      originalBytes: reqSize,
+      maxBody: maxBody,
+      keptBytes: _keptBytes(reqKept, maxBody),
+      isTruncated: capture.requestTruncatedAtStorage,
     ),
     responseTruncation: _storageTruncation(
-      resSize,
-      maxBody,
-      _keptBytes(resKept, maxBody),
+      originalBytes: resSize,
+      maxBody: maxBody,
+      keptBytes: _keptBytes(resKept, maxBody),
+      isTruncated: capture.responseTruncatedAtStorage,
     ),
-    fileOffset: fileOffset,
-    fileLength: fileLength,
   );
 }
 

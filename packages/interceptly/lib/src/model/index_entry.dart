@@ -34,6 +34,7 @@ class IndexEntry extends RequestSummary {
     this.inlineResponseBody,
     this.fileOffset,
     this.fileLength,
+    this.fileRotationCount,
     String? domain,
   }) : domain = domain ?? RequestFilter.extractDomain(url);
 
@@ -47,6 +48,9 @@ class IndexEntry extends RequestSummary {
   /// Non-null when [bodyLocation] == [BodyLocation.file].
   final int? fileOffset;
   final int? fileLength;
+
+  /// Generation of the BodyStore file rotation when this entry was written.
+  final int? fileRotationCount;
 
   /// Domain pre-parsed from [url] at creation time.
   final String domain;
@@ -75,6 +79,7 @@ class IndexEntry extends RequestSummary {
     Uint8List? inlineResponseBody,
     int? fileOffset,
     int? fileLength,
+    int? fileRotationCount,
     String? domain,
   }) {
     final effectiveUrl = url ?? this.url;
@@ -101,6 +106,7 @@ class IndexEntry extends RequestSummary {
       inlineResponseBody: inlineResponseBody ?? this.inlineResponseBody,
       fileOffset: fileOffset ?? this.fileOffset,
       fileLength: fileLength ?? this.fileLength,
+      fileRotationCount: fileRotationCount ?? this.fileRotationCount,
       domain: domain ??
           (url != null
               ? RequestFilter.extractDomain(effectiveUrl)

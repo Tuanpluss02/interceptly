@@ -62,13 +62,12 @@ class FrameNormalizer {
       type = explicitType ?? FrameType.binary;
       originalSize = raw.lengthInBytes;
       shouldOffload = offloadThreshold > 0 && originalSize >= offloadThreshold;
+      final capped = (maxBodyBytes > 0 && originalSize > maxBodyBytes)
+          ? raw.sublist(0, maxBodyBytes)
+          : raw;
+      payload = capped;
       if (shouldOffload) {
-        preEncodedBytes = raw;
-      }
-      if (maxBodyBytes > 0 && originalSize > maxBodyBytes) {
-        payload = Uint8List.sublistView(raw, 0, maxBodyBytes);
-      } else {
-        payload = raw;
+        preEncodedBytes = capped;
       }
     } else if (raw is ByteData) {
       type = explicitType ?? FrameType.binary;
@@ -76,46 +75,35 @@ class FrameNormalizer {
           raw.buffer.asUint8List(raw.offsetInBytes, raw.lengthInBytes);
       originalSize = bytes.lengthInBytes;
       shouldOffload = offloadThreshold > 0 && originalSize >= offloadThreshold;
+      final capped = (maxBodyBytes > 0 && originalSize > maxBodyBytes)
+          ? bytes.sublist(0, maxBodyBytes)
+          : bytes;
+      payload = capped;
       if (shouldOffload) {
-        preEncodedBytes = bytes;
-      }
-      if (maxBodyBytes > 0 && originalSize > maxBodyBytes) {
-        payload = Uint8List.sublistView(bytes, 0, maxBodyBytes);
-      } else {
-        payload = bytes;
+        preEncodedBytes = capped;
       }
     } else if (raw is List<int> && explicitType != FrameType.text) {
       type = explicitType ?? FrameType.binary;
       originalSize = raw.length;
       final bytes = raw is Uint8List ? raw : Uint8List.fromList(raw);
       shouldOffload = offloadThreshold > 0 && originalSize >= offloadThreshold;
+      final capped = (maxBodyBytes > 0 && originalSize > maxBodyBytes)
+          ? bytes.sublist(0, maxBodyBytes)
+          : bytes;
+      payload = capped;
       if (shouldOffload) {
-        preEncodedBytes = bytes;
-      }
-      if (maxBodyBytes > 0 && originalSize > maxBodyBytes) {
-        payload = Uint8List.sublistView(bytes, 0, maxBodyBytes);
-      } else {
-        payload = bytes;
+        preEncodedBytes = capped;
       }
     } else if (raw is String) {
       type = explicitType ?? FrameType.text;
-      if (offloadThreshold > 0 && raw.length >= offloadThreshold) {
-        final bytes = Uint8List.fromList(utf8.encode(raw));
-        originalSize = bytes.lengthInBytes;
-        shouldOffload = true;
-        preEncodedBytes = bytes;
-      } else {
-        originalSize = utf8ByteLength(raw);
-        shouldOffload =
-            offloadThreshold > 0 && originalSize >= offloadThreshold;
-        if (shouldOffload) {
-          preEncodedBytes = Uint8List.fromList(utf8.encode(raw));
-        }
-      }
-      if (maxBodyBytes > 0 && originalSize > maxBodyBytes) {
-        payload = truncateUtf8(raw, maxBodyBytes);
-      } else {
-        payload = raw;
+      originalSize = utf8ByteLength(raw);
+      shouldOffload = offloadThreshold > 0 && originalSize >= offloadThreshold;
+      final cappedText = (maxBodyBytes > 0 && originalSize > maxBodyBytes)
+          ? truncateUtf8(raw, maxBodyBytes)
+          : raw;
+      payload = cappedText;
+      if (shouldOffload) {
+        preEncodedBytes = Uint8List.fromList(utf8.encode(cappedText));
       }
     } else if (raw is Map || raw is List) {
       type = explicitType ?? FrameType.text;
@@ -125,23 +113,14 @@ class FrameNormalizer {
       } catch (_) {
         text = raw.toString();
       }
-      if (offloadThreshold > 0 && text.length >= offloadThreshold) {
-        final bytes = Uint8List.fromList(utf8.encode(text));
-        originalSize = bytes.lengthInBytes;
-        shouldOffload = true;
-        preEncodedBytes = bytes;
-      } else {
-        originalSize = utf8ByteLength(text);
-        shouldOffload =
-            offloadThreshold > 0 && originalSize >= offloadThreshold;
-        if (shouldOffload) {
-          preEncodedBytes = Uint8List.fromList(utf8.encode(text));
-        }
-      }
-      if (maxBodyBytes > 0 && originalSize > maxBodyBytes) {
-        payload = truncateUtf8(text, maxBodyBytes);
-      } else {
-        payload = text;
+      originalSize = utf8ByteLength(text);
+      shouldOffload = offloadThreshold > 0 && originalSize >= offloadThreshold;
+      final cappedText = (maxBodyBytes > 0 && originalSize > maxBodyBytes)
+          ? truncateUtf8(text, maxBodyBytes)
+          : text;
+      payload = cappedText;
+      if (shouldOffload) {
+        preEncodedBytes = Uint8List.fromList(utf8.encode(cappedText));
       }
     } else if (raw == null) {
       type = explicitType ?? FrameType.text;
