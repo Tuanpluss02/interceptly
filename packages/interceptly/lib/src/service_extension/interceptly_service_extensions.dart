@@ -80,6 +80,13 @@ class InterceptlyServiceExtensions {
               parameters: params,
               isEnabled: _enabled,
             ));
+    _register(
+        'ext.interceptly.list_requests',
+        (params) async => handleListRequests(
+              session: _session,
+              parameters: params,
+              isEnabled: _enabled,
+            ));
 
     _register(
         'ext.interceptly.getRequestDetail',
@@ -92,6 +99,13 @@ class InterceptlyServiceExtensions {
         'ext.interceptly.get_request_detail',
         (params) => handleGetRequestDetail(
               engine: _engine,
+              parameters: params,
+              isEnabled: _enabled,
+            ));
+    _register(
+        'ext.interceptly.get_request_detail',
+        (params) => handleGetRequestDetail(
+              session: _session,
               parameters: params,
               isEnabled: _enabled,
             ));
@@ -110,6 +124,13 @@ class InterceptlyServiceExtensions {
               parameters: params,
               isEnabled: _enabled,
             ));
+    _register(
+        'ext.interceptly.set_network_simulation',
+        (params) async => handleSetNetworkSimulation(
+              session: _session,
+              parameters: params,
+              isEnabled: _enabled,
+            ));
 
     _register(
         'ext.interceptly.clearTraffic',
@@ -125,6 +146,13 @@ class InterceptlyServiceExtensions {
               parameters: params,
               isEnabled: _enabled,
             ));
+    _register(
+        'ext.interceptly.clear_traffic',
+        (params) => handleClearTraffic(
+              session: _session,
+              parameters: params,
+              isEnabled: _enabled,
+            ));
 
     _register(
         'ext.interceptly.exportCurl',
@@ -137,6 +165,13 @@ class InterceptlyServiceExtensions {
         'ext.interceptly.export_curl',
         (params) => handleExportCurl(
               engine: _engine,
+              parameters: params,
+              isEnabled: _enabled,
+            ));
+    _register(
+        'ext.interceptly.export_curl',
+        (params) => handleExportCurl(
+              session: _session,
               parameters: params,
               isEnabled: _enabled,
             ));

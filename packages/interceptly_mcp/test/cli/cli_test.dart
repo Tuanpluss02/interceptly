@@ -9,10 +9,7 @@ void main() {
 
   group('CLI Executable', () {
     test('--help displays usage and exits with 0', () async {
-      final result = await Process.run(Platform.executable, [
-        binPath,
-        '--help',
-      ]);
+      final result = await Process.run('dart', [binPath, '--help']);
 
       expect(result.exitCode, 0);
       final output = '${result.stdout}\n${result.stderr}';
@@ -23,10 +20,7 @@ void main() {
     });
 
     test('--version displays version and exits with 0', () async {
-      final result = await Process.run(Platform.executable, [
-        binPath,
-        '--version',
-      ]);
+      final result = await Process.run('dart', [binPath, '--version']);
 
       expect(result.exitCode, 0);
       final output = '${result.stdout}\n${result.stderr}';
@@ -34,7 +28,7 @@ void main() {
     });
 
     test('rejects non-loopback --uri with non-zero exit code', () async {
-      final result = await Process.run(Platform.executable, [
+      final result = await Process.run('dart', [
         binPath,
         '--uri',
         'ws://remote.evil.com:9999/ws',
@@ -45,7 +39,7 @@ void main() {
     });
 
     test('zone specification routes print to stderr instead of stdout', () async {
-      final process = await Process.start(Platform.executable, [binPath]);
+      final process = await Process.start('dart', [binPath]);
 
       final stderrLines = <String>[];
       final stdoutLines = <String>[];

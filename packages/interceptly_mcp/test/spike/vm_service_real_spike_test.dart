@@ -36,7 +36,7 @@ void main() {
 
       final uriCompleter = Completer<Uri>();
 
-      process = await Process.start(Platform.resolvedExecutable, [
+      process = await Process.start('dart', [
         '--enable-vm-service=0',
         fixturePath,
       ]);
@@ -85,11 +85,19 @@ void main() {
     test(
       'connects to real Dart VM, queries isolates, and invokes extension RPC',
       () async {
-        final vm = await vmService!.getVM();
+        VM vm = await vmService!.getVM();
+        while ((vm.isolates ?? []).isEmpty) {
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+          vm = await vmService!.getVM();
+        }
         expect(vm.isolates, isNotEmpty);
 
         final isolateRef = vm.isolates!.first;
-        final isolate = await vmService!.getIsolate(isolateRef.id!);
+        Isolate isolate = await vmService!.getIsolate(isolateRef.id!);
+        while (!(isolate.extensionRPCs ?? []).contains('ext.spike.test')) {
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+          isolate = await vmService!.getIsolate(isolateRef.id!);
+        }
 
         expect(isolate.extensionRPCs, contains('ext.spike.test'));
 

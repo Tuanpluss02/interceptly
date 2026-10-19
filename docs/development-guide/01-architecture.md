@@ -43,6 +43,7 @@ packages/
 ├── interceptly_http/               # ADAPTER — http.Client wrapper
 ├── interceptly_chopper/            # ADAPTER — Chopper interceptor
 ├── interceptly_web_socket/         # ADAPTER — WebSocketChannel wrapper
+├── interceptly_mcp/                # TOOL — Model Context Protocol (MCP) server for AI agents
 └── interceptly/example/            # Showcase app (not published)
 ```
 
@@ -52,7 +53,8 @@ packages/
 
 | Package | Role | Publishes to pub.dev |
 |---------|------|---------------------|
-| `interceptly` | Core engine: UI overlay (`InterceptlyScope`), background isolate pipeline, hybrid storage, headless data engine (`InterceptlyEngine`), public facade (`Interceptly`), network simulation | ✅ |
+| `interceptly` | Core engine: UI overlay (`InterceptlyScope`), background isolate pipeline, hybrid storage, headless data engine (`InterceptlyEngine`), public facade (`Interceptly`), network simulation, VM service extensions | ✅ |
+| `interceptly_mcp` | Standalone pure Dart MCP server communicating with AI assistants over stdio and Flutter over VM Service | ✅ |
 | `interceptly_dio` | `Dio` interceptor translating callbacks → SPI | ✅ |
 | `interceptly_http` | `http.Client` wrapper (stream-teeing) translating → SPI | ✅ |
 | `interceptly_chopper` | `Chopper` interceptor translating → SPI | ✅ |
