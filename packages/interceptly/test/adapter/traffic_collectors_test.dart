@@ -51,6 +51,7 @@ void main() {
   tearDown(() async {
     await Interceptly.resetForTesting();
     resetPathProviderMock();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
     try {
       if (tempDir.existsSync()) await tempDir.delete(recursive: true);
     } catch (_) {}

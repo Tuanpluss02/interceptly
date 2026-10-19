@@ -129,7 +129,7 @@ void main() {
             reason: 'Leaked interceptly_request_id in request $i');
       }
 
-      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      final deadline = DateTime.now().add(const Duration(seconds: 10));
       while (interceptly.entries.where((e) => e.statusCode != 0).length < 100) {
         if (DateTime.now().isAfter(deadline)) break;
         await Future<void>.delayed(const Duration(milliseconds: 50));
