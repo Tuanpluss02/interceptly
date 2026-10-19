@@ -187,7 +187,7 @@ void main() {
       'Bearer token lines do not wrap and can be scrolled horizontally',
       (tester) async {
         const token =
-            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
+            'dummy_token_horizontal_scroll_test_not_a_real_jwt_secret_token_1234567890_abcdefghijklmnopqrstuvwxyz_ABCDEFGHIJKLMNOPQRSTUVWXYZ_payload_signature_padding_test';
         final data = {
           'Authorization': 'Bearer $token',
         };
@@ -225,7 +225,7 @@ void main() {
       'dragging selection edge near right boundary auto-scrolls horizontally',
       (tester) async {
         const token =
-            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
+            'dummy_token_horizontal_scroll_test_not_a_real_jwt_secret_token_1234567890_abcdefghijklmnopqrstuvwxyz_ABCDEFGHIJKLMNOPQRSTUVWXYZ_payload_signature_padding_test';
         final data = {
           'Authorization': 'Bearer $token',
         };

@@ -114,6 +114,74 @@ void main() {
 
       expect(search.results, isEmpty);
     });
+
+    test('pruneMissing removes entries not in validIds and notifies listeners',
+        () async {
+      final search = MasterSearchController();
+      addTearDown(search.dispose);
+
+      final entry1 = _createEntry(
+        id: '1',
+        method: 'GET',
+        url: 'https://api.example.com/item1',
+        statusCode: 200,
+      );
+      final entry2 = _createEntry(
+        id: '2',
+        method: 'GET',
+        url: 'https://api.example.com/item2',
+        statusCode: 200,
+      );
+
+      await search.start(
+        query: 'item',
+        allEntries: [entry1, entry2],
+        filePath: null,
+      );
+
+      expect(search.results?.length, equals(2));
+
+      var notifications = 0;
+      search.addListener(() => notifications++);
+
+      // Prune entry 2
+      search.pruneMissing({'1'});
+
+      expect(search.results?.length, equals(1));
+      expect(search.results?.first.id, equals('1'));
+    });
+
+    test(
+        'active master search in InterceptlyScopeController picks up new engine entries and prunes evicted ones',
+        () async {
+      final engine = InterceptlyEngine();
+      final scope = InterceptlyScopeController(engine: engine);
+      addTearDown(scope.dispose);
+      addTearDown(engine.dispose);
+
+      engine.recordPending(
+        id: '1',
+        method: 'GET',
+        url: 'https://api.example.com/items',
+        timestamp: DateTime(2026, 1, 1),
+      );
+      engine.flushPendingNotifications();
+
+      await scope.startMasterSearch('orders');
+      expect(scope.entries, isEmpty);
+
+      // Now a new matching request arrives at the engine
+      engine.recordPending(
+        id: '2',
+        method: 'POST',
+        url: 'https://api.example.com/orders',
+        timestamp: DateTime(2026, 1, 1),
+      );
+      engine.flushPendingNotifications();
+
+      // Entries should dynamically include the new order request
+      expect(scope.entries.map((e) => e.id), contains('2'));
+    });
   });
 
   group('InterceptlyEngine Search Invalidation and Coalescing', () {

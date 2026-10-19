@@ -165,10 +165,10 @@ class InterceptlyEngine extends ChangeNotifier {
   Future<void> initialize() async {
     await _capturePipeline.initialize();
     if (_settings.persistToDisk) {
-      unawaited(_realtimeStore.ensureDiskStorageInitialized(
+      await _realtimeStore.ensureDiskStorageInitialized(
         persistToDisk: true,
         engineId: engineId,
-      ));
+      );
     }
   }
 

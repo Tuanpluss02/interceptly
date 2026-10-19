@@ -7,9 +7,27 @@ import '../../model/network_protocol.dart';
 /// Separated from data engine so that theme and decode settings do not
 /// pollute the engine's single responsibility (capture lifecycle management).
 class InterceptlyPreferences extends ChangeNotifier {
-  ThemeMode _themeMode = ThemeMode.system;
-  bool _urlDecodeEnabled = true;
-  int _selectedTabIndex = 0;
+  InterceptlyPreferences({
+    ThemeMode themeMode = ThemeMode.system,
+    bool urlDecodeEnabled = true,
+    int selectedTabIndex = 0,
+  })  : _themeMode = themeMode,
+        _urlDecodeEnabled = urlDecodeEnabled,
+        _selectedTabIndex = selectedTabIndex;
+
+  static InterceptlyPreferences _shared = InterceptlyPreferences();
+
+  /// Shared preferences instance preserved across inspector screens.
+  static InterceptlyPreferences get shared => _shared;
+
+  /// Resets the shared preferences instance for testing isolation.
+  static void resetSharedForTesting() {
+    _shared = InterceptlyPreferences();
+  }
+
+  ThemeMode _themeMode;
+  bool _urlDecodeEnabled;
+  int _selectedTabIndex;
 
   ThemeMode get themeMode => _themeMode;
   bool get urlDecodeEnabled => _urlDecodeEnabled;

@@ -167,15 +167,20 @@ void main() {
     final initialGroups = scope.getGroupedRecords();
     expect(initialGroups.length, 1);
 
+    var notifications = 0;
+    scope.addListener(() => notifications++);
+
     scope.toggleGrouping(true);
     final enabledGroups = scope.getGroupedRecords();
     expect(enabledGroups.length, 1);
     expect(scope.groupingEnabled, isTrue);
+    expect(notifications, 1);
 
     scope.toggleGrouping(false);
     final disabledGroups = scope.getGroupedRecords();
     expect(disabledGroups.length, 1);
     expect(scope.groupingEnabled, isFalse);
+    expect(notifications, 2);
 
     scope.dispose();
     await engine.dispose();
@@ -198,13 +203,18 @@ void main() {
       expect(groups.first.domain, 'api.example.com');
       expect(groups.first.isExpanded, isTrue);
 
+      var notifications = 0;
+      scope.addListener(() => notifications++);
+
       scope.toggleDomainExpanded('api.example.com');
       groups = scope.getGroupedRecords();
       expect(groups.first.isExpanded, isFalse);
+      expect(notifications, 1);
 
       scope.toggleDomainExpanded('api.example.com');
       groups = scope.getGroupedRecords();
       expect(groups.first.isExpanded, isTrue);
+      expect(notifications, 2);
 
       scope.dispose();
       await engine.dispose();

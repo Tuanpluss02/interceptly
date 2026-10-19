@@ -237,10 +237,17 @@ class RealtimeStore {
       dirPath = Directory.systemTemp.path;
     }
     _diskDirPath = dirPath;
-    await _bodyStore.initForWrite(
-      dirPath,
-      fileName: 'interceptly_${engineId}_realtime.tmp',
-    );
+    try {
+      await _bodyStore.initForWrite(
+        dirPath,
+        fileName: 'interceptly_${engineId}_realtime.tmp',
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint(
+            '[Interceptly] Failed to initialize realtime disk storage: $e');
+      }
+    }
   }
 
   /// Total count of frames stored across all sessions.

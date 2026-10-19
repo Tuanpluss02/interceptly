@@ -22,9 +22,16 @@ import 'grouping_controller.dart';
 /// on top of an [InterceptlyEngine].
 @internal
 class InterceptlyScopeController extends ChangeNotifier {
-  /// Creates a UI scope controller backed by [engine].
-  InterceptlyScopeController({InterceptlyEngine? engine})
-      : engine = engine ?? InterceptlyEngine.instance {
+  /// Creates a UI scope controller backed by [engine] and optional [preferences].
+  InterceptlyScopeController({
+    InterceptlyEngine? engine,
+    InterceptlyPreferences? preferences,
+  })  : engine = engine ?? InterceptlyEngine.instance,
+        _preferences = preferences ?? InterceptlyPreferences.shared,
+        _ownsPreferences = preferences != null {
+    if (preferences == null) {
+      _preferences.setUrlDecodeEnabled(this.engine.settings.urlDecodeEnabled);
+    }
     this.engine.addListener(_onEngineUpdated);
     _search.addListener(_onSearchUpdated);
     _grouping.addListener(_onGroupingUpdated);
@@ -36,7 +43,8 @@ class InterceptlyScopeController extends ChangeNotifier {
 
   final MasterSearchController _search = MasterSearchController();
   final GroupingController _grouping = GroupingController();
-  final InterceptlyPreferences _preferences = InterceptlyPreferences();
+  final InterceptlyPreferences _preferences;
+  final bool _ownsPreferences;
 
   RequestFilter _filter = RequestFilter();
   Set<String>? _cachedAvailableDomains;
@@ -102,14 +110,10 @@ class InterceptlyScopeController extends ChangeNotifier {
 
   void toggleGrouping(bool enabled) {
     _grouping.setEnabled(enabled);
-    _invalidateGroupedCache();
-    notifyListeners();
   }
 
   void toggleDomainExpanded(String domain) {
     _grouping.toggleDomainExpanded(domain);
-    _invalidateGroupedCache();
-    notifyListeners();
   }
 
   List<DomainGroup> getGroupedRecords() {
@@ -202,6 +206,17 @@ class InterceptlyScopeController extends ChangeNotifier {
 
   void _onEngineUpdated() {
     _invalidateGroupedCache();
+    if (_search.isActive) {
+      final currentEntries = engine.entries;
+      final validIds = <String>{};
+      for (final e in currentEntries) {
+        validIds.add(e.id);
+        if (e is IndexEntry) {
+          _search.updateOrAddEntry(e);
+        }
+      }
+      _search.pruneMissing(validIds);
+    }
     if (!_isDisposed) {
       notifyListeners();
     }
@@ -243,7 +258,9 @@ class InterceptlyScopeController extends ChangeNotifier {
     _grouping.removeListener(_onGroupingUpdated);
     _grouping.dispose();
     _preferences.removeListener(_onPreferencesUpdated);
-    _preferences.dispose();
+    if (_ownsPreferences) {
+      _preferences.dispose();
+    }
     super.dispose();
   }
 }

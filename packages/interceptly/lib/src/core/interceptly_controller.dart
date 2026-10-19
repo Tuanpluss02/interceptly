@@ -9,6 +9,7 @@ import '../model/request_record.dart';
 import '../model/request_summary.dart';
 import '../ui/overlay/floating_overlay_manager.dart';
 import '../ui/screens/interceptly_screen.dart';
+import '../ui/settings/inspector_preferences.dart';
 import '../ui/widgets/toast_notification.dart';
 
 /// Central public facade for Interceptly.
@@ -27,6 +28,7 @@ class Interceptly {
   /// Resets the underlying engine and overlays for isolated unit/widget tests.
   static Future<void> resetForTesting() async {
     _detach();
+    InterceptlyPreferences.resetSharedForTesting();
     await InterceptlyEngine.resetForTesting();
   }
 

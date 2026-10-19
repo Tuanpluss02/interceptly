@@ -310,6 +310,23 @@ class MasterSearchController extends ChangeNotifier {
     }
   }
 
+  /// Prunes any search results whose IDs are not present in [validIds].
+  void pruneMissing(Set<String> validIds) {
+    if (_isDisposed || _results == null) return;
+    var removed = false;
+    for (var i = _results!.length - 1; i >= 0; i--) {
+      final id = _results![i].id;
+      if (!validIds.contains(id)) {
+        _results!.removeAt(i);
+        _matchScopes.remove(id);
+        removed = true;
+      }
+    }
+    if (removed) {
+      _notifyThrottled();
+    }
+  }
+
   static Set<SearchMatchScope> _checkStructuredScopes(IndexEntry e, String q) {
     final scopes = <SearchMatchScope>{};
     if (e.url.toLowerCase().contains(q) || e.method.toLowerCase().contains(q)) {
