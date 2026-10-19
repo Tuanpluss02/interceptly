@@ -1,0 +1,22 @@
+name: interceptly_socket_io
+description: "Socket.IO adapter for Interceptly network inspector."
+version: 1.0.0
+homepage: https://github.com/Tuanpluss02/interceptly
+repository: https://github.com/Tuanpluss02/interceptly
+issue_tracker: https://github.com/Tuanpluss02/interceptly/issues
+documentation: https://pub.dev/documentation/interceptly_socket_io/latest/
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  interceptly: ^2.2.0
+  socket_io_client: '>=2.0.0 <4.0.0'
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
