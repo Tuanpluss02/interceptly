@@ -49,7 +49,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
   }
 
   void _applyPreset(TruncationPreset preset) {
-    InspectorSession.instance.configureSession(preset.toSettings());
+    Interceptly.instance.configure(preset.toSettings());
   }
 
   Future<void> _runRequest(

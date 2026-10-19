@@ -13,7 +13,7 @@ import 'package:interceptly/src/ui/widgets/toast_notification.dart';
 import '../../model/domain_group.dart';
 import '../../model/request_record.dart';
 import '../../model/request_summary.dart';
-import '../../session/inspector_session_view.dart';
+import '../scope/interceptly_scope.dart';
 import '../widgets/filter_badge.dart';
 import 'quick_filter_bar.dart';
 
@@ -21,16 +21,12 @@ part 'network_tab_widgets.dart';
 
 /// REST-only traffic list with search, quick filters, grouping and export.
 class NetworkTab extends StatefulWidget {
-  /// Creates a REST-only list bound to [session].
+  /// Creates a REST-only list.
   const NetworkTab({
     super.key,
-    required this.session,
     this.groupingEnabled = false,
     this.onShowFilterPanel,
   });
-
-  /// Session providing filtered REST entries and search scopes.
-  final InspectorSessionView session;
 
   /// Whether entries render grouped by domain.
   final bool groupingEnabled;
@@ -54,9 +50,7 @@ class _NetworkTabState extends State<NetworkTab> {
   @override
   void initState() {
     super.initState();
-    _searchController = TextEditingController(
-      text: widget.session.masterQuery ?? '',
-    );
+    _searchController = TextEditingController();
   }
 
   @override
@@ -67,8 +61,7 @@ class _NetworkTabState extends State<NetworkTab> {
   }
 
   /// Display URL honoring the url-decode preference with per-row caching.
-  String _getDisplayUrl(RequestSummary entry) {
-    final decodeEnabled = widget.session.preferences.urlDecodeEnabled;
+  String _getDisplayUrl(RequestSummary entry, bool decodeEnabled) {
     if (_cachedUrlDecodeSetting != decodeEnabled) {
       _displayUrlCache.clear();
       _cachedUrlDecodeSetting = decodeEnabled;
@@ -128,12 +121,13 @@ class _NetworkTabState extends State<NetworkTab> {
   }
 
   /// Exports selected rows to Postman in chunks of ten.
-  Future<void> _exportSelectedAsPostman() async {
+  Future<void> _exportSelectedAsPostman(
+      InterceptlyScopeController scope) async {
     if (_selectedIds.isEmpty || _isExporting) return;
     setState(() => _isExporting = true);
 
     try {
-      final allEntries = widget.session.entries;
+      final allEntries = scope.entries;
       final selectedEntries =
           allEntries.where((e) => _selectedIds.contains(e.id)).toList();
 
@@ -143,7 +137,7 @@ class _NetworkTabState extends State<NetworkTab> {
             (i + 10 < selectedEntries.length) ? i + 10 : selectedEntries.length;
         final chunk = selectedEntries.sublist(i, end);
         final chunkRecords = await Future.wait(
-          chunk.map((entry) => widget.session.loadDetailById(entry.id)),
+          chunk.map((entry) => scope.loadDetailById(entry.id)),
         );
         records.addAll(chunkRecords);
       }
@@ -167,7 +161,8 @@ class _NetworkTabState extends State<NetworkTab> {
 
   @override
   Widget build(BuildContext context) {
-    final queryText = widget.session.masterQuery ?? '';
+    final scope = InterceptlyScope.of(context);
+    final queryText = scope.masterQuery ?? '';
     if (_searchController.text != queryText) {
       _searchController.value = TextEditingValue(
         text: queryText,
@@ -192,39 +187,33 @@ class _NetworkTabState extends State<NetworkTab> {
                 onCancel: _exitSelectionMode,
               )
             else ...[
-              ListenableBuilder(
-                listenable: widget.session,
-                builder: (context, _) => _SearchFilterBar(
-                  controller: _searchController,
-                  activeFiltersCount: widget.session.filter.activeFilterCount,
-                  onChanged: (value) {
-                    final q = value.trim();
-                    if (q.isEmpty) {
-                      widget.session.cancelMasterSearch();
-                    } else {
-                      widget.session.startMasterSearch(q);
-                    }
-                  },
-                  onShowFilter: widget.onShowFilterPanel,
-                ),
+              _SearchFilterBar(
+                controller: _searchController,
+                activeFiltersCount: scope.filter.activeFilterCount,
+                onChanged: (value) {
+                  final q = value.trim();
+                  if (q.isEmpty) {
+                    scope.cancelMasterSearch();
+                  } else {
+                    scope.startMasterSearch(q);
+                  }
+                },
+                onShowFilter: widget.onShowFilterPanel,
               ),
-              QuickFilterBar(session: widget.session),
+              const QuickFilterBar(),
             ],
             Divider(height: 1, color: InterceptlyTheme.dividerSubtle),
             Expanded(
-              child: ListenableBuilder(
-                listenable: widget.session,
-                builder: (context, _) => widget.groupingEnabled
-                    ? _buildGroupedList(context)
-                    : _buildFlatList(context),
-              ),
+              child: widget.groupingEnabled
+                  ? _buildGroupedList(context, scope)
+                  : _buildFlatList(context, scope),
             ),
             if (_isSelectionMode)
               _ExportBar(
                 selectedCount: _selectedIds.length,
                 isExporting: _isExporting,
                 colors: colors,
-                onExport: _exportSelectedAsPostman,
+                onExport: () => _exportSelectedAsPostman(scope),
               ),
           ],
         ),
@@ -241,8 +230,9 @@ class _NetworkTabState extends State<NetworkTab> {
   String get _emptyMessage => 'No network requests yet.';
 
   /// Flat newest-first list of REST rows.
-  Widget _buildFlatList(BuildContext context) {
-    final entries = _restOnly(widget.session.entries);
+  Widget _buildFlatList(
+      BuildContext context, InterceptlyScopeController scope) {
+    final entries = _restOnly(scope.entries);
 
     if (entries.isEmpty) {
       return Center(
@@ -267,13 +257,16 @@ class _NetworkTabState extends State<NetworkTab> {
           key: ValueKey(req.id),
           child: _buildRequestItem(
             context: context,
+            scope: scope,
             entry: req,
             onTapNavigate: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => RequestDetailPage(
-                  entry: req,
-                  session: widget.session,
-                  initialQuery: widget.session.masterQuery,
+                builder: (_) => InterceptlyScope(
+                  controller: scope,
+                  child: RequestDetailPage(
+                    entry: req,
+                    initialQuery: scope.masterQuery,
+                  ),
                 ),
               ),
             ),
@@ -284,8 +277,9 @@ class _NetworkTabState extends State<NetworkTab> {
   }
 
   /// Domain-grouped list of REST rows with expandable headers.
-  Widget _buildGroupedList(BuildContext context) {
-    final rawGroups = widget.session.getGroupedRecords();
+  Widget _buildGroupedList(
+      BuildContext context, InterceptlyScopeController scope) {
+    final rawGroups = scope.getGroupedRecords();
     final groups = <DomainGroup>[];
     for (final g in rawGroups) {
       final restRequests = _restOnly(g.requests);
@@ -359,7 +353,7 @@ class _NetworkTabState extends State<NetworkTab> {
                   allSelected: allSelected,
                   someSelected: someSelected,
                   onToggleExpand: () =>
-                      widget.session.toggleDomainExpanded(group.domain),
+                      scope.toggleDomainExpanded(group.domain),
                   onToggleGroupSelection: _toggleGroupSelection,
                 ),
               );
@@ -367,11 +361,11 @@ class _NetworkTabState extends State<NetworkTab> {
             return KeyedSubtree(
               key: ValueKey('group_header_${group.domain}'),
               child: GestureDetector(
-                onTap: () => widget.session.toggleDomainExpanded(group.domain),
+                onTap: () => scope.toggleDomainExpanded(group.domain),
                 child: DomainGroupHeader(
                   group: group,
                   onToggleExpand: () =>
-                      widget.session.toggleDomainExpanded(group.domain),
+                      scope.toggleDomainExpanded(group.domain),
                 ),
               ),
             );
@@ -382,13 +376,16 @@ class _NetworkTabState extends State<NetworkTab> {
                   EdgeInsets.fromLTRB(14, 0, 14, isLastInGroup ? 10.0 : 8.0),
               child: _buildRequestItem(
                 context: context,
+                scope: scope,
                 entry: entry,
                 onTapNavigate: () => Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => RequestDetailPage(
-                      entry: entry,
-                      session: widget.session,
-                      initialQuery: widget.session.masterQuery,
+                    builder: (_) => InterceptlyScope(
+                      controller: scope,
+                      child: RequestDetailPage(
+                        entry: entry,
+                        initialQuery: scope.masterQuery,
+                      ),
                     ),
                   ),
                 ),
@@ -404,6 +401,7 @@ class _NetworkTabState extends State<NetworkTab> {
   /// Single REST row with status, highlight, scope badges and selection.
   Widget _buildRequestItem({
     required BuildContext context,
+    required InterceptlyScopeController scope,
     required RequestSummary entry,
     required VoidCallback onTapNavigate,
   }) {
@@ -425,11 +423,12 @@ class _NetworkTabState extends State<NetworkTab> {
     final time =
         '${entry.timestamp.hour.toString().padLeft(2, '0')}:${entry.timestamp.minute.toString().padLeft(2, '0')}:${entry.timestamp.second.toString().padLeft(2, '0')}';
 
-    final displayUrl = _getDisplayUrl(entry);
+    final displayUrl =
+        _getDisplayUrl(entry, scope.preferences.urlDecodeEnabled);
 
-    final activeQuery = widget.session.masterQuery;
+    final activeQuery = scope.masterQuery;
     final scopes = activeQuery != null && activeQuery.isNotEmpty
-        ? widget.session.getSearchScopes(entry.id)
+        ? scope.getSearchScopes(entry.id)
         : null;
 
     return RestLogItem(

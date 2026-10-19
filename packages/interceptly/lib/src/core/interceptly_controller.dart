@@ -5,60 +5,46 @@ import '../model/interceptly_settings.dart';
 import '../model/network_simulation.dart';
 import '../model/raw_capture.dart';
 import '../model/realtime_frame.dart';
-import '../model/request_filter.dart';
 import '../model/request_record.dart';
 import '../model/request_summary.dart';
-import '../session/inspector_session.dart';
-import '../session/inspector_session_view.dart';
 import '../ui/overlay/floating_overlay_manager.dart';
 import '../ui/screens/interceptly_screen.dart';
 import '../ui/widgets/toast_notification.dart';
+import 'interceptly_engine.dart';
 
-/// Thin public facade over [InspectorSession].
+/// Central public facade for Interceptly.
+///
+/// Provides initialization, overlay control, and testing hooks for application code.
 class Interceptly extends ChangeNotifier {
+  /// Creates an [Interceptly] controller backed by [InterceptlyEngine.instance].
   Interceptly({InterceptlySettings? settings})
-      : _session = InspectorSession.instance {
+      : _engine = InterceptlyEngine.instance {
     if (settings != null) {
-      _session.configureSession(settings);
+      _engine.configure(settings);
     }
-    _session.addListener(notifyListeners);
+    _engine.addListener(notifyListeners);
   }
 
   static Interceptly? _sharedInstance;
 
+  /// Returns the shared Interceptly singleton instance.
   static Interceptly get instance {
     return _sharedInstance ??= Interceptly();
   }
 
-  /// Resets the shared instance singleton for isolated unit/widget tests.
+  /// Resets the shared instance and underlying engine for isolated unit/widget tests.
   @visibleForTesting
-  static void resetForTesting() {
+  static Future<void> resetForTesting() async {
     _detach();
+    _sharedInstance?.dispose();
     _sharedInstance = null;
+    await InterceptlyEngine.resetForTesting();
   }
 
-  final InspectorSession _session;
+  final InterceptlyEngine _engine;
 
   /// Single entrypoint to initialize Interceptly: attaches the UI to [navigatorKey]
   /// and applies all desired configuration options in one clean call.
-  ///
-  /// Release build checklist:
-  /// - Configure payload size caps via [InterceptlySettings.maxBodyBytes] and
-  ///   [InterceptlySettings.maxEntries] to avoid memory overhead.
-  /// - Keep the floating overlay hidden or restricted to internal users when shipping.
-  ///
-  /// Pass [settings] only to (re)configure capture behavior; when omitted the
-  /// session keeps whatever configuration it already has.
-  ///
-  /// ```dart
-  /// Interceptly.init(
-  ///   navigatorKey: _navKey,
-  ///   settings: const InterceptlySettings(
-  ///     maxBodyBytes: 1024 * 1024,
-  ///   ),
-  ///   showFloatingButton: true,
-  /// );
-  /// ```
   static Future<void> init({
     required GlobalKey<NavigatorState> navigatorKey,
     bool showFloatingButton = true,
@@ -66,7 +52,7 @@ class Interceptly extends ChangeNotifier {
     Stream<void>? customTrigger,
     InterceptlySettings? settings,
   }) {
-    if (settings != null) InspectorSession.instance.configureSession(settings);
+    if (settings != null) InterceptlyEngine.instance.configure(settings);
 
     return _init(
       navigatorKey: navigatorKey,
@@ -84,16 +70,16 @@ class Interceptly extends ChangeNotifier {
   /// Removes all overlay entries and cancels all trigger subscriptions.
   static void detach() => _detach();
 
-  /// Hides the floating button for the remainder of this session.
+  /// Hides the floating button for the remainder of this app session.
   /// It will reappear when the app restarts.
   static void hideFloatingButtonForSession() =>
       FloatingOverlayManager.instance.setHiddenForSession(true);
 
-  /// Restores the floating button if it was hidden for this session.
+  /// Restores the floating button if it was hidden for this app session.
   static void showFloatingButtonForSession() =>
       FloatingOverlayManager.instance.setHiddenForSession(false);
 
-  /// Whether the floating button is currently hidden for this session.
+  /// Whether the floating button is currently hidden for this app session.
   static bool get isFloatingButtonHiddenForSession =>
       FloatingOverlayManager.instance.isHiddenForSession;
 
@@ -107,39 +93,75 @@ class Interceptly extends ChangeNotifier {
       'call to Interceptly.init().',
     );
     _pushInspector(
-      session: InspectorSession.instance,
       nav: _activeNavigatorKey?.currentState,
       context: context,
     );
   }
 
-  InspectorSessionView get session => _session;
-  InterceptlySettings get settings => _session.settings;
-  List<RequestSummary> get calls => _session.entries;
-  RequestFilter get filter => _session.filter;
-  int get droppedEvents => _session.droppedCount;
-  bool get isEnabled => _session.isEnabled;
-  NetworkSimulationProfile get networkSimulation => _session.networkSimulation;
+  /// Current settings active on the engine.
+  InterceptlySettings get settings => _engine.settings;
 
-  void enable() => _session.enable();
-  void disable() => _session.disable();
-  Future<void> initialize() => _session.initialize();
-  void recordCapture(RawCapture capture) => _session.record(capture);
+  /// Applies [settings] to the underlying engine.
+  void configure(InterceptlySettings settings) => _engine.configure(settings);
+
+  /// List of captured calls.
+  List<RequestSummary> get calls => _engine.entries;
+
+  /// List of captured entries (alias for [calls]).
+  List<RequestSummary> get entries => _engine.entries;
+
+  /// Count of dropped events due to buffer overflows.
+  int get droppedEvents => _engine.droppedCount;
+
+  /// Whether traffic capture is currently enabled.
+  bool get isEnabled => _engine.isEnabled;
+
+  /// Current network simulation profile.
+  NetworkSimulationProfile get networkSimulation => _engine.networkSimulation;
+
+  /// Enables traffic capture.
+  void enable() => _engine.enable();
+
+  /// Disables traffic capture.
+  void disable() => _engine.disable();
+
+  /// Initializes background workers and disk storage.
+  Future<void> initialize() => _engine.initialize();
+
+  /// Enqueues [capture] for asynchronous background processing.
+  void recordCapture(RawCapture capture) => _engine.record(capture);
+
+  /// Loads full details for [summary].
   Future<RequestRecord> loadDetail(RequestSummary summary) =>
-      _session.loadDetail(summary);
-  void applyFilter(RequestFilter filter) => _session.applyFilter(filter);
+      _engine.loadDetail(summary);
+
+  /// Loads full details for request with [id].
+  Future<RequestRecord> loadDetailById(String id) =>
+      _engine.loadDetailById(id);
+
+  /// Sets an active network simulation profile.
   void setNetworkSimulation(NetworkSimulationProfile profile) =>
-      _session.setNetworkSimulation(profile);
-  void clearNetworkSimulation() => _session.clearNetworkSimulation();
-  Future<void> clear() => _session.clear();
+      _engine.setNetworkSimulation(profile);
 
-  /// Enqueues a captured [RealtimeFrame] into the session buffer.
+  /// Clears active network simulation profile.
+  void clearNetworkSimulation() => _engine.clearNetworkSimulation();
+
+  /// Clears all captured REST and realtime calls.
+  Future<void> clear() => _engine.clear();
+
+  /// Clears only REST traffic.
+  Future<void> clearRest() => _engine.clearRest();
+
+  /// Clears only realtime traffic.
+  Future<void> clearRealtime() => _engine.clearRealtime();
+
+  /// Enqueues a captured [RealtimeFrame] into the engine buffer.
   Future<void> recordRealtimeFrame(RealtimeFrame frame) =>
-      _session.recordRealtimeFrame(frame);
+      _engine.recordRealtimeFrame(frame);
 
-  /// Returns captured realtime frames for the given [sessionId] in FIFO order.
+  /// Returns captured realtime frames for the given connection [sessionId] in FIFO order.
   List<RealtimeFrame> getRealtimeFrames(String sessionId) =>
-      _session.getRealtimeFrames(sessionId);
+      _engine.getRealtimeFrames(sessionId);
 
   /// Records opening of a realtime connection (e.g. WebSocket handshake).
   void recordRealtimeConnection({
@@ -148,7 +170,7 @@ class Interceptly extends ChangeNotifier {
     Map<String, String> headers = const {},
     DateTime? timestamp,
   }) =>
-      _session.recordRealtimeConnection(
+      _engine.recordRealtimeConnection(
         id: id,
         url: url,
         headers: headers,
@@ -161,7 +183,7 @@ class Interceptly extends ChangeNotifier {
     int closeCode = 1000,
     String? closeReason,
   }) =>
-      _session.closeRealtimeConnection(
+      _engine.closeRealtimeConnection(
         id,
         closeCode: closeCode,
         closeReason: closeReason,
@@ -169,7 +191,7 @@ class Interceptly extends ChangeNotifier {
 
   @override
   void dispose() {
-    _session.removeListener(notifyListeners);
+    _engine.removeListener(notifyListeners);
     if (identical(_sharedInstance, this)) {
       _sharedInstance = null;
     }
@@ -204,7 +226,7 @@ Future<void> _init({
     onFabTap: _openInspector,
   );
 
-  unawaited(InspectorSession.instance.initialize().catchError((Object error) {
+  unawaited(InterceptlyEngine.instance.initialize().catchError((Object error) {
     debugPrint('[Interceptly] background init failed: $error');
   }));
 }
@@ -219,13 +241,11 @@ void _detach() {
 
 void _openInspector() {
   _pushInspector(
-    session: InspectorSession.instance,
     nav: _activeNavigatorKey?.currentState,
   );
 }
 
 void _pushInspector({
-  required InspectorSessionView session,
   NavigatorState? nav,
   BuildContext? context,
 }) {
@@ -242,7 +262,7 @@ void _pushInspector({
   navigator
       .push<void>(
     MaterialPageRoute<void>(
-      builder: (_) => InterceptlyScreen(session: session),
+      builder: (_) => const InterceptlyScreen(),
     ),
   )
       .whenComplete(() {

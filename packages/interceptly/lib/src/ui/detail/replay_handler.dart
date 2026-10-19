@@ -9,7 +9,7 @@ import '../../model/raw_capture.dart';
 import '../../model/body_truncation.dart';
 import '../../model/request_record.dart';
 import '../../session/body_decode_service.dart';
-import '../../session/inspector_session.dart';
+import '../../core/interceptly_engine.dart';
 import '../interceptly_theme.dart';
 import '../widgets/toast_notification.dart';
 import 'custom_request_page.dart';
@@ -18,13 +18,13 @@ import 'custom_request_page.dart';
 class ReplayHandler {
   const ReplayHandler({
     required this.context,
-    required this.session,
+    required this.engine,
     @visibleForTesting this.clientFactory,
     @visibleForTesting this.confirmDialog,
   });
 
   final BuildContext context;
-  final InspectorSession session;
+  final InterceptlyEngine engine;
 
   @visibleForTesting
   final HttpClient Function()? clientFactory;
@@ -289,7 +289,7 @@ class ReplayHandler {
         responseHeaders[name] = values.join(', ');
       });
 
-      session.record(
+      engine.record(
         RawCapture(
           id: 'r_replay_${DateTime.now().microsecondsSinceEpoch}',
           method: upperMethod,

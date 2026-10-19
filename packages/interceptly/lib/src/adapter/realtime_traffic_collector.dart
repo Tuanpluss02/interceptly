@@ -4,7 +4,7 @@ import '../capture/capture_guard.dart';
 import '../capture/frame_normalizer.dart';
 import '../model/realtime_frame.dart';
 import '../model/realtime_protocol_type.dart';
-import '../session/inspector_session.dart';
+import '../core/interceptly_engine.dart';
 import '../session/request_id.dart';
 import 'realtime_session_scope.dart';
 
@@ -21,11 +21,11 @@ abstract interface class RealtimeTrafficCollector {
     _instance = collector;
   }
 
-  /// Explicitly marks realtime capability as active on the global collector's session.
+  /// Explicitly marks realtime capability as active on the global collector's engine.
   static void markActive() {
     final current = instance;
     if (current is DefaultRealtimeTrafficCollector) {
-      current.session.markRealtimeActive();
+      current.engine.markRealtimeActive();
     }
   }
 
@@ -85,28 +85,28 @@ abstract interface class RealtimeTrafficCollector {
   });
 }
 
-/// Default implementation of [RealtimeTrafficCollector] backed by [InspectorSession].
+/// Default implementation of [RealtimeTrafficCollector] backed by [InterceptlyEngine].
 class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
-  /// Creates a collector backed by [session] or [InspectorSession.instance].
-  DefaultRealtimeTrafficCollector({InspectorSession? session})
-      : _customSession = session;
+  /// Creates a collector backed by [engine] or [InterceptlyEngine.instance].
+  DefaultRealtimeTrafficCollector({InterceptlyEngine? engine})
+      : _customEngine = engine;
 
-  final InspectorSession? _customSession;
+  final InterceptlyEngine? _customEngine;
   final Map<String, RealtimeSessionScope> _activeScopes = {};
 
-  /// The underlying [InspectorSession] used for storing captured traffic.
-  InspectorSession get session => _customSession ?? InspectorSession.instance;
+  /// The underlying [InterceptlyEngine] used for storing captured traffic.
+  InterceptlyEngine get engine => _customEngine ?? InterceptlyEngine.instance;
 
   @override
-  int get maxBodyBytes => session.settings.maxBodyBytes;
+  int get maxBodyBytes => engine.settings.maxBodyBytes;
 
   @override
-  int get offloadThreshold => session.settings.realtimeBodyOffloadThreshold;
+  int get offloadThreshold => engine.settings.realtimeBodyOffloadThreshold;
 
   @override
   bool shouldCapture(Uri? uri) {
     if (uri == null) return true;
-    final predicate = session.settings.shouldCapture;
+    final predicate = engine.settings.shouldCapture;
     if (predicate == null) return true;
     return predicate(uri.toString());
   }
@@ -118,14 +118,14 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
     Map<String, String>? headers,
     RealtimeProtocolType protocolType = RealtimeProtocolType.webSocket,
   }) {
-    session.markRealtimeActive();
+    engine.markRealtimeActive();
     final effectiveId = sessionId ?? RequestId.generate();
 
     final isCaptured = shouldCapture(uri);
 
     if (uri != null && isCaptured) {
       guardCapture(() {
-        session.recordRealtimeConnection(
+        engine.recordRealtimeConnection(
           id: effectiveId,
           url: uri.toString(),
           headers: headers ?? const {},
@@ -175,7 +175,7 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
       return;
     }
     guardCapture(() {
-      session.recordRealtimeConnection(
+      engine.recordRealtimeConnection(
         id: sessionId,
         url: uri.toString(),
         headers: headers ?? const {},
@@ -236,7 +236,7 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
       preEncodedBytes: effectiveBytes,
     );
 
-    session.recordRealtimeFrame(frame);
+    engine.recordRealtimeFrame(frame);
   }
 
   @override
@@ -246,7 +246,7 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
     String? closeReason,
   }) {
     _activeScopes.remove(sessionId);
-    session.closeRealtimeConnection(
+    engine.closeRealtimeConnection(
       sessionId,
       closeCode: closeCode ?? 1000,
       closeReason: closeReason,

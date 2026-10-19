@@ -4,7 +4,7 @@ import 'body_truncation.dart';
 /// app-developer API.
 ///
 /// Does not contain storage internals (body location, file offsets, inline
-/// byte buffers). Use [InspectorSession.loadDetail] to retrieve full body data.
+/// byte buffers). Use [Interceptly.instance.loadDetail] to retrieve full body data.
 class RequestSummary {
   const RequestSummary({
     required this.id,

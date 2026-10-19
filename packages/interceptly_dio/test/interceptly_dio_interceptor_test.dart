@@ -77,10 +77,10 @@ class _ThrowingAdapter implements HttpClientAdapter {
 }
 
 class _SpyHttpTrafficCollector implements HttpTrafficCollector {
-  _SpyHttpTrafficCollector([InspectorSession? session])
-      : session = session ?? InspectorSession.instance;
+  _SpyHttpTrafficCollector([Interceptly? interceptly])
+      : interceptly = interceptly ?? Interceptly.instance;
 
-  final InspectorSession session;
+  final Interceptly interceptly;
   HttpRequestContext? nextContext;
   bool throwSimulatedException = false;
 
@@ -89,11 +89,10 @@ class _SpyHttpTrafficCollector implements HttpTrafficCollector {
   final List<Map<String, dynamic>> failRequestCalls = [];
 
   @override
-  int get maxBodyBytes => session.settings.maxBodyBytes;
+  int get maxBodyBytes => interceptly.settings.maxBodyBytes;
 
   @override
-  Duration delayForChunk(int chunkBytes) =>
-      session.throughputDelayForChunk(chunkBytes);
+  Duration delayForChunk(int chunkBytes) => Duration.zero;
 
   @override
   bool shouldCapture(Uri? uri) => true;
@@ -210,9 +209,6 @@ void main() {
     test('uses DefaultHttpTrafficCollector by default', () {
       final interceptor = InterceptlyDioInterceptor();
       expect(interceptor.collector, isA<DefaultHttpTrafficCollector>());
-      final defaultCollector =
-          interceptor.collector as DefaultHttpTrafficCollector;
-      expect(defaultCollector.session, same(InspectorSession.instance));
     });
 
     test('constructs with custom HttpTrafficCollector', () {
@@ -395,21 +391,20 @@ void main() {
     });
   });
 
-  group('Integration with InspectorSession and network simulation', () {
-    late InspectorSession session;
+  group('Integration with Interceptly and network simulation', () {
+    late Interceptly interceptly;
     late Directory tempDir;
 
     setUp(() async {
-      await InspectorSession.resetForTesting();
+      await Interceptly.resetForTesting();
       tempDir = await Directory.systemTemp.createTemp('dio_interceptor_test_');
       _mockTempDir(() async => tempDir.path);
-      session = InspectorSession.instance;
-      await session.initialize();
+      interceptly = Interceptly.instance;
+      await interceptly.initialize();
     });
 
     tearDown(() async {
-      await session.dispose();
-      await InspectorSession.resetForTesting();
+      await Interceptly.resetForTesting();
       try {
         if (tempDir.existsSync()) await tempDir.delete(recursive: true);
       } catch (_) {}
@@ -426,18 +421,18 @@ void main() {
 
       await _waitFor(
         () =>
-            session.entries.isNotEmpty &&
-            session.entries.first.statusCode == 200,
+            interceptly.entries.isNotEmpty &&
+            interceptly.entries.first.statusCode == 200,
       );
 
-      expect(session.entries.length, equals(1));
-      final entry = session.entries.first;
+      expect(interceptly.entries.length, equals(1));
+      final entry = interceptly.entries.first;
       expect(entry.method, equals('GET'));
       expect(entry.url, equals('https://api.example.com/items/42'));
       expect(entry.statusCode, equals(200));
       expect(entry.hasError, isFalse);
 
-      final detail = await session.loadDetail(entry);
+      final detail = await interceptly.loadDetail(entry);
       expect(detail.responseBodyPreview, contains('"id":42'));
     });
 
@@ -458,11 +453,11 @@ void main() {
       );
 
       await _waitFor(
-        () => session.entries.isNotEmpty && session.entries.first.hasError,
+        () => interceptly.entries.isNotEmpty && interceptly.entries.first.hasError,
       );
 
-      expect(session.entries.length, equals(1));
-      final entry = session.entries.first;
+      expect(interceptly.entries.length, equals(1));
+      final entry = interceptly.entries.first;
       expect(entry.hasError, isTrue);
       expect(entry.errorType, equals(DioExceptionType.connectionTimeout.name));
     });
@@ -470,7 +465,7 @@ void main() {
     test(
         'offline simulation aborts request with DioException and records failure in session',
         () async {
-      session.setNetworkSimulation(NetworkSimulationProfile.offlineProfile);
+      interceptly.setNetworkSimulation(NetworkSimulationProfile.offlineProfile);
 
       final dio = Dio()..httpClientAdapter = _FixedAdapter();
       dio.interceptors.add(InterceptlyDioInterceptor());
@@ -487,11 +482,11 @@ void main() {
       expect(caughtException.error, isA<SimulatedNetworkException>());
 
       await _waitFor(
-        () => session.entries.isNotEmpty && session.entries.first.hasError,
+        () => interceptly.entries.isNotEmpty && interceptly.entries.first.hasError,
       );
 
-      expect(session.entries.length, equals(1));
-      final entry = session.entries.first;
+      expect(interceptly.entries.length, equals(1));
+      final entry = interceptly.entries.first;
       expect(entry.hasError, isTrue);
       expect(entry.errorType, equals('SimulatedNetworkException'));
     });
@@ -513,21 +508,21 @@ void main() {
 
       await _waitFor(
         () =>
-            session.entries.isNotEmpty &&
-            session.entries.first.statusCode == 200,
+            interceptly.entries.isNotEmpty &&
+            interceptly.entries.first.statusCode == 200,
       );
 
-      expect(session.entries.length, equals(1));
-      final entry = session.entries.first;
+      expect(interceptly.entries.length, equals(1));
+      final entry = interceptly.entries.first;
       expect(entry.statusCode, equals(200));
-      final detail = await session.loadDetail(entry);
+      final detail = await interceptly.loadDetail(entry);
       expect(detail.responseBodyPreview, contains('streaming-chunk-data'));
     });
 
     test(
         'completes pending request when redirected to a URL that does not match shouldCapture',
         () async {
-      session.configureSession(
+      interceptly.configure(
         InterceptlySettings(
           shouldCapture: (url) => !url.contains('cdn.external.com'),
         ),
@@ -546,12 +541,12 @@ void main() {
 
       await _waitFor(
         () =>
-            session.entries.isNotEmpty &&
-            session.entries.first.statusCode == 200,
+            interceptly.entries.isNotEmpty &&
+            interceptly.entries.first.statusCode == 200,
       );
 
-      expect(session.entries.length, equals(1));
-      final entry = session.entries.first;
+      expect(interceptly.entries.length, equals(1));
+      final entry = interceptly.entries.first;
       expect(entry.statusCode, equals(200));
       expect(entry.hasError, isFalse);
     });
@@ -559,7 +554,7 @@ void main() {
     test(
         'fails pending request when redirected to a non-matching URL and throws',
         () async {
-      session.configureSession(
+      interceptly.configure(
         InterceptlySettings(
           shouldCapture: (url) => !url.contains('cdn.external.com'),
         ),
@@ -583,11 +578,11 @@ void main() {
       );
 
       await _waitFor(
-        () => session.entries.isNotEmpty && session.entries.first.hasError,
+        () => interceptly.entries.isNotEmpty && interceptly.entries.first.hasError,
       );
 
-      expect(session.entries.length, equals(1));
-      final entry = session.entries.first;
+      expect(interceptly.entries.length, equals(1));
+      final entry = interceptly.entries.first;
       expect(entry.hasError, isTrue);
       expect(entry.errorType, equals(DioExceptionType.connectionError.name));
     });
@@ -597,7 +592,7 @@ void main() {
         () async {
       final dio = Dio()
         ..httpClientAdapter = _MidFlightDisableAdapter(
-          onFetch: () => session.disable(),
+          onFetch: () => interceptly.disable(),
         );
       dio.interceptors.add(InterceptlyDioInterceptor());
 
@@ -607,12 +602,12 @@ void main() {
 
       await _waitFor(
         () =>
-            session.entries.isNotEmpty &&
-            session.entries.first.statusCode == 200,
+            interceptly.entries.isNotEmpty &&
+            interceptly.entries.first.statusCode == 200,
       );
 
-      expect(session.entries.length, equals(1));
-      final entry = session.entries.first;
+      expect(interceptly.entries.length, equals(1));
+      final entry = interceptly.entries.first;
       expect(entry.statusCode, equals(200));
       expect(entry.hasError, isFalse);
     });

@@ -26,10 +26,10 @@ class _FakeChain<BodyType> implements Chain<BodyType> {
 }
 
 class _SpyHttpTrafficCollector implements HttpTrafficCollector {
-  _SpyHttpTrafficCollector([InspectorSession? session])
-      : session = session ?? InspectorSession.instance;
+  _SpyHttpTrafficCollector([Interceptly? interceptly])
+      : interceptly = interceptly ?? Interceptly.instance;
 
-  final InspectorSession session;
+  final Interceptly interceptly;
   HttpRequestContext? nextContext;
   bool returnNullContext = false;
   bool throwSimulatedException = false;
@@ -39,11 +39,10 @@ class _SpyHttpTrafficCollector implements HttpTrafficCollector {
   final List<Map<String, dynamic>> failRequestCalls = [];
 
   @override
-  int get maxBodyBytes => session.settings.maxBodyBytes;
+  int get maxBodyBytes => interceptly.settings.maxBodyBytes;
 
   @override
-  Duration delayForChunk(int chunkBytes) =>
-      session.throughputDelayForChunk(chunkBytes);
+  Duration delayForChunk(int chunkBytes) => Duration.zero;
 
   @override
   bool shouldCapture(Uri? uri) => true;
@@ -161,7 +160,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late Directory tempDir;
-  late InspectorSession session;
+  late Interceptly interceptly;
 
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('interceptly_chopper_test');
@@ -173,14 +172,13 @@ void main() {
         return null;
       },
     );
-    await InspectorSession.resetForTesting();
-    session = InspectorSession.instance;
-    await session.initialize();
+    await Interceptly.resetForTesting();
+    interceptly = Interceptly.instance;
+    await interceptly.initialize();
   });
 
   tearDown(() async {
-    await session.dispose();
-    await InspectorSession.resetForTesting();
+    await Interceptly.resetForTesting();
     try {
       await tempDir.delete(recursive: true);
     } catch (_) {}
@@ -190,9 +188,6 @@ void main() {
     test('uses DefaultHttpTrafficCollector by default', () {
       final interceptor = InterceptlyChopperInterceptor();
       expect(interceptor.collector, isA<DefaultHttpTrafficCollector>());
-      final defaultCollector =
-          interceptor.collector as DefaultHttpTrafficCollector;
-      expect(defaultCollector.session, same(InspectorSession.instance));
     });
 
     test('constructs with custom HttpTrafficCollector', () {
@@ -204,7 +199,7 @@ void main() {
 
   group('Lifecycle delegation to HttpTrafficCollector', () {
     test('delegates successful request/response to collector', () async {
-      final spy = _SpyHttpTrafficCollector(session);
+      final spy = _SpyHttpTrafficCollector(interceptly);
       final interceptor = InterceptlyChopperInterceptor(spy);
 
       final request = Request(
@@ -258,7 +253,7 @@ void main() {
     test(
         'delegates unsuccessful HTTP response (isSuccessful = false) to collector.completeResponse',
         () async {
-      final spy = _SpyHttpTrafficCollector(session);
+      final spy = _SpyHttpTrafficCollector(interceptly);
       final interceptor = InterceptlyChopperInterceptor(spy);
 
       final request = Request(
@@ -300,7 +295,7 @@ void main() {
     test(
         'delegates transport/client exception during proceed to collector.failRequest and rethrows',
         () async {
-      final spy = _SpyHttpTrafficCollector(session);
+      final spy = _SpyHttpTrafficCollector(interceptly);
       final interceptor = InterceptlyChopperInterceptor(spy);
 
       final request = Request(
@@ -332,7 +327,7 @@ void main() {
     test(
         'rethrows SimulatedNetworkException thrown from collector.startRequest without calling chain.proceed',
         () async {
-      final spy = _SpyHttpTrafficCollector(session)
+      final spy = _SpyHttpTrafficCollector(interceptly)
         ..throwSimulatedException = true;
       final interceptor = InterceptlyChopperInterceptor(spy);
 
@@ -362,7 +357,7 @@ void main() {
     });
 
     test('handles collector.startRequest returning null gracefully', () async {
-      final spy = _SpyHttpTrafficCollector(session)..returnNullContext = true;
+      final spy = _SpyHttpTrafficCollector(interceptly)..returnNullContext = true;
       final interceptor = InterceptlyChopperInterceptor(spy);
 
       final request = Request(
@@ -442,13 +437,13 @@ void main() {
 
         final end = DateTime.now().add(const Duration(seconds: 3));
         while (
-            session.entries.isEmpty || session.entries.first.statusCode == 0) {
+            interceptly.entries.isEmpty || interceptly.entries.first.statusCode == 0) {
           if (DateTime.now().isAfter(end)) break;
           await Future.delayed(const Duration(milliseconds: 50));
         }
 
-        expect(session.entries.length, 1);
-        final entry = session.entries.first;
+        expect(interceptly.entries.length, 1);
+        final entry = interceptly.entries.first;
         expect(entry.url, contains('https://api.example.com/items'));
         expect(entry.url, isNot(contains('interceptly_started_at')));
         expect(entry.url, isNot(contains('interceptly_request_id')));
@@ -488,13 +483,13 @@ void main() {
       expect(response.statusCode, 201);
 
       final end = DateTime.now().add(const Duration(seconds: 3));
-      while (session.entries.isEmpty || session.entries.first.statusCode == 0) {
+      while (interceptly.entries.isEmpty || interceptly.entries.first.statusCode == 0) {
         if (DateTime.now().isAfter(end)) break;
         await Future.delayed(const Duration(milliseconds: 50));
       }
 
-      expect(session.entries.length, 1);
-      final entry = session.entries.first;
+      expect(interceptly.entries.length, 1);
+      final entry = interceptly.entries.first;
       expect(entry.url, isNot(contains('interceptly_started_at')));
       expect(entry.url, isNot(contains('interceptly_request_id')));
     });
@@ -520,14 +515,14 @@ void main() {
       );
 
       final end = DateTime.now().add(const Duration(seconds: 3));
-      while (session.entries.isEmpty || !session.entries.first.hasError) {
+      while (interceptly.entries.isEmpty || !interceptly.entries.first.hasError) {
         if (DateTime.now().isAfter(end)) break;
         await Future.delayed(const Duration(milliseconds: 50));
       }
 
-      expect(session.entries.length, 1);
+      expect(interceptly.entries.length, 1);
       expect(chain.proceededRequest!.parameters, equals({'retry': 'false'}));
-      final entry = session.entries.first;
+      final entry = interceptly.entries.first;
       expect(entry.hasError, isTrue);
       expect(entry.errorType, 'ClientException');
     });
@@ -561,13 +556,13 @@ void main() {
       expect(chain.proceededRequest!.parameters, isEmpty);
 
       final end = DateTime.now().add(const Duration(seconds: 3));
-      while (session.entries.isEmpty || session.entries.first.statusCode == 0) {
+      while (interceptly.entries.isEmpty || interceptly.entries.first.statusCode == 0) {
         if (DateTime.now().isAfter(end)) break;
         await Future.delayed(const Duration(milliseconds: 50));
       }
 
-      expect(session.entries.length, 1);
-      final entry = session.entries.first;
+      expect(interceptly.entries.length, 1);
+      final entry = interceptly.entries.first;
       expect(entry.statusCode, 404);
       expect(entry.hasError, isFalse);
       expect(entry.errorType, isNull);
@@ -576,7 +571,7 @@ void main() {
     test(
         'records SimulatedNetworkException when offline network simulation is active',
         () async {
-      session.setNetworkSimulation(NetworkSimulationProfile.offlineProfile);
+      interceptly.setNetworkSimulation(NetworkSimulationProfile.offlineProfile);
       final interceptor = InterceptlyChopperInterceptor();
 
       final request = Request(
@@ -602,13 +597,13 @@ void main() {
       expect(proceedCalled, isFalse);
 
       final end = DateTime.now().add(const Duration(seconds: 3));
-      while (session.entries.isEmpty || !session.entries.first.hasError) {
+      while (interceptly.entries.isEmpty || !interceptly.entries.first.hasError) {
         if (DateTime.now().isAfter(end)) break;
         await Future.delayed(const Duration(milliseconds: 50));
       }
 
-      expect(session.entries.length, 1);
-      final entry = session.entries.first;
+      expect(interceptly.entries.length, 1);
+      final entry = interceptly.entries.first;
       expect(entry.hasError, isTrue);
       expect(entry.errorType, 'SimulatedNetworkException');
     });

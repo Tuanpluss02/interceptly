@@ -27,7 +27,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late Directory tempDir;
-  late InspectorSession session;
+  late Interceptly interceptly;
 
   setUpAll(() async {
     tempDir = await Directory.systemTemp.createTemp('challenger_m2_test');
@@ -51,14 +51,13 @@ void main() {
   });
 
   setUp(() async {
-    await InspectorSession.resetForTesting();
-    session = InspectorSession.instance;
-    await session.initialize();
+    await Interceptly.resetForTesting();
+    interceptly = Interceptly.instance;
+    await interceptly.initialize();
   });
 
   tearDown(() async {
-    await session.dispose();
-    await InspectorSession.resetForTesting();
+    await Interceptly.resetForTesting();
   });
 
   Future<void> waitForSessionEntry({
@@ -68,7 +67,7 @@ void main() {
   }) async {
     final end = DateTime.now().add(timeout);
     while (DateTime.now().isBefore(end)) {
-      final entry = session.entries.cast<RequestSummary?>().firstWhere(
+      final entry = interceptly.entries.cast<RequestSummary?>().firstWhere(
             (e) => e?.id == id,
             orElse: () => null,
           );
@@ -131,8 +130,8 @@ void main() {
         );
         expect(response.statusCode, 200);
 
-        await waitForSessionEntry(id: session.entries.first.id);
-        final entry = session.entries.first;
+        await waitForSessionEntry(id: interceptly.entries.first.id);
+        final entry = interceptly.entries.first;
         expect(entry.hasError, isFalse);
         expect(entry.statusCode, 200);
       },
@@ -272,13 +271,13 @@ void main() {
       }
 
       final end = DateTime.now().add(const Duration(seconds: 4));
-      while (session.entries.length < 50) {
+      while (interceptly.entries.length < 50) {
         if (DateTime.now().isAfter(end)) break;
         await Future<void>.delayed(const Duration(milliseconds: 50));
       }
-      expect(session.entries.length, 50);
+      expect(interceptly.entries.length, 50);
 
-      final idSet = session.entries.map((e) => e.id).toSet();
+      final idSet = interceptly.entries.map((e) => e.id).toSet();
       expect(idSet.length, 50);
     });
 
@@ -305,12 +304,12 @@ void main() {
       expect(chain.proceededRequest!.parameters, equals({'test': 'socket'}));
 
       final end = DateTime.now().add(const Duration(seconds: 3));
-      while (session.entries.isEmpty || !session.entries.first.hasError) {
+      while (interceptly.entries.isEmpty || !interceptly.entries.first.hasError) {
         if (DateTime.now().isAfter(end)) break;
         await Future<void>.delayed(const Duration(milliseconds: 25));
       }
 
-      final entry = session.entries.first;
+      final entry = interceptly.entries.first;
       expect(entry.hasError, isTrue);
       expect(entry.errorType, contains('SocketException'));
       expect(entry.errorMessage, contains('Network unreachable'));

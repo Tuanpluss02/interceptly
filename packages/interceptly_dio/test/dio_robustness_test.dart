@@ -68,17 +68,16 @@ void main() {
   });
 
   group('Dio interceptor never breaks the request', () {
-    late InspectorSession session;
+    late Interceptly interceptly;
 
     setUp(() async {
-      await InspectorSession.resetForTesting();
-      session = InspectorSession.instance;
-      await session.initialize();
+      await Interceptly.resetForTesting();
+      interceptly = Interceptly.instance;
+      await interceptly.initialize();
     });
 
     tearDown(() async {
-      await session.dispose();
-      await InspectorSession.resetForTesting();
+      await Interceptly.resetForTesting();
     });
 
     test('response whose data cannot be serialised still completes', () async {
@@ -115,9 +114,9 @@ void main() {
 
       await _waitFor(
         () =>
-            session.entries.isNotEmpty && session.entries.first.statusCode != 0,
+            interceptly.entries.isNotEmpty && interceptly.entries.first.statusCode != 0,
       );
-      final detail = await session.loadDetail(session.entries.first);
+      final detail = await interceptly.loadDetail(interceptly.entries.first);
       expect(detail.responseBodyPreview ?? '', isNot(contains('Instance of')));
     });
   });

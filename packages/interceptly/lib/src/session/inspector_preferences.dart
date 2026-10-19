@@ -4,8 +4,8 @@ import '../model/network_protocol.dart';
 
 /// Holds UI preferences that are independent of the capture session state.
 ///
-/// Separated from [InspectorSession] so that theme and decode settings do not
-/// pollute the session's single responsibility (capture lifecycle management).
+/// Separated from data engine so that theme and decode settings do not
+/// pollute the engine's single responsibility (capture lifecycle management).
 class InspectorPreferences extends ChangeNotifier {
   ThemeMode _themeMode = ThemeMode.system;
   bool _urlDecodeEnabled = true;

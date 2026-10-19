@@ -2,7 +2,7 @@ import '../model/network_simulation.dart';
 
 /// Pure-static helpers for computing and applying network simulation delays.
 ///
-/// [InspectorSession] owns the active [NetworkSimulationProfile]; this service
+/// [InterceptlyEngine] owns the active [NetworkSimulationProfile]; this service
 /// contains only the calculation and delay logic.
 class NetworkSimulationService {
   NetworkSimulationService._();

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:interceptly/src/model/realtime_protocol_type.dart';
-import 'package:interceptly/src/session/inspector_session_view.dart';
-import 'package:interceptly/src/ui/interceptly_theme.dart';
+import '../../scope/interceptly_scope.dart';
+import '../../interceptly_theme.dart';
 
 /// A bottom chat bar for sending messages to an active realtime connection.
 ///
@@ -11,15 +11,12 @@ class RealtimeChatBar extends StatefulWidget {
   /// Session ID of the active realtime connection.
   final String sessionId;
 
-  /// Active inspector session providing connection state and protocol info.
-  final InspectorSessionView? session;
-
   /// Explicit flag indicating whether sending is supported/allowed.
-  /// If null, defaults to [session.canSendRealtimeMessage(sessionId)].
+  /// If null, defaults to [InterceptlyScopeController.canSendRealtimeMessage].
   final bool? canSend;
 
   /// Protocol type of the connection.
-  /// If null, defaults to [session.getRealtimeProtocol(sessionId)].
+  /// If null, defaults to [InterceptlyScopeController.getRealtimeProtocol].
   final RealtimeProtocolType? protocolType;
 
   /// Controller for the message payload.
@@ -37,7 +34,6 @@ class RealtimeChatBar extends StatefulWidget {
   const RealtimeChatBar({
     super.key,
     required this.sessionId,
-    this.session,
     this.canSend,
     this.protocolType,
     required this.textController,
@@ -56,7 +52,6 @@ class _RealtimeChatBarState extends State<RealtimeChatBar> {
     super.initState();
     widget.textController.addListener(_onTextChanged);
     widget.eventController?.addListener(_onTextChanged);
-    widget.session?.addListener(_onSessionChanged);
   }
 
   @override
@@ -70,17 +65,12 @@ class _RealtimeChatBarState extends State<RealtimeChatBar> {
       oldWidget.eventController?.removeListener(_onTextChanged);
       widget.eventController?.addListener(_onTextChanged);
     }
-    if (widget.session != oldWidget.session) {
-      oldWidget.session?.removeListener(_onSessionChanged);
-      widget.session?.addListener(_onSessionChanged);
-    }
   }
 
   @override
   void dispose() {
     widget.textController.removeListener(_onTextChanged);
     widget.eventController?.removeListener(_onTextChanged);
-    widget.session?.removeListener(_onSessionChanged);
     super.dispose();
   }
 
@@ -88,18 +78,14 @@ class _RealtimeChatBarState extends State<RealtimeChatBar> {
     if (mounted) setState(() {});
   }
 
-  void _onSessionChanged() {
-    if (mounted) setState(() {});
-  }
-
   bool get _effectiveCanSend =>
       widget.canSend ??
-      widget.session?.canSendRealtimeMessage(widget.sessionId) ??
+      InterceptlyScope.maybeOf(context)?.canSendRealtimeMessage(widget.sessionId) ??
       false;
 
   RealtimeProtocolType get _effectiveProtocol =>
       widget.protocolType ??
-      widget.session?.getRealtimeProtocol(widget.sessionId) ??
+      InterceptlyScope.maybeOf(context)?.getRealtimeProtocol(widget.sessionId) ??
       RealtimeProtocolType.webSocket;
 
   bool get _isSendEnabled {
