@@ -1,0 +1,135 @@
+// ignore_for_file: invalid_use_of_internal_member
+import 'package:flutter_test/flutter_test.dart';
+import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/adapter/realtime_traffic_collector.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
+import 'package:interceptly/src/model/interceptly_settings.dart';
+import 'package:interceptly/src/model/realtime_protocol_type.dart';
+
+void main() {
+  group('Realtime Capability Auto-Detection', () {
+    late InterceptlyEngine session;
+
+    setUp(() async {
+      await Interceptly.resetForTesting();
+      session = InterceptlyEngine();
+    });
+
+    tearDown(() async {
+      await session.dispose();
+      await Interceptly.resetForTesting();
+    });
+
+    test(
+        'isRealtimeActive is false by default when no realtime events occurred',
+        () {
+      expect(session.isRealtimeActive, isFalse);
+    });
+
+    test('isRealtimeActive is true when settings explicitly enable realtime',
+        () {
+      session.configure(const InterceptlySettings(enableRealtime: true));
+      expect(session.isRealtimeActive, isTrue);
+    });
+
+    test('isRealtimeActive is true after recordRealtimeConnection is invoked',
+        () {
+      expect(session.isRealtimeActive, isFalse);
+
+      session.recordRealtimeConnection(
+        id: 'ws_1',
+        url: 'wss://echo.websocket.events',
+      );
+
+      expect(session.isRealtimeActive, isTrue);
+    });
+
+    test(
+        'markRealtimeActive sets isRealtimeActive to true and notifies listeners',
+        () {
+      var notified = 0;
+      session.addListener(() => notified++);
+
+      session.markRealtimeActive();
+
+      expect(session.isRealtimeActive, isTrue);
+      expect(notified, equals(1));
+
+      // Idempotent: second call does not notify unnecessarily
+      session.markRealtimeActive();
+      expect(notified, equals(1));
+    });
+
+    test(
+        'DefaultRealtimeTrafficCollector triggers markRealtimeActive on openSession and recordConnection',
+        () {
+      final collector = DefaultRealtimeTrafficCollector(engine: session);
+      expect(session.isRealtimeActive, isFalse);
+
+      collector.openSession(uri: Uri.parse('wss://example.com/socket'));
+      expect(session.isRealtimeActive, isTrue);
+    });
+
+    test('RealtimeTrafficCollector.markActive activates realtime capability',
+        () {
+      RealtimeTrafficCollector.instance =
+          DefaultRealtimeTrafficCollector(engine: session);
+      expect(session.isRealtimeActive, isFalse);
+
+      RealtimeTrafficCollector.markActive();
+      expect(session.isRealtimeActive, isTrue);
+    });
+
+    test('session.clear does not revert isRealtimeActive once activated', () {
+      session.markRealtimeActive();
+      expect(session.isRealtimeActive, isTrue);
+
+      session.clear();
+      expect(session.isRealtimeActive, isTrue);
+    });
+
+    test(
+        'isRealtimeActive detects other realtime protocols like SIO or SSE in entries',
+        () {
+      expect(session.isRealtimeActive, isFalse);
+      session.recordPending(
+        id: 'sio_1',
+        method: 'SIO',
+        url: 'https://example.com/socket.io',
+        timestamp: DateTime.now(),
+      );
+      expect(session.isRealtimeActive, isTrue);
+    });
+
+    test(
+        'recordRealtimeConnection maps protocolType to correct method (WS, SIO, SSE)',
+        () {
+      final collector = DefaultRealtimeTrafficCollector(engine: session);
+
+      collector.openSession(
+        sessionId: 'conn_ws',
+        uri: Uri.parse('wss://example.com/ws'),
+        protocolType: RealtimeProtocolType.webSocket,
+      );
+      collector.openSession(
+        sessionId: 'conn_sio',
+        uri: Uri.parse('https://example.com/socket.io'),
+        protocolType: RealtimeProtocolType.socketIo,
+      );
+      collector.openSession(
+        sessionId: 'conn_sse',
+        uri: Uri.parse('https://example.com/events'),
+        protocolType: RealtimeProtocolType.sse,
+      );
+
+      expect(session.byId('conn_ws')?.method, equals('WS'));
+      expect(session.byId('conn_ws')?.isRealtime, isTrue);
+
+      expect(session.byId('conn_sio')?.method, equals('SIO'));
+      expect(session.byId('conn_sio')?.isRealtime, isTrue);
+
+      expect(session.byId('conn_sse')?.method, equals('SSE'));
+      expect(session.byId('conn_sse')?.isRealtime, isTrue);
+    });
+  });
+}
