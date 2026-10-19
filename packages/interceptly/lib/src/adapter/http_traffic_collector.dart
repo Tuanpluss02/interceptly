@@ -30,6 +30,9 @@ abstract interface class HttpTrafficCollector {
   /// Calculates simulated throughput delay for streaming response chunks.
   Duration delayForChunk(int chunkBytes);
 
+  /// Whether traffic to [uri] should be captured under the current session settings.
+  bool shouldCapture(Uri? uri);
+
   /// Initiates an HTTP exchange capture, returning an [HttpCaptureScope].
   ///
   /// Throws [SimulatedNetworkException] if pre-request simulation rejects the request.
@@ -69,6 +72,7 @@ abstract interface class HttpTrafficCollector {
     int? responseSizeBytes,
     int? durationMs,
     String? responseContentType,
+    bool? responseTruncatedAtStorage,
   });
 
   /// Records a failed HTTP request (transport error, connection error, or simulation failure).
@@ -84,6 +88,7 @@ abstract interface class HttpTrafficCollector {
     Uint8List? responseBodyBytes,
     int? responseSizeBytes,
     int? durationMs,
+    bool? responseTruncatedAtStorage,
   });
 }
 
@@ -104,6 +109,15 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
   @override
   Duration delayForChunk(int chunkBytes) =>
       session.throughputDelayForChunk(chunkBytes);
+
+  @override
+  bool shouldCapture(Uri? uri) {
+    if (!session.isEnabled) return false;
+    if (uri == null) return true;
+    final predicate = session.settings.shouldCapture;
+    if (predicate == null) return true;
+    return predicate(uri.toString());
+  }
 
   @override
   Future<HttpCaptureScope> begin({
@@ -134,7 +148,7 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
     String? contentType,
     String? requestId,
   }) async {
-    if (!session.isEnabled) {
+    if (!shouldCapture(uri)) {
       return null;
     }
 
@@ -204,20 +218,39 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
     int? responseSizeBytes,
     int? durationMs,
     String? responseContentType,
+    bool? responseTruncatedAtStorage,
   }) async {
     await guardCaptureAsync(() async {
-      final actualResponseSize = responseSizeBytes ??
-          _parseContentLength(headers) ??
-          bodyBytes?.length;
+      final parsedLen = _parseContentLength(headers);
+      final rawLen = bodyBytes?.length ?? 0;
+      final int actualResponseSize = responseSizeBytes ?? parsedLen ?? rawLen;
+      final bool isResponseTruncated;
 
-      await session.applyNetworkSimulationAfterResponse(
-        downloadBytes: actualResponseSize ?? 0,
-      );
+      if (responseTruncatedAtStorage != null) {
+        isResponseTruncated = responseTruncatedAtStorage;
+      } else {
+        isResponseTruncated = maxBodyBytes > 0 &&
+            (rawLen > maxBodyBytes ||
+                (parsedLen != null &&
+                    parsedLen > maxBodyBytes &&
+                    rawLen >= maxBodyBytes));
+      }
+
+      if (durationMs == null) {
+        await session.applyNetworkSimulationAfterResponse(
+          downloadBytes: actualResponseSize,
+        );
+      }
 
       final elapsed = durationMs ??
           DateTime.now().difference(context.startedAt).inMilliseconds;
       final resolvedContentType = responseContentType ??
           (headers != null ? headerValue(headers, 'content-type') : null);
+
+      final reqBytes = context.requestBodyBytes;
+      final reqSize = reqBytes?.length;
+      final isRequestTruncated =
+          maxBodyBytes > 0 && (reqSize ?? 0) > maxBodyBytes;
 
       final capture = RawCapture(
         id: context.id,
@@ -228,12 +261,14 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
         statusCode: statusCode,
         durationMs: elapsed < 0 ? 0 : elapsed,
         timestamp: context.startedAt,
-        requestBodyBytes: RawCapture.wrapBytes(context.requestBodyBytes),
-        responseBodyBytes: RawCapture.wrapBytes(bodyBytes),
-        requestSizeBytes: context.requestBodyBytes?.length,
+        requestBodyBytes: RawCapture.wrapBytes(reqBytes, maxBodyBytes),
+        responseBodyBytes: RawCapture.wrapBytes(bodyBytes, maxBodyBytes),
+        requestSizeBytes: reqSize,
         responseSizeBytes: actualResponseSize,
         requestContentType: context.requestContentType,
         responseContentType: resolvedContentType,
+        requestTruncatedAtStorage: isRequestTruncated,
+        responseTruncatedAtStorage: isResponseTruncated,
       );
 
       session.record(capture);
@@ -251,6 +286,7 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
     Uint8List? responseBodyBytes,
     int? responseSizeBytes,
     int? durationMs,
+    bool? responseTruncatedAtStorage,
   }) {
     guardCapture(() {
       final elapsed = durationMs ??
@@ -258,9 +294,26 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
       final resolvedContentType = responseHeaders != null
           ? headerValue(responseHeaders, 'content-type')
           : null;
-      final actualResponseSize = responseSizeBytes ??
-          _parseContentLength(responseHeaders) ??
-          responseBodyBytes?.length;
+
+      final parsedLen = _parseContentLength(responseHeaders);
+      final rawLen = responseBodyBytes?.length ?? 0;
+      final int actualResponseSize = responseSizeBytes ?? parsedLen ?? rawLen;
+      final bool isResponseTruncated;
+
+      if (responseTruncatedAtStorage != null) {
+        isResponseTruncated = responseTruncatedAtStorage;
+      } else {
+        isResponseTruncated = maxBodyBytes > 0 &&
+            (rawLen > maxBodyBytes ||
+                (parsedLen != null &&
+                    parsedLen > maxBodyBytes &&
+                    rawLen >= maxBodyBytes));
+      }
+
+      final reqBytes = context.requestBodyBytes;
+      final reqSize = reqBytes?.length;
+      final isRequestTruncated =
+          maxBodyBytes > 0 && (reqSize ?? 0) > maxBodyBytes;
 
       final capture = RawCapture(
         id: context.id,
@@ -271,14 +324,17 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
         statusCode: statusCode ?? 0,
         durationMs: elapsed < 0 ? 0 : elapsed,
         timestamp: context.startedAt,
-        requestBodyBytes: RawCapture.wrapBytes(context.requestBodyBytes),
-        responseBodyBytes: RawCapture.wrapBytes(responseBodyBytes),
-        requestSizeBytes: context.requestBodyBytes?.length,
+        requestBodyBytes: RawCapture.wrapBytes(reqBytes, maxBodyBytes),
+        responseBodyBytes:
+            RawCapture.wrapBytes(responseBodyBytes, maxBodyBytes),
+        requestSizeBytes: reqSize,
         responseSizeBytes: actualResponseSize,
         requestContentType: context.requestContentType,
         responseContentType: resolvedContentType,
         errorType: errorType ?? error.runtimeType.toString(),
         errorMessage: errorMessage ?? error.toString(),
+        requestTruncatedAtStorage: isRequestTruncated,
+        responseTruncatedAtStorage: isResponseTruncated,
       );
 
       session.record(capture);
@@ -288,6 +344,8 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
   static int? _parseContentLength(Map<String, String>? headers) {
     if (headers == null) return null;
     final cl = headerValue(headers, 'content-length');
-    return cl != null ? int.tryParse(cl) : null;
+    if (cl == null) return null;
+    final parsed = int.tryParse(cl);
+    return (parsed != null && parsed >= 0) ? parsed : null;
   }
 }

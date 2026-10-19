@@ -26,6 +26,9 @@ class InterceptlyChopperInterceptor implements Interceptor {
     Chain<BodyType> chain,
   ) async {
     final request = chain.request;
+    if (!collector.shouldCapture(request.url)) {
+      return chain.proceed(request);
+    }
     final reqBody = encodeBodyBytes(request.body);
     final reqContentType = headerValue(request.headers, 'content-type');
 

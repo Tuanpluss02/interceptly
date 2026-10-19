@@ -79,6 +79,7 @@ class HttpCaptureScope {
     int? responseSizeBytes,
     String? contentType,
     int? durationMs,
+    bool? responseTruncatedAtStorage,
   }) async {
     if (_isSettled || _context == null) return;
     _isSettled = true;
@@ -92,6 +93,7 @@ class HttpCaptureScope {
         responseSizeBytes: responseSizeBytes,
         responseContentType: contentType,
         durationMs: durationMs,
+        responseTruncatedAtStorage: responseTruncatedAtStorage,
       );
     });
   }
@@ -108,6 +110,7 @@ class HttpCaptureScope {
     Uint8List? responseBodyBytes,
     int? responseSizeBytes,
     int? durationMs,
+    bool? responseTruncatedAtStorage,
   }) {
     if (_isSettled || _context == null) return;
     _isSettled = true;
@@ -123,6 +126,7 @@ class HttpCaptureScope {
         responseBodyBytes: responseBodyBytes,
         responseSizeBytes: responseSizeBytes,
         durationMs: durationMs,
+        responseTruncatedAtStorage: responseTruncatedAtStorage,
       );
     });
   }
@@ -142,6 +146,11 @@ class HttpCaptureScope {
       maxBytes: collector.maxBodyBytes,
       chunkDelay: collector.delayForChunk,
       onDone: (captured, totalBytes) {
+        final isTruncated =
+            collector.maxBodyBytes > 0 && totalBytes > collector.maxBodyBytes;
+        final elapsed = _context != null
+            ? DateTime.now().difference(_context!.startedAt).inMilliseconds
+            : null;
         unawaited(
           complete(
             statusCode: statusCode,
@@ -149,10 +158,14 @@ class HttpCaptureScope {
             bodyBytes: captured,
             responseSizeBytes: totalBytes,
             contentType: contentType,
+            durationMs: elapsed,
+            responseTruncatedAtStorage: isTruncated,
           ),
         );
       },
       onError: (error, st, captured, totalBytes) {
+        final isTruncated =
+            collector.maxBodyBytes > 0 && totalBytes > collector.maxBodyBytes;
         fail(
           error,
           stackTrace: st,
@@ -160,9 +173,12 @@ class HttpCaptureScope {
           responseHeaders: headers,
           responseBodyBytes: captured,
           responseSizeBytes: totalBytes,
+          responseTruncatedAtStorage: isTruncated,
         );
       },
       onCancel: (captured, totalBytes) {
+        final isTruncated =
+            collector.maxBodyBytes > 0 && totalBytes > collector.maxBodyBytes;
         fail(
           'CancellationException',
           errorType: 'CancellationException',
@@ -171,6 +187,7 @@ class HttpCaptureScope {
           responseHeaders: headers,
           responseBodyBytes: captured,
           responseSizeBytes: totalBytes,
+          responseTruncatedAtStorage: isTruncated,
         );
       },
     );

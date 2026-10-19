@@ -48,7 +48,9 @@ scripts:
   pana:
     exec: pana --no-warning --exit-code-threshold 1
     concurrency: 1
-    description: Analyze package pub health score.
+    packageFilters:
+      scope: interceptly
+    description: Analyze core package pub health score.
 
   check:
     run: melos run format:check && melos run analyze && melos run test:core

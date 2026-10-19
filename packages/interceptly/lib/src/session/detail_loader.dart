@@ -19,13 +19,16 @@ class DetailLoader {
     required MemoryIndex memoryIndex,
     required String? Function() tempFilePathProvider,
     required int Function() maxUiPreviewBytesProvider,
+    int Function()? fileRotationCountProvider,
   })  : _memoryIndex = memoryIndex,
         _tempFilePathProvider = tempFilePathProvider,
-        _maxUiPreviewBytesProvider = maxUiPreviewBytesProvider;
+        _maxUiPreviewBytesProvider = maxUiPreviewBytesProvider,
+        _fileRotationCountProvider = fileRotationCountProvider;
 
   final MemoryIndex _memoryIndex;
   final String? Function() _tempFilePathProvider;
   final int Function() _maxUiPreviewBytesProvider;
+  final int Function()? _fileRotationCountProvider;
 
   /// Loads request details for the given [id].
   Future<RequestRecord> loadDetailById(String id) async {
@@ -52,8 +55,15 @@ class DetailLoader {
       final offset = entry.fileOffset;
       final length = entry.fileLength;
       final filePath = _tempFilePathProvider();
+      final currentRotation = _fileRotationCountProvider?.call();
+      final isExpiredByRotation = entry.fileRotationCount != null &&
+          currentRotation != null &&
+          entry.fileRotationCount! < currentRotation;
 
-      if (offset != null && length != null && filePath != null) {
+      if (!isExpiredByRotation &&
+          offset != null &&
+          length != null &&
+          filePath != null) {
         try {
           final raw = await BodyStore.readBytes(filePath, offset, length);
           if (raw.length < length) {
@@ -128,15 +138,6 @@ class DetailLoader {
   /// Truncates [bytes] to [maxUi] bytes for UI presentation.
   static Uint8List limitForPreview(Uint8List bytes, int maxUi) =>
       maxUi > 0 && bytes.length > maxUi ? bytes.sublist(0, maxUi) : bytes;
-
-  /// Marks [truncation] as storage-cut preserving recorded original size.
-  static BodyTruncation markStorageCut(BodyTruncation truncation, int kept) {
-    return BodyTruncation(
-      originalBytes: truncation.originalBytes,
-      retainedBytes: kept,
-      stage: TruncationStage.storage,
-    );
-  }
 
   /// Merges storage and preview truncation verdicts.
   static BodyTruncation applyPreviewStage(

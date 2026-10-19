@@ -13,7 +13,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  interceptly: ^2.1.1
+  interceptly: ^2.2.0
   chopper: ^8.0.0
   http: ^1.0.0
 

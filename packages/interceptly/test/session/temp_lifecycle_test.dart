@@ -169,5 +169,42 @@ void main() {
 
       await writer.dispose();
     });
+
+    test(
+        'WriterIsolate does not offload to disk when request and response have no payload bytes',
+        () async {
+      final writer = WriterIsolate(const InterceptlySettings(
+        bodyOffloadThreshold: 10,
+        maxBodyBytes: 0,
+        persistToDisk: true,
+      ));
+      await writer.start(
+        tempDirPath: tempDir.path,
+        fileName: 'interceptly_no_body.tmp',
+      );
+
+      final nextEntry = writer.results.first;
+      // Capture with NO body bytes (e.g. HEAD request), but large responseSizeBytes
+      writer.send(RawCapture(
+        id: 'head-1',
+        method: 'HEAD',
+        url: 'https://api.example.com/large-file',
+        requestHeaders: const {},
+        responseHeaders: const {
+          'content-length': '100000',
+        },
+        statusCode: 200,
+        durationMs: 1,
+        timestamp: DateTime(2026),
+        responseSizeBytes: 100000,
+      ));
+      final entry = await nextEntry.timeout(const Duration(seconds: 5));
+
+      expect(entry.bodyLocation, equals(BodyLocation.memory));
+      expect(entry.fileOffset, isNull);
+      expect(entry.fileLength, isNull);
+
+      await writer.dispose();
+    });
   });
 }

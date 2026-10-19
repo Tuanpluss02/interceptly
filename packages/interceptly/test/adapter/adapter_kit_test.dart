@@ -175,6 +175,42 @@ void main() {
       await controller.close();
     });
 
+    test(
+        'teeStreamCapture preserves FIFO chunk delivery and onDone ordering under delay',
+        () async {
+      final source = Stream.fromIterable([
+        [1, 2],
+        [3, 4],
+        [5, 6],
+      ]);
+
+      Uint8List? captured;
+      int? capturedTotal;
+      final teed = teeStreamCapture(
+        source,
+        maxBytes: 10,
+        chunkDelay: (bytes) => const Duration(milliseconds: 10),
+        onDone: (bytes, total) {
+          captured = bytes;
+          capturedTotal = total;
+        },
+        onError: (_, __, ___, ____) {},
+        onCancel: (_, __) {},
+      );
+
+      final forwarded = await teed.toList();
+      expect(
+        forwarded,
+        equals([
+          [1, 2],
+          [3, 4],
+          [5, 6],
+        ]),
+      );
+      expect(captured, equals(Uint8List.fromList([1, 2, 3, 4, 5, 6])));
+      expect(capturedTotal, equals(6));
+    });
+
     test('CappedBytesBuilder retains unbounded bytes when maxBytes <= 0', () {
       final builder = CappedBytesBuilder(0);
       builder.add([1, 2, 3]);
@@ -257,6 +293,9 @@ class _SpyHttpCollector implements HttpTrafficCollector {
   Duration delayForChunk(int chunkBytes) => Duration.zero;
 
   @override
+  bool shouldCapture(Uri? uri) => true;
+
+  @override
   Future<HttpCaptureScope> begin({
     required String method,
     required Uri uri,
@@ -287,6 +326,7 @@ class _SpyHttpCollector implements HttpTrafficCollector {
     int? responseSizeBytes,
     int? durationMs,
     String? responseContentType,
+    bool? responseTruncatedAtStorage,
   }) async {
     onComplete?.call(
       context: context,
@@ -310,5 +350,6 @@ class _SpyHttpCollector implements HttpTrafficCollector {
     Uint8List? responseBodyBytes,
     int? responseSizeBytes,
     int? durationMs,
+    bool? responseTruncatedAtStorage,
   }) {}
 }

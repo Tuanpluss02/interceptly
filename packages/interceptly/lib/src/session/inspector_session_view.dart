@@ -65,6 +65,12 @@ abstract class InspectorSessionView extends ChangeNotifier {
   void enable();
   void disable();
   Future<void> clear();
+
+  /// Clears only REST entries, keeping realtime connections and frames.
+  Future<void> clearRest() => clear();
+
+  /// Clears only realtime connections and frames, keeping REST entries.
+  Future<void> clearRealtime() => clear();
   void applyFilter(RequestFilter filter);
   void clearFilter();
   void setNetworkSimulation(NetworkSimulationProfile profile);

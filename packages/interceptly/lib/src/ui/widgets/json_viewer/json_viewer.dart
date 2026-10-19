@@ -155,9 +155,11 @@ class _JsonViewerState extends State<JsonViewer> {
   @override
   void didUpdateWidget(covariant JsonViewer oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.activeGlobalIndex != oldWidget.activeGlobalIndex ||
-        widget.searchQuery != oldWidget.searchQuery) {
+    if (widget.searchQuery != oldWidget.searchQuery) {
       _expansion.resetSearch();
+      _scroll.resetLastScrolled(query: widget.searchQuery);
+    } else if (widget.activeGlobalIndex != oldWidget.activeGlobalIndex) {
+      _expansion.clearSearchAutoExpanded();
       _scroll.resetLastScrolled(query: widget.searchQuery);
     }
     if (!identical(widget.data, oldWidget.data)) {

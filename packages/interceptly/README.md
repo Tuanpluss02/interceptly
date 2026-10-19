@@ -15,7 +15,7 @@ The core `interceptly` package contains the inspection UI overlay, background is
 Paste this into your coding agent (OpenCode, Claude Code, Codex, ...):
 
 ```
-Fetch and follow instructions from https://raw.githubusercontent.com/Tuanpluss02/interceptly/main/AGENTS.md
+Fetch and follow instructions from https://raw.githubusercontent.com/Tuanpluss02/interceptly/main/docs/integration-guide.md
 ```
 
 The agent will detect your HTTP clients, add the right packages, wire up the inspector, and verify it works.

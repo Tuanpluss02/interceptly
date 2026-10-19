@@ -21,6 +21,9 @@ class _BlockingCollector implements HttpTrafficCollector {
   Duration delayForChunk(int chunkBytes) => simulatedThroughputDelay;
 
   @override
+  bool shouldCapture(Uri? uri) => true;
+
+  @override
   Future<HttpCaptureScope> begin({
     required String method,
     required Uri uri,
@@ -70,6 +73,7 @@ class _BlockingCollector implements HttpTrafficCollector {
     int? responseSizeBytes,
     int? durationMs,
     String? responseContentType,
+    bool? responseTruncatedAtStorage,
   }) async {
     completeResponseCalled = true;
     completedCalls.add({
@@ -92,6 +96,7 @@ class _BlockingCollector implements HttpTrafficCollector {
     Uint8List? responseBodyBytes,
     int? responseSizeBytes,
     int? durationMs,
+    bool? responseTruncatedAtStorage,
   }) {}
 }
 

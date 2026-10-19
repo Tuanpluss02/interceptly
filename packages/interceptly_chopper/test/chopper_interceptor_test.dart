@@ -46,6 +46,9 @@ class _SpyHttpTrafficCollector implements HttpTrafficCollector {
       session.throughputDelayForChunk(chunkBytes);
 
   @override
+  bool shouldCapture(Uri? uri) => true;
+
+  @override
   Future<HttpCaptureScope> begin({
     required String method,
     required Uri uri,
@@ -113,6 +116,7 @@ class _SpyHttpTrafficCollector implements HttpTrafficCollector {
     int? responseSizeBytes,
     int? durationMs,
     String? responseContentType,
+    bool? responseTruncatedAtStorage,
   }) async {
     completeResponseCalls.add({
       'context': context,
@@ -122,6 +126,7 @@ class _SpyHttpTrafficCollector implements HttpTrafficCollector {
       'responseSizeBytes': responseSizeBytes,
       'durationMs': durationMs,
       'responseContentType': responseContentType,
+      'responseTruncatedAtStorage': responseTruncatedAtStorage,
     });
   }
 
@@ -136,6 +141,7 @@ class _SpyHttpTrafficCollector implements HttpTrafficCollector {
     Uint8List? responseBodyBytes,
     int? responseSizeBytes,
     int? durationMs,
+    bool? responseTruncatedAtStorage,
   }) {
     failRequestCalls.add({
       'context': context,
