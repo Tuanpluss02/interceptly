@@ -1,6 +1,6 @@
 name: interceptly_dio
 description: "Dio interceptor for Interceptly network inspector."
-version: 1.1.0
+version: 1.2.0
 homepage: https://github.com/Tuanpluss02/interceptly
 repository: https://github.com/Tuanpluss02/interceptly
 issue_tracker: https://github.com/Tuanpluss02/interceptly/issues

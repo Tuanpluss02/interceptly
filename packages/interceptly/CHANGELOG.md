@@ -1,5 +1,9 @@
 ## 2.2.0
 
+ - **FEAT**(interceptly): clear logs per active tab ([#16](https://github.com/Tuanpluss02/interceptly/issues/16)). ([49e78f0d](https://github.com/Tuanpluss02/interceptly/commit/49e78f0d1769cbe69aacc7451afc6935a4232541))
+
+## 2.2.0
+
 ### Added
 - `HttpTrafficCollector.shouldCapture(Uri? uri)` for early URL filtering in HTTP adapters.
 - `responseTruncatedAtStorage` parameter in `HttpTrafficCollector.completeResponse` and `failRequest`.
