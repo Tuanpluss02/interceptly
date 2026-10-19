@@ -67,6 +67,7 @@ jobs:
           melos publish --yes --no-dry-run --scope="$PACKAGE"
 
       - name: Create GitHub Release
+        if: ${{ steps.resolve.outputs.package_name == 'interceptly' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
