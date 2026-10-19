@@ -1,170 +1,80 @@
-# Interceptly — Agent Install & Usage Guide
+# Interceptly Monorepo — Agent Guidelines
 
-You are integrating Interceptly, a client-agnostic network & realtime traffic
-inspector for Flutter, into an existing Flutter project. Follow these steps in
-order. Do not skip verification.
+You are an AI assistant developing and maintaining the **Interceptly** codebase.
+Interceptly is a client-agnostic network and realtime traffic inspector for Flutter applications.
 
-## 1. Detect & Confirm Setup (MANDATORY STOP GATE)
+---
 
-Do NOT edit any code or add dependencies yet. First inspect the codebase, then
-**STOP and present your findings to the user in a single unified prompt**.
+## 1. Monorepo Architecture
 
-Inspect the project:
-- **Networking clients:** Check `pubspec.yaml` for `dio`, `http`, `chopper`,
-  and `web_socket_channel` (note each version). Also search imports for raw
-  `dart:io` sockets (`Socket`, `WebSocket`, `HttpClient`).
-- **Existing inspectors/loggers:** Search for `alice`, `alice_dio`,
-  `alice_lightweight`, `talker`, `talker_dio_logger`, `dio_log`,
-  `http_logger`, `pretty_dio_logger`, `chopper_logger`, or custom debug overlays.
-  List every match with file paths.
-- **Navigation & Entry:** Find where `runApp` / `MaterialApp` (or `MaterialApp.router` /
-  `GoRouter`) is built and whether a global `navigatorKey` exists.
+This repository is managed with [Melos](https://melos.invertase.dev/). It is organized into 5 publishable packages and 1 example app:
 
-**STOP AND ASK THE USER UPFRONT (Do not split this into multiple steps):**
-1. **REST Traffic:** Which detected REST clients (`dio`, `http`, `chopper`) should be intercepted?
-2. **Realtime / Socket Traffic:** Confirm whether to intercept WebSockets/sockets now (default: yes if `web_socket_channel` or `dart:io.WebSocket` detected; ask if none detected).
-3. **Existing Inspectors:** If any old logger/inspector was detected, ask to remove it (recommended to avoid duplicate capture overhead and UI overlay conflicts) or keep side-by-side.
-4. **Flavors / Environment:** Confirm in which modes to enable (default: everywhere except production release).
+- `packages/interceptly`: Core engine, UI overlay, background isolate pipeline (`WriterIsolate`), hybrid RAM/disk storage (`BodyStore`, `RealtimeBodyStore`), and session management (`InspectorSession`).
+- `packages/interceptly_dio`: Adapter interceptor for `Dio`.
+- `packages/interceptly_http`: Adapter client wrapper for `package:http`.
+- `packages/interceptly_chopper`: Adapter interceptor for `Chopper`.
+- `packages/interceptly_web_socket`: Adapter channel wrapper for `web_socket_channel` / raw WebSocket.
+- `packages/interceptly/example`: Showcase and verification app.
 
-**Only proceed to Step 2 once the user has answered all questions.**
+---
 
-## 2. Add dependencies (hosted only)
+## 2. Essential Melos Commands
 
-```bash
-flutter pub add interceptly
-```
+Always use Melos commands across workspace packages:
 
-Then add only the adapters for the client list the user confirmed in step 1
-(`flutter pub add` resolves the latest compatible version; do not pin
-versions here so this guide stays correct across releases):
+- **Bootstrap**: `melos bootstrap` (links workspace dependencies and runs pub get)
+- **Analyze**: `melos run analyze` (runs `dart analyze` across all 5 packages)
+- **Format check**: `melos run format:check` (verifies Dart formatting)
+- **Apply format**: `melos run format` (auto-formats code with `dart format`)
+- **Run core tests**: `melos run test:core` (runs fast non-stress tests across packages)
+- **Pre-commit quality gate**: `melos run check` (runs format:check, analyze, and test:core)
+- **Pub health check**: `melos run pana` (evaluates `interceptly` pub health score, aiming for 160/160)
 
-```bash
-flutter pub add interceptly_dio         # if dio is used
-flutter pub add interceptly_http       # if package:http is used
-flutter pub add interceptly_chopper    # if chopper is used
-flutter pub add interceptly_web_socket # if web_socket_channel is used
-```
+---
 
-Rules:
+## 3. Engineering & Architecture Rules
 
-- Never use `path:` dependencies for these packages in a consumer app.
-- Never downgrade the app's existing `dio` / `http` / `chopper` /
-  `web_socket_channel` versions to satisfy adapters; report a conflict instead.
+### Type-Safety & SPI
+- The core package exposes `HttpTrafficCollector` and `RealtimeTrafficCollector` as the service provider interface (SPI) for adapters.
+- Adapters must interact only through public collector APIs (`begin`, `startRequest`, `completeResponse`, `failRequest`, `shouldCapture`).
+- Never use `dynamic` to bypass type checks or hide API divergence. Maintain strong typing across all packages.
 
-## 3. Wire `Interceptly.init` (debug/profile only)
+### Session Lifecycle in Tests
+- `InspectorSession.instance` is a shared singleton.
+- In unit/widget tests that interact with `InspectorSession`, **always** call and `await InspectorSession.resetForTesting()` in `setUp()` and `tearDown()` to prevent isolate race conditions and cross-test state leakage.
 
-Ask the user first: most projects use flavors (dev/staging/prod). Confirm in
-which flavors the inspector should be enabled — default recommendation is
-everywhere except production store builds. If the project defines its own
-`isDev` / `isStaging` flags or `--dart-define` environment markers, use those
-instead of (or in addition to) the `kDebugMode || kProfileMode` check below,
-and state which condition you chose.
+### SemVer & Inter-Package Dependencies
+- If a new public API or parameter is added to `packages/interceptly`, bump its SemVer version appropriately.
+- Satellite adapter packages must declare accurate dependency lower bounds (e.g., `interceptly: ^2.2.0` when requiring APIs introduced in 2.2.0).
+- Never commit `pubspec_overrides.yaml` or local `path:` dependencies into published package pubspecs.
 
-- Ensure a global key exists: `final navigatorKey = GlobalKey<NavigatorState>();`
-- Pass it to `MaterialApp` (`navigatorKey:`) or to `GoRouter` (`navigatorKey:`).
-- Only if the floating button disappears after route transitions, additionally set `navigatorObservers: [Interceptly.navigatorObserver]` on `MaterialApp`. Do not present this as the default setup.
-- After `runApp`, initialize only in debug/profile:
+### Isolation & Performance
+- All response body decoding, search indexing, and disk serialization MUST remain off the UI thread via `WriterIsolate` or dedicated isolate pipelines.
+- Never add blocking work to the main Flutter isolate on the network hot path.
 
-```dart
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
-import 'package:interceptly/interceptly.dart';
+---
 
-void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  runApp(MyApp(navigatorKey: navigatorKey));
+## 4. Development Workflow
 
-  if (kDebugMode || kProfileMode) {
-    Interceptly.init(
-      navigatorKey: navigatorKey,
-      settings: const InterceptlySettings(maxEntries: 1000),
-    );
-  }
-}
-```
+- Do not use or enforce external superpowers/SDD processes. Develop directly using Melos, standard Flutter/Dart toolchains, and git.
+- Always run `melos run check` before concluding any feature or bugfix to ensure 0 analyzer issues, 0 formatting errors, and 100% passing tests.
 
-- The SDK has no release guard: `Interceptly.init` works in any build mode, so always wrap it in `if (kDebugMode || kProfileMode)` or the inspector ships to production users.
+---
 
-## 4. Attach adapters
+## 5. Technical Architecture Reference
 
-Dio:
+For detailed architecture specifications, SPI contracts, code conventions, testing patterns, performance guardrails, and debugging checklists, refer directly to the development guide modules:
 
-```dart
-import 'package:interceptly_dio/interceptly_dio.dart';
+| # | Module | Scope |
+|---|--------|-------|
+| 01 | [`01-architecture.md`](docs/development-guide/01-architecture.md) | Monorepo structure, core vs adapter responsibilities |
+| 02 | [`02-spi-contracts.md`](docs/development-guide/02-spi-contracts.md) | `HttpTrafficCollector`, `HttpCaptureScope`, `RealtimeTrafficCollector`, `RealtimeSessionScope` |
+| 03 | [`03-core-internals.md`](docs/development-guide/03-core-internals.md) | `InspectorSession`, `CapturePipeline`/`WriterIsolate`, hybrid storage, truncation |
+| 04 | [`04-code-conventions.md`](docs/development-guide/04-code-conventions.md) | Type safety, adapter patterns, async/error handling, naming |
+| 05 | [`05-quality-rules.md`](docs/development-guide/05-quality-rules.md) | `melos run check`, analyze, format, pana 160/160, test requirements |
+| 06 | [`06-adapter-development.md`](docs/development-guide/06-adapter-development.md) | Step-by-step new adapter, checklist, SPI compliance |
+| 07 | [`07-performance.md`](docs/development-guide/07-performance.md) | Hot-path rules, memory budgets, profiling hooks |
+| 08 | [`08-debugging.md`](docs/development-guide/08-debugging.md) | Common pitfalls, debugging checklist, key files to read |
+| 09 | [`09-versioning-ci.md`](docs/development-guide/09-versioning-ci.md) | SemVer policy, CI/CD workflow matrix |
 
-final dio = Dio()..interceptors.add(InterceptlyDioInterceptor());
-```
-
-`package:http`:
-
-```dart
-import 'package:http/http.dart' as http;
-import 'package:interceptly_http/interceptly_http.dart';
-
-final client = InterceptlyHttpClient(http.Client());
-```
-
-Chopper:
-
-```dart
-import 'package:interceptly_chopper/interceptly_chopper.dart';
-
-final chopper = ChopperClient(
-  interceptors: [InterceptlyChopperInterceptor()],
-);
-```
-
-WebSocket (`web_socket_channel` or raw `dart:io.WebSocket`):
-
-```dart
-import 'package:interceptly_web_socket/interceptly_web_socket.dart';
-
-// Option A: Direct connect
-final channel = InterceptlyWebSocketChannel.connect(
-  Uri.parse('wss://example.com/socket'),
-);
-
-// Option B: Wrap an existing WebSocketChannel (or IOWebSocketChannel for dart:io.WebSocket)
-final channel = InterceptlyWebSocketChannel(existingChannel);
-```
-
-Optional: skip noisy URLs so they cost zero memory/disk:
-
-```dart
-InterceptlySettings(
-  shouldCapture: (url) =>
-      !url.contains('/health-check') && !url.contains('/analytics'),
-)
-```
-
-`shouldCapture` runs synchronously per request: keep it fast and non-blocking.
-
-## 5. Verify
-
-1. Run `flutter analyze` — zero new issues from these changes.
-2. Run the app, trigger one request per attached client.
-3. Open the inspector via the floating button and confirm one row per request,
-   with request/response bodies visible.
-4. If a row is missing, check `shouldCapture` and confirm the right adapter
-   wraps the client that actually performs the call.
-
-## 6. Everyday usage (for the developer)
-
-- Browse/filter traffic in the inspector overlay; tap a row for detail tabs.
-- Replay: edit headers/body in the detail page and re-send.
-- Export a record as HAR, cURL, or Postman collection from the detail page.
-- Simulate conditions via `Interceptly.instance.setNetworkSimulation(...)`
-  (Offline, Slow 3G, Fast 3G, 4G, Wi-Fi, custom profiles).
-- Programmatic control: `Interceptly.showInspector(context)`,
-  `Interceptly.hideFloatingButtonForSession()` /
-  `Interceptly.showFloatingButtonForSession()`, `Interceptly.detach()`.
-
-## 7. Troubleshooting
-
-- Inspector opens in release builds too if `init` was called there: the SDK has no release guard, so the `kDebugMode || kProfileMode` wrapper at the call site is the only protection.
-- Floating button disappears after navigation: `navigatorObservers` is missing.
-- iOS simulator build fails on deployment target: the app needs
-  `platform :ios, '15.0'` (current Xcode supports 15.0+ only).
-- Developing against a local Interceptly checkout: use
-  `pubspec_overrides.yaml` with `path:` overrides (melos generates these);
-  never commit `path:` deps in a consumer app.
+This guide is the authoritative source for contributors and agents working on the Interceptly codebase.

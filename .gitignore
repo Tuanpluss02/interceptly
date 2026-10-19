@@ -16,6 +16,7 @@ pubspec_overrides.yaml
 
 # -------- SDD / Superpowers --------
 .superpowers/
+.agents/
 
 # Package lockfiles (library package)
 pubspec.lock

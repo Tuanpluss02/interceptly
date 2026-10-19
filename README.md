@@ -12,7 +12,7 @@ High-performance, client-agnostic network & realtime traffic inspector for Flutt
 Paste this into your coding agent (OpenCode, Claude Code, Codex, ...):
 
 ```
-Fetch and follow instructions from https://raw.githubusercontent.com/Tuanpluss02/interceptly/main/AGENTS.md
+Fetch and follow instructions from https://raw.githubusercontent.com/Tuanpluss02/interceptly/main/docs/integration-guide.md
 ```
 
 The agent will detect your HTTP clients, add the right packages, wire up the inspector, and verify it works.
@@ -205,6 +205,10 @@ This design decouples application networking frameworks from Interceptly's inter
 This repository uses [Melos](https://pub.dev/packages/melos) to manage dependencies and multi-package scripts.
 
 For detailed guidelines on branch naming, Conventional Commits, and CI/CD automation, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+### Development Guidelines
+
+For architecture specifications, SPI contracts, conventions, and quality rules, see [AGENTS.md](AGENTS.md) and the modular guides in [docs/development-guide/](docs/development-guide/).
 
 ### Common Commands
 

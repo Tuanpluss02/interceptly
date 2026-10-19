@@ -3,3 +3,5 @@ example/ios/
 example/android/
 example/assets/
 example/build/
+.superpowers/
+.agents/
