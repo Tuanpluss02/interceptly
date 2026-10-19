@@ -10,13 +10,13 @@
 
 ```dart
 abstract interface class HttpTrafficCollector {
-  /// The inspector session this collector coordinates with.
-  InspectorSession get session;
+  /// Maximum byte capacity for captured request/response bodies.
+  int get maxBodyBytes;
 
   /// Calculates simulated throughput delay for streaming response chunks.
   Duration delayForChunk(int chunkBytes);
 
-  /// Whether traffic to [uri] should be captured under current session settings.
+  /// Whether traffic to [uri] should be captured under current settings.
   bool shouldCapture(Uri? uri);
 
   /// Initiates an HTTP exchange capture, returning an [HttpCaptureScope].
@@ -70,7 +70,7 @@ abstract interface class HttpTrafficCollector {
 
 ### Implementation
 
-`DefaultHttpTrafficCollector` in same file — coordinates with `InspectorSession`, applies network simulation, computes truncation, serializes via `CapturePipeline`.
+`DefaultHttpTrafficCollector` in same file — coordinates with `InterceptlyEngine`, applies network simulation, computes truncation, serializes via `CapturePipeline`.
 
 ---
 
@@ -175,8 +175,6 @@ scope.fail(
 
 ```dart
 abstract interface class RealtimeTrafficCollector {
-  InspectorSession get session;
-
   /// Opens a new realtime session (WebSocket connection).
   RealtimeSessionScope openSession({
     required Uri uri,
@@ -265,19 +263,27 @@ sink.close() → scope.close(code: closeCode, reason: closeReason)
 
 ---
 
-## 2.5 Marker Interfaces (Adapters Must Implement)
+## 2.5 Adapter Integration Pattern
+
+Adapters encapsulate framework integration by holding an injected or default collector:
 
 ```dart
 // For HTTP adapters (Dio, http, Chopper)
-abstract interface class HttpCaptureAdapter {
-  InspectorSession get session;
-  HttpTrafficCollector get collector;
+class InterceptlyDioInterceptor extends Interceptor {
+  InterceptlyDioInterceptor([HttpTrafficCollector? collector])
+      : collector = collector ?? HttpTrafficCollector.instance;
+
+  final HttpTrafficCollector collector;
 }
 
 // For WebSocket/SSE adapters
-abstract interface class RealtimeCaptureAdapter {
-  InspectorSession get session;
-  RealtimeTrafficCollector get collector;
+class InterceptlyWebSocketChannel extends StreamChannelMixin<dynamic> implements WebSocketChannel {
+  InterceptlyWebSocketChannel(
+    WebSocketChannel channel, {
+    RealtimeTrafficCollector? collector,
+  }) : collector = collector ?? RealtimeTrafficCollector.instance;
+
+  final RealtimeTrafficCollector collector;
 }
 ```
 

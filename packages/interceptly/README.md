@@ -198,22 +198,18 @@ Interceptly.instance.closeRealtimeConnection(
 
 Interceptly follows the **Bridge / SPI (Service Provider Interface)** pattern. If you use a custom networking library (such as gRPC, GraphQL, Ktor bridge, or Socket.IO), you can easily build your own adapter by implementing the contract interfaces without re-implementing timing, simulation, or storage logic:
 
-### Custom HTTP Adapter (`HttpCaptureAdapter`)
+### Custom HTTP Adapter
 
-Implement `HttpCaptureAdapter` and delegate lifecycle events to `HttpTrafficCollector`:
+Delegate lifecycle events to `HttpTrafficCollector` (from `package:interceptly/adapter.dart`):
 
 ```dart
-import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/adapter.dart';
 
-class MyCustomHttpInterceptor implements HttpCaptureAdapter {
+class MyCustomHttpInterceptor {
   MyCustomHttpInterceptor([
     HttpTrafficCollector? collector,
-  ])  : collector = collector ?? DefaultHttpTrafficCollector();
+  ])  : collector = collector ?? HttpTrafficCollector.instance;
 
-  @override
-  InspectorSession get session => collector.session;
-
-  @override
   final HttpTrafficCollector collector;
 
   Future<void> onSend(MyCustomRequest req) async {
@@ -256,22 +252,18 @@ class MyCustomHttpInterceptor implements HttpCaptureAdapter {
 }
 ```
 
-### Custom Realtime Adapter (`RealtimeCaptureAdapter`)
+### Custom Realtime Adapter
 
-For custom WebSockets, SSE streams, or MQTT/Socket.IO connections, implement `RealtimeCaptureAdapter` and delegate to `RealtimeTrafficCollector`:
+For custom WebSockets, SSE streams, or MQTT/Socket.IO connections, delegate to `RealtimeTrafficCollector`:
 
 ```dart
-import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/adapter.dart';
 
-class MyCustomRealtimeClient implements RealtimeCaptureAdapter {
+class MyCustomRealtimeClient {
   MyCustomRealtimeClient({
     RealtimeTrafficCollector? collector,
-  })  : collector = collector ?? DefaultRealtimeTrafficCollector();
+  })  : collector = collector ?? RealtimeTrafficCollector.instance;
 
-  @override
-  InspectorSession get session => collector.session;
-
-  @override
   final RealtimeTrafficCollector collector;
 
   void onConnect(String sessionId, Uri endpoint) {

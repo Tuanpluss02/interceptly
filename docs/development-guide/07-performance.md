@@ -27,8 +27,8 @@ compute(expensiveParsing, data);       // → WriterIsolate (already isolated)
 largeList.map(expensiveTransform);     // → WriterIsolate or batch
 
 // ✅ OK on main isolate (metadata only)
-InspectorSession.instance.entries;     // RequestSummary only
-session.filter = RequestFilter(...);   // Triggers debounced notify
+InterceptlyEngine.instance.entries;    // RequestSummary only
+scope.filter = RequestFilter(...);     // Triggers UI notify
 entry.requestTruncation;               // Small enum
 ```
 
@@ -115,7 +115,7 @@ Duration delayForChunk(int chunkBytes) {
 
 ```dart
 // CapturePipeline metrics
-final pipeline = InspectorSession.instance.capturePipeline;
+final pipeline = InterceptlyEngine.instance.capturePipeline;
 pipeline.metrics.queueDepth;           // Pending captures
 pipeline.metrics.isolateLatency;       // WriterIsolate processing time
 
@@ -126,7 +126,7 @@ isolate?.queueLength;
 isolate?.lastProcessingDuration;
 
 // MemoryIndex stats
-final index = InspectorSession.instance._memoryIndex;
+final index = InterceptlyEngine.instance._memoryIndex;
 index.length;                          // Current entries
 index.capacity;                        // maxEntries
 ```
@@ -147,7 +147,7 @@ if (kDebugMode) {
 ### 1. Batch Notifications (Already Implemented)
 
 ```dart
-// InspectorSession._coalesceNotifyTimer
+// InterceptlyEngine._coalesceNotifyTimer
 // Batches notifyListeners() calls within 50ms window
 void _scheduleNotify() {
   _coalesceNotifyTimer ??= Timer(const Duration(milliseconds: 50), () {

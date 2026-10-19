@@ -37,13 +37,11 @@ String? contentType;
 import 'package:interceptly/adapter.dart';
 import 'package:interceptly/capture_guard.dart';
 
-class InterceptlyXxxInterceptor implements HttpCaptureAdapter {
+class InterceptlyXxxInterceptor extends Interceptor {
   final HttpTrafficCollector collector;
   
   InterceptlyXxxInterceptor([HttpTrafficCollector? c]) 
-    : collector = c ?? DefaultHttpTrafficCollector();
-  
-  @override InspectorSession get session => collector.session;
+    : collector = c ?? HttpTrafficCollector.instance;
   
   // 1. REQUEST — may throw SimulatedNetworkException
   Future<void> onRequest(RequestOptions options, Handler handler) async {
@@ -114,14 +112,18 @@ class InterceptlyXxxInterceptor implements HttpCaptureAdapter {
 ### Realtime Adapter Template
 
 ```dart
-class InterceptlyXxxChannel implements RealtimeCaptureAdapter {
+class InterceptlyXxxChannel extends StreamChannelMixin<dynamic> implements WebSocketChannel {
   final RealtimeTrafficCollector collector;
   late final RealtimeSessionScope scope;
   
-  InterceptlyXxxChannel(Channel inner, {Uri? uri, String? sessionId}) 
-    : collector = DefaultRealtimeTrafficCollector() {
+  InterceptlyXxxChannel(
+    Channel inner, {
+    Uri? uri,
+    String? sessionId,
+    RealtimeTrafficCollector? collector,
+  }) : collector = collector ?? RealtimeTrafficCollector.instance {
     
-    scope = collector.openSession(
+    scope = this.collector.openSession(
       uri: uri ?? Uri(scheme: 'ws', host: 'unknown'),
       sessionId: sessionId,
     );
@@ -131,9 +133,6 @@ class InterceptlyXxxChannel implements RealtimeCaptureAdapter {
     inner.sink.onAdd = (data) => scope.send(type: FrameType.text, payload: data);
     inner.done.then((_) => scope.close(code: inner.closeCode, reason: inner.closeReason));
   }
-  
-  @override InspectorSession get session => collector.session;
-  @override RealtimeTrafficCollector get collector => _collector;
 }
 ```
 
@@ -141,8 +140,7 @@ class InterceptlyXxxChannel implements RealtimeCaptureAdapter {
 
 ## 4.3 SPI Compliance Checklist (Adapters Must)
 
-- [ ] Implement `HttpCaptureAdapter` or `RealtimeCaptureAdapter`
-- [ ] Expose `collector` and `session` getters
+- [ ] Expose `collector` field (e.g. `final HttpTrafficCollector collector;`)
 - [ ] Call `collector.shouldCapture(uri)` before ANY capture work
 - [ ] Handle `SimulatedNetworkException` from `collector.begin()`
 - [ ] Use `guardCapture` / `guardCaptureAsync` for ALL capture completions

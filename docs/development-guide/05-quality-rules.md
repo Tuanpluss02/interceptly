@@ -211,17 +211,17 @@ melos run pana  # Targets 160/160 points for ALL 5 packages
 
 ### Test Patterns
 
-#### 1. Session Lifecycle — ALWAYS Reset
+#### 1. Engine & Lifecycle — ALWAYS Reset
 
 ```dart
 setUp(() async {
-  await InspectorSession.resetForTesting();  // CRITICAL for isolate isolation
-  session.configureSession(settings);
-  await session.initialize();
+  await Interceptly.resetForTesting();  // CRITICAL for isolate isolation
+  engine.configureSession(settings);
+  await engine.initialize();
 });
 
 tearDown(() async {
-  await InspectorSession.resetForTesting();
+  await Interceptly.resetForTesting();
 });
 ```
 
@@ -231,9 +231,9 @@ tearDown(() async {
 test('pending timeout marks request failed', () async {
   final fake = FakeAsync();
   fake.run((async) {
-    session.record(capture);
+    engine.record(capture);
     async.elapse(const Duration(seconds: 50)); // > pendingTimeout (45s)
-    expect(session.entries.first.status, 'timeout');
+    expect(engine.entries.first.status, 'timeout');
   });
 });
 ```

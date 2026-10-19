@@ -1,33 +1,34 @@
 # 03 — Core Architecture Deep-Dive
 
-> **Scope:** `InspectorSession`, `CapturePipeline`/`WriterIsolate`, hybrid storage model, truncation logic.
+> **Scope:** `Interceptly` / `InterceptlyEngine`, `CapturePipeline`/`WriterIsolate`, hybrid storage model, truncation logic.
 
 ---
 
-## 3.1 `InspectorSession` — The Singleton Brain
+## 3.1 `Interceptly` & `InterceptlyEngine` — 3-Tier Core Architecture
 
-**File:** `packages/interceptly/lib/src/session/inspector_session.dart`
+Interceptly divides core responsibilities cleanly into 3 layers to prevent god classes:
+
+1. **Public Facade (`Interceptly`)**: `packages/interceptly/lib/src/core/interceptly_controller.dart`
+2. **Headless Engine (`@internal InterceptlyEngine`)**: `packages/interceptly/lib/src/engine/interceptly_engine.dart`
+3. **Presentation Scope (`@internal InterceptlyScope`)**: `packages/interceptly/lib/src/ui/scope/interceptly_scope.dart`
 
 ### Singleton Access
 
 ```dart
-InspectorSession.instance  // Global accessor
-await InspectorSession.resetForTesting()  // Test isolation (CRITICAL)
+Interceptly.instance                // Global public facade accessor
+InterceptlyEngine.instance          // Internal headless data engine accessor
+await Interceptly.resetForTesting() // Test isolation (CRITICAL)
 ```
 
-### State
+### State Division
 
-| Field | Type | Purpose |
-|-------|------|---------|
-| `_entries` | `List<RequestSummary>` | Capped history (maxEntries default 5000) |
-| `_memoryIndex` | `MemoryIndex` | Fast lookup, filtering, search, grouping |
-| `_capturePipeline` | `CapturePipeline` | WriterIsolate bridge |
-| `_realtimeStore` | `RealtimeStore` | WebSocket session registry |
-| `_pendingTracker` | `PendingTracker` | In-flight request timeouts |
-| `_realtimeBodyStore` | `RealtimeBodyStore` | WebSocket frame disk storage |
-| `_settings` | `InterceptlySettings` | Current configuration |
+| Component | Responsibility | Key Fields / Handlers |
+|-----------|----------------|-----------------------|
+| `Interceptly` | Public entrypoint for app developers | `init(navigatorKey)`, `showInspector()`, overlay controls, export, `resetForTesting()` |
+| `InterceptlyEngine` | Headless pipeline & storage coordinator (`@internal`) | `_memoryIndex`, `_capturePipeline`, `_realtimeStore`, `_pendingTracker`, `_bodyStore`, `_realtimeBodyStore` |
+| `InterceptlyScope` | UI presentation state (`@internal` InheritedNotifier) | `RequestFilter`, `MasterSearchController`, `GroupingController`, `InspectorPreferences` |
 
-### Mutation Methods (Called by Collectors)
+### Mutation Methods (Called by Collectors & SPI)
 
 ```dart
 // Record a completed capture (from WriterIsolate via CapturePipeline)
@@ -43,21 +44,19 @@ Future<void> clearRest();
 Future<void> clearRealtime();
 ```
 
-### Read Methods (Called by UI)
+### Read Methods (UI State & Access)
 
 ```dart
-// Filtered, sorted entries for list view
+// In InterceptlyEngine:
 List<RequestSummary> get entries;
-
-// Load full detail (deserializes from disk if needed)
 Future<RequestRecord?> loadDetailById(String id);
 
-// Grouped by domain/endpoint for Network tab
-Map<String, List<RequestSummary>> get groupedEntries;
-
-// Search across URL, headers, body, frames
-SearchController search;
-RequestFilter _filter;
+// In InterceptlyScopeController:
+List<RequestSummary> get entries; // Combined with active search query & filters
+List<GroupedDomainRecord> getGroupedRecords();
+RequestFilter get filter;
+void applyFilter(RequestFilter filter);
+Future<void> startMasterSearch(String query);
 ```
 
 ### Critical: Generation-Fenced Clearing
@@ -79,7 +78,7 @@ RequestFilter _filter;
 ```
 Main Isolate                          Background Isolate (WriterIsolate)
 ─────────────────────────────────────────────────────────────────────────
-InspectorSession.record(RawCapture)
+InterceptlyEngine.record(RawCapture)
     │
     ▼
 CapturePipeline.enqueue()  ──────►  Receive RawCapture
@@ -92,7 +91,7 @@ CapturePipeline.enqueue()  ──────►  Receive RawCapture
                             ◄──────────
     │
     ▼
-InspectorSession receives summary
+InterceptlyEngine receives summary
   → Updates MemoryIndex
   → Notifies listeners (debounced)
 ```
@@ -110,7 +109,7 @@ class CapturePipeline {
   bool get isInitialized => _writerIsolate != null;
 
   Future<void> initialize();
-  void enqueue(RawCapture capture);  // Called by InspectorSession.record()
+  void enqueue(RawCapture capture);  // Called by InterceptlyEngine.record()
   Future<void> clear();
   Future<void> dispose();
 }
@@ -322,11 +321,13 @@ class NetworkSimulationProfile {
 
 | Concept | File |
 |---------|------|
-| Session singleton | `inspector_session.dart` |
-| Isolate bridge | `capture_pipeline.dart`, `writer_isolate.dart` |
-| RAM storage | `memory_index.dart`, `ring_buffer.dart`, `bounded_event_queue.dart` |
-| Disk storage | `body_store.dart`, `realtime_body_store.dart` |
-| Truncation | `body_decode_service.dart`, `raw_capture.dart`, `body_truncation.dart` |
+| Public facade | `core/interceptly_controller.dart` (`Interceptly`) |
+| Headless engine | `engine/interceptly_engine.dart` (`InterceptlyEngine`) |
+| Presentation scope | `ui/scope/interceptly_scope.dart` (`InterceptlyScope`) |
+| Isolate bridge | `engine/capture_pipeline.dart`, `engine/writer_isolate.dart` |
+| RAM storage | `engine/memory_index.dart`, `engine/ring_buffer.dart`, `engine/bounded_event_queue.dart` |
+| Disk storage | `engine/body_store.dart`, `engine/realtime_body_store.dart` |
+| Truncation | `engine/body_decode_service.dart`, `model/raw_capture.dart`, `model/body_truncation.dart` |
 | Simulation | `model/network_simulation.dart` |
-| Pending tracking | `pending_tracker.dart` |
-| WebSocket storage | `realtime_store.dart` |
+| Pending tracking | `engine/pending_tracker.dart` |
+| WebSocket storage | `engine/realtime_store.dart` |

@@ -96,7 +96,7 @@ final inspectedChannel = InterceptlyWebSocketChannel(
 
 ## Configuration Options & SPI Injection
 
-`InterceptlyWebSocketChannel` implements `RealtimeCaptureAdapter`. By default it uses `DefaultRealtimeTrafficCollector()`, which automatically coordinates with `InspectorSession.instance`. You can also inject a custom `RealtimeTrafficCollector`:
+By default `InterceptlyWebSocketChannel` uses `RealtimeTrafficCollector.instance`, which automatically coordinates with the Interceptly headless engine. You can also inject a custom `RealtimeTrafficCollector`:
 
 ```dart
 final collector = MyCustomRealtimeTrafficCollector();

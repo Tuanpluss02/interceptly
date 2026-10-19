@@ -20,12 +20,10 @@ packages/
 │   │       │   ├── realtime_session_scope.dart
 │   │       │   └── realtime_traffic_collector.dart
 │   │       ├── capture/            # Capture primitives (body_bytes, stream_capture, capture_guard)
-│   │       ├── core/               # Interceptly controller (singleton, init, detach)
-│   │       ├── export/             # HAR/cURL/Postman exporters
-│   │       ├── model/              # Data models (RawCapture, RequestRecord, BodyTruncation, etc.)
-│   │       ├── session/            # Session state & storage
-│   │       │   ├── inspector_session.dart        # Main session singleton
-│   │       │   ├── inspector_session_view.dart   # Read-only view interface
+│   │       ├── core/               # Public facade
+│   │       │   └── interceptly_controller.dart   # Public singleton facade (Interceptly)
+│   │       ├── engine/             # Headless coordinator, background pipelines & hybrid storage (@internal)
+│   │       │   ├── interceptly_engine.dart       # Headless coordinator (@internal)
 │   │       │   ├── capture_pipeline.dart         # WriterIsolate bridge
 │   │       │   ├── writer_isolate.dart           # Background isolate logic
 │   │       │   ├── body_store.dart               # RAM+disk hybrid storage
@@ -34,8 +32,13 @@ packages/
 │   │       │   ├── pending_tracker.dart          # In-flight request tracking
 │   │       │   ├── realtime_store.dart           # WebSocket session registry
 │   │       │   └── ...
+│   │       ├── export/             # HAR/cURL/Postman exporters
+│   │       ├── model/              # Data models (RawCapture, RequestRecord, BodyTruncation, etc.)
+│   │       ├── share/              # System share / export integration
+│   │       ├── simulation/         # Network simulation service & profile management
 │   │       └── ui/                 # Inspector overlay, tabs, detail views
-│   └── test/                       # 400+ tests (unit, widget, stress, e2e)
+│   │           └── scope/          # UI Scope & presentation state (@internal)
+│   └── test/                       # Unit, widget, stress, e2e tests
 ├── interceptly_dio/                # ADAPTER — Dio interceptor
 ├── interceptly_http/               # ADAPTER — http.Client wrapper
 ├── interceptly_chopper/            # ADAPTER — Chopper interceptor
@@ -49,7 +52,7 @@ packages/
 
 | Package | Role | Publishes to pub.dev |
 |---------|------|---------------------|
-| `interceptly` | Core engine: UI overlay, background isolate pipeline, hybrid storage, session management, network simulation | ✅ |
+| `interceptly` | Core engine: UI overlay (`InterceptlyScope`), background isolate pipeline, hybrid storage, headless data engine (`InterceptlyEngine`), public facade (`Interceptly`), network simulation | ✅ |
 | `interceptly_dio` | `Dio` interceptor translating callbacks → SPI | ✅ |
 | `interceptly_http` | `http.Client` wrapper (stream-teeing) translating → SPI | ✅ |
 | `interceptly_chopper` | `Chopper` interceptor translating → SPI | ✅ |
@@ -63,9 +66,9 @@ packages/
 > **Core owns all logic. Adapters are thin delegates** — they translate framework-specific callbacks into SPI calls and nothing else.
 
 - No business logic in adapters
-- No direct `InspectorSession` calls from adapters
+- No direct internal engine calls from adapters (interact strictly via Collector SPI)
 - All capture, storage, simulation, truncation lives in core
-- Adapters implement marker interfaces: `HttpCaptureAdapter` or `RealtimeCaptureAdapter`
+- Adapters encapsulate framework client/interceptor and delegate lifecycle events to `HttpTrafficCollector` or `RealtimeTrafficCollector`
 
 ---
 

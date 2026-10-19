@@ -8,9 +8,9 @@
 
 | Symptom | Root Cause | Fix |
 |---------|------------|-----|
-| **Tests flaky / state leaks** | Missing `resetForTesting()` | Add `await InspectorSession.resetForTesting()` to **both** `setUp()` AND `tearDown()` |
+| **Tests flaky / state leaks** | Missing `resetForTesting()` | Add `await Interceptly.resetForTesting()` to **both** `setUp()` AND `tearDown()` |
 | **Floating button disappears after navigation** | Missing `navigatorObservers` | Add `navigatorObservers: [Interceptly.navigatorObserver]` to `MaterialApp` |
-| **Inspector opens in release build** | `init()` not wrapped in debug check | Wrap: `if (kDebugMode \|\| kProfileMode) Interceptly.init(...)` |
+| **Inspector opens in release build** | `init()` not wrapped in debug check | Wrap: `if (kDebugMode || kProfileMode) Interceptly.init(...)` |
 | **pana score < 160** | Missing CHANGELOG, outdated deps, example fails | Fix per pana output: `melos run pana` shows details |
 | **Adapter tests fail after core change** | SPI signature drift | Update adapter to match new SPI signatures in same PR |
 | **Memory grows unbounded** | `maxEntries` not respected / `clear()` not called | Verify `MemoryIndex` eviction, `clear()` calls `_memoryIndex.clear()` |
@@ -62,7 +62,7 @@ print('[DEBUG] scope.fail called with error $error');
 ### 5. Inspect WriterIsolate State
 ```dart
 // In test or debug:
-final pipeline = InspectorSession.instance.capturePipeline;
+final pipeline = InterceptlyEngine.instance.capturePipeline;
 print('WriterIsolate ready: ${pipeline.isInitialized}');
 print('Queue length: ${pipeline._writerIsolate?.queueLength}');
 print('Last batch duration: ${pipeline._writerIsolate?.lastProcessingDuration}');
@@ -70,16 +70,14 @@ print('Last batch duration: ${pipeline._writerIsolate?.lastProcessingDuration}')
 
 ### 6. Check MemoryIndex
 ```dart
-final session = InspectorSession.instance;
-print('Entries: ${session._memoryIndex.length}/${session._memoryIndex.capacity}');
-print('Filter: ${session._filter}');
-print('Search: ${session._search.query}');
+final engine = InterceptlyEngine.instance;
+print('Entries: ${engine.entries.length}/${engine.settings.maxEntries}');
 ```
 
 ### 7. Verify BodyStore
 ```dart
 // Check if bodies written to disk
-final store = InspectorSession.instance._bodyStore;
+final store = InterceptlyEngine.instance._bodyStore;
 print('BodyStore dir: ${store.dir.path}');
 print('Files: ${await store.dir.list().toList()}');
 ```
@@ -93,9 +91,9 @@ print('Files: ${await store.dir.list().toList()}');
 | 1 | `packages/interceptly/lib/adapter.dart` | SPI surface — all contracts |
 | 2 | `packages/interceptly/lib/src/adapter/http_traffic_collector.dart` | HTTP collector impl |
 | 3 | `packages/interceptly/lib/src/adapter/http_capture_scope.dart` | Scope lifecycle |
-| 4 | `packages/interceptly/lib/src/session/inspector_session.dart` | Session singleton |
-| 5 | `packages/interceptly/lib/src/session/capture_pipeline.dart` | Isolate bridge |
-| 6 | `packages/interceptly/lib/src/session/writer_isolate.dart` | Background processing |
+| 4 | `packages/interceptly/lib/src/engine/interceptly_engine.dart` | Headless data engine singleton |
+| 5 | `packages/interceptly/lib/src/engine/capture_pipeline.dart` | Isolate bridge |
+| 6 | `packages/interceptly/lib/src/engine/writer_isolate.dart` | Background processing |
 | 7 | `packages/interceptly/lib/src/model/body_truncation.dart` | Truncation model |
 | 8 | `packages/interceptly_dio/lib/src/interceptly_dio_interceptor.dart` | Reference HTTP adapter |
 | 9 | `packages/interceptly_web_socket/lib/src/interceptly_web_socket_channel.dart` | Reference Realtime adapter |
@@ -108,12 +106,12 @@ print('Files: ${await store.dir.list().toList()}');
 ```dart
 // Each test MUST reset
 setUp(() async {
-  await InspectorSession.resetForTesting();  // Resets singleton + isolate
+  await Interceptly.resetForTesting();  // Resets singleton + isolate
   // ... configure
 });
 
 tearDown(() async {
-  await InspectorSession.resetForTesting();  // Clean up for next test
+  await Interceptly.resetForTesting();  // Clean up for next test
 });
 ```
 
@@ -169,7 +167,7 @@ pana --no-warning --exit-code-threshold 1 -j 2>&1 | head -100
 | Add new SPI method | `adapter.dart` + `http_traffic_collector.dart` / `realtime_traffic_collector.dart` |
 | Change truncation logic | `body_decode_service.dart`, `raw_capture.dart`, `body_truncation.dart` |
 | Fix storage bug | `body_store.dart`, `realtime_body_store.dart`, `capture_pipeline.dart` |
-| Fix session clearing | `inspector_session.dart` (`clear`, `clearRest`, `clearRealtime`) |
+| Fix clearing / data purging | `interceptly_engine.dart` (`clear`, `clearRest`, `clearRealtime`) |
 | Add new adapter | Copy `interceptly_dio` pattern, implement SPI |
 | Fix WebSocket frames | `realtime_session_scope.dart`, `realtime_traffic_collector.dart` |
 | Debug isolate crash | `writer_isolate.dart` (catch zones, error handling) |
