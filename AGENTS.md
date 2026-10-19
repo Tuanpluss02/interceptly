@@ -56,7 +56,6 @@ Always use Melos commands across workspace packages:
 
 ## 4. Development Workflow
 
-- Do not use or enforce external superpowers/SDD processes. Develop directly using Melos, standard Flutter/Dart toolchains, and git.
 - Always run `melos run check` before concluding any feature or bugfix to ensure 0 analyzer issues, 0 formatting errors, and 100% passing tests.
 
 ---
