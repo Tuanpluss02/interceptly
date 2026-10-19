@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/adapter.dart';
 import 'package:interceptly/interceptly.dart';
 import 'package:interceptly/src/engine/interceptly_engine.dart';
 
