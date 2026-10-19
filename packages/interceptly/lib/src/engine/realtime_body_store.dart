@@ -230,8 +230,7 @@ class RealtimeBodyStore {
   }
 
   /// Waits for all currently enqueued write/rotate/reset operations to complete.
-  @visibleForTesting
-  Future<void> flushForTesting() async {
+  Future<void> flush() async {
     while (true) {
       final current = _writeChain;
       if (current == null) break;

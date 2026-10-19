@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import '../model/request_record.dart';
-import '../session/body_decode_service.dart';
+import '../engine/body_decode_service.dart';
 
 /// Builds cURL commands from captured request records.
 class CurlGenerator {

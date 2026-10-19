@@ -187,11 +187,10 @@ class _RealtimeDetailPageState extends State<RealtimeDetailPage>
               backgroundColor: InterceptlyTheme.surface,
               elevation: 0,
               scrolledUnderElevation: 0,
-              iconTheme:
-                  IconThemeData(color: InterceptlyTheme.textSecondary),
+              iconTheme: IconThemeData(color: InterceptlyTheme.textSecondary),
               leading: IconButton(
-                icon: Icon(Icons.arrow_back,
-                    color: InterceptlyTheme.textPrimary),
+                icon:
+                    Icon(Icons.arrow_back, color: InterceptlyTheme.textPrimary),
                 onPressed: () => Navigator.of(context).pop(),
               ),
               title: Column(
@@ -200,8 +199,7 @@ class _RealtimeDetailPageState extends State<RealtimeDetailPage>
                 children: [
                   Text(
                     path,
-                    style:
-                        InterceptlyTheme.typography.bodyMediumBold.copyWith(
+                    style: InterceptlyTheme.typography.bodyMediumBold.copyWith(
                       fontSize: 14,
                       color: InterceptlyTheme.textPrimary,
                     ),
@@ -212,8 +210,8 @@ class _RealtimeDetailPageState extends State<RealtimeDetailPage>
                     const SizedBox(height: 2),
                     Text(
                       host,
-                      style: InterceptlyTheme.typography.bodySmallRegular
-                          .copyWith(
+                      style:
+                          InterceptlyTheme.typography.bodySmallRegular.copyWith(
                         fontSize: 11,
                         color: InterceptlyTheme.textTertiary,
                       ),

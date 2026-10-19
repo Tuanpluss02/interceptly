@@ -1,9 +1,14 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
 
+import '../model/body_location.dart';
 import '../model/realtime_frame.dart';
+import 'realtime_body_store.dart';
 
 /// A high-performance, dynamic circular buffer that grows on demand from a small
 /// initial allocation up to [maxCapacity], and then operates as an O(1) ring buffer.
@@ -194,6 +199,50 @@ class RealtimeStore {
   bool _hasPendingNotification = false;
   bool _isDisposed = false;
 
+  final RealtimeBodyStore _bodyStore = RealtimeBodyStore();
+  String? _diskDirPath;
+  Future<void>? _diskInitFuture;
+
+  /// Underlying [RealtimeBodyStore] managing persisted frame bodies.
+  RealtimeBodyStore get bodyStore => _bodyStore;
+
+  /// Ensures disk storage is ready for offloading large frame payloads.
+  Future<void> ensureDiskStorageInitialized({
+    required bool persistToDisk,
+    required String engineId,
+  }) {
+    if (_bodyStore.isInitialized || _isDisposed) {
+      return Future<void>.value();
+    }
+    return _diskInitFuture ??= _performDiskStorageInit(
+      persistToDisk: persistToDisk,
+      engineId: engineId,
+    );
+  }
+
+  Future<void> _performDiskStorageInit({
+    required bool persistToDisk,
+    required String engineId,
+  }) async {
+    if (_bodyStore.isInitialized || _isDisposed) return;
+    String dirPath;
+    if (persistToDisk) {
+      try {
+        final dir = await getTemporaryDirectory();
+        dirPath = dir.path;
+      } catch (_) {
+        dirPath = Directory.systemTemp.path;
+      }
+    } else {
+      dirPath = Directory.systemTemp.path;
+    }
+    _diskDirPath = dirPath;
+    await _bodyStore.initForWrite(
+      dirPath,
+      fileName: 'interceptly_${engineId}_realtime.tmp',
+    );
+  }
+
   /// Total count of frames stored across all sessions.
   int get totalFramesAcrossSessions => _totalFramesAcrossSessions;
 
@@ -262,8 +311,24 @@ class RealtimeStore {
     _dirtyNotifierSessions.remove(sessionId);
   }
 
-  /// Appends [frame] to the session buffer, enforces global budget, and updates counters.
-  void recordFrame(RealtimeFrame frame) {
+  /// Appends [frame] to the session buffer, enforces global budget, and optionally offloads large payloads to disk.
+  Future<void> recordFrame(
+    RealtimeFrame frame, {
+    bool persistToDisk = false,
+    int offloadThreshold = 32768,
+    String? engineId,
+  }) {
+    recordFrameSync(frame);
+    if (persistToDisk &&
+        frame.location == BodyLocation.memory &&
+        frame.payloadSizeBytes >= offloadThreshold) {
+      return _offloadAndReplaceFrame(frame, engineId: engineId);
+    }
+    return Future<void>.value();
+  }
+
+  /// Appends [frame] to the session buffer synchronously, enforces global budget, and updates counters.
+  void recordFrameSync(RealtimeFrame frame) {
     if (_isDisposed) return;
 
     final buffer = _getOrCreateBuffer(frame.sessionId);
@@ -286,6 +351,90 @@ class RealtimeStore {
     _dirtyNotifierSessions.add(frame.sessionId);
 
     _scheduleNotification();
+  }
+
+  Future<void> _offloadAndReplaceFrame(
+    RealtimeFrame frame, {
+    String? engineId,
+  }) async {
+    if (!_bodyStore.isInitialized && engineId != null) {
+      await ensureDiskStorageInitialized(
+        persistToDisk: true,
+        engineId: engineId,
+      );
+    }
+    if (!_bodyStore.isInitialized || _isDisposed) return;
+
+    final Uint8List bytes = frame.preEncodedBytes ??
+        (frame.type == FrameType.text
+            ? Uint8List.fromList(utf8.encode(frame.textPayload ?? ''))
+            : frame.binaryPayload ?? Uint8List(0));
+
+    try {
+      final (offset, length, rotation) = await _bodyStore.append(bytes);
+
+      final offloaded = RealtimeFrame.offloaded(
+        id: frame.id,
+        sessionId: frame.sessionId,
+        direction: frame.direction,
+        timestamp: frame.timestamp,
+        type: frame.type,
+        payloadSizeBytes: frame.payloadSizeBytes,
+        shortPreview: frame.shortPreview,
+        fileOffset: offset,
+        fileLength: length,
+        rotationCount: rotation,
+        eventName: frame.eventName,
+      );
+
+      replaceFrame(offloaded);
+    } catch (error) {
+      debugPrint(
+          '[Interceptly] realtime body offload fallback to memory: $error');
+    }
+  }
+
+  /// Loads full payload for [frame] asynchronously from disk or memory.
+  Future<dynamic> loadPayload(RealtimeFrame frame) async {
+    if (frame.location == BodyLocation.memory) {
+      if (frame.type == FrameType.text) {
+        return frame.textPayload ?? '';
+      }
+      return frame.binaryPayload ?? Uint8List(0);
+    }
+
+    if (frame.rotationCount != null &&
+        frame.rotationCount! < _bodyStore.rotationCount) {
+      return '[Payload expired due to file rotation]';
+    }
+
+    if (!_bodyStore.isInitialized) {
+      return '[Payload unavailable: store uninitialized]';
+    }
+
+    final offset = frame.fileOffset;
+    final length = frame.fileLength;
+    if (offset == null || length == null || length <= 0) {
+      return frame.type == FrameType.text ? '' : Uint8List(0);
+    }
+
+    try {
+      final bytes = await _bodyStore.readBytes(offset, length);
+      if (frame.type == FrameType.text) {
+        return utf8.decode(bytes, allowMalformed: true);
+      }
+      return bytes;
+    } catch (e) {
+      return '[Error loading payload: $e]';
+    }
+  }
+
+  /// Resets disk storage file during clear operations.
+  Future<void> resetDiskStorage() async {
+    if (_bodyStore.isInitialized && _diskDirPath != null) {
+      await _bodyStore.resetFile(_diskDirPath!);
+    }
+    _diskInitFuture = null;
   }
 
   /// Replaces an existing frame in the session buffer (e.g. after offloading to disk).
@@ -432,15 +581,17 @@ class RealtimeStore {
     _totalFramesAcrossSessions = 0;
   }
 
-  /// Disposes the store, canceling background timers and clearing buffers.
-  void dispose() {
+  /// Disposes the store, canceling background timers, clearing buffers, and closing disk storage.
+  Future<void> dispose() async {
     _isDisposed = true;
     _throttleTimer?.cancel();
     _throttleTimer = null;
+    _diskInitFuture = null;
     for (final notifier in _notifiersBySession.values) {
       notifier.dispose();
     }
     _notifiersBySession.clear();
     clear();
+    await _bodyStore.dispose();
   }
 }

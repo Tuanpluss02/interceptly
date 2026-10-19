@@ -3,7 +3,7 @@ import 'dart:typed_data';
 
 import '../capture/body_bytes.dart';
 import '../model/request_record.dart';
-import '../session/body_decode_service.dart';
+import '../engine/body_decode_service.dart';
 
 /// Exports captured request records to HAR 1.2 compatible maps.
 class HarExporter {

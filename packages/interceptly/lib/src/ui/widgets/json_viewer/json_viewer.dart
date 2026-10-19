@@ -135,17 +135,6 @@ class _JsonViewerState extends State<JsonViewer> {
     viewportKey: _contentViewportKey,
   );
 
-  @visibleForTesting
-  List<JsonLine>? get memoLinesForTest => _memoLines;
-
-  @visibleForTesting
-  ScrollController get contentScrollControllerForTest =>
-      _scroll.contentScrollController;
-
-  @visibleForTesting
-  ScrollController get horizontalScrollControllerForTest =>
-      _scroll.horizontalScrollController;
-
   @override
   void initState() {
     super.initState();

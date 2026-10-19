@@ -62,8 +62,7 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
       _initialized = true;
       _scope = InterceptlyScope.read(context);
       _scope.addListener(_onScopeChanged);
-      _previousFrameCount =
-          _scope.getRealtimeFrames(widget.sessionId).length;
+      _previousFrameCount = _scope.getRealtimeFrames(widget.sessionId).length;
     }
   }
 
@@ -71,8 +70,7 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
   void didUpdateWidget(covariant RealtimeMessagesTab oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.sessionId != oldWidget.sessionId) {
-      _previousFrameCount =
-          _scope.getRealtimeFrames(widget.sessionId).length;
+      _previousFrameCount = _scope.getRealtimeFrames(widget.sessionId).length;
     }
   }
 

@@ -12,15 +12,6 @@ class InterceptlyShare {
 
   final MethodChannel _channel;
 
-  @visibleForTesting
-  MethodChannel get debugChannel => _channel;
-
-  @visibleForTesting
-  static bool? debugMobileOverride;
-
-  @visibleForTesting
-  static String? debugTempDirOverride;
-
   /// Default file size limit for shared files (50 MB).
   static const int defaultMaxFileSizeBytes = 50 * 1024 * 1024;
 
@@ -30,10 +21,6 @@ class InterceptlyShare {
 
     final file = File(filePath);
     final absPath = file.absolute.path;
-
-    if (debugTempDirOverride != null) {
-      if (absPath.startsWith(debugTempDirOverride!)) return true;
-    }
 
     final sysTemp = Directory.systemTemp.path;
     if (absPath.startsWith(sysTemp)) return true;
@@ -81,8 +68,7 @@ class InterceptlyShare {
       }
     }
 
-    final isMobile = debugMobileOverride ??
-        (!kIsWeb && (Platform.isAndroid || Platform.isIOS));
+    final isMobile = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
     if (!isMobile) return false;
 
     try {

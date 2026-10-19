@@ -3,7 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import '../../core/interceptly_engine.dart';
+import '../../engine/interceptly_engine.dart';
+import '../../engine/master_search_controller.dart';
 import '../../model/domain_group.dart';
 import '../../model/index_entry.dart';
 import '../../model/interceptly_settings.dart';
@@ -14,9 +15,8 @@ import '../../model/request_filter.dart';
 import '../../model/request_record.dart';
 import '../../model/request_summary.dart';
 import '../../model/search_match_scope.dart';
-import '../../session/grouping_controller.dart';
-import '../../session/inspector_preferences.dart';
-import '../../session/master_search_controller.dart';
+import '../settings/inspector_preferences.dart';
+import 'grouping_controller.dart';
 
 /// Presentation state controller managing UI-level filtering, search, and grouping
 /// on top of an [InterceptlyEngine].
@@ -36,7 +36,7 @@ class InterceptlyScopeController extends ChangeNotifier {
 
   final MasterSearchController _search = MasterSearchController();
   final GroupingController _grouping = GroupingController();
-  final InspectorPreferences _preferences = InspectorPreferences();
+  final InterceptlyPreferences _preferences = InterceptlyPreferences();
 
   RequestFilter _filter = RequestFilter();
   Set<String>? _cachedAvailableDomains;
@@ -45,7 +45,7 @@ class InterceptlyScopeController extends ChangeNotifier {
   int _lastComputedCacheVersion = -1;
   bool _isDisposed = false;
 
-  InspectorPreferences get preferences => _preferences;
+  InterceptlyPreferences get preferences => _preferences;
   RequestFilter get filter => _filter;
   InterceptlySettings get settings => engine.settings;
   bool get isEnabled => engine.isEnabled;
@@ -260,7 +260,8 @@ class InterceptlyScope extends InheritedNotifier<InterceptlyScopeController> {
 
   /// Retrieves the [InterceptlyScopeController] from [context], registering it for rebuilds.
   static InterceptlyScopeController of(BuildContext context) {
-    final scope = context.dependOnInheritedWidgetOfExactType<InterceptlyScope>();
+    final scope =
+        context.dependOnInheritedWidgetOfExactType<InterceptlyScope>();
     assert(
       scope != null,
       'No InterceptlyScope found in context. Wrap your widget tree with InterceptlyScope.',
@@ -270,7 +271,9 @@ class InterceptlyScope extends InheritedNotifier<InterceptlyScopeController> {
 
   /// Retrieves the [InterceptlyScopeController] from [context] if present, registering it for rebuilds.
   static InterceptlyScopeController? maybeOf(BuildContext context) {
-    return context.dependOnInheritedWidgetOfExactType<InterceptlyScope>()?.notifier;
+    return context
+        .dependOnInheritedWidgetOfExactType<InterceptlyScope>()
+        ?.notifier;
   }
 
   /// Retrieves the [InterceptlyScopeController] from [context] without registering for rebuilds.

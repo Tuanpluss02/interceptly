@@ -3,7 +3,7 @@ import 'package:interceptly/src/ui/widgets/json_viewer/json_viewer.dart';
 
 import '../../model/body_truncation.dart';
 import '../../model/request_record.dart';
-import '../../session/body_decode_service.dart';
+import '../../engine/body_decode_service.dart';
 import '../format.dart';
 import '../widgets/error_summary.dart';
 

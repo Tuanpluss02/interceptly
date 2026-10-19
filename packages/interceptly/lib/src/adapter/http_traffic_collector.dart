@@ -3,8 +3,8 @@ import 'package:flutter/foundation.dart';
 import '../capture/capture_guard.dart';
 import '../model/network_simulation.dart';
 import '../model/raw_capture.dart';
-import '../core/interceptly_engine.dart';
-import '../session/request_id.dart';
+import '../engine/interceptly_engine.dart';
+import '../engine/request_id.dart';
 import 'http_capture_scope.dart';
 import 'http_request_context.dart';
 

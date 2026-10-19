@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 import 'json_viewer_style.dart';
 
 /// Manages expand/collapse state for collapsible nodes in the JSON viewer.
@@ -80,15 +78,4 @@ class JsonExpansionState {
     _userCollapsedPaths.clear();
     forceCollapse = false;
   }
-
-  @visibleForTesting
-  Set<String> get searchAutoExpandedForTest =>
-      Set.unmodifiable(_searchAutoExpanded);
-
-  @visibleForTesting
-  Set<String> get userCollapsedPathsForTest =>
-      Set.unmodifiable(_userCollapsedPaths);
-
-  @visibleForTesting
-  Map<String, bool> get explicitStateForTest => Map.unmodifiable(_expandState);
 }

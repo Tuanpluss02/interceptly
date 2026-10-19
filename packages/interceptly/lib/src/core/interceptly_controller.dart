@@ -1,47 +1,34 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+
+import '../engine/interceptly_engine.dart';
 import '../model/interceptly_settings.dart';
 import '../model/network_simulation.dart';
-import '../model/raw_capture.dart';
-import '../model/realtime_frame.dart';
 import '../model/request_record.dart';
 import '../model/request_summary.dart';
 import '../ui/overlay/floating_overlay_manager.dart';
 import '../ui/screens/interceptly_screen.dart';
 import '../ui/widgets/toast_notification.dart';
-import 'interceptly_engine.dart';
 
 /// Central public facade for Interceptly.
 ///
-/// Provides initialization, overlay control, and testing hooks for application code.
-class Interceptly extends ChangeNotifier {
-  /// Creates an [Interceptly] controller backed by [InterceptlyEngine.instance].
-  Interceptly({InterceptlySettings? settings})
-      : _engine = InterceptlyEngine.instance {
-    if (settings != null) {
-      _engine.configure(settings);
-    }
-    _engine.addListener(notifyListeners);
-  }
+/// Provides initialization, overlay control, and high-level session management.
+class Interceptly {
+  Interceptly._();
 
-  static Interceptly? _sharedInstance;
+  /// The underlying headless data engine singleton.
+  static InterceptlyEngine get engine => InterceptlyEngine.instance;
 
-  /// Returns the shared Interceptly singleton instance.
-  static Interceptly get instance {
-    return _sharedInstance ??= Interceptly();
-  }
+  /// Returns the shared Interceptly controller instance.
+  static Interceptly get instance => _sharedInstance;
+  static final Interceptly _sharedInstance = Interceptly._();
 
-  /// Resets the shared instance and underlying engine for isolated unit/widget tests.
-  @visibleForTesting
+  /// Resets the underlying engine and overlays for isolated unit/widget tests.
   static Future<void> resetForTesting() async {
     _detach();
-    _sharedInstance?.dispose();
-    _sharedInstance = null;
     await InterceptlyEngine.resetForTesting();
   }
-
-  final InterceptlyEngine _engine;
 
   /// Single entrypoint to initialize Interceptly: attaches the UI to [navigatorKey]
   /// and applies all desired configuration options in one clean call.
@@ -52,7 +39,7 @@ class Interceptly extends ChangeNotifier {
     Stream<void>? customTrigger,
     InterceptlySettings? settings,
   }) {
-    if (settings != null) InterceptlyEngine.instance.configure(settings);
+    if (settings != null) engine.configure(settings);
 
     return _init(
       navigatorKey: navigatorKey,
@@ -99,104 +86,54 @@ class Interceptly extends ChangeNotifier {
   }
 
   /// Current settings active on the engine.
-  InterceptlySettings get settings => _engine.settings;
+  InterceptlySettings get settings => engine.settings;
 
   /// Applies [settings] to the underlying engine.
-  void configure(InterceptlySettings settings) => _engine.configure(settings);
+  void configure(InterceptlySettings settings) => engine.configure(settings);
 
-  /// List of captured calls.
-  List<RequestSummary> get calls => _engine.entries;
+  /// List of captured entries in newest-first order.
+  List<RequestSummary> get entries => engine.entries;
 
-  /// List of captured entries (alias for [calls]).
-  List<RequestSummary> get entries => _engine.entries;
+  /// List of captured calls (alias for [entries]).
+  List<RequestSummary> get calls => engine.entries;
 
   /// Count of dropped events due to buffer overflows.
-  int get droppedEvents => _engine.droppedCount;
+  int get droppedEvents => engine.droppedCount;
 
   /// Whether traffic capture is currently enabled.
-  bool get isEnabled => _engine.isEnabled;
+  bool get isEnabled => engine.isEnabled;
 
   /// Current network simulation profile.
-  NetworkSimulationProfile get networkSimulation => _engine.networkSimulation;
+  NetworkSimulationProfile get networkSimulation => engine.networkSimulation;
 
   /// Enables traffic capture.
-  void enable() => _engine.enable();
+  void enable() => engine.enable();
 
   /// Disables traffic capture.
-  void disable() => _engine.disable();
+  void disable() => engine.disable();
 
   /// Initializes background workers and disk storage.
-  Future<void> initialize() => _engine.initialize();
-
-  /// Enqueues [capture] for asynchronous background processing.
-  void recordCapture(RawCapture capture) => _engine.record(capture);
+  Future<void> initialize() => engine.initialize();
 
   /// Loads full details for [summary].
   Future<RequestRecord> loadDetail(RequestSummary summary) =>
-      _engine.loadDetail(summary);
-
-  /// Loads full details for request with [id].
-  Future<RequestRecord> loadDetailById(String id) =>
-      _engine.loadDetailById(id);
+      engine.loadDetail(summary);
 
   /// Sets an active network simulation profile.
   void setNetworkSimulation(NetworkSimulationProfile profile) =>
-      _engine.setNetworkSimulation(profile);
+      engine.setNetworkSimulation(profile);
 
   /// Clears active network simulation profile.
-  void clearNetworkSimulation() => _engine.clearNetworkSimulation();
+  void clearNetworkSimulation() => engine.clearNetworkSimulation();
 
   /// Clears all captured REST and realtime calls.
-  Future<void> clear() => _engine.clear();
+  Future<void> clear() => engine.clear();
 
   /// Clears only REST traffic.
-  Future<void> clearRest() => _engine.clearRest();
+  Future<void> clearRest() => engine.clearRest();
 
   /// Clears only realtime traffic.
-  Future<void> clearRealtime() => _engine.clearRealtime();
-
-  /// Enqueues a captured [RealtimeFrame] into the engine buffer.
-  Future<void> recordRealtimeFrame(RealtimeFrame frame) =>
-      _engine.recordRealtimeFrame(frame);
-
-  /// Returns captured realtime frames for the given connection [sessionId] in FIFO order.
-  List<RealtimeFrame> getRealtimeFrames(String sessionId) =>
-      _engine.getRealtimeFrames(sessionId);
-
-  /// Records opening of a realtime connection (e.g. WebSocket handshake).
-  void recordRealtimeConnection({
-    required String id,
-    required String url,
-    Map<String, String> headers = const {},
-    DateTime? timestamp,
-  }) =>
-      _engine.recordRealtimeConnection(
-        id: id,
-        url: url,
-        headers: headers,
-        timestamp: timestamp,
-      );
-
-  /// Records closing of an active realtime connection with close code and reason.
-  void closeRealtimeConnection(
-    String id, {
-    int closeCode = 1000,
-    String? closeReason,
-  }) =>
-      _engine.closeRealtimeConnection(
-        id,
-        closeCode: closeCode,
-        closeReason: closeReason,
-      );
-
-  @override
-  void dispose() {
-    _engine.removeListener(notifyListeners);
-    if (identical(_sharedInstance, this)) {
-      _sharedInstance = null;
-    }
-    super.dispose();
-  }
+  Future<void> clearRealtime() => engine.clearRealtime();
 }
 
 GlobalKey<NavigatorState>? _activeNavigatorKey;

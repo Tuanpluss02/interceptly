@@ -33,5 +33,5 @@ export 'src/model/realtime_protocol_type.dart'
 export 'src/model/body_truncation.dart' show BodyTruncation, TruncationStage;
 export 'src/model/request_summary.dart' show RequestSummary;
 export 'src/model/search_match_scope.dart' show SearchMatchScope;
-export 'src/session/request_id.dart' show RequestId;
+export 'src/engine/request_id.dart' show RequestId;
 export 'src/ui/format.dart' show formatBytes, formatDuration;

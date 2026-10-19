@@ -110,10 +110,6 @@ class WriterIsolate {
   /// Stream of lifecycle events emitted when the isolate encounters an error or exits.
   Stream<WriterIsolateEvent> get events => _eventController.stream;
 
-  /// Direct handle to the underlying isolate for testing resilience.
-  @visibleForTesting
-  Isolate? get rawIsolate => _isolate;
-
   /// Whether the background isolate has started and is ready to receive writes.
   bool get isReady => _sendPort != null && _isolate != null && !_isDisposed;
 
@@ -398,14 +394,6 @@ Future<void> _isolateEntry(_InitMessage init) async {
     }
   }
 }
-
-@visibleForTesting
-IndexEntry fallbackEntryForTesting(
-  RawCapture capture, [
-  Uint8List? materializedReq,
-  Uint8List? materializedRes,
-]) =>
-    _fallbackEntry(capture, materializedReq, materializedRes);
 
 IndexEntry _fallbackEntry(
   RawCapture capture, [

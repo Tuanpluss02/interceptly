@@ -25,8 +25,7 @@ class RequestDetailPage extends StatefulWidget {
   /// Optional initial query carried over from master list search.
   final String? initialQuery;
 
-  /// Optional time provider for testing live duration ticking.
-  @visibleForTesting
+  /// Optional time provider for custom duration calculation.
   final DateTime Function()? nowProvider;
 
   /// Creates a detail page for [entry].
@@ -34,7 +33,7 @@ class RequestDetailPage extends StatefulWidget {
     super.key,
     required this.entry,
     this.initialQuery,
-    @visibleForTesting this.nowProvider,
+    this.nowProvider,
   });
 
   @override

@@ -7,7 +7,7 @@ import 'package:interceptly/src/ui/tabs/realtime_list_tab.dart';
 import 'package:interceptly/src/ui/widgets/interceptly_confirm_dialog.dart';
 import 'package:interceptly/src/ui/widgets/toast_notification.dart';
 
-import '../../core/interceptly_engine.dart';
+import '../../engine/interceptly_engine.dart';
 import '../scope/interceptly_scope.dart';
 
 /// Main inspector screen showing captured network calls and actions.

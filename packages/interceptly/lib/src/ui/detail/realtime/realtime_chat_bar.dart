@@ -80,12 +80,14 @@ class _RealtimeChatBarState extends State<RealtimeChatBar> {
 
   bool get _effectiveCanSend =>
       widget.canSend ??
-      InterceptlyScope.maybeOf(context)?.canSendRealtimeMessage(widget.sessionId) ??
+      InterceptlyScope.maybeOf(context)
+          ?.canSendRealtimeMessage(widget.sessionId) ??
       false;
 
   RealtimeProtocolType get _effectiveProtocol =>
       widget.protocolType ??
-      InterceptlyScope.maybeOf(context)?.getRealtimeProtocol(widget.sessionId) ??
+      InterceptlyScope.maybeOf(context)
+          ?.getRealtimeProtocol(widget.sessionId) ??
       RealtimeProtocolType.webSocket;
 
   bool get _isSendEnabled {

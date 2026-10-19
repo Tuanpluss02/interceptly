@@ -4,8 +4,8 @@ import '../capture/capture_guard.dart';
 import '../capture/frame_normalizer.dart';
 import '../model/realtime_frame.dart';
 import '../model/realtime_protocol_type.dart';
-import '../core/interceptly_engine.dart';
-import '../session/request_id.dart';
+import '../engine/interceptly_engine.dart';
+import '../engine/request_id.dart';
 import 'realtime_session_scope.dart';
 
 /// Contract for coordinating realtime network traffic (WebSocket, SSE, Socket.IO).

@@ -13,7 +13,7 @@ class RealtimeListTab extends StatefulWidget {
   /// Creates a realtime-only list.
   const RealtimeListTab({
     super.key,
-    @visibleForTesting this.nowProvider,
+    this.nowProvider,
   });
 
   /// Clock used for live duration of active connections.

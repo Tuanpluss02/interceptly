@@ -1,12 +1,13 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../adapter/realtime_traffic_collector.dart';
-import '../model/body_location.dart';
+import 'capture_pipeline.dart';
+import 'detail_loader.dart';
+import 'memory_index.dart';
+import 'pending_tracker.dart';
+import 'realtime_store.dart';
 import '../model/index_entry.dart';
 import '../model/interceptly_settings.dart';
 import '../model/network_simulation.dart';
@@ -15,13 +16,6 @@ import '../model/realtime_frame.dart';
 import '../model/realtime_protocol_type.dart';
 import '../model/request_record.dart';
 import '../model/request_summary.dart';
-import '../session/capture_pipeline.dart';
-import '../session/detail_loader.dart';
-import '../session/memory_index.dart';
-import '../session/pending_tracker.dart';
-import '../session/realtime_body_store.dart';
-import '../session/realtime_store.dart';
-import '../session/writer_isolate.dart';
 import '../simulation/network_simulation_service.dart';
 
 /// Central headless data engine for Interceptly.
@@ -54,7 +48,6 @@ class InterceptlyEngine extends ChangeNotifier {
       maxTotalRealtimeFrames: _settings.maxTotalRealtimeFrames,
       onThrottledBatch: notifyListeners,
     );
-    _realtimeBodyStore = RealtimeBodyStore();
     _detailLoader = DetailLoader(
       memoryIndex: _memoryIndex,
       tempFilePathProvider: () => _capturePipeline.tempFilePath,
@@ -93,10 +86,7 @@ class InterceptlyEngine extends ChangeNotifier {
   late final CapturePipeline _capturePipeline;
   late final PendingTracker _pendingTracker;
   late final RealtimeStore _realtimeStore;
-  late final RealtimeBodyStore _realtimeBodyStore;
   late final DetailLoader _detailLoader;
-  String? _realtimeDirPath;
-  Future<void>? _realtimeBodyStoreInitFuture;
 
   NetworkSimulationProfile _networkSimulation = NetworkSimulationProfile.none;
   Future<void>? _clearFuture;
@@ -172,33 +162,14 @@ class InterceptlyEngine extends ChangeNotifier {
       _applySettings(newSettings);
 
   /// Initializes background workers and disk storage.
-  Future<void> initialize() => _capturePipeline.initialize();
-
-  Future<void> _ensureRealtimeBodyStoreInitialized() {
-    if (_realtimeBodyStore.isInitialized || _isDisposed) {
-      return Future<void>.value();
-    }
-    return _realtimeBodyStoreInitFuture ??= _performRealtimeBodyStoreInit();
-  }
-
-  Future<void> _performRealtimeBodyStoreInit() async {
-    if (_realtimeBodyStore.isInitialized || _isDisposed) return;
-    String dirPath;
+  Future<void> initialize() async {
+    await _capturePipeline.initialize();
     if (_settings.persistToDisk) {
-      try {
-        final dir = await getTemporaryDirectory();
-        dirPath = dir.path;
-      } catch (_) {
-        dirPath = Directory.systemTemp.path;
-      }
-    } else {
-      dirPath = Directory.systemTemp.path;
+      unawaited(_realtimeStore.ensureDiskStorageInitialized(
+        persistToDisk: true,
+        engineId: engineId,
+      ));
     }
-    _realtimeDirPath = dirPath;
-    await _realtimeBodyStore.initForWrite(
-      dirPath,
-      fileName: 'interceptly_${engineId}_realtime.tmp',
-    );
   }
 
   void _onCaptureReady(IndexEntry entry) {
@@ -230,18 +201,6 @@ class InterceptlyEngine extends ChangeNotifier {
       }
     }
   }
-
-  /// Manually dispatches an incoming [entry] through the ingestion pipeline for testing.
-  @visibleForTesting
-  void handleEntryReadyForTesting(IndexEntry entry) => _onCaptureReady(entry);
-
-  /// Access to the underlying capture pipeline for testing.
-  @visibleForTesting
-  CapturePipeline get capturePipeline => _capturePipeline;
-
-  /// Access to the underlying writer isolate for testing.
-  @visibleForTesting
-  WriterIsolate get writerIsolate => _capturePipeline.writerIsolate;
 
   void _onPendingTimeout(IndexEntry timedOutEntry) {
     _entriesVersion++;
@@ -365,83 +324,17 @@ class InterceptlyEngine extends ChangeNotifier {
       final entry = _memoryIndex.byId(frame.sessionId);
       if (entry == null) return Future<void>.value();
     }
-
-    if (_settings.persistToDisk &&
-        frame.location == BodyLocation.memory &&
-        frame.payloadSizeBytes >= _settings.realtimeBodyOffloadThreshold) {
-      _realtimeStore.recordFrame(frame);
-      return _offloadAndReplaceFrame(frame);
-    } else {
-      _realtimeStore.recordFrame(frame);
-      return Future<void>.value();
-    }
+    return _realtimeStore.recordFrame(
+      frame,
+      persistToDisk: _settings.persistToDisk,
+      offloadThreshold: _settings.realtimeBodyOffloadThreshold,
+      engineId: engineId,
+    );
   }
 
-  Future<void> _offloadAndReplaceFrame(RealtimeFrame frame) async {
-    await _ensureRealtimeBodyStoreInitialized();
-    final Uint8List bytes = frame.preEncodedBytes ??
-        (frame.type == FrameType.text
-            ? Uint8List.fromList(utf8.encode(frame.textPayload ?? ''))
-            : frame.binaryPayload ?? Uint8List(0));
-
-    try {
-      final (offset, length, rotation) = await _realtimeBodyStore.append(bytes);
-
-      final offloaded = RealtimeFrame.offloaded(
-        id: frame.id,
-        sessionId: frame.sessionId,
-        direction: frame.direction,
-        timestamp: frame.timestamp,
-        type: frame.type,
-        payloadSizeBytes: frame.payloadSizeBytes,
-        shortPreview: frame.shortPreview,
-        fileOffset: offset,
-        fileLength: length,
-        rotationCount: rotation,
-        eventName: frame.eventName,
-      );
-
-      _realtimeStore.replaceFrame(offloaded);
-    } catch (error) {
-      debugPrint(
-        '[Interceptly] realtime body offload fallback to memory: $error',
-      );
-    }
-  }
-
-  Future<dynamic> loadRealtimePayload(RealtimeFrame frame) async {
-    if (frame.location == BodyLocation.memory) {
-      if (frame.type == FrameType.text) {
-        return frame.textPayload ?? '';
-      }
-      return frame.binaryPayload ?? Uint8List(0);
-    }
-
-    if (frame.rotationCount != null &&
-        frame.rotationCount! < _realtimeBodyStore.rotationCount) {
-      return '[Payload expired due to file rotation]';
-    }
-
-    if (!_realtimeBodyStore.isInitialized) {
-      return '[Payload unavailable: store uninitialized]';
-    }
-
-    final offset = frame.fileOffset;
-    final length = frame.fileLength;
-    if (offset == null || length == null || length <= 0) {
-      return frame.type == FrameType.text ? '' : Uint8List(0);
-    }
-
-    try {
-      final bytes = await _realtimeBodyStore.readBytes(offset, length);
-      if (frame.type == FrameType.text) {
-        return utf8.decode(bytes, allowMalformed: true);
-      }
-      return bytes;
-    } catch (e) {
-      return '[Error loading payload: $e]';
-    }
-  }
+  /// Loads full payload for [frame] asynchronously from disk or memory.
+  Future<dynamic> loadRealtimePayload(RealtimeFrame frame) =>
+      _realtimeStore.loadPayload(frame);
 
   List<RealtimeFrame> getRealtimeFrames(String sessionId) =>
       _realtimeStore.getRealtimeFrames(sessionId);
@@ -589,11 +482,8 @@ class InterceptlyEngine extends ChangeNotifier {
       if (!_isDisposed) {
         notifyListeners();
       }
-      if (isRealtime &&
-          _realtimeBodyStore.isInitialized &&
-          _realtimeDirPath != null) {
-        await _realtimeBodyStore.resetFile(_realtimeDirPath!);
-        _realtimeBodyStoreInitFuture = null;
+      if (isRealtime) {
+        await _realtimeStore.resetDiskStorage();
       }
     } finally {
       _clearFuture = null;
@@ -617,10 +507,7 @@ class InterceptlyEngine extends ChangeNotifier {
       if (!_isDisposed) {
         notifyListeners();
       }
-      if (_realtimeBodyStore.isInitialized && _realtimeDirPath != null) {
-        await _realtimeBodyStore.resetFile(_realtimeDirPath!);
-      }
-      _realtimeBodyStoreInitFuture = null;
+      await _realtimeStore.resetDiskStorage();
     } finally {
       _clearFuture = null;
     }
@@ -635,41 +522,14 @@ class InterceptlyEngine extends ChangeNotifier {
     if (identical(_instance, this)) {
       _instance = null;
     }
-    _realtimeBodyStoreInitFuture = null;
     _coalesceNotifyTimer?.cancel();
     _coalesceNotifyTimer = null;
     _hasPendingCoalescedNotify = false;
     _enabled = false;
-    _realtimeStore.dispose();
     _pendingTracker.dispose();
     _memoryIndex.clear();
     await _capturePipeline.dispose();
-    await _realtimeBodyStore.dispose();
+    await _realtimeStore.dispose();
     super.dispose();
   }
-
-  /// Forces file rotation on the engine's [RealtimeBodyStore] for testing.
-  @visibleForTesting
-  Future<void> rotateRealtimeBodyStoreForTesting() =>
-      _realtimeBodyStore.rotate();
-
-  /// Current byte offset in [RealtimeBodyStore] for testing.
-  @visibleForTesting
-  int get realtimeBodyStoreCurrentOffsetForTesting =>
-      _realtimeBodyStore.currentOffset;
-
-  /// Underlying [RealtimeBodyStore] for testing.
-  @visibleForTesting
-  RealtimeBodyStore get realtimeBodyStoreForTesting => _realtimeBodyStore;
-
-  /// Total count of realtime frames currently retained across all connections for testing.
-  @visibleForTesting
-  int get totalRealtimeFramesForTesting =>
-      _realtimeStore.totalFramesAcrossSessions;
-
-  /// Flushes pending operations in [RealtimeBodyStore] for testing.
-  @visibleForTesting
-  Future<void> flushRealtimeBodyStoreForTesting() =>
-      // ignore: invalid_use_of_visible_for_testing_member
-      _realtimeBodyStore.flushForTesting();
 }
