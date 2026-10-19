@@ -1,0 +1,91 @@
+import 'package:interceptly/adapter.dart';
+import 'package:socket_io_client/socket_io_client.dart';
+
+import 'socket_io_sender.dart';
+import 'socket_io_tracker.dart';
+
+/// Entry point for attaching Interceptly network inspection to Socket.IO clients.
+class InterceptlySocketIo {
+  InterceptlySocketIo._();
+
+  /// Attaches Interceptly network capture to [socket].
+  ///
+  /// Listens to incoming and outgoing events, records connection lifecycle,
+  /// and enables interactive event emission and replay from the Interceptly UI.
+  static InterceptlySocketIoTracker attach(
+    Socket socket, {
+    Uri? uri,
+    Map<String, String>? headers,
+    String? sessionId,
+    RealtimeTrafficCollector? collector,
+  }) {
+    final effectiveCollector = collector ?? RealtimeTrafficCollector.instance;
+    final resolvedUri = _resolveUri(socket, uri);
+
+    final scope = effectiveCollector.openSession(
+      uri: resolvedUri,
+      protocolType: RealtimeProtocolType.socketIo,
+      headers: headers,
+      sessionId: sessionId,
+    );
+
+    final sender = SocketIoSender(socket, scope);
+    scope.attachSender(sender);
+
+    return InterceptlySocketIoTracker(
+      socket: socket,
+      scope: scope,
+      collector: effectiveCollector,
+    );
+  }
+
+  static Uri _resolveUri(Socket socket, Uri? explicitUri) {
+    if (explicitUri != null) return explicitUri;
+    try {
+      final rawUri = socket.io.uri;
+      final parsed = Uri.tryParse(rawUri);
+      if (parsed != null && parsed.hasScheme && parsed.host.isNotEmpty) {
+        if (socket.nsp.isNotEmpty &&
+            socket.nsp != '/' &&
+            !parsed.path.endsWith(socket.nsp)) {
+          final newPath = parsed.path.endsWith('/')
+              ? '${parsed.path}${socket.nsp.substring(1)}'
+              : '${parsed.path}${socket.nsp}';
+          return parsed.replace(path: newPath);
+        }
+        return parsed;
+      }
+    } catch (_) {
+      // socket.io may be uninitialized or throw in test doubles
+    }
+
+    try {
+      final nsp = socket.nsp;
+      return Uri(
+        scheme: 'http',
+        host: 'socket-io',
+        path: nsp.isNotEmpty ? nsp : '/',
+      );
+    } catch (_) {
+      return Uri(scheme: 'http', host: 'socket-io', path: '/');
+    }
+  }
+}
+
+/// Extension on [Socket] for convenient Interceptly inspector attachment.
+extension InterceptlySocketIoExtension on Socket {
+  /// Attaches Interceptly network capture to this [Socket].
+  InterceptlySocketIoTracker attachInterceptly({
+    Uri? uri,
+    Map<String, String>? headers,
+    String? sessionId,
+    RealtimeTrafficCollector? collector,
+  }) =>
+      InterceptlySocketIo.attach(
+        this,
+        uri: uri,
+        headers: headers,
+        sessionId: sessionId,
+        collector: collector,
+      );
+}
