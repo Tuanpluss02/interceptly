@@ -37,7 +37,7 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_channel, null);
     final session = InspectorSession.instance;
-    session.clear();
+    await session.clear();
     try {
       if (tempDir.existsSync()) {
         await tempDir.delete(recursive: true);
