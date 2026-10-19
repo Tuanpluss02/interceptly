@@ -13,7 +13,7 @@ import 'package:interceptly/src/ui/detail/realtime/realtime_filter_header.dart';
 import 'package:interceptly/src/ui/detail/realtime/realtime_payload_view.dart';
 import 'package:interceptly/src/ui/detail/realtime_detail_page.dart';
 import 'package:interceptly/src/ui/detail/realtime_messages_tab.dart';
-import 'package:interceptly/src/ui/tabs/network_tab.dart';
+import 'package:interceptly/src/ui/tabs/realtime_list_tab.dart';
 import 'package:interceptly/src/ui/widgets/json_viewer/json_viewer.dart';
 
 class _MockSession extends ChangeNotifier implements InspectorSessionView {
@@ -1014,7 +1014,7 @@ void main() {
       });
 
       testWidgets(
-          'live frame arrivals update only the row counter badge without rebuilding parent NetworkTab list',
+          'live frame arrivals update only the row counter badge without rebuilding parent RealtimeListTab',
           (tester) async {
         final session = InspectorSession();
         addTearDown(session.dispose);
@@ -1031,13 +1031,14 @@ void main() {
               body: Builder(
                 builder: (context) {
                   buildCount++;
-                  return NetworkTab(session: session);
+                  return RealtimeListTab(session: session);
                 },
               ),
             ),
           ),
         );
-        await tester.pumpAndSettle();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
 
         // Initially 0 IN, 0 OUT
         expect(find.textContaining('↓ 0  ↑ 0'), findsOneWidget);
