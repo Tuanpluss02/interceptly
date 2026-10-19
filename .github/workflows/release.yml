@@ -1,10 +1,10 @@
-name: Release & Publish
+name: Release & Versioning
 
 on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Dry run (preview versions/changelog without publishing or pushing tags)'
+        description: 'Dry run (preview versions/changelog without committing or pushing tags)'
         required: true
         type: boolean
         default: true
@@ -14,35 +14,30 @@ on:
         type: boolean
         default: false
       manual_version:
-        description: 'Manual version override (e.g. interceptly:2.1.1, interceptly:patch, or leave empty for auto)'
+        description: 'Manual version override (e.g. interceptly:2.2.0, or leave empty for auto)'
         required: false
         type: string
         default: ''
-  push:
-    tags:
-      - '*-v*'
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-versioning
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Melos Release & Pub.dev Publish
+  version:
+    name: Melos Versioning & Tagging
     runs-on: ubuntu-latest
     permissions:
-      id-token: write # Required for Pub.dev OIDC authentication
-      contents: write # Required for pushing git tags and creating releases
-      pull-requests: read
+      contents: write # Required for pushing git commits and tags
 
     steps:
       - name: Checkout repository (full history for SemVer tagging)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
 
-      - name: Setup Dart SDK (provision pub.dev OIDC token)
+      - name: Setup Dart SDK
         uses: dart-lang/setup-dart@v1
 
       - name: Setup Flutter
@@ -65,9 +60,9 @@ jobs:
       - name: Pre-release Quality Gate
         run: melos run check
 
-      # --- 1. Versioning Step (manual dispatch only) ---
+      # --- Dry Run Versioning ---
       - name: Preview Versioning (Dry Run)
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' }}
+        if: ${{ github.event.inputs.dry_run == 'true' }}
         run: |
           echo "::notice::Running Melos versioning in DRY RUN mode..."
           EXTRA_ARGS=""
@@ -77,14 +72,13 @@ jobs:
           if [ -n "${{ github.event.inputs.manual_version }}" ]; then
             EXTRA_ARGS="$EXTRA_ARGS --manual-version=${{ github.event.inputs.manual_version }}"
           fi
-          melos version --yes --no-git-tag-version $EXTRA_ARGS
-          echo "=== CHANGELOG DIFF PREVIEW ==="
+          echo "N" | melos version --yes --no-git-tag-version --no-git-commit-version $EXTRA_ARGS
+          echo "=== CHANGELOG & PUBSPEC DIFF PREVIEW ==="
           git diff
-          git add -A
-          git commit -m "chore(release): temporary dry-run commit" || true
 
+      # --- Apply Versioning & Push Tags ---
       - name: Apply Versioning & Push Tags
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run != 'true' }}
+        if: ${{ github.event.inputs.dry_run != 'true' }}
         run: |
           echo "::notice::Applying Melos versioning and pushing release tags..."
           EXTRA_ARGS=""
@@ -94,42 +88,6 @@ jobs:
           if [ -n "${{ github.event.inputs.manual_version }}" ]; then
             EXTRA_ARGS="$EXTRA_ARGS --manual-version=${{ github.event.inputs.manual_version }}"
           fi
-          melos version --yes $EXTRA_ARGS
+          echo "N" | melos version --yes $EXTRA_ARGS
           git push --follow-tags origin main
-
-      # --- 2. Pub.dev Publishing via OIDC ---
-      - name: Publish Packages to Pub.dev (Dry Run)
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' }}
-        run: |
-          echo "::notice::Running Melos publish in DRY RUN mode..."
-          echo "=== GIT STATUS BEFORE PUBLISH DRY-RUN (must be clean) ==="
-          git status --porcelain
-          melos publish --yes --dry-run
-
-      - name: Publish Packages to Pub.dev via OIDC
-        if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run != 'true') }}
-        env:
-          PUB_HOSTED_URL: https://pub.dev
-        run: |
-          echo "::notice::Publishing packages to pub.dev with OIDC token..."
-          melos publish --yes --no-dry-run
-
-      # --- 3. GitHub Releases Creation ---
-      - name: Create GitHub Releases
-        if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run != 'true') }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            TAG="${{ github.ref_name }}"
-            echo "Creating GitHub Release for tag: $TAG..."
-            gh release create "$TAG" --title "$TAG" --generate-notes || true
-          else
-            for tag in $(git tag --points-at HEAD); do
-              echo "Creating GitHub Release for $tag..."
-              gh release create "$tag" \
-                --title "$tag" \
-                --generate-notes \
-                ${{ github.event.inputs.prerelease == 'true' && '--prerelease' || '' }} || true
-            done
-          fi
+          echo "::notice::Release tags pushed successfully. Publish workflow will now trigger per-package on tag push."

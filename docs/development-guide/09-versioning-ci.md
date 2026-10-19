@@ -56,31 +56,37 @@ void completeResponse({
 
 ---
 
-## 9.3 Release Workflow
+## 9.3 Release & Publishing Architecture (Two-Stage Monorepo OIDC)
 
-### Trigger (Manual)
+Pub.dev enforces that OIDC publishing is strictly allowed from Git Tag events (`refType: tag`). Branch runs (`workflow_dispatch` on `main`) are rejected by pub.dev. Furthermore, in a monorepo, each package has its own unique tag pattern on pub.dev.
 
-1. GitHub Actions → **Release & Publish** → **Run workflow**
-2. `dry_run: true` (default) → Preview version bumps + changelog diffs
-3. `dry_run: false` → Actual release
+Therefore, releasing follows a clean two-stage architecture:
 
-### Automated Steps
+```
+Stage 1: Versioning & Tagging (release.yml - workflow_dispatch)
+  ↓ Checks quality gate (`melos run check`)
+  ↓ Calculates versions & generates changelogs (`melos version --yes`)
+  ↓ Pushes commits & Git tags (`git push --follow-tags`) with RELEASE_PAT
 
-```yaml
-# release.yml
-- Run quality checks: melos run check
-- Bump versions & changelog: melos version --yes
-- Commit & push git tags: <package>-v<version>
-- Publish via OIDC: melos publish --yes
-- Create GitHub Releases with auto-generated notes
+Stage 2: Package Publishing via OIDC (publish.yml - on: push: tags: '*-v*')
+  ↓ Runs per tag push event with `refType: tag`
+  ↓ Resolves package name from tag: `interceptly-v2.2.0` → `interceptly`
+  ↓ Publishes ONLY that package: `melos publish --yes --no-dry-run --scope=$PACKAGE`
+  ↓ Generates GitHub Release for the tag (`gh release create`)
 ```
 
 ### Pub.dev OIDC Setup (One-Time Per Package)
 
 1. Go to `https://pub.dev/packages/<package>/admin`
 2. **Automated publishing** → Check "Publish using GitHub Actions"
-3. Repository: `Tuanpluss02/interceptly`
-4. Save
+3. **Repository**: `Tuanpluss02/interceptly`
+4. **Tag pattern**:
+   - `interceptly`: `interceptly-v{{version}}`
+   - `interceptly_dio`: `interceptly_dio-v{{version}}`
+   - `interceptly_http`: `interceptly_http-v{{version}}`
+   - `interceptly_chopper`: `interceptly_chopper-v{{version}}`
+   - `interceptly_web_socket`: `interceptly_web_socket-v{{version}}`
+5. Save.
 
 ---
 
@@ -89,7 +95,8 @@ void completeResponse({
 | Workflow | File | Trigger | Jobs |
 |----------|------|---------|------|
 | **PR Validation** | `ci.yml` | PR/push to main | `lint-and-format` → `test` → `pana-and-example` |
-| **Release** | `release.yml` | Manual dispatch | `release` (quality → version → publish) |
+| **Release & Versioning** | `release.yml` | Manual dispatch | `version` (quality → version → push tags) |
+| **Publish to Pub.dev** | `publish.yml` | Tag push (`*-v*`) | `publish` (OIDC publish per-package + GitHub Release) |
 | **PR Title** | `semantic-pr.yml` | PR opened | Validates Conventional Commits |
 
 ### Job Details
@@ -120,24 +127,31 @@ void completeResponse({
 - setup Flutter
 - install Melos, pana, dartdoc
 - melos bootstrap
-- melos run pana          # 160/160 all packages
+- melos run pana          # 160/160 interceptly
 - cd packages/interceptly/example
 - flutter analyze
 - flutter test
 ```
 
-#### `release.yml` — `release` (ubuntu-latest)
+#### `release.yml` — `version` (ubuntu-latest)
 ```yaml
-- checkout (fetch-depth: 0 for tags)
-- setup Dart (OIDC token)
-- setup Flutter
-- install Melos
-- melos bootstrap
-- melos run check         # Quality gate
+- checkout (fetch-depth: 0 with RELEASE_PAT || GITHUB_TOKEN)
+- setup Dart & Flutter
+- install Melos & bootstrap
+- melos run check         # Pre-release quality gate
 - melos version           # Version bump + changelog
 - git push --follow-tags
-- melos publish (OIDC)    # Pub.dev
-- gh release create       # GitHub Releases
+```
+
+#### `publish.yml` — `publish` (ubuntu-latest, on: push: tags: '*-v*')
+```yaml
+- checkout (fetch-depth: 0)
+- setup Dart (OIDC token with refType: tag)
+- setup Flutter
+- install Melos & bootstrap
+- resolve package name from tag (e.g. interceptly-v2.2.0 -> interceptly)
+- melos publish --scope=$PACKAGE_NAME
+- gh release create
 ```
 
 ---

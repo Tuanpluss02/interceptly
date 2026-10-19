@@ -1,0 +1,75 @@
+name: Publish Package to Pub.dev
+
+on:
+  push:
+    tags:
+      - '*-v*'
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish to Pub.dev
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # Required for Pub.dev OIDC authentication
+      contents: write # Required for creating GitHub Releases
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Dart SDK (provision pub.dev OIDC token)
+        uses: dart-lang/setup-dart@v1
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Melos
+        run: dart pub global activate melos
+
+      - name: Bootstrap Melos workspace
+        run: melos bootstrap
+
+      - name: Resolve Target Package from Tag
+        id: resolve
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          # Expected format: <package_name>-v<version>
+          # Example: interceptly-v2.2.0 -> interceptly
+          # Example: interceptly_dio-v1.2.0 -> interceptly_dio
+          PACKAGE_NAME="${TAG_NAME%%-v*}"
+          VERSION="${TAG_NAME#*-v}"
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+          echo "package_name=$PACKAGE_NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "::notice::Tag: '$TAG_NAME' -> Package: '$PACKAGE_NAME', Version: '$VERSION'"
+
+      - name: Clean Working Tree
+        run: |
+          echo "Cleaning untracked or modified files before publishing..."
+          git checkout -- . || true
+          git clean -fd || true
+
+      - name: Publish Package via OIDC
+        env:
+          PUB_HOSTED_URL: https://pub.dev
+        run: |
+          PACKAGE="${{ steps.resolve.outputs.package_name }}"
+          echo "::notice::Publishing package $PACKAGE to pub.dev via OIDC..."
+          melos publish --yes --no-dry-run --scope="$PACKAGE"
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="${{ steps.resolve.outputs.tag_name }}"
+          echo "Creating GitHub Release for $TAG_NAME..."
+          gh release create "$TAG_NAME" --title "$TAG_NAME" --generate-notes || true
