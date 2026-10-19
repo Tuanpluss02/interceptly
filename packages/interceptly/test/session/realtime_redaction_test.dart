@@ -3,10 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
-import 'package:interceptly/src/adapter/realtime_traffic_collector.dart';
 import 'package:interceptly/src/engine/interceptly_engine.dart';
-import 'package:interceptly/src/model/interceptly_settings.dart';
-import 'package:interceptly/src/model/realtime_frame.dart';
 
 void main() {
   setUp(() async {
