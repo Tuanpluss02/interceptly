@@ -167,6 +167,7 @@ void main() {
             'since_id': '100',
             'status_filter': 'failed',
             'search': 'users',
+            'search_body': false,
             'limit': 10,
           },
         ),
@@ -181,6 +182,7 @@ void main() {
       expect(lastArgs['since_id'], '100');
       expect(lastArgs['status_filter'], 'failed');
       expect(lastArgs['search'], 'users');
+      expect(lastArgs['search_body'], 'false');
       expect(lastArgs['limit'], '10');
     });
 

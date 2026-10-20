@@ -83,7 +83,7 @@ base class InterceptlyMcpServer extends MCPServer
   final Tool _listRequestsTool = Tool(
     name: 'list_requests',
     description:
-        'Lists recorded network requests with optional filtering and cursor pagination.',
+        'Lists recorded network requests with optional filtering, deep multi-phase search, and cursor pagination.',
     inputSchema: Schema.object(
       properties: {
         'since_id': Schema.string(
@@ -97,7 +97,11 @@ base class InterceptlyMcpServer extends MCPServer
         ),
         'search': Schema.string(
           description:
-              'Filter by substring match on URL path, method, or query parameters.',
+              'Search query to filter requests across URL, method, headers (request and response), error messages, and payload bodies.',
+        ),
+        'search_body': Schema.bool(
+          description:
+              'Whether to search within request and response bodies (default: true). Set to false for metadata-only search.',
         ),
         'limit': Schema.int(
           description:
@@ -246,6 +250,9 @@ base class InterceptlyMcpServer extends MCPServer
       }
       if (request.arguments?['search'] case final String search) {
         args['search'] = search;
+      }
+      if (request.arguments?['search_body'] case final bool searchBody) {
+        args['search_body'] = searchBody.toString();
       }
       if (request.arguments?['limit'] case final int limit) {
         args['limit'] = limit.toString();
