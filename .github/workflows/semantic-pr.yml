@@ -33,10 +33,13 @@ jobs:
             revert
           scopes: |
             interceptly
+            interceptly_mcp
+            mcp
             dio
             http
             chopper
             web_socket
+            socket_io
             example
             deps
             release
