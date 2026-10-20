@@ -19,6 +19,7 @@ import 'body_store.dart';
 class MasterSearchController extends ChangeNotifier {
   String? _query;
   List<IndexEntry>? _results;
+  final Set<String> _matchedIds = {};
   final Map<String, Set<SearchMatchScope>> _matchScopes = {};
   bool _isScanningBodies = false;
   bool _isScanningFiles = false;
@@ -59,6 +60,7 @@ class MasterSearchController extends ChangeNotifier {
     _throttleTimer = null;
     _query = null;
     _results = null;
+    _matchedIds.clear();
     _matchScopes.clear();
     _isScanningBodies = false;
     _isScanningFiles = false;
@@ -74,6 +76,7 @@ class MasterSearchController extends ChangeNotifier {
     _throttleTimer = null;
     _query = null;
     _results = null;
+    _matchedIds.clear();
     _matchScopes.clear();
     _isScanningBodies = false;
     _isScanningFiles = false;
@@ -104,19 +107,18 @@ class MasterSearchController extends ChangeNotifier {
 
     _query = trimmed;
     _results = [];
+    _matchedIds.clear();
     _matchScopes.clear();
     _isScanningBodies = false;
     _isScanningFiles = false;
     _notifyThrottled(force: true);
-
-    final matchedIds = <String>{};
 
     for (var i = 0; i < entriesSnapshot.length; i++) {
       if (gen != _generation || _isDisposed) return;
       final e = entriesSnapshot[i];
       final scopes = _checkStructuredScopes(e, q);
       if (scopes.isNotEmpty) {
-        matchedIds.add(e.id);
+        _matchedIds.add(e.id);
         _results?.add(e);
         _matchScopes[e.id] = scopes;
       }
@@ -133,8 +135,8 @@ class MasterSearchController extends ChangeNotifier {
       if (gen != _generation || _isDisposed) return;
       final e = entriesSnapshot[i];
       if (e.bodyLocation == BodyLocation.memory && _matchesInlineBody(e, q)) {
-        if (!matchedIds.contains(e.id)) {
-          matchedIds.add(e.id);
+        if (!_matchedIds.contains(e.id)) {
+          _matchedIds.add(e.id);
           _results?.add(e);
           _matchScopes[e.id] = {SearchMatchScope.body};
           _notifyThrottled();
@@ -161,7 +163,7 @@ class MasterSearchController extends ChangeNotifier {
             e.fileRotationCount! < currentFileRotationCount;
         if (!isExpiredByRotation &&
             e.bodyLocation == BodyLocation.file &&
-            !matchedIds.contains(e.id) &&
+            !_matchedIds.contains(e.id) &&
             e.fileOffset != null &&
             e.fileLength != null) {
           fileEntries.add((e, e.fileOffset!, e.fileLength!));
@@ -182,8 +184,8 @@ class MasterSearchController extends ChangeNotifier {
                 final combined =
                     '${decoded.$1 ?? ''}\n${decoded.$2 ?? ''}'.toLowerCase();
                 if (combined.contains(q)) {
-                  if (!matchedIds.contains(e.id)) {
-                    matchedIds.add(e.id);
+                  if (!_matchedIds.contains(e.id)) {
+                    _matchedIds.add(e.id);
                     _results?.add(e);
                     hasNewMatch = true;
                   }
@@ -247,8 +249,8 @@ class MasterSearchController extends ChangeNotifier {
               var hasNewMatch = false;
               for (final (matched, e) in results) {
                 if (matched && e != null) {
-                  if (!matchedIds.contains(e.id)) {
-                    matchedIds.add(e.id);
+                  if (!_matchedIds.contains(e.id)) {
+                    _matchedIds.add(e.id);
                     _results?.add(e);
                     hasNewMatch = true;
                   }
@@ -291,33 +293,64 @@ class MasterSearchController extends ChangeNotifier {
       scopes.add(SearchMatchScope.body);
     }
 
-    final existingIndex = _results!.indexWhere((e) => e.id == entry.id);
+    // Preserve existing file-backed body match if entry is file-backed and already matched body
+    final existingScopes = _matchScopes[entry.id];
+    if (existingScopes != null &&
+        existingScopes.contains(SearchMatchScope.body) &&
+        entry.bodyLocation == BodyLocation.file) {
+      scopes.add(SearchMatchScope.body);
+    }
+
+    final isExisting = _matchedIds.contains(entry.id);
 
     if (scopes.isNotEmpty) {
-      if (existingIndex >= 0) {
-        _results![existingIndex] = entry;
+      if (isExisting) {
+        final existingIndex = _results!.indexWhere((e) => e.id == entry.id);
+        if (existingIndex >= 0) {
+          _results![existingIndex] = entry;
+        } else {
+          _results!.insert(0, entry);
+        }
       } else {
         _results!.insert(0, entry);
+        _matchedIds.add(entry.id);
       }
       _matchScopes[entry.id] = scopes;
       _notifyThrottled();
     } else {
-      if (existingIndex >= 0) {
-        _results!.removeAt(existingIndex);
+      if (isExisting) {
+        _results!.removeWhere((e) => e.id == entry.id);
+        _matchedIds.remove(entry.id);
         _matchScopes.remove(entry.id);
         _notifyThrottled();
       }
     }
   }
 
+  /// Records a file-backed body match for testing purposes.
+  @visibleForTesting
+  void recordFileMatchForTesting(IndexEntry entry) {
+    if (_results == null) return;
+    if (!_matchedIds.contains(entry.id)) {
+      _matchedIds.add(entry.id);
+      _results!.insert(0, entry);
+    }
+    (_matchScopes[entry.id] ??= <SearchMatchScope>{})
+        .add(SearchMatchScope.body);
+  }
+
   /// Prunes any search results whose IDs are not present in [validIds].
   void pruneMissing(Set<String> validIds) {
-    if (_isDisposed || _results == null) return;
+    if (_isDisposed || _results == null || _matchedIds.isEmpty) return;
+    final hasMissing = _matchedIds.any((id) => !validIds.contains(id));
+    if (!hasMissing) return;
+
     var removed = false;
     for (var i = _results!.length - 1; i >= 0; i--) {
       final id = _results![i].id;
       if (!validIds.contains(id)) {
         _results!.removeAt(i);
+        _matchedIds.remove(id);
         _matchScopes.remove(id);
         removed = true;
       }

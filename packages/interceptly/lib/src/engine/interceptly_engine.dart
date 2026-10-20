@@ -93,6 +93,7 @@ class InterceptlyEngine extends ChangeNotifier {
   bool _enabled = true;
   bool _isDisposed = false;
   int _entriesVersion = 0;
+  final List<IndexEntry> _recentChangedEntries = [];
   Timer? _coalesceNotifyTimer;
   bool _hasPendingCoalescedNotify = false;
 
@@ -102,6 +103,10 @@ class InterceptlyEngine extends ChangeNotifier {
   bool get isDisposed => _isDisposed;
 
   int get entriesVersion => _entriesVersion;
+
+  /// Entries that were added or updated since the last notification cycle.
+  List<IndexEntry> get recentChangedEntries =>
+      List.unmodifiable(_recentChangedEntries);
 
   bool get isEnabled => _enabled;
 
@@ -175,6 +180,7 @@ class InterceptlyEngine extends ChangeNotifier {
   void _onCaptureReady(IndexEntry entry) {
     _entriesVersion++;
     _memoryIndex.add(entry);
+    _recentChangedEntries.add(entry);
     _scheduleCoalescedNotify();
   }
 
@@ -186,6 +192,7 @@ class InterceptlyEngine extends ChangeNotifier {
       if (_hasPendingCoalescedNotify && !_isDisposed) {
         _hasPendingCoalescedNotify = false;
         notifyListeners();
+        _recentChangedEntries.clear();
       }
     });
   }
@@ -198,13 +205,16 @@ class InterceptlyEngine extends ChangeNotifier {
       if (_hasPendingCoalescedNotify && !_isDisposed) {
         _hasPendingCoalescedNotify = false;
         notifyListeners();
+        _recentChangedEntries.clear();
       }
     }
   }
 
   void _onPendingTimeout(IndexEntry timedOutEntry) {
     _entriesVersion++;
+    _recentChangedEntries.add(timedOutEntry);
     notifyListeners();
+    _recentChangedEntries.clear();
   }
 
   /// Enables traffic capture.
@@ -303,7 +313,7 @@ class InterceptlyEngine extends ChangeNotifier {
     String? requestContentType,
   }) {
     _entriesVersion++;
-    _pendingTracker.recordPending(
+    final entry = _pendingTracker.recordPending(
       id: id,
       method: method,
       url: url,
@@ -313,6 +323,7 @@ class InterceptlyEngine extends ChangeNotifier {
       requestContentType: requestContentType,
       settings: _settings,
     );
+    _recentChangedEntries.add(entry);
     _scheduleCoalescedNotify();
   }
 
@@ -398,7 +409,12 @@ class InterceptlyEngine extends ChangeNotifier {
       closeReason: closeReason,
     );
     _realtimeStore.markSessionClosed(id);
+    final entry = _memoryIndex.byId(id);
+    if (entry != null) {
+      _recentChangedEntries.add(entry);
+    }
     notifyListeners();
+    _recentChangedEntries.clear();
   }
 
   ValueListenable<RealtimeFrameCounts> getRealtimeFrameCountsNotifier(
@@ -461,6 +477,7 @@ class InterceptlyEngine extends ChangeNotifier {
       _coalesceNotifyTimer = null;
       _hasPendingCoalescedNotify = false;
       _entriesVersion++;
+      _recentChangedEntries.clear();
       final ids = _memoryIndex.entries
           .where((e) => e.isRealtime == isRealtime)
           .map((e) => e.id)
@@ -496,6 +513,7 @@ class InterceptlyEngine extends ChangeNotifier {
       _coalesceNotifyTimer = null;
       _hasPendingCoalescedNotify = false;
       _entriesVersion++;
+      _recentChangedEntries.clear();
       if (_capturePipeline.isInitialized) {
         await _capturePipeline.clear();
       } else {

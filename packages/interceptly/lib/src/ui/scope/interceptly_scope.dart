@@ -51,6 +51,7 @@ class InterceptlyScopeController extends ChangeNotifier {
   List<DomainGroup>? _cachedGroupedRecords;
   int _cacheVersion = 0;
   int _lastComputedCacheVersion = -1;
+  int _lastReconciledEntriesVersion = -1;
   bool _isDisposed = false;
 
   InterceptlyPreferences get preferences => _preferences;
@@ -140,9 +141,13 @@ class InterceptlyScopeController extends ChangeNotifier {
     return _cachedGroupedRecords!;
   }
 
-  void cancelMasterSearch() => _search.cancel();
+  void cancelMasterSearch() {
+    _lastReconciledEntriesVersion = -1;
+    _search.cancel();
+  }
 
   Future<void> startMasterSearch(String query) {
+    _lastReconciledEntriesVersion = engine.entriesVersion;
     return _search.start(
       query: query,
       allEntries: engine.entries.cast<IndexEntry>(),
@@ -157,6 +162,7 @@ class InterceptlyScopeController extends ChangeNotifier {
   void clearNetworkSimulation() => engine.clearNetworkSimulation();
 
   Future<void> clear() async {
+    _lastReconciledEntriesVersion = -1;
     _filter = RequestFilter();
     _search.reset();
     _invalidateGroupedCache();
@@ -165,6 +171,7 @@ class InterceptlyScopeController extends ChangeNotifier {
   }
 
   Future<void> clearRest() async {
+    _lastReconciledEntriesVersion = -1;
     _filter = RequestFilter();
     _search.reset();
     _invalidateGroupedCache();
@@ -207,15 +214,24 @@ class InterceptlyScopeController extends ChangeNotifier {
   void _onEngineUpdated() {
     _invalidateGroupedCache();
     if (_search.isActive) {
-      final currentEntries = engine.entries;
-      final validIds = <String>{};
-      for (final e in currentEntries) {
-        validIds.add(e.id);
-        if (e is IndexEntry) {
-          _search.updateOrAddEntry(e);
+      final currentVersion = engine.entriesVersion;
+      if (_lastReconciledEntriesVersion != currentVersion) {
+        _lastReconciledEntriesVersion = currentVersion;
+        final changed = engine.recentChangedEntries;
+        if (changed.isNotEmpty) {
+          for (final e in changed) {
+            _search.updateOrAddEntry(e);
+          }
+        } else {
+          for (final e in engine.entries) {
+            if (e is IndexEntry) {
+              _search.updateOrAddEntry(e);
+            }
+          }
         }
+        final validIds = {for (final e in engine.entries) e.id};
+        _search.pruneMissing(validIds);
       }
-      _search.pruneMissing(validIds);
     }
     if (!_isDisposed) {
       notifyListeners();

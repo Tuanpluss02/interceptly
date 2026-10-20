@@ -182,6 +182,76 @@ void main() {
       // Entries should dynamically include the new order request
       expect(scope.entries.map((e) => e.id), contains('2'));
     });
+
+    test(
+        'updateOrAddEntry preserves existing file-backed body matches across traffic updates',
+        () async {
+      final search = MasterSearchController();
+      addTearDown(search.dispose);
+
+      final fileEntry = _createEntry(
+        id: 'file-1',
+        method: 'POST',
+        url: 'https://api.example.com/upload',
+        statusCode: 200,
+        bodyLocation: BodyLocation.file,
+      );
+
+      // Start search that matches
+      await search.start(
+        query: 'secret-token',
+        allEntries: [],
+        filePath: null,
+      );
+
+      // Simulate Phase 3 file match having populated search results
+      search.recordFileMatchForTesting(fileEntry);
+      expect(search.results?.length, equals(1));
+
+      // Now an unrelated traffic update occurs with the pure file-backed entry (url doesn't match query)
+      // but it was previously matched by body
+      search.updateOrAddEntry(fileEntry.copyWith(statusCode: 204));
+
+      // The entry should still be in search results because file-body match is preserved
+      expect(search.results?.map((e) => e.id), contains('file-1'));
+      expect(search.results?.first.statusCode, equals(204));
+    });
+
+    test(
+        'InterceptlyScopeController skips search reconciliation when entriesVersion is unchanged',
+        () async {
+      final engine = InterceptlyEngine();
+      final scope = InterceptlyScopeController(engine: engine);
+      addTearDown(scope.dispose);
+      addTearDown(engine.dispose);
+
+      engine.recordPending(
+        id: '1',
+        method: 'GET',
+        url: 'https://api.example.com/test',
+        timestamp: DateTime(2026, 1, 1),
+      );
+      engine.flushPendingNotifications();
+
+      await scope.startMasterSearch('test');
+      expect(scope.entries.length, equals(1));
+
+      // Record a realtime frame which notifies without changing entriesVersion
+      final initialVersion = engine.entriesVersion;
+      await engine.recordRealtimeFrame(
+        RealtimeFrame(
+          id: 'frame-1',
+          sessionId: '1',
+          timestamp: DateTime(2026, 1, 1),
+          direction: FrameDirection.incoming,
+          type: FrameType.text,
+          textPayload: 'frame data',
+        ),
+      );
+
+      expect(engine.entriesVersion, equals(initialVersion));
+      expect(scope.entries.length, equals(1));
+    });
   });
 
   group('InterceptlyEngine Search Invalidation and Coalescing', () {
