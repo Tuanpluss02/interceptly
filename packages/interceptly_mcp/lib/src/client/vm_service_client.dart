@@ -1,13 +1,13 @@
 import 'dart:async';
 import 'package:vm_service/vm_service.dart';
-import 'package:vm_service/vm_service_io.dart';
+import 'package:vm_service/vm_service_io.dart' as vm_io;
 
 import '../logging.dart';
-import '../version.dart';
 import 'app_discovery.dart';
+import 'vm_service_errors.dart';
 
-/// Interface for interacting with the Flutter application via Dart VM Service.
-abstract class VmServiceClient {
+/// Contract for interacting with the Flutter VM Service and Interceptly extension RPCs.
+abstract interface class VmServiceClient {
   bool get isConnected;
   int? get remoteExtensionApiVersion;
   String? get activeIsolateId;
@@ -16,6 +16,7 @@ abstract class VmServiceClient {
   Future<void> connect(Uri wsUri);
   Future<void> disconnect();
   Future<void> ensureConnected();
+
   Future<Map<String, dynamic>> invoke(
     String method, [
     Map<String, String>? params,
@@ -24,16 +25,25 @@ abstract class VmServiceClient {
 
 /// Default implementation of [VmServiceClient] connecting over WebSockets.
 class DefaultVmServiceClient implements VmServiceClient {
-  DefaultVmServiceClient({this.explicitUri, this.environment, this.dtdUri});
+  DefaultVmServiceClient({
+    this.explicitUri,
+    this.environment,
+    this.dtdUri,
+    Future<VmService> Function(String)? vmServiceConnectUri,
+  }) : vmServiceConnectUri = vmServiceConnectUri ?? vm_io.vmServiceConnectUri;
 
   final Uri? explicitUri;
   final Map<String, String>? environment;
   final Uri? dtdUri;
+  final Future<VmService> Function(String) vmServiceConnectUri;
 
   VmService? _vmService;
   Uri? _connectedUri;
   String? _activeIsolateId;
   int? _remoteExtensionApiVersion;
+
+  static const int minCompatibleExtensionApiVersion = 1;
+  static const int maxCompatibleExtensionApiVersion = 1;
 
   @override
   bool get isConnected => _vmService != null && _activeIsolateId != null;
@@ -61,6 +71,18 @@ class DefaultVmServiceClient implements VmServiceClient {
     final service = await vmServiceConnectUri(wsUri.toString());
     _vmService = service;
     _connectedUri = wsUri;
+
+    // Automatically reset connection state when remote host closes WebSocket
+    unawaited(
+      service.onDone
+          .then((_) {
+            logStderr('VM Service connection closed by remote host ($wsUri).');
+            disconnect();
+          })
+          .catchError((_) {
+            disconnect();
+          }),
+    );
 
     // Discover target isolate
     await _refreshIsolate();
@@ -105,26 +127,33 @@ class DefaultVmServiceClient implements VmServiceClient {
     final service = _vmService;
     if (service == null) throw StateError('Not connected to VM service');
 
-    final candidates = await AppDiscovery.findCandidates(
-      service,
-      targetUri: _connectedUri,
-    );
-    if (candidates.isEmpty) {
-      throw StateError(
-        'Connected to VM service at $_connectedUri, but no active isolate '
-        'registered the "ext.interceptly.ping" extension. '
-        'Ensure Interceptly.init() is called in debug mode.',
+    try {
+      final candidates = await AppDiscovery.findCandidates(
+        service,
+        targetUri: _connectedUri,
       );
-    }
+      if (candidates.isEmpty) {
+        throw StateError(
+          'Connected to VM service at $_connectedUri, but no active isolate '
+          'registered the "ext.interceptly.ping" extension. '
+          'Ensure Interceptly.init() is called in debug mode.',
+        );
+      }
 
-    if (candidates.length > 1) {
-      throw MultipleAppsException(candidates);
-    }
+      if (candidates.length > 1) {
+        throw MultipleAppsException(candidates);
+      }
 
-    _activeIsolateId = candidates.first.isolateId;
-    logStderr(
-      'Bound to isolate: $_activeIsolateId (${candidates.first.name ?? "unnamed"})',
-    );
+      _activeIsolateId = candidates.first.isolateId;
+      logStderr(
+        'Bound to isolate: $_activeIsolateId (${candidates.first.name ?? "unnamed"})',
+      );
+    } catch (e) {
+      if (e.isConnectionDisposed) {
+        await disconnect();
+      }
+      rethrow;
+    }
   }
 
   Future<void> _checkVersionContract() async {
@@ -133,9 +162,9 @@ class DefaultVmServiceClient implements VmServiceClient {
       final version = res['extensionApiVersion'] as int?;
       _remoteExtensionApiVersion = version;
 
-      if (version == null ||
-          version < minCompatibleExtensionApiVersion ||
-          version > maxCompatibleExtensionApiVersion) {
+      if (version != null &&
+          (version < minCompatibleExtensionApiVersion ||
+              version > maxCompatibleExtensionApiVersion)) {
         logStderr(
           'WARNING: Version skew detected! '
           'App extensionApiVersion is $version, but CLI supports '
@@ -148,20 +177,44 @@ class DefaultVmServiceClient implements VmServiceClient {
     }
   }
 
-  @override
-  Future<Map<String, dynamic>> invoke(
-    String method, [
-    Map<String, String>? params,
-  ]) async {
+  /// Executes an operation against the active VM Service, automatically recovering from
+  /// isolate invalidation (e.g. Flutter Hot Restart) or connection termination.
+  Future<T> _executeWithRecovery<T>(
+    Future<T> Function(VmService service, String isolateId) action,
+  ) async {
     await ensureConnected();
 
     final service = _vmService;
     final isolateId = _activeIsolateId;
     if (service == null || isolateId == null) {
-      throw StateError('Cannot invoke $method: client is not connected');
+      throw StateError('Cannot execute request: client is not connected');
     }
 
     try {
+      return await action(service, isolateId);
+    } catch (e) {
+      if (e.isConnectionDisposed) {
+        logStderr('VM connection was disposed ($e). Resetting state...');
+        await disconnect();
+        rethrow;
+      }
+      if (e.isIsolateInvalidated) {
+        logStderr(
+          'Target isolate invalidated ($e). Attempting to re-discover isolate after Hot Restart...',
+        );
+        await _refreshIsolate();
+        return await action(service, _activeIsolateId!);
+      }
+      rethrow;
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> invoke(
+    String method, [
+    Map<String, String>? params,
+  ]) async {
+    return _executeWithRecovery((service, isolateId) async {
       final response = await service.callServiceExtension(
         method,
         isolateId: isolateId,
@@ -173,23 +226,6 @@ class DefaultVmServiceClient implements VmServiceClient {
         throw StateError('Empty response from $method');
       }
       return json;
-    } on RPCError catch (e) {
-      // Check if isolate died (e.g. after hot restart)
-      if (e.message.contains('isolate') || e.code == 105 || e.code == -32000) {
-        logStderr(
-          'Isolate error ($e), attempting to re-discover isolate after hot restart...',
-        );
-        await _refreshIsolate();
-
-        // Retry invocation once with refreshed isolate
-        final retryResponse = await service.callServiceExtension(
-          method,
-          isolateId: _activeIsolateId,
-          args: params,
-        );
-        return retryResponse.json ?? <String, dynamic>{};
-      }
-      rethrow;
-    }
+    });
   }
 }

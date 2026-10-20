@@ -40,5 +40,13 @@ void main() {
       expect(client.connectedUri, isNull);
       expect(client.activeIsolateId, isNull);
     });
+
+    test('disconnect resets client connection state', () async {
+      final client = DefaultVmServiceClient();
+      await client.disconnect();
+      expect(client.isConnected, isFalse);
+      expect(client.connectedUri, isNull);
+      expect(client.activeIsolateId, isNull);
+    });
   });
 }

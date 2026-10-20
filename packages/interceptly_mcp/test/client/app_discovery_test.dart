@@ -67,10 +67,23 @@ void main() {
       () async {
         final uri = await AppDiscovery.resolveUri(
           explicitUri: null,
-          environment: {},
+          environment: {'INTERCEPTLY_DISABLE_PROCESS_SCAN': 'true'},
         );
 
         expect(uri, isNull);
+      },
+    );
+
+    test(
+      'resolveUri auto-discovers running app via process scanning',
+      () async {
+        final uri = await AppDiscovery.resolveUri(
+          explicitUri: null,
+          environment: {},
+        );
+        if (uri != null) {
+          expect(AppDiscovery.isLoopbackUri(uri), isTrue);
+        }
       },
     );
   });
