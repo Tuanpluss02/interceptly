@@ -10,7 +10,8 @@ import 'package:socket_io_client/socket_io_client.dart' as io;
 /// The realtime protocol flavor used by the chat page.
 enum RealtimeProtocolMode {
   webSocket('WebSocket'),
-  socketIo('Socket.IO');
+  socketIo('Socket.IO'),
+  parallel('Song song');
 
   const RealtimeProtocolMode(this.label);
   final String label;
@@ -23,6 +24,7 @@ class ChatMessage {
   final String from;
   final bool isMe;
   final bool isSystem;
+  final String? protocol;
   final DateTime timestamp;
 
   ChatMessage({
@@ -31,13 +33,14 @@ class ChatMessage {
     required this.from,
     required this.isMe,
     this.isSystem = false,
+    this.protocol,
     DateTime? timestamp,
   }) : timestamp = timestamp ?? DateTime.now();
 }
 
 /// A realistic Customer Support Chat page demonstrating bidirectional
-/// WebSocket and Socket.IO traffic, agent responses, typing indicators,
-/// and Interceptly inspection.
+/// WebSocket and Socket.IO traffic running in parallel, agent responses,
+/// typing indicators, and Interceptly inspection.
 class ExampleChatPage extends StatefulWidget {
   final String baseUrl;
   final bool autoConnect;
@@ -55,35 +58,65 @@ class ExampleChatPage extends StatefulWidget {
 }
 
 class _ExampleChatPageState extends State<ExampleChatPage> {
-  RealtimeProtocolMode _protocolMode = RealtimeProtocolMode.webSocket;
+  RealtimeProtocolMode _protocolMode = RealtimeProtocolMode.parallel;
 
   // WebSocket state
-  InterceptlyWebSocketChannel? _channel;
-  StreamSubscription? _subscription;
+  InterceptlyWebSocketChannel? _wsChannel;
+  StreamSubscription? _wsSubscription;
+  bool _wsConnected = false;
+  bool _wsConnecting = false;
+  bool _wsTyping = false;
+  final List<ChatMessage> _wsMessages = [];
 
   // Socket.IO state
-  io.Socket? _socket;
-  InterceptlySocketIoTracker? _socketTracker;
+  io.Socket? _sioSocket;
+  InterceptlySocketIoTracker? _sioTracker;
+  bool _sioConnected = false;
+  bool _sioConnecting = false;
+  bool _sioTyping = false;
+  final List<ChatMessage> _sioMessages = [];
 
-  bool _isConnected = false;
-  bool _isConnecting = false;
-  bool _isTyping = false;
-
-  final List<ChatMessage> _messages = [];
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+
+  bool get _isConnected => _wsConnected || _sioConnected;
+  bool get _isConnecting => _wsConnecting || _sioConnecting;
+
+  bool get _isTyping {
+    switch (_protocolMode) {
+      case RealtimeProtocolMode.webSocket:
+        return _wsTyping;
+      case RealtimeProtocolMode.socketIo:
+        return _sioTyping;
+      case RealtimeProtocolMode.parallel:
+        return _wsTyping || _sioTyping;
+    }
+  }
+
+  List<ChatMessage> get _activeMessages {
+    switch (_protocolMode) {
+      case RealtimeProtocolMode.webSocket:
+        return _wsMessages;
+      case RealtimeProtocolMode.socketIo:
+        return _sioMessages;
+      case RealtimeProtocolMode.parallel:
+        final combined = [..._wsMessages, ..._sioMessages];
+        combined.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+        return combined;
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     if (widget.autoConnect) {
-      _connect();
+      _connectAll();
     }
   }
 
   @override
   void dispose() {
-    _disconnect(updateState: false);
+    _disconnectAll(updateState: false);
     _textController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -101,64 +134,69 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
     });
   }
 
-  void _connect() {
-    if (_isConnected || _isConnecting) return;
+  void _connectAll() {
+    _connectWebSocket();
+    _connectSocketIo();
+  }
 
-    if (_protocolMode == RealtimeProtocolMode.webSocket) {
-      _connectWebSocket();
-    } else {
-      _connectSocketIo();
+  void _disconnectAll({bool updateState = true}) {
+    _disconnectWebSocket(updateState: false);
+    _disconnectSocketIo(updateState: false);
+    if (updateState && mounted) {
+      setState(() {});
     }
   }
 
-  void _disconnect({bool updateState = true}) {
-    if (_protocolMode == RealtimeProtocolMode.webSocket) {
-      _disconnectWebSocket(updateState: updateState);
+  void _toggleConnections() {
+    if (_isConnected) {
+      _disconnectAll();
     } else {
-      _disconnectSocketIo(updateState: updateState);
+      _connectAll();
     }
   }
 
   void _switchProtocolMode(RealtimeProtocolMode mode) {
     if (_protocolMode == mode) return;
-    _disconnect(updateState: false);
     setState(() {
       _protocolMode = mode;
-      _messages.clear();
     });
-    if (widget.autoConnect) {
-      _connect();
-    }
+    _scrollToBottom();
   }
 
+  // ---------------------------------------------------------------------------
+  // WebSocket connection handlers
+  // ---------------------------------------------------------------------------
   void _connectWebSocket() {
+    if (_wsConnected || _wsConnecting) return;
+
     setState(() {
-      _isConnecting = true;
+      _wsConnecting = true;
     });
 
     try {
       final wsUri =
           Uri.parse('${widget.baseUrl}/ws/chat'.replaceFirst('http', 'ws'));
       final channel = InterceptlyWebSocketChannel.connect(wsUri);
-      _channel = channel;
+      _wsChannel = channel;
 
-      _subscription = channel.stream.listen(
+      _wsSubscription = channel.stream.listen(
         (dynamic rawData) {
-          _handleIncoming(rawData.toString());
+          _handleWsIncoming(rawData.toString());
         },
         onError: (Object error) {
           if (!mounted) return;
           setState(() {
-            _isConnected = false;
-            _isConnecting = false;
-            _isTyping = false;
-            _messages.add(
+            _wsConnected = false;
+            _wsConnecting = false;
+            _wsTyping = false;
+            _wsMessages.add(
               ChatMessage(
-                id: 'err_${DateTime.now().millisecondsSinceEpoch}',
-                text: 'Lỗi kết nối WebSocket: $error',
+                id: 'err_ws_${DateTime.now().millisecondsSinceEpoch}',
+                text: 'Lỗi WebSocket: $error',
                 from: 'System',
                 isMe: false,
                 isSystem: true,
+                protocol: 'WS',
               ),
             );
           });
@@ -167,16 +205,17 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
         onDone: () {
           if (!mounted) return;
           setState(() {
-            _isConnected = false;
-            _isConnecting = false;
-            _isTyping = false;
-            _messages.add(
+            _wsConnected = false;
+            _wsConnecting = false;
+            _wsTyping = false;
+            _wsMessages.add(
               ChatMessage(
-                id: 'done_${DateTime.now().millisecondsSinceEpoch}',
+                id: 'done_ws_${DateTime.now().millisecondsSinceEpoch}',
                 text: 'Kết nối WebSocket đã đóng.',
                 from: 'System',
                 isMe: false,
                 isSystem: true,
+                protocol: 'WS',
               ),
             );
           });
@@ -185,33 +224,102 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
       );
 
       setState(() {
-        _isConnected = true;
-        _isConnecting = false;
+        _wsConnected = true;
+        _wsConnecting = false;
       });
-    } catch (e) {
+    } catch (_) {
       setState(() {
-        _isConnected = false;
-        _isConnecting = false;
+        _wsConnected = false;
+        _wsConnecting = false;
       });
     }
   }
 
   void _disconnectWebSocket({bool updateState = true}) {
-    _subscription?.cancel();
-    _subscription = null;
-    _channel?.sink.close(1000, 'User disconnected');
-    _channel = null;
-    _isConnected = false;
-    _isConnecting = false;
-    _isTyping = false;
+    _wsSubscription?.cancel();
+    _wsSubscription = null;
+    _wsChannel?.sink.close(1000, 'User disconnected');
+    _wsChannel = null;
+    _wsConnected = false;
+    _wsConnecting = false;
+    _wsTyping = false;
     if (updateState && mounted) {
       setState(() {});
     }
   }
 
+  void _handleWsIncoming(String text) {
+    if (!mounted) return;
+
+    try {
+      final decoded = jsonDecode(text) as Map<String, dynamic>;
+      final type = decoded['type'];
+
+      if (type == 'typing') {
+        setState(() {
+          _wsTyping = decoded['status'] == true;
+        });
+        _scrollToBottom();
+        return;
+      }
+
+      if (type == 'system') {
+        setState(() {
+          _wsMessages.add(
+            ChatMessage(
+              id: 'sys_ws_${DateTime.now().millisecondsSinceEpoch}',
+              text: decoded['message']?.toString() ?? text,
+              from: 'System',
+              isMe: false,
+              isSystem: true,
+              protocol: 'WS',
+            ),
+          );
+        });
+        _scrollToBottom();
+        return;
+      }
+
+      if (type == 'agent_message') {
+        setState(() {
+          _wsTyping = false;
+          _wsMessages.add(
+            ChatMessage(
+              id: 'agent_ws_${DateTime.now().millisecondsSinceEpoch}',
+              text: decoded['message']?.toString() ?? text,
+              from: decoded['from']?.toString() ?? 'StormX (WS)',
+              isMe: false,
+              protocol: 'WS',
+            ),
+          );
+        });
+        _scrollToBottom();
+        return;
+      }
+    } catch (_) {
+      setState(() {
+        _wsMessages.add(
+          ChatMessage(
+            id: 'raw_ws_${DateTime.now().millisecondsSinceEpoch}',
+            text: text,
+            from: 'StormX (WS)',
+            isMe: false,
+            protocol: 'WS',
+          ),
+        );
+      });
+      _scrollToBottom();
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Socket.IO connection handlers
+  // ---------------------------------------------------------------------------
   void _connectSocketIo() {
+    if (_sioConnected || _sioConnecting) return;
+
     setState(() {
-      _isConnecting = true;
+      _sioConnecting = true;
     });
 
     try {
@@ -222,39 +330,40 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
             .disableAutoConnect()
             .build(),
       );
-      _socket = socket;
-      _socketTracker = socket.attachInterceptly();
+      _sioSocket = socket;
+      _sioTracker = socket.attachInterceptly();
 
       socket.onConnect((_) {
         if (!mounted) return;
         setState(() {
-          _isConnected = true;
-          _isConnecting = false;
+          _sioConnected = true;
+          _sioConnecting = false;
         });
       });
 
       socket.onDisconnect((_) {
         if (!mounted) return;
         setState(() {
-          _isConnected = false;
-          _isConnecting = false;
-          _isTyping = false;
+          _sioConnected = false;
+          _sioConnecting = false;
+          _sioTyping = false;
         });
       });
 
       socket.onConnectError((err) {
         if (!mounted) return;
         setState(() {
-          _isConnected = false;
-          _isConnecting = false;
-          _isTyping = false;
-          _messages.add(
+          _sioConnected = false;
+          _sioConnecting = false;
+          _sioTyping = false;
+          _sioMessages.add(
             ChatMessage(
-              id: 'err_${DateTime.now().millisecondsSinceEpoch}',
-              text: 'Lỗi kết nối Socket.IO: $err',
+              id: 'err_sio_${DateTime.now().millisecondsSinceEpoch}',
+              text: 'Lỗi Socket.IO: $err',
               from: 'System',
               isMe: false,
               isSystem: true,
+              protocol: 'Socket.IO',
             ),
           );
         });
@@ -268,7 +377,7 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
           isTyping = true;
         }
         setState(() {
-          _isTyping = isTyping;
+          _sioTyping = isTyping;
         });
         _scrollToBottom();
       });
@@ -278,29 +387,31 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
         if (data is Map) {
           final type = data['type'];
           final text = data['message']?.toString() ?? data.toString();
-          final from = data['from']?.toString() ?? 'StormX';
+          final from = data['from']?.toString() ?? 'StormX (Socket.IO)';
 
           if (type == 'system') {
             setState(() {
-              _messages.add(
+              _sioMessages.add(
                 ChatMessage(
-                  id: 'sys_${DateTime.now().millisecondsSinceEpoch}',
+                  id: 'sys_sio_${DateTime.now().millisecondsSinceEpoch}',
                   text: text,
                   from: 'System',
                   isMe: false,
                   isSystem: true,
+                  protocol: 'Socket.IO',
                 ),
               );
             });
           } else {
             setState(() {
-              _isTyping = false;
-              _messages.add(
+              _sioTyping = false;
+              _sioMessages.add(
                 ChatMessage(
-                  id: 'agent_${DateTime.now().millisecondsSinceEpoch}',
+                  id: 'agent_sio_${DateTime.now().millisecondsSinceEpoch}',
                   text: text,
                   from: from,
                   isMe: false,
+                  protocol: 'Socket.IO',
                 ),
               );
             });
@@ -308,13 +419,14 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
           _scrollToBottom();
         } else if (data != null) {
           setState(() {
-            _isTyping = false;
-            _messages.add(
+            _sioTyping = false;
+            _sioMessages.add(
               ChatMessage(
-                id: 'agent_${DateTime.now().millisecondsSinceEpoch}',
+                id: 'agent_sio_${DateTime.now().millisecondsSinceEpoch}',
                 text: data.toString(),
-                from: 'StormX',
+                from: 'StormX (Socket.IO)',
                 isMe: false,
+                protocol: 'Socket.IO',
               ),
             );
           });
@@ -323,133 +435,91 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
       });
 
       socket.connect();
-    } catch (e) {
+    } catch (_) {
       setState(() {
-        _isConnected = false;
-        _isConnecting = false;
+        _sioConnected = false;
+        _sioConnecting = false;
       });
     }
   }
 
   void _disconnectSocketIo({bool updateState = true}) {
-    _socketTracker?.detach();
-    _socketTracker = null;
-    _socket?.disconnect();
-    _socket?.dispose();
-    _socket = null;
-    _isConnected = false;
-    _isConnecting = false;
-    _isTyping = false;
+    _sioTracker?.detach();
+    _sioTracker = null;
+    _sioSocket?.disconnect();
+    _sioSocket?.dispose();
+    _sioSocket = null;
+    _sioConnected = false;
+    _sioConnecting = false;
+    _sioTyping = false;
     if (updateState && mounted) {
       setState(() {});
     }
   }
 
-  void _handleIncoming(String text) {
-    if (!mounted) return;
-
-    try {
-      final decoded = jsonDecode(text) as Map<String, dynamic>;
-      final type = decoded['type'];
-
-      if (type == 'typing') {
-        setState(() {
-          _isTyping = decoded['status'] == true;
-        });
-        _scrollToBottom();
-        return;
-      }
-
-      if (type == 'system') {
-        setState(() {
-          _messages.add(
-            ChatMessage(
-              id: 'sys_${DateTime.now().millisecondsSinceEpoch}',
-              text: decoded['message']?.toString() ?? text,
-              from: 'System',
-              isMe: false,
-              isSystem: true,
-            ),
-          );
-        });
-        _scrollToBottom();
-        return;
-      }
-
-      if (type == 'agent_message') {
-        setState(() {
-          _isTyping = false;
-          _messages.add(
-            ChatMessage(
-              id: 'agent_${DateTime.now().millisecondsSinceEpoch}',
-              text: decoded['message']?.toString() ?? text,
-              from: decoded['from']?.toString() ?? 'StormX',
-              isMe: false,
-            ),
-          );
-        });
-        _scrollToBottom();
-        return;
-      }
-    } catch (_) {
-      // Fallback for non-JSON or plain string echo
-      setState(() {
-        _messages.add(
-          ChatMessage(
-            id: 'raw_${DateTime.now().millisecondsSinceEpoch}',
-            text: text,
-            from: 'StormX',
-            isMe: false,
-          ),
-        );
-      });
-      _scrollToBottom();
-    }
-  }
-
+  // ---------------------------------------------------------------------------
+  // Message sending logic
+  // ---------------------------------------------------------------------------
   void _sendMessage([String? presetText]) {
     final text = presetText ?? _textController.text.trim();
     if (text.isEmpty) return;
 
     if (!_isConnected) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Vui lòng kết nối ${_protocolMode == RealtimeProtocolMode.webSocket ? "WebSocket" : "Socket.IO"} trước khi gửi tin nhắn!',
-          ),
+        const SnackBar(
+          content: Text('Vui lòng kết nối Realtime trước khi gửi tin nhắn!'),
         ),
       );
       return;
     }
 
-    if (_protocolMode == RealtimeProtocolMode.webSocket) {
-      if (_channel == null) return;
+    final now = DateTime.now();
+
+    final sendToWs = (_protocolMode == RealtimeProtocolMode.webSocket ||
+            _protocolMode == RealtimeProtocolMode.parallel) &&
+        _wsConnected;
+    final sendToSio = (_protocolMode == RealtimeProtocolMode.socketIo ||
+            _protocolMode == RealtimeProtocolMode.parallel) &&
+        _sioConnected;
+
+    if (sendToWs && _wsChannel != null) {
       final payload = jsonEncode({
         'type': 'chat',
         'message': text,
-        'timestamp': DateTime.now().toIso8601String(),
+        'timestamp': now.toIso8601String(),
       });
-      _channel!.sink.add(payload);
-    } else {
-      if (_socket == null) return;
-      _socket!.emit('chat_message', {
-        'type': 'chat',
-        'message': text,
-        'timestamp': DateTime.now().toIso8601String(),
-      });
-    }
-
-    setState(() {
-      _messages.add(
+      _wsChannel!.sink.add(payload);
+      _wsMessages.add(
         ChatMessage(
-          id: 'me_${DateTime.now().millisecondsSinceEpoch}',
+          id: 'me_ws_${now.millisecondsSinceEpoch}',
           text: text,
           from: 'Bạn',
           isMe: true,
+          protocol: 'WS',
+          timestamp: now,
         ),
       );
-    });
+    }
 
+    if (sendToSio && _sioSocket != null) {
+      _sioSocket!.emit('chat_message', {
+        'type': 'chat',
+        'message': text,
+        'timestamp': now.toIso8601String(),
+      });
+      _sioMessages.add(
+        ChatMessage(
+          id: 'me_sio_${now.millisecondsSinceEpoch}',
+          text: text,
+          from: 'Bạn',
+          isMe: true,
+          protocol: 'Socket.IO',
+          timestamp: now,
+        ),
+      );
+    }
+
+    setState(() {});
     if (presetText == null) {
       _textController.clear();
     }
@@ -458,6 +528,8 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
 
   @override
   Widget build(BuildContext context) {
+    final messages = _activeMessages;
+
     return Scaffold(
       appBar: widget.showAppBar
           ? AppBar(
@@ -524,7 +596,7 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                     color: _isConnected ? Colors.red.shade400 : Colors.indigo,
                   ),
                   tooltip: _isConnected ? 'Ngắt kết nối' : 'Kết nối lại',
-                  onPressed: _isConnected ? _disconnect : _connect,
+                  onPressed: _toggleConnections,
                 ),
                 IconButton(
                   key: const ValueKey('chat_open_inspector'),
@@ -563,12 +635,13 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                       child: Row(
                         children: [
                           const Text(
-                            'StormX',
+                            'StormX (Support Bot)',
                             style: TextStyle(
                                 fontSize: 14, fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(width: 8),
                           Container(
+                            key: const ValueKey('chat_connection_status'),
                             width: 7,
                             height: 7,
                             decoration: BoxDecoration(
@@ -583,7 +656,7 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                           const SizedBox(width: 4),
                           Text(
                             _isConnected
-                                ? 'Online'
+                                ? 'Online (Connected)'
                                 : (_isConnecting ? 'Connecting' : 'Offline'),
                             style: TextStyle(
                                 fontSize: 12, color: Colors.grey.shade600),
@@ -592,6 +665,7 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                       ),
                     ),
                     IconButton(
+                      key: const ValueKey('chat_toggle_connection'),
                       icon: Icon(
                         _isConnected ? Icons.link_off : Icons.link,
                         size: 20,
@@ -599,13 +673,13 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                             _isConnected ? Colors.red.shade400 : Colors.indigo,
                       ),
                       tooltip: _isConnected ? 'Ngắt kết nối' : 'Kết nối lại',
-                      onPressed: _isConnected ? _disconnect : _connect,
+                      onPressed: _toggleConnections,
                     ),
                   ],
                 ),
               ),
 
-            // Protocol selector
+            // Connection indicator badges (WS & Socket.IO song song)
             Container(
               padding:
                   const EdgeInsets.symmetric(horizontal: 14.0, vertical: 6.0),
@@ -613,51 +687,63 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                 color: Theme.of(context)
                     .colorScheme
                     .surfaceContainerHighest
-                    .withValues(alpha: 0.35),
+                    .withValues(alpha: 0.25),
                 border: Border(
                   bottom: BorderSide(
                     color:
-                        Theme.of(context).dividerColor.withValues(alpha: 0.15),
+                        Theme.of(context).dividerColor.withValues(alpha: 0.12),
                   ),
                 ),
               ),
               child: Row(
                 children: [
-                  Text(
-                    'Protocol:',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+                  _ProtocolStatusChip(
+                    label: 'WS',
+                    isConnected: _wsConnected,
+                    isConnecting: _wsConnecting,
+                    onTap:
+                        _wsConnected ? _disconnectWebSocket : _connectWebSocket,
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: SegmentedButton<RealtimeProtocolMode>(
-                      key: const ValueKey('chat_protocol_selector'),
-                      showSelectedIcon: false,
-                      style: const ButtonStyle(
-                        visualDensity: VisualDensity.compact,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      segments: const [
-                        ButtonSegment(
-                          value: RealtimeProtocolMode.webSocket,
-                          label:
-                              Text('WebSocket', style: TextStyle(fontSize: 12)),
-                          icon: Icon(Icons.cable, size: 14),
-                        ),
-                        ButtonSegment(
-                          value: RealtimeProtocolMode.socketIo,
-                          label:
-                              Text('Socket.IO', style: TextStyle(fontSize: 12)),
-                          icon: Icon(Icons.hub_outlined, size: 14),
-                        ),
-                      ],
-                      selected: {_protocolMode},
-                      onSelectionChanged: (selected) =>
-                          _switchProtocolMode(selected.first),
+                  const SizedBox(width: 8),
+                  _ProtocolStatusChip(
+                    label: 'SIO',
+                    isConnected: _sioConnected,
+                    isConnecting: _sioConnecting,
+                    onTap:
+                        _sioConnected ? _disconnectSocketIo : _connectSocketIo,
+                  ),
+                  const Spacer(),
+                  // Protocol selector
+                  SegmentedButton<RealtimeProtocolMode>(
+                    key: const ValueKey('chat_protocol_selector'),
+                    showSelectedIcon: false,
+                    style: const ButtonStyle(
+                      visualDensity: VisualDensity.compact,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
+                    segments: const [
+                      ButtonSegment(
+                        value: RealtimeProtocolMode.webSocket,
+                        label:
+                            Text('WebSocket', style: TextStyle(fontSize: 11)),
+                        icon: Icon(Icons.cable, size: 13),
+                      ),
+                      ButtonSegment(
+                        value: RealtimeProtocolMode.socketIo,
+                        label:
+                            Text('Socket.IO', style: TextStyle(fontSize: 11)),
+                        icon: Icon(Icons.hub_outlined, size: 13),
+                      ),
+                      ButtonSegment(
+                        value: RealtimeProtocolMode.parallel,
+                        label:
+                            Text('Song song', style: TextStyle(fontSize: 11)),
+                        icon: Icon(Icons.compare_arrows, size: 13),
+                      ),
+                    ],
+                    selected: {_protocolMode},
+                    onSelectionChanged: (selected) =>
+                        _switchProtocolMode(selected.first),
                   ),
                 ],
               ),
@@ -669,34 +755,52 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                 controller: _scrollController,
                 padding: const EdgeInsets.symmetric(
                     horizontal: 12.0, vertical: 12.0),
-                itemCount: _messages.length + (_isTyping ? 1 : 0),
+                itemCount: messages.length + (_isTyping ? 1 : 0),
                 itemBuilder: (context, index) {
-                  if (_isTyping && index == _messages.length) {
+                  if (_isTyping && index == messages.length) {
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 8.0, left: 4.0),
                       child: Row(
                         children: [
                           CircleAvatar(
                             radius: 12,
-                            backgroundColor: Colors.indigo.shade100,
+                            backgroundColor: Colors.indigo.shade50,
                             child: const Icon(Icons.support_agent,
                                 size: 14, color: Colors.indigo),
                           ),
                           const SizedBox(width: 8),
                           Container(
-                            key: const ValueKey('chat_typing_indicator'),
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 12, vertical: 8),
                             decoration: BoxDecoration(
                               color: Colors.grey.shade200,
                               borderRadius: BorderRadius.circular(16),
                             ),
-                            child: const Text(
-                              'StormX đang gõ...',
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  fontStyle: FontStyle.italic,
-                                  color: Colors.black54),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  width: 12,
+                                  height: 12,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.indigo.shade400,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  _wsTyping && _sioTyping
+                                      ? 'StormX (WS & Socket.IO đang nhập...)'
+                                      : (_wsTyping
+                                          ? 'StormX (WS đang nhập...)'
+                                          : 'StormX (Socket.IO đang nhập...)'),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontStyle: FontStyle.italic,
+                                    color: Colors.grey.shade700,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -704,22 +808,33 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                     );
                   }
 
-                  final msg = _messages[index];
-
+                  final msg = messages[index];
                   if (msg.isSystem) {
-                    return Center(
+                    return Container(
+                      alignment: Alignment.center,
+                      margin: const EdgeInsets.symmetric(vertical: 4.0),
                       child: Container(
-                        margin: const EdgeInsets.symmetric(vertical: 6.0),
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 12.0, vertical: 4.0),
+                            horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
                           color: Colors.grey.shade200,
-                          borderRadius: BorderRadius.circular(12.0),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Text(
-                          msg.text,
-                          style: const TextStyle(
-                              fontSize: 11.5, color: Colors.black54),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (msg.protocol != null) ...[
+                              _MessageProtocolBadge(protocol: msg.protocol!),
+                              const SizedBox(width: 4),
+                            ],
+                            Flexible(
+                              child: Text(
+                                msg.text,
+                                style: TextStyle(
+                                    fontSize: 11, color: Colors.grey.shade700),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     );
@@ -729,28 +844,44 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                     return Align(
                       alignment: Alignment.centerRight,
                       child: Container(
-                        margin: const EdgeInsets.only(bottom: 8.0, left: 50.0),
+                        margin: const EdgeInsets.only(bottom: 8.0, left: 40.0),
                         padding: const EdgeInsets.symmetric(
                             horizontal: 14.0, vertical: 10.0),
                         decoration: BoxDecoration(
-                          color: Colors.indigo,
+                          color: Colors.indigo.shade600,
                           borderRadius: BorderRadius.circular(16.0).copyWith(
                             bottomRight: const Radius.circular(2.0),
                           ),
                         ),
-                        child: Text(
-                          msg.text,
-                          style: const TextStyle(
-                              color: Colors.white, fontSize: 14.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            if (_protocolMode ==
+                                    RealtimeProtocolMode.parallel &&
+                                msg.protocol != null)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 2.0),
+                                child: _MessageProtocolBadge(
+                                  protocol: msg.protocol!,
+                                  isDark: true,
+                                ),
+                              ),
+                            Text(
+                              msg.text,
+                              style: const TextStyle(
+                                  fontSize: 14.0, color: Colors.white),
+                            ),
+                          ],
                         ),
                       ),
                     );
                   }
 
-                  return Align(
-                    alignment: Alignment.centerLeft,
+                  // Agent message
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
                     child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         CircleAvatar(
                           radius: 13,
@@ -776,13 +907,23 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  msg.from,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.indigo.shade800,
-                                  ),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      msg.from,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.indigo.shade800,
+                                      ),
+                                    ),
+                                    if (msg.protocol != null) ...[
+                                      const SizedBox(width: 6),
+                                      _MessageProtocolBadge(
+                                          protocol: msg.protocol!),
+                                    ],
+                                  ],
                                 ),
                                 const SizedBox(height: 3),
                                 Text(
@@ -812,7 +953,11 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                     ActionChip(
                       key: const ValueKey('chip_ping'),
                       avatar: const Icon(Icons.speed, size: 14),
-                      label: const Text('🏓 Ping test'),
+                      label: Text(
+                        _protocolMode == RealtimeProtocolMode.parallel
+                            ? '🏓 Ping cả 2'
+                            : '🏓 Ping test',
+                      ),
                       onPressed: () => _sendMessage('ping'),
                     ),
                     const SizedBox(width: 6),
@@ -850,12 +995,14 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                     child: TextField(
                       key: const ValueKey('chat_message_input'),
                       controller: _textController,
-                      decoration: const InputDecoration(
-                        hintText: 'Nhập tin nhắn hỗ trợ...',
+                      decoration: InputDecoration(
+                        hintText: _protocolMode == RealtimeProtocolMode.parallel
+                            ? 'Gửi đồng thời tới cả WS & Socket.IO...'
+                            : 'Nhập tin nhắn (${_protocolMode.label})...',
                         isDense: true,
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        border: OutlineInputBorder(
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        border: const OutlineInputBorder(
                           borderRadius: BorderRadius.all(Radius.circular(24)),
                         ),
                       ),
@@ -872,6 +1019,96 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProtocolStatusChip extends StatelessWidget {
+  const _ProtocolStatusChip({
+    required this.label,
+    required this.isConnected,
+    required this.isConnecting,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool isConnected;
+  final bool isConnecting;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isConnected
+        ? Colors.green
+        : (isConnecting ? Colors.orange : Colors.grey);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: color,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: color.shade800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MessageProtocolBadge extends StatelessWidget {
+  const _MessageProtocolBadge({
+    required this.protocol,
+    this.isDark = false,
+  });
+
+  final String protocol;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    final isWs = protocol == 'WS';
+    final baseColor = isWs ? Colors.cyan : Colors.deepPurple;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.2)
+            : baseColor.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        protocol,
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+          color: isDark ? Colors.white : baseColor.shade800,
         ),
       ),
     );

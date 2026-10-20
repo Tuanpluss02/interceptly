@@ -108,7 +108,9 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Interceptly Showcase'),
+        title: Text(_selectedTab == 1
+            ? 'Realtime (WS & Socket.IO)'
+            : 'Interceptly Showcase'),
         elevation: 1,
         actions: [
           IconButton(

@@ -97,5 +97,27 @@ void main() {
       expect(
           find.byKey(const ValueKey('chat_protocol_selector')), findsOneWidget);
     });
+
+    testWidgets('renders Song song mode and broadcasts message to both',
+        (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ExampleChatPage(
+            baseUrl: server.baseUrl,
+            autoConnect: true,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(milliseconds: 500));
+
+      expect(find.text('Song song'), findsOneWidget);
+      await tester.tap(find.text('Song song'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('chip_ping')));
+      await tester.pumpAndSettle(const Duration(milliseconds: 600));
+
+      expect(find.textContaining('ping'), findsWidgets);
+    });
   });
 }
