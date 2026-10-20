@@ -63,6 +63,16 @@ class ExampleLocalServer {
       return;
     }
 
+    if (path == '/ws/stock' && WebSocketTransformer.isUpgradeRequest(request)) {
+      try {
+        final socket = await WebSocketTransformer.upgrade(request);
+        _handleStockSocket(socket);
+      } catch (_) {
+        // Upgrade failed
+      }
+      return;
+    }
+
     if (path == '/ws/echo' && WebSocketTransformer.isUpgradeRequest(request)) {
       try {
         final socket = await WebSocketTransformer.upgrade(request);
@@ -665,6 +675,76 @@ class ExampleLocalServer {
     0x60,
     0x82,
   ]);
+
+  void _handleStockSocket(WebSocket socket) {
+    var btcPrice = 68420.50;
+    var ethPrice = 3540.20;
+    var bdsPrice = 28500.00;
+
+    // Send initial snapshot
+    if (socket.readyState == WebSocket.open) {
+      socket.add(jsonEncode({
+        'type': 'snapshot',
+        'stocks': [
+          {'symbol': 'BTC/USDT', 'price': btcPrice, 'change': '+3.42%'},
+          {'symbol': 'ETH/USDT', 'price': ethPrice, 'change': '+1.85%'},
+          {'symbol': 'BDS/VND', 'price': bdsPrice, 'change': '+5.12%'},
+        ],
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      }));
+    }
+
+    var tickCount = 0;
+    final tickTimer = Timer.periodic(const Duration(milliseconds: 600), (_) {
+      if (socket.readyState != WebSocket.open) return;
+      tickCount++;
+
+      final symbolIndex = tickCount % 3;
+      String symbol;
+      double price;
+      double changeVal;
+
+      if (symbolIndex == 0) {
+        btcPrice += (tickCount % 2 == 0 ? 12.5 : -8.3);
+        symbol = 'BTC/USDT';
+        price = btcPrice;
+        changeVal = 3.42 + (tickCount % 5) * 0.1;
+      } else if (symbolIndex == 1) {
+        ethPrice += (tickCount % 2 == 0 ? 3.2 : -2.1);
+        symbol = 'ETH/USDT';
+        price = ethPrice;
+        changeVal = 1.85 + (tickCount % 4) * 0.08;
+      } else {
+        bdsPrice += (tickCount % 2 == 0 ? 150 : -100);
+        symbol = 'BDS/VND';
+        price = bdsPrice;
+        changeVal = 5.12 + (tickCount % 6) * 0.05;
+      }
+
+      socket.add(jsonEncode({
+        'type': 'tick',
+        'symbol': symbol,
+        'price': price,
+        'change':
+            '${changeVal >= 0 ? '+' : ''}${changeVal.toStringAsFixed(2)}%',
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      }));
+    });
+
+    socket.listen(
+      (dynamic message) {
+        final text = message.toString();
+        if (text.contains('ping')) {
+          socket.add(jsonEncode({
+            'type': 'pong',
+            'serverTime': DateTime.now().toIso8601String(),
+          }));
+        }
+      },
+      onError: (_) => tickTimer.cancel(),
+      onDone: () => tickTimer.cancel(),
+    );
+  }
 
   void _handleChatSocket(WebSocket socket) {
     // 1. Initial system welcome

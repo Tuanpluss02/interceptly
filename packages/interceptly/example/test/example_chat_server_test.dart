@@ -63,6 +63,31 @@ void main() {
       await sub.cancel();
     });
 
+    test('connects to /ws/stock and receives snapshot and price ticks',
+        () async {
+      final wsUrl = '${server.baseUrl.replaceFirst('http', 'ws')}/ws/stock';
+      final socket = await WebSocket.connect(wsUrl);
+
+      final ticks = <Map<String, dynamic>>[];
+      final completer = Completer<void>();
+
+      final sub = socket.listen((dynamic raw) {
+        final decoded = jsonDecode(raw.toString()) as Map<String, dynamic>;
+        ticks.add(decoded);
+        if (ticks.length >= 2 && !completer.isCompleted) {
+          completer.complete();
+        }
+      });
+
+      await completer.future.timeout(const Duration(seconds: 4));
+      expect(ticks.length, greaterThanOrEqualTo(2));
+      expect(ticks[0]['type'], equals('snapshot'));
+      expect(ticks[1]['type'], equals('tick'));
+
+      await socket.close();
+      await sub.cancel();
+    });
+
     test('connects to Socket.IO endpoint and exchanges chat messages',
         () async {
       final socket = io.io(
