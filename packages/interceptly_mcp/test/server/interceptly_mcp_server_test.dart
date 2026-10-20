@@ -175,7 +175,7 @@ void main() {
       expect(result.isError, isNot(true));
       expect(
         fakeClient.invokedMethods,
-        contains('ext.interceptly.list_requests'),
+        contains('ext.interceptly.listRequests'),
       );
       final lastArgs = fakeClient.invokedArgs.last!;
       expect(lastArgs['since_id'], '100');
@@ -231,7 +231,7 @@ void main() {
         expect(text, contains('--allow-mutation'));
         expect(
           fakeClient.invokedMethods,
-          isNot(contains('ext.interceptly.set_network_simulation')),
+          isNot(contains('ext.interceptly.setNetworkSimulation')),
         );
       },
     );
@@ -260,7 +260,7 @@ void main() {
       expect(resultSim.isError, isNot(true));
       expect(
         fakeClient.invokedMethods,
-        contains('ext.interceptly.set_network_simulation'),
+        contains('ext.interceptly.setNetworkSimulation'),
       );
 
       final resultClear = await serverConnection.callTool(
@@ -269,7 +269,7 @@ void main() {
       expect(resultClear.isError, isNot(true));
       expect(
         fakeClient.invokedMethods,
-        contains('ext.interceptly.clear_traffic'),
+        contains('ext.interceptly.clearTraffic'),
       );
     });
 

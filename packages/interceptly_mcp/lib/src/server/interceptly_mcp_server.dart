@@ -252,7 +252,7 @@ base class InterceptlyMcpServer extends MCPServer
       }
 
       final res = await vmServiceClient.invoke(
-        'ext.interceptly.list_requests',
+        'ext.interceptly.listRequests',
         args,
       );
       return CallToolResult(content: [TextContent(text: jsonEncode(res))]);
@@ -288,7 +288,7 @@ base class InterceptlyMcpServer extends MCPServer
       }
 
       final res = await vmServiceClient.invoke(
-        'ext.interceptly.get_request_detail',
+        'ext.interceptly.getRequestDetail',
         args,
       );
       return CallToolResult(content: [TextContent(text: jsonEncode(res))]);
@@ -331,7 +331,7 @@ base class InterceptlyMcpServer extends MCPServer
       }
 
       final res = await vmServiceClient.invoke(
-        'ext.interceptly.set_network_simulation',
+        'ext.interceptly.setNetworkSimulation',
         args,
       );
       return CallToolResult(content: [TextContent(text: jsonEncode(res))]);
@@ -357,7 +357,7 @@ base class InterceptlyMcpServer extends MCPServer
     }
 
     try {
-      final res = await vmServiceClient.invoke('ext.interceptly.clear_traffic');
+      final res = await vmServiceClient.invoke('ext.interceptly.clearTraffic');
       return CallToolResult(content: [TextContent(text: jsonEncode(res))]);
     } catch (e) {
       return CallToolResult(
@@ -377,7 +377,7 @@ base class InterceptlyMcpServer extends MCPServer
         );
       }
 
-      final res = await vmServiceClient.invoke('ext.interceptly.export_curl', {
+      final res = await vmServiceClient.invoke('ext.interceptly.exportCurl', {
         'id': id.toString(),
       });
       final curl = res['curl'] as String? ?? '';

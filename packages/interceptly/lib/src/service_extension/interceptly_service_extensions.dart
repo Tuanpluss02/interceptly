@@ -73,23 +73,9 @@ class InterceptlyServiceExtensions {
               parameters: params,
               isEnabled: _enabled,
             ));
-    _register(
-        'ext.interceptly.list_requests',
-        (params) async => handleListRequests(
-              engine: _engine,
-              parameters: params,
-              isEnabled: _enabled,
-            ));
 
     _register(
         'ext.interceptly.getRequestDetail',
-        (params) => handleGetRequestDetail(
-              engine: _engine,
-              parameters: params,
-              isEnabled: _enabled,
-            ));
-    _register(
-        'ext.interceptly.get_request_detail',
         (params) => handleGetRequestDetail(
               engine: _engine,
               parameters: params,
@@ -103,13 +89,6 @@ class InterceptlyServiceExtensions {
               parameters: params,
               isEnabled: _enabled,
             ));
-    _register(
-        'ext.interceptly.set_network_simulation',
-        (params) async => handleSetNetworkSimulation(
-              engine: _engine,
-              parameters: params,
-              isEnabled: _enabled,
-            ));
 
     _register(
         'ext.interceptly.clearTraffic',
@@ -118,23 +97,9 @@ class InterceptlyServiceExtensions {
               parameters: params,
               isEnabled: _enabled,
             ));
-    _register(
-        'ext.interceptly.clear_traffic',
-        (params) => handleClearTraffic(
-              engine: _engine,
-              parameters: params,
-              isEnabled: _enabled,
-            ));
 
     _register(
         'ext.interceptly.exportCurl',
-        (params) => handleExportCurl(
-              engine: _engine,
-              parameters: params,
-              isEnabled: _enabled,
-            ));
-    _register(
-        'ext.interceptly.export_curl',
         (params) => handleExportCurl(
               engine: _engine,
               parameters: params,

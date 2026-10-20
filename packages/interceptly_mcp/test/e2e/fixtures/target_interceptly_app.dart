@@ -65,8 +65,8 @@ void main() async {
     );
   });
 
-  // 2. Register ext.interceptly.list_requests
-  developer.registerExtension('ext.interceptly.list_requests', (
+  // 2. Register ext.interceptly.listRequests
+  developer.registerExtension('ext.interceptly.listRequests', (
     method,
     parameters,
   ) async {
@@ -95,8 +95,8 @@ void main() async {
     );
   });
 
-  // 3. Register ext.interceptly.get_request_detail
-  developer.registerExtension('ext.interceptly.get_request_detail', (
+  // 3. Register ext.interceptly.getRequestDetail
+  developer.registerExtension('ext.interceptly.getRequestDetail', (
     method,
     parameters,
   ) async {
@@ -134,8 +134,8 @@ void main() async {
     );
   });
 
-  // 4. Register ext.interceptly.set_network_simulation
-  developer.registerExtension('ext.interceptly.set_network_simulation', (
+  // 4. Register ext.interceptly.setNetworkSimulation
+  developer.registerExtension('ext.interceptly.setNetworkSimulation', (
     method,
     parameters,
   ) async {
@@ -146,8 +146,8 @@ void main() async {
     );
   });
 
-  // 5. Register ext.interceptly.clear_traffic
-  developer.registerExtension('ext.interceptly.clear_traffic', (
+  // 5. Register ext.interceptly.clearTraffic
+  developer.registerExtension('ext.interceptly.clearTraffic', (
     method,
     parameters,
   ) async {
@@ -157,8 +157,8 @@ void main() async {
     );
   });
 
-  // 6. Register ext.interceptly.export_curl
-  developer.registerExtension('ext.interceptly.export_curl', (
+  // 6. Register ext.interceptly.exportCurl
+  developer.registerExtension('ext.interceptly.exportCurl', (
     method,
     parameters,
   ) async {
