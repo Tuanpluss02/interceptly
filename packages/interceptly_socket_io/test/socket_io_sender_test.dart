@@ -213,5 +213,63 @@ void main() {
         ]),
       );
     });
+
+    test(
+        'decodes replayed JSON string payload to Map or List before emitting to socket',
+        () async {
+      final socket = FakeSocket();
+      final scope = RealtimeTrafficCollector.instance.openSession(
+        uri: Uri.parse('http://localhost:3000'),
+        protocolType: RealtimeProtocolType.socketIo,
+      );
+      final sender = SocketIoSender(socket, scope);
+
+      // JSON Map string from UI composer or resend
+      await sender.send(const RealtimeMessageDraft(
+        event: 'chat:replay',
+        payload: '{"text": "replayed message", "num": 100}',
+      ));
+
+      expect(socket.sentPackets.length, equals(1));
+      expect(
+        socket.sentPackets.first['data'],
+        equals([
+          'chat:replay',
+          {'text': 'replayed message', 'num': 100},
+        ]),
+      );
+
+      // JSON List string
+      await sender.send(const RealtimeMessageDraft(
+        event: 'batch:replay',
+        payload: '[1, 2, "three"]',
+      ));
+
+      expect(socket.sentPackets.length, equals(2));
+      expect(
+        socket.sentPackets[1]['data'],
+        equals([
+          'batch:replay',
+          1,
+          2,
+          'three',
+        ]),
+      );
+
+      // Plain string (not JSON object or array) stays as String
+      await sender.send(const RealtimeMessageDraft(
+        event: 'text:replay',
+        payload: 'plain text message',
+      ));
+
+      expect(socket.sentPackets.length, equals(3));
+      expect(
+        socket.sentPackets[2]['data'],
+        equals([
+          'text:replay',
+          'plain text message',
+        ]),
+      );
+    });
   });
 }

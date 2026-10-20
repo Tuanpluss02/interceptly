@@ -29,14 +29,18 @@ class InterceptlySocketIo {
       sessionId: sessionId,
     );
 
-    final sender = SocketIoSender(socket, scope);
-    scope.attachSender(sender);
-
-    return InterceptlySocketIoTracker(
+    final tracker = InterceptlySocketIoTracker(
       socket: socket,
       scope: scope,
       collector: effectiveCollector,
+      uri: resolvedUri,
+      headers: headers,
     );
+
+    final sender = SocketIoSender.dynamic(socket, () => tracker.scope);
+    scope.attachSender(sender);
+
+    return tracker;
   }
 
   static Uri _resolveUri(Socket socket, Uri? explicitUri) {

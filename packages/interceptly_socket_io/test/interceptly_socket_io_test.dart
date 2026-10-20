@@ -1,5 +1,6 @@
 // ignore_for_file: invalid_use_of_internal_member
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -214,6 +215,36 @@ void main() {
       expect(frame.textPayload, contains('shipped'));
     });
 
+    test(
+        'handles large variadic argument list (> 10 arguments) without arity error',
+        () async {
+      final socket = FakeSocket();
+      InterceptlySocketIo.attach(socket, sessionId: 'inc-multi-large');
+
+      final largeArgs = List.generate(15, (i) => 'val_$i');
+      expect(() => socket.triggerIncomingVariadic('stats:large', largeArgs),
+          returnsNormally);
+      await pumpEventQueue();
+
+      final frames = engine.getRealtimeFrames('inc-multi-large');
+      expect(frames.length, equals(1));
+      expect(frames.first.eventName, equals('stats:large'));
+      expect(frames.first.textPayload, equals(jsonEncode(largeArgs)));
+    });
+
+    test('preserves trailing null argument in multi-argument event', () async {
+      final socket = FakeSocket();
+      InterceptlySocketIo.attach(socket, sessionId: 'inc-multi-null');
+
+      socket.triggerIncomingVariadic('item:update', ['item-1', null]);
+      await pumpEventQueue();
+
+      final frames = engine.getRealtimeFrames('inc-multi-null');
+      expect(frames.length, equals(1));
+      expect(frames.first.eventName, equals('item:update'));
+      expect(frames.first.textPayload, equals(jsonEncode(['item-1', null])));
+    });
+
     test('handles binary payloads (Uint8List)', () async {
       final socket = FakeSocket();
       InterceptlySocketIo.attach(socket, sessionId: 'inc-bin-1');
@@ -361,6 +392,39 @@ void main() {
       expect(engine.entries.first.hasError, isTrue);
       expect(engine.entries.first.errorMessage, equals('xhr poll error'));
     });
+
+    test(
+        'socket reconnection creates new active session and continues capturing',
+        () async {
+      final socket = FakeSocket();
+      final tracker =
+          InterceptlySocketIo.attach(socket, sessionId: 'reconnect-1');
+
+      socket.triggerIncomingEvent('msg:1', 'first session');
+      await pumpEventQueue();
+      expect(tracker.scope.isClosed, isFalse);
+
+      // Disconnect socket -> closes initial scope
+      socket.triggerDisconnect('network down');
+      await pumpEventQueue();
+      expect(tracker.scope.isClosed, isTrue);
+
+      // Reconnect socket -> opens new scope!
+      socket.triggerConnect('new-sid-456');
+      await pumpEventQueue();
+      expect(tracker.scope.isClosed, isFalse);
+      expect(tracker.scope.sessionId, isNot(equals('reconnect-1')));
+
+      // New events are captured in new session!
+      socket.triggerIncomingEvent('msg:2', 'second session');
+      await pumpEventQueue();
+      expect(tracker.scope.isClosed, isFalse);
+
+      final newFrames = engine.getRealtimeFrames(tracker.scope.sessionId);
+      expect(newFrames.length, equals(1));
+      expect(newFrames.first.eventName, equals('msg:2'));
+      expect(newFrames.first.textPayload, equals('second session'));
+    });
   });
 
   group('Detachment & Idempotency', () {
@@ -386,7 +450,7 @@ void main() {
       await pumpEventQueue();
 
       expect(engine.getRealtimeFrames('detach-1').length, equals(2));
-      expect(tracker.scope.isClosed, isFalse);
+      expect(tracker.scope.isClosed, isTrue);
     });
 
     test('detach() is idempotent and safe to call multiple times', () {
