@@ -1,55 +1,13 @@
 // ignore_for_file: invalid_use_of_internal_member
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/engine/body_store.dart';
 import 'package:interceptly/src/engine/interceptly_engine.dart';
 import 'package:interceptly/src/model/body_location.dart';
 import 'package:interceptly/src/model/body_truncation.dart';
 import 'package:interceptly/src/model/index_entry.dart';
 import 'package:interceptly/src/model/search_match_scope.dart';
-import 'package:interceptly/src/model/search_result.dart';
-
-Uint8List _createPackedBody({
-  String? requestBody,
-  String? responseBody,
-}) {
-  final reqBytes =
-      requestBody != null ? Uint8List.fromList(utf8.encode(requestBody)) : null;
-  final resBytes = responseBody != null
-      ? Uint8List.fromList(utf8.encode(responseBody))
-      : null;
-
-  final total = 4 + (reqBytes?.length ?? 0) + 4 + (resBytes?.length ?? 0) + 1;
-  final out = Uint8List(total);
-  final data = ByteData.sublistView(out);
-  var offset = 0;
-
-  if (reqBytes == null) {
-    data.setUint32(offset, 0xFFFFFFFF, Endian.big);
-    offset += 4;
-  } else {
-    data.setUint32(offset, reqBytes.length, Endian.big);
-    offset += 4;
-    out.setRange(offset, offset + reqBytes.length, reqBytes);
-    offset += reqBytes.length;
-  }
-
-  if (resBytes == null) {
-    data.setUint32(offset, 0xFFFFFFFF, Endian.big);
-    offset += 4;
-  } else {
-    data.setUint32(offset, resBytes.length, Endian.big);
-    offset += 4;
-    out.setRange(offset, offset + resBytes.length, resBytes);
-    offset += resBytes.length;
-  }
-
-  out[offset] = 0;
-  return out;
-}
 
 IndexEntry _buildEntry({
   required String id,

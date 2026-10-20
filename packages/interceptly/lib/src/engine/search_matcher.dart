@@ -80,8 +80,7 @@ abstract final class SearchMatcher {
     try {
       final raw = await BodyStore.readWithHandle(raf, offset, length);
       final decoded = BodyDecodeService.unpackToText(raw);
-      final combined =
-          '${decoded.$1 ?? ''}\n${decoded.$2 ?? ''}'.toLowerCase();
+      final combined = '${decoded.$1 ?? ''}\n${decoded.$2 ?? ''}'.toLowerCase();
       return combined.contains(queryLower);
     } catch (_) {
       return false;

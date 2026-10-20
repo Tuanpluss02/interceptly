@@ -521,8 +521,7 @@ class InterceptlyEngine extends ChangeNotifier {
       }
 
       // Collect file candidates for Phase 3
-      final isExpiredByRotation = _capturePipeline.fileRotationCount != null &&
-          e.fileRotationCount != null &&
+      final isExpiredByRotation = e.fileRotationCount != null &&
           e.fileRotationCount! < _capturePipeline.fileRotationCount;
 
       if (!isExpiredByRotation &&
