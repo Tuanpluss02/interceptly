@@ -153,6 +153,13 @@ void main() {
       );
       final sinceList = since['requests'] as List;
       expect(sinceList.any((e) => e['id'] == 'req_2'), isFalse);
+
+      // 5. Cursor since_id for evicted/unknown ID returns empty list instead of repeating
+      final evicted = await HttpExtensionHandlers.handleListRequests(
+        engine: engine,
+        parameters: {'since_id': 'req_non_existent'},
+      );
+      expect(evicted['requests'], isEmpty);
     });
 
     test(
@@ -203,11 +210,13 @@ void main() {
     test(
         'handleGetRequestDetail loads detail, handles part, offset, and max_chars',
         () async {
+      const longReqBody = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
       const longBody =
           'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
       engine.record(createCapture(
         id: 'req_detail_1',
         statusCode: 200,
+        requestBody: longReqBody,
         responseBody: longBody,
       ));
       await Future<void>.delayed(const Duration(milliseconds: 100));
@@ -226,6 +235,20 @@ void main() {
           ),
         ),
       );
+
+      // Part 'all' windows both requestBody and responseBody safely
+      final allDetail = await HttpExtensionHandlers.handleGetRequestDetail(
+        engine: engine,
+        parameters: {
+          'id': 'req_detail_1',
+          'part': 'all',
+          'offset': '0',
+          'max_chars': '10',
+        },
+      );
+      expect(allDetail['requestBody'], '0123456789');
+      expect(allDetail['responseBody'], 'abcdefghij');
+      expect(allDetail['isTruncated'], isTrue);
 
       // Full part with slice
       final detail = await HttpExtensionHandlers.handleGetRequestDetail(

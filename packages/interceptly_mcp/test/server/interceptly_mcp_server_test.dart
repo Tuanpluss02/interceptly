@@ -257,7 +257,7 @@ void main() {
         );
         final lastArgs = fakeClient.invokedArgs.last!;
         expect(lastArgs['session_id'], 's_abc');
-        expect(lastArgs['direction'], 'sent');
+        expect(lastArgs['direction'], 'outgoing');
         expect(lastArgs['type'], 'text');
         expect(lastArgs['since_id'], 'f_0');
         expect(lastArgs['limit'], '25');

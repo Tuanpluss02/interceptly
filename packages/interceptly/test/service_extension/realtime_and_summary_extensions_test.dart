@@ -108,13 +108,28 @@ void main() {
       expect(allRes['total'], 3);
       expect(allRes['count'], 3);
 
-      // Filter by direction: incoming
+      // Filter by direction: incoming & received
       final incomingRes =
           await RealtimeExtensionHandlers.handleListRealtimeFrames(
         engine: engine,
         parameters: {'session_id': sessionId, 'direction': 'incoming'},
       );
       expect(incomingRes['count'], 2);
+
+      final receivedRes =
+          await RealtimeExtensionHandlers.handleListRealtimeFrames(
+        engine: engine,
+        parameters: {'session_id': sessionId, 'direction': 'received'},
+      );
+      expect(receivedRes['count'], 2);
+
+      // Filter by direction: outgoing & sent
+      final sentRes = await RealtimeExtensionHandlers.handleListRealtimeFrames(
+        engine: engine,
+        parameters: {'session_id': sessionId, 'direction': 'sent'},
+      );
+      expect(sentRes['count'], 1);
+      expect(sentRes['frames'][0]['id'], 'f2');
 
       // Filter by type: binary
       final binaryRes =
@@ -124,6 +139,15 @@ void main() {
       );
       expect(binaryRes['count'], 1);
       expect(binaryRes['frames'][0]['id'], 'f3');
+
+      // since_id on last frame returns empty list (does not repeat earlier frames)
+      final afterLastRes =
+          await RealtimeExtensionHandlers.handleListRealtimeFrames(
+        engine: engine,
+        parameters: {'session_id': sessionId, 'since_id': 'f3'},
+      );
+      expect(afterLastRes['count'], 0);
+      expect(afterLastRes['frames'], isEmpty);
     });
 
     test('handleGetRealtimeFrameDetail returns payload with truncation',
@@ -193,6 +217,34 @@ void main() {
       expect(summary['latency']['minMs'], 10);
       expect(summary['latency']['maxMs'], 100);
       expect(summary['latency']['p50Ms'], 60);
+
+      // Ingest an in-flight HTTP request (statusCode: 0, hasError: false)
+      engine.record(createCapture(
+        id: 'req_inflight',
+        statusCode: 0,
+        durationMs: 0,
+      ));
+
+      // Ingest an active SSE session (method: 'SSE', statusCode: 0, hasError: false)
+      engine.recordRealtimeConnection(
+        id: 'sse_1',
+        url: 'https://api.example.com/events',
+        protocolType: RealtimeProtocolType.sse,
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      final summaryWithSse = SummaryExtensionHandlers.handleGetTrafficSummary(
+        engine: engine,
+        parameters: {},
+      );
+
+      // In-flight HTTP request should NOT increment failedRequests
+      expect(summaryWithSse['failedRequests'], 2);
+      expect(summaryWithSse['inFlightRequests'], 1);
+      expect(summaryWithSse['completedRequests'], 10);
+      // SSE should be counted under realtime, not as a failed HTTP request
+      expect(summaryWithSse['realtime']['activeSessions'], 1);
     });
   });
 }

@@ -83,6 +83,9 @@ abstract final class HttpExtensionHandlers {
         filtered = filtered.sublist(0, index);
       } else if (index == 0) {
         filtered = <RequestSummary>[];
+      } else {
+        // Cursor not found in ring buffer (evicted or non-existent)
+        filtered = <RequestSummary>[];
       }
     }
 
@@ -175,30 +178,45 @@ abstract final class HttpExtensionHandlers {
 
     if (part == 'response_body' || part == 'all') {
       final raw = resBody ?? '';
-      totalChars = raw.length;
+      if (part == 'response_body') {
+        totalChars = raw.length;
+      }
       if (offset < raw.length) {
         final end = (offset + maxChars).clamp(0, raw.length);
         resBody = raw.substring(offset, end);
-        remainingChars = raw.length - end;
-        isTruncated = remainingChars > 0;
+        final rem = raw.length - end;
+        if (rem > 0) isTruncated = true;
+        if (part == 'response_body') remainingChars = rem;
       } else {
         resBody = '';
-        remainingChars = 0;
+        if (part == 'response_body') remainingChars = 0;
       }
     }
 
-    if (part == 'request_body') {
+    if (part == 'request_body' || part == 'all') {
       final raw = reqBody ?? '';
-      totalChars = raw.length;
+      if (part == 'request_body') {
+        totalChars = raw.length;
+      }
       if (offset < raw.length) {
         final end = (offset + maxChars).clamp(0, raw.length);
         reqBody = raw.substring(offset, end);
-        remainingChars = raw.length - end;
-        isTruncated = remainingChars > 0;
+        final rem = raw.length - end;
+        if (rem > 0) isTruncated = true;
+        if (part == 'request_body') remainingChars = rem;
       } else {
         reqBody = '';
-        remainingChars = 0;
+        if (part == 'request_body') remainingChars = 0;
       }
+    }
+
+    if (part == 'all') {
+      final totalReq = (record.requestBodyPreview ?? '').length;
+      final totalRes = (record.responseBodyPreview ?? '').length;
+      totalChars = totalReq + totalRes;
+      final remReq = (totalReq - offset - maxChars).clamp(0, totalReq);
+      final remRes = (totalRes - offset - maxChars).clamp(0, totalRes);
+      remainingChars = remReq + remRes;
     }
 
     return {

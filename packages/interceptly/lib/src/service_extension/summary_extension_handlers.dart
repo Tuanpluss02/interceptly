@@ -62,17 +62,24 @@ abstract final class SummaryExtensionHandlers {
 
     int realtimeSessionsCount = 0;
     int activeRealtimeSessionsCount = 0;
+    int inFlightCount = 0;
 
     for (final e in entries) {
-      if (e.method == 'WS' || e.method == 'SIO') {
+      if (e.isRealtime) {
         realtimeSessionsCount++;
-        if (e.durationMs == 0) {
+        if (e.statusCode == 0 && !e.hasError) {
           activeRealtimeSessionsCount++;
         }
         continue;
       }
 
       final code = e.statusCode;
+      if (code == 0 && !e.hasError) {
+        inFlightCount++;
+        statusDist['other'] = (statusDist['other'] ?? 0) + 1;
+        continue;
+      }
+
       if (code >= 200 && code < 300) {
         statusDist['2xx'] = (statusDist['2xx'] ?? 0) + 1;
       } else if (code >= 300 && code < 400) {
@@ -85,7 +92,7 @@ abstract final class SummaryExtensionHandlers {
         failedCount++;
       } else {
         statusDist['other'] = (statusDist['other'] ?? 0) + 1;
-        if (e.hasError || code == 0) failedCount++;
+        if (e.hasError) failedCount++;
       }
 
       totalBytesSent += e.requestSizeBytes;
@@ -116,7 +123,9 @@ abstract final class SummaryExtensionHandlers {
     final errorRate = totalHttp > 0 ? (failedCount / totalHttp) : 0.0;
 
     return {
-      'totalRequests': totalHttp,
+      'totalRequests': totalHttp + inFlightCount,
+      'completedRequests': totalHttp,
+      'inFlightRequests': inFlightCount,
       'failedRequests': failedCount,
       'errorRate': double.parse(errorRate.toStringAsFixed(4)),
       'statusDistribution': statusDist,

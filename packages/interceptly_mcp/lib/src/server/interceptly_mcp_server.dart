@@ -159,8 +159,9 @@ base class InterceptlyMcpServer extends MCPServer
               'Filter frames by WebSocket / Realtime session ID (e.g. from realtime summary or session list).',
         ),
         'direction': EnumSchema.untitledSingleSelect(
-          description: 'Filter by frame direction: sent, received, or all.',
-          values: ['all', 'sent', 'received'],
+          description:
+              'Filter by frame direction: sent (outgoing), received (incoming), or all.',
+          values: ['all', 'sent', 'received', 'outgoing', 'incoming'],
         ),
         'type': EnumSchema.untitledSingleSelect(
           description:
@@ -393,7 +394,11 @@ base class InterceptlyMcpServer extends MCPServer
       }
       if (request.arguments?['direction'] case final String direction) {
         if (direction != 'all') {
-          args['direction'] = direction;
+          args['direction'] = switch (direction.toLowerCase()) {
+            'sent' => 'outgoing',
+            'received' => 'incoming',
+            final other => other,
+          };
         }
       }
       if (request.arguments?['type'] case final String type) {

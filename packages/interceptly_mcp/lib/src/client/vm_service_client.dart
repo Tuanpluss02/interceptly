@@ -76,11 +76,17 @@ class DefaultVmServiceClient implements VmServiceClient {
     unawaited(
       service.onDone
           .then((_) {
-            logStderr('VM Service connection closed by remote host ($wsUri).');
-            disconnect();
+            if (identical(_vmService, service)) {
+              logStderr(
+                'VM Service connection closed by remote host ($wsUri).',
+              );
+              disconnect();
+            }
           })
           .catchError((_) {
-            disconnect();
+            if (identical(_vmService, service)) {
+              disconnect();
+            }
           }),
     );
 

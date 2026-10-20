@@ -42,13 +42,28 @@ abstract final class RealtimeExtensionHandlers {
 
     final allFrames = engine.getRealtimeFrames(sessionId);
     final directionFilter = (parameters['direction'] ?? 'all').toLowerCase();
+    final FrameDirection? targetDirection = switch (directionFilter) {
+      'incoming' ||
+      'inbound' ||
+      'received' ||
+      'receive' ||
+      'in' =>
+        FrameDirection.incoming,
+      'outgoing' ||
+      'outbound' ||
+      'sent' ||
+      'send' ||
+      'out' =>
+        FrameDirection.outgoing,
+      _ => null,
+    };
     final typeFilter = (parameters['type'] ?? 'all').toLowerCase();
     final sinceId = parameters['since_id'];
     final limit =
         int.tryParse(parameters['limit'] ?? '50')?.clamp(1, 200) ?? 50;
 
     var filtered = allFrames.where((f) {
-      if (directionFilter != 'all' && f.direction.name != directionFilter) {
+      if (targetDirection != null && f.direction != targetDirection) {
         return false;
       }
       if (typeFilter != 'all' && f.type.name != typeFilter) {
@@ -57,10 +72,12 @@ abstract final class RealtimeExtensionHandlers {
       return true;
     }).toList();
 
-    if (sinceId != null) {
+    if (sinceId != null && sinceId.isNotEmpty) {
       final idx = filtered.indexWhere((f) => f.id == sinceId);
-      if (idx != -1 && idx + 1 < filtered.length) {
+      if (idx != -1) {
         filtered = filtered.sublist(idx + 1);
+      } else {
+        filtered = <RealtimeFrame>[];
       }
     }
 
