@@ -6,7 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
 import 'package:interceptly/src/engine/interceptly_engine.dart';
-import 'package:interceptly/src/service_extension/interceptly_service_extensions.dart';
+import 'package:interceptly/src/service_extension/realtime_extension_handlers.dart';
+import 'package:interceptly/src/service_extension/summary_extension_handlers.dart';
 
 const MethodChannel _channel =
     MethodChannel('plugins.flutter.io/path_provider');
@@ -100,8 +101,7 @@ void main() {
       await engine.recordRealtimeFrame(f3);
 
       // List all
-      final allRes =
-          await InterceptlyServiceExtensions.handleListRealtimeFrames(
+      final allRes = await RealtimeExtensionHandlers.handleListRealtimeFrames(
         engine: engine,
         parameters: {'session_id': sessionId},
       );
@@ -110,7 +110,7 @@ void main() {
 
       // Filter by direction: incoming
       final incomingRes =
-          await InterceptlyServiceExtensions.handleListRealtimeFrames(
+          await RealtimeExtensionHandlers.handleListRealtimeFrames(
         engine: engine,
         parameters: {'session_id': sessionId, 'direction': 'incoming'},
       );
@@ -118,7 +118,7 @@ void main() {
 
       // Filter by type: binary
       final binaryRes =
-          await InterceptlyServiceExtensions.handleListRealtimeFrames(
+          await RealtimeExtensionHandlers.handleListRealtimeFrames(
         engine: engine,
         parameters: {'session_id': sessionId, 'type': 'binary'},
       );
@@ -139,7 +139,7 @@ void main() {
       await engine.recordRealtimeFrame(f1);
 
       final detail =
-          await InterceptlyServiceExtensions.handleGetRealtimeFrameDetail(
+          await RealtimeExtensionHandlers.handleGetRealtimeFrameDetail(
         engine: engine,
         parameters: {
           'session_id': sessionId,
@@ -161,7 +161,7 @@ void main() {
         'handleGetTrafficSummary computes accurate percentiles, error rate, and bandwidth',
         () async {
       // Initially empty
-      final emptySummary = InterceptlyServiceExtensions.handleGetTrafficSummary(
+      final emptySummary = SummaryExtensionHandlers.handleGetTrafficSummary(
         engine: engine,
         parameters: {},
       );
@@ -180,7 +180,7 @@ void main() {
 
       await Future<void>.delayed(const Duration(milliseconds: 100));
 
-      final summary = InterceptlyServiceExtensions.handleGetTrafficSummary(
+      final summary = SummaryExtensionHandlers.handleGetTrafficSummary(
         engine: engine,
         parameters: {},
       );

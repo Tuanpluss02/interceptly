@@ -6,7 +6,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
 import 'package:interceptly/src/engine/interceptly_engine.dart';
+import 'package:interceptly/src/service_extension/http_extension_handlers.dart';
 import 'package:interceptly/src/service_extension/interceptly_service_extensions.dart';
+import 'package:interceptly/src/service_extension/simulation_extension_handlers.dart';
 
 const MethodChannel _channel =
     MethodChannel('plugins.flutter.io/path_provider');
@@ -119,7 +121,7 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 100));
 
       // 1. List all
-      final all = await InterceptlyServiceExtensions.handleListRequests(
+      final all = await HttpExtensionHandlers.handleListRequests(
         engine: engine,
         parameters: {'status_filter': 'all'},
       );
@@ -127,7 +129,7 @@ void main() {
       expect(allList.length, 3);
 
       // 2. Filter failed only (4xx, 5xx)
-      final failed = await InterceptlyServiceExtensions.handleListRequests(
+      final failed = await HttpExtensionHandlers.handleListRequests(
         engine: engine,
         parameters: {'status_filter': 'failed'},
       );
@@ -136,7 +138,7 @@ void main() {
       expect(failedList.map((e) => e['statusCode']), containsAll([404, 500]));
 
       // 3. Search query
-      final search = await InterceptlyServiceExtensions.handleListRequests(
+      final search = await HttpExtensionHandlers.handleListRequests(
         engine: engine,
         parameters: {'search': 'missing'},
       );
@@ -145,7 +147,7 @@ void main() {
       expect(searchList.first['id'], 'req_2');
 
       // 4. Cursor pagination since_id (newest-first, entries after req_2)
-      final since = await InterceptlyServiceExtensions.handleListRequests(
+      final since = await HttpExtensionHandlers.handleListRequests(
         engine: engine,
         parameters: {'since_id': 'req_2'},
       );
@@ -171,8 +173,7 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 100));
 
       // Match header
-      final headerSearch =
-          await InterceptlyServiceExtensions.handleListRequests(
+      final headerSearch = await HttpExtensionHandlers.handleListRequests(
         engine: engine,
         parameters: {'search': 'token-auth-xyz'},
       );
@@ -182,7 +183,7 @@ void main() {
       expect(headerList.first['matchScopes'], contains('headers'));
 
       // Match body
-      final bodySearch = await InterceptlyServiceExtensions.handleListRequests(
+      final bodySearch = await HttpExtensionHandlers.handleListRequests(
         engine: engine,
         parameters: {'search': 'COMPLETED_OK'},
       );
@@ -192,8 +193,7 @@ void main() {
       expect(bodyList.first['matchScopes'], contains('body'));
 
       // Skips body when search_body is false
-      final noBodySearch =
-          await InterceptlyServiceExtensions.handleListRequests(
+      final noBodySearch = await HttpExtensionHandlers.handleListRequests(
         engine: engine,
         parameters: {'search': 'COMPLETED_OK', 'search_body': 'false'},
       );
@@ -214,7 +214,7 @@ void main() {
 
       // Missing ID -> invalidParams (-32602)
       expect(
-        () => InterceptlyServiceExtensions.handleGetRequestDetail(
+        () => HttpExtensionHandlers.handleGetRequestDetail(
           engine: engine,
           parameters: {},
         ),
@@ -228,7 +228,7 @@ void main() {
       );
 
       // Full part with slice
-      final detail = await InterceptlyServiceExtensions.handleGetRequestDetail(
+      final detail = await HttpExtensionHandlers.handleGetRequestDetail(
         engine: engine,
         parameters: {
           'id': 'req_detail_1',
@@ -245,7 +245,7 @@ void main() {
       expect(detail['remainingChars'], longBody.length - 10);
 
       // Continuation chunk with offset: 10
-      final chunk2 = await InterceptlyServiceExtensions.handleGetRequestDetail(
+      final chunk2 = await HttpExtensionHandlers.handleGetRequestDetail(
         engine: engine,
         parameters: {
           'id': 'req_detail_1',
@@ -258,7 +258,7 @@ void main() {
     });
 
     test('handleSetNetworkSimulation applies profile', () {
-      final res = InterceptlyServiceExtensions.handleSetNetworkSimulation(
+      final res = SimulationExtensionHandlers.handleSetNetworkSimulation(
         engine: engine,
         parameters: {'profile': 'slow3g'},
       );
@@ -268,7 +268,7 @@ void main() {
       expect(engine.networkSimulation, NetworkSimulationProfile.slow3G);
 
       // Custom profile by latency_ms
-      final resCustom = InterceptlyServiceExtensions.handleSetNetworkSimulation(
+      final resCustom = SimulationExtensionHandlers.handleSetNetworkSimulation(
         engine: engine,
         parameters: {'latency_ms': '250', 'download_kbps': '1000'},
       );
@@ -279,7 +279,7 @@ void main() {
 
       // Disable via enabled: false
       final resDisabled =
-          InterceptlyServiceExtensions.handleSetNetworkSimulation(
+          SimulationExtensionHandlers.handleSetNetworkSimulation(
         engine: engine,
         parameters: {'enabled': 'false'},
       );
@@ -293,7 +293,7 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 100));
       expect(engine.entries.length, 1);
 
-      final res = await InterceptlyServiceExtensions.handleClearTraffic(
+      final res = await SimulationExtensionHandlers.handleClearTraffic(
         engine: engine,
         parameters: {},
       );
@@ -310,7 +310,7 @@ void main() {
       ));
       await Future<void>.delayed(const Duration(milliseconds: 100));
 
-      final res = await InterceptlyServiceExtensions.handleExportCurl(
+      final res = await HttpExtensionHandlers.handleExportCurl(
         engine: engine,
         parameters: {'id': 'req_curl_1'},
       );
