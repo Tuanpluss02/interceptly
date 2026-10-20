@@ -929,10 +929,27 @@ class ExampleLocalServer {
           "pingTimeout": 20000,
         })}');
 
+    // 2. Periodic Engine.IO server heartbeat ping (every 20s) to keep client connection alive
+    final pingTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (socket.readyState == WebSocket.open) {
+        socket.add('2');
+      }
+    });
+
     socket.listen(
       (dynamic rawMessage) {
+        if (rawMessage is List<int>) {
+          socket.add(rawMessage);
+          return;
+        }
+
         final text = rawMessage.toString();
         if (text.isEmpty) return;
+
+        // Engine.IO PONG ("3" or "3probe") from client
+        if (text == '3' || text == '3probe') {
+          return;
+        }
 
         // Engine.IO PING ("2" or "2probe") -> PONG ("3" or "3probe")
         if (text == '2' || text.startsWith('2probe')) {
@@ -1090,7 +1107,11 @@ class ExampleLocalServer {
         }
       },
       onError: (Object _) {
+        pingTimer.cancel();
         socket.close(WebSocketStatus.unsupportedData);
+      },
+      onDone: () {
+        pingTimer.cancel();
       },
     );
   }
