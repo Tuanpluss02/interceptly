@@ -4,7 +4,7 @@ import 'body_truncation.dart';
 
 /// Full detail model — loaded on demand when user opens a request.
 ///
-/// Built by [InspectorSession.loadDetail] from a [RequestSummary].
+/// Built by [InterceptlyEngine.loadDetail] from a [RequestSummary].
 class RequestRecord {
   const RequestRecord({
     required this.id,

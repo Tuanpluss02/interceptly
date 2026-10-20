@@ -1,3 +1,5 @@
+// ignore_for_file: invalid_use_of_internal_member
+
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -5,70 +7,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
-import 'package:interceptly/src/model/domain_group.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
 import 'package:interceptly/src/model/index_entry.dart';
-import 'package:interceptly/src/session/inspector_preferences.dart';
 import 'package:interceptly/src/ui/detail/realtime/bounded_lru_cache.dart';
 import 'package:interceptly/src/ui/detail/realtime/realtime_filter_header.dart';
 import 'package:interceptly/src/ui/detail/realtime/realtime_payload_view.dart';
 import 'package:interceptly/src/ui/detail/realtime_detail_page.dart';
 import 'package:interceptly/src/ui/detail/realtime_messages_tab.dart';
+import 'package:interceptly/src/ui/scope/interceptly_scope.dart';
 import 'package:interceptly/src/ui/tabs/realtime_list_tab.dart';
 import 'package:interceptly/src/ui/widgets/json_viewer/json_viewer.dart';
 
-class _MockSession extends ChangeNotifier implements InspectorSessionView {
+class _MockSession extends InterceptlyScopeController {
+  _MockSession({InterceptlyEngine? engine})
+      : super(engine: engine ?? InterceptlyEngine());
+
   final Map<String, List<RealtimeFrame>> framesBySession = {};
-  final InspectorPreferences _prefs = InspectorPreferences();
-
-  @override
-  InterceptlySettings get settings => const InterceptlySettings();
-
-  @override
-  InspectorPreferences get preferences => _prefs;
-
-  @override
-  bool get isRealtimeActive => false;
-
-  @override
-  List<RequestSummary> get entries => const [];
-
-  @override
-  int get entriesVersion => 0;
-
-  @override
-  RequestFilter get filter => RequestFilter();
-
-  @override
-  bool get isEnabled => true;
-
-  @override
-  int get droppedCount => 0;
-
-  @override
-  NetworkSimulationProfile get networkSimulation =>
-      NetworkSimulationProfile.none;
-
-  @override
-  String? get masterQuery => null;
-
-  @override
-  bool get isMasterSearchActive => false;
-
-  @override
-  bool get isScanningBodies => false;
-
-  @override
-  bool get isScanningFiles => false;
-
-  @override
-  bool get groupingEnabled => false;
-
-  @override
-  Set<SearchMatchScope> getSearchScopes(String id) => const {};
-
-  @override
-  RequestSummary? byId(String id) => null;
-
   RequestRecord? recordToReturn;
 
   @override
@@ -78,51 +32,6 @@ class _MockSession extends ChangeNotifier implements InspectorSessionView {
   @override
   Future<RequestRecord> loadDetail(RequestSummary summary) async =>
       recordToReturn ?? (throw UnimplementedError());
-
-  @override
-  void enable() {}
-
-  @override
-  void disable() {}
-
-  @override
-  Future<void> clear() async {}
-
-  @override
-  Future<void> clearRest() async {}
-
-  @override
-  Future<void> clearRealtime() async {}
-
-  @override
-  void applyFilter(RequestFilter filter) {}
-
-  @override
-  void clearFilter() {}
-
-  @override
-  void setNetworkSimulation(NetworkSimulationProfile profile) {}
-
-  @override
-  void clearNetworkSimulation() {}
-
-  @override
-  List<DomainGroup> getGroupedRecords() => const [];
-
-  @override
-  void toggleGrouping(bool enabled) {}
-
-  @override
-  void toggleDomainExpanded(String domain) {}
-
-  @override
-  void cancelMasterSearch() {}
-
-  @override
-  Future<void> startMasterSearch(String query) async {}
-
-  @override
-  Set<String> get availableDomains => const {};
 
   @override
   List<RealtimeFrame> getRealtimeFrames(String sessionId) =>
@@ -188,13 +97,16 @@ void main() {
 
   Widget buildTestWidget({
     required String sessionId,
-    InspectorSessionView? session,
+    _MockSession? session,
   }) {
+    final effectiveController = session ?? _MockSession();
     return MaterialApp(
       home: Scaffold(
-        body: RealtimeMessagesTab(
-          sessionId: sessionId,
-          session: session,
+        body: InterceptlyScope(
+          controller: effectiveController,
+          child: RealtimeMessagesTab(
+            sessionId: sessionId,
+          ),
         ),
       ),
     );
@@ -615,9 +527,11 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: RealtimeDetailPage(
-            entry: entry,
-            session: session,
+          home: InterceptlyScope(
+            controller: session,
+            child: RealtimeDetailPage(
+              entry: entry,
+            ),
           ),
         ),
       );
@@ -1016,10 +930,12 @@ void main() {
       testWidgets(
           'live frame arrivals update only the row counter badge without rebuilding parent RealtimeListTab',
           (tester) async {
-        final session = InspectorSession();
-        addTearDown(session.dispose);
+        final engine = InterceptlyEngine();
+        addTearDown(engine.dispose);
+        final controller = InterceptlyScopeController(engine: engine);
+        addTearDown(controller.dispose);
 
-        session.recordRealtimeConnection(
+        engine.recordRealtimeConnection(
           id: 'ws_badge_test',
           url: 'wss://socket.example.com/test',
         );
@@ -1028,11 +944,14 @@ void main() {
         await tester.pumpWidget(
           MaterialApp(
             home: Scaffold(
-              body: Builder(
-                builder: (context) {
-                  buildCount++;
-                  return RealtimeListTab(session: session);
-                },
+              body: InterceptlyScope(
+                controller: controller,
+                child: Builder(
+                  builder: (context) {
+                    buildCount++;
+                    return const RealtimeListTab();
+                  },
+                ),
               ),
             ),
           ),
@@ -1045,7 +964,7 @@ void main() {
         final initialBuildCount = buildCount;
 
         // Record a live frame for this connection
-        await session.recordRealtimeFrame(
+        await engine.recordRealtimeFrame(
           RealtimeFrame.memoryText(
             id: 'live_frame_1',
             sessionId: 'ws_badge_test',
@@ -1108,17 +1027,19 @@ void main() {
         await tester.pumpWidget(
           MaterialApp(
             home: Scaffold(
-              body: StatefulBuilder(
-                builder: (context, setState) {
-                  return RealtimePayloadView(
-                    frame: frameA,
-                    isInspected: true,
-                    parsedJson: null,
-                    session: session,
-                    jsonCache: cache,
-                    onToggleInspect: () {},
-                  );
-                },
+              body: InterceptlyScope(
+                controller: session,
+                child: StatefulBuilder(
+                  builder: (context, setState) {
+                    return RealtimePayloadView(
+                      frame: frameA,
+                      isInspected: true,
+                      parsedJson: null,
+                      jsonCache: cache,
+                      onToggleInspect: () {},
+                    );
+                  },
+                ),
               ),
             ),
           ),
@@ -1131,17 +1052,19 @@ void main() {
         await tester.pumpWidget(
           MaterialApp(
             home: Scaffold(
-              body: StatefulBuilder(
-                builder: (context, setState) {
-                  return RealtimePayloadView(
-                    frame: frameB,
-                    isInspected: true,
-                    parsedJson: null,
-                    session: session,
-                    jsonCache: cache,
-                    onToggleInspect: () {},
-                  );
-                },
+              body: InterceptlyScope(
+                controller: session,
+                child: StatefulBuilder(
+                  builder: (context, setState) {
+                    return RealtimePayloadView(
+                      frame: frameB,
+                      isInspected: true,
+                      parsedJson: null,
+                      jsonCache: cache,
+                      onToggleInspect: () {},
+                    );
+                  },
+                ),
               ),
             ),
           ),

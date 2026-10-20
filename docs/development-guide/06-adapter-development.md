@@ -65,22 +65,16 @@ export 'src/interceptly_foo_interceptor.dart';
 // lib/src/interceptly_foo_interceptor.dart
 import 'package:foo_client/foo_client.dart';
 import 'package:interceptly/adapter.dart';
-import 'package:interceptly/capture_guard.dart';
 
-class InterceptlyFooInterceptor extends FooInterceptor 
-    implements HttpCaptureAdapter {
-  
+class InterceptlyFooInterceptor extends FooInterceptor {
   final HttpTrafficCollector collector;
   
   InterceptlyFooInterceptor([HttpTrafficCollector? c]) 
-    : collector = c ?? DefaultHttpTrafficCollector(),
+    : collector = c ?? HttpTrafficCollector.instance,
       super() {
     // Register with FooClient
     FooClient.globalInterceptors.add(this);
   }
-  
-  @override
-  InspectorSession get session => collector.session;
   
   @override
   Future<void> onRequest(FooRequest request, FooHandler handler) async {
@@ -158,9 +152,7 @@ class InterceptlyFooInterceptor extends FooInterceptor
 
 ```dart
 // lib/src/interceptly_foo_realtime.dart
-class InterceptlyFooRealtimeChannel extends FooWebSocketChannel 
-    implements RealtimeCaptureAdapter {
-  
+class InterceptlyFooRealtimeChannel extends FooWebSocketChannel {
   final RealtimeTrafficCollector collector;
   late final RealtimeSessionScope scope;
   
@@ -169,7 +161,7 @@ class InterceptlyFooRealtimeChannel extends FooWebSocketChannel
     Uri? uri,
     String? sessionId,
     RealtimeTrafficCollector? collector,
-  }) : collector = collector ?? DefaultRealtimeTrafficCollector(),
+  }) : collector = collector ?? RealtimeTrafficCollector.instance,
        super(inner) {
     
     scope = collector.openSession(
@@ -190,9 +182,6 @@ class InterceptlyFooRealtimeChannel extends FooWebSocketChannel
     
     inner.onClose = (code, reason) => scope.close(code: code, reason: reason);
   }
-  
-  @override InspectorSession get session => collector.session;
-  @override RealtimeTrafficCollector get collector => _collector;
 }
 ```
 
@@ -276,13 +265,13 @@ melos run pana
 
 | Requirement | Verification |
 |-------------|--------------|
-| Implements `HttpCaptureAdapter` / `RealtimeCaptureAdapter` | `implements` clause |
-| Exposes `collector` and `session` getters | `@override` getters |
+| Wraps client or implements framework interceptor | Adapter class definition |
+| Exposes `collector` field | Injected or default collector |
 | Calls `collector.shouldCapture(uri)` first | `if (!collector.shouldCapture(...)) return` |
 | Handles `SimulatedNetworkException` from `begin()` | `on SimulatedNetworkException catch (e)` |
 | Uses `guardCaptureAsync` for completions | `unawaited(guardCaptureAsync(() async => await scope.complete(...)))` |
 | Uses `guardCapture` for failures | `guardCapture(() => scope.fail(...))` |
-| Delegates to `HttpCaptureScope` / `RealtimeSessionScope` | No direct `InspectorSession` calls |
+| Delegates to `HttpCaptureScope` / `RealtimeSessionScope` | No direct engine or UI calls |
 | Streaming: uses `scope.bindResponseStream()` or `scope.send/receive()` | Correct method |
 | Passes `responseTruncatedAtStorage` for streaming | `complete(..., responseTruncatedAtStorage: isTruncated)` |
 | Tests cover: success, error, streaming, cancellation, simulation | Test file exists |

@@ -1,34 +1,44 @@
+// ignore_for_file: invalid_use_of_internal_member
+
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
+import 'package:interceptly/src/engine/memory_index.dart';
+import 'package:interceptly/src/engine/pending_tracker.dart';
 import 'package:interceptly/src/model/index_entry.dart';
-import 'package:interceptly/src/model/interceptly_settings.dart';
-import 'package:interceptly/src/session/inspector_session.dart';
-import 'package:interceptly/src/session/memory_index.dart';
-import 'package:interceptly/src/session/pending_tracker.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() async {
+    await Interceptly.resetForTesting();
+  });
+
+  tearDown(() async {
+    await Interceptly.resetForTesting();
+  });
 
   group('Pending Request Timeout with fakeAsync', () {
     test('recordPending with fakeAsync advancing 45s marks entry as timeout',
         () {
       fakeAsync((async) {
-        final session = InspectorSession(
+        final engine = InterceptlyEngine(
           settings: const InterceptlySettings(
             pendingTimeout: Duration(seconds: 45),
           ),
         );
-        addTearDown(session.dispose);
+        addTearDown(engine.dispose);
 
-        session.recordPending(
+        engine.recordPending(
           id: 'pending-1',
           method: 'GET',
           url: 'https://api.example.com/slow',
           timestamp: DateTime.now(),
         );
 
-        expect(session.entries.length, equals(1));
-        var entry = session.entries.first;
+        expect(engine.entries.length, equals(1));
+        var entry = engine.entries.first;
         expect(entry.id, equals('pending-1'));
         expect(entry.statusCode, equals(0));
         expect(entry.hasError, isFalse);
@@ -36,13 +46,13 @@ void main() {
 
         // Advance 30 seconds - should still be pending without error
         async.elapse(const Duration(seconds: 30));
-        entry = session.entries.first;
+        entry = engine.entries.first;
         expect(entry.hasError, isFalse);
         expect(entry.errorType, isNull);
 
         // Advance another 15 seconds (total 45s) - should mark as timeout
         async.elapse(const Duration(seconds: 15));
-        entry = session.entries.first;
+        entry = engine.entries.first;
         expect(entry.hasError, isTrue);
         expect(entry.errorType, equals('TimeoutException'));
         expect(entry.statusCode, equals(0));
@@ -53,30 +63,30 @@ void main() {
     test('closeRealtimeConnection before 45s cancels pending timeout timer',
         () {
       fakeAsync((async) {
-        final session = InspectorSession(
+        final engine = InterceptlyEngine(
           settings: const InterceptlySettings(
             pendingTimeout: Duration(seconds: 45),
           ),
         );
-        addTearDown(session.dispose);
+        addTearDown(engine.dispose);
 
-        session.recordPending(
+        engine.recordPending(
           id: 'ws-conn-1',
           method: 'WS',
           url: 'wss://echo.websocket.events',
           timestamp: DateTime.now(),
         );
 
-        expect(session.entries.first.hasError, isFalse);
+        expect(engine.entries.first.hasError, isFalse);
 
         // Advance 20 seconds, then close connection normally
         async.elapse(const Duration(seconds: 20));
-        session.closeRealtimeConnection('ws-conn-1', closeCode: 1000);
+        engine.closeRealtimeConnection('ws-conn-1', closeCode: 1000);
 
         // Advance past 45 seconds
         async.elapse(const Duration(seconds: 30));
 
-        final entry = session.entries.first;
+        final entry = engine.entries.first;
         expect(entry.statusCode, equals(1000));
         expect(entry.hasError, isFalse);
         expect(entry.errorType, isNull);
@@ -86,14 +96,14 @@ void main() {
 
     test('custom pendingTimeout is respected when configured', () {
       fakeAsync((async) {
-        final session = InspectorSession(
+        final engine = InterceptlyEngine(
           settings: const InterceptlySettings(
             pendingTimeout: Duration(seconds: 10),
           ),
         );
-        addTearDown(session.dispose);
+        addTearDown(engine.dispose);
 
-        session.recordPending(
+        engine.recordPending(
           id: 'custom-timeout',
           method: 'GET',
           url: 'https://api.example.com/quick-timeout',
@@ -101,10 +111,10 @@ void main() {
         );
 
         async.elapse(const Duration(seconds: 9));
-        expect(session.entries.first.hasError, isFalse);
+        expect(engine.entries.first.hasError, isFalse);
 
         async.elapse(const Duration(seconds: 2));
-        final entry = session.entries.first;
+        final entry = engine.entries.first;
         expect(entry.hasError, isTrue);
         expect(entry.errorType, equals('TimeoutException'));
       });
@@ -142,14 +152,14 @@ void main() {
 
     test('multiple concurrent pending requests timeout independently', () {
       fakeAsync((async) {
-        final session = InspectorSession(
+        final engine = InterceptlyEngine(
           settings: const InterceptlySettings(
             pendingTimeout: Duration(seconds: 45),
           ),
         );
-        addTearDown(session.dispose);
+        addTearDown(engine.dispose);
 
-        session.recordPending(
+        engine.recordPending(
           id: 'req-a',
           method: 'GET',
           url: 'https://api.example.com/a',
@@ -158,7 +168,7 @@ void main() {
 
         async.elapse(const Duration(seconds: 15));
 
-        session.recordPending(
+        engine.recordPending(
           id: 'req-b',
           method: 'GET',
           url: 'https://api.example.com/b',
@@ -168,8 +178,8 @@ void main() {
         // At t = 45s from start (elapsed 30s more): req-a has lived 45s, req-b has lived 30s
         async.elapse(const Duration(seconds: 30));
 
-        final entryA = session.entries.firstWhere((e) => e.id == 'req-a');
-        final entryB = session.entries.firstWhere((e) => e.id == 'req-b');
+        final entryA = engine.entries.firstWhere((e) => e.id == 'req-a');
+        final entryB = engine.entries.firstWhere((e) => e.id == 'req-b');
 
         expect(entryA.hasError, isTrue);
         expect(entryA.errorType, equals('TimeoutException'));
@@ -177,7 +187,7 @@ void main() {
 
         // At t = 60s (elapsed 15s more): req-b reaches 45s and times out
         async.elapse(const Duration(seconds: 15));
-        final entryBAfter = session.entries.firstWhere((e) => e.id == 'req-b');
+        final entryBAfter = engine.entries.firstWhere((e) => e.id == 'req-b');
         expect(entryBAfter.hasError, isTrue);
         expect(entryBAfter.errorType, equals('TimeoutException'));
       });
@@ -185,21 +195,21 @@ void main() {
 
     test('recordRealtimeConnection does NOT time out after pendingTimeout', () {
       fakeAsync((async) {
-        final session = InspectorSession(
+        final engine = InterceptlyEngine(
           settings: const InterceptlySettings(
             pendingTimeout: Duration(seconds: 45),
           ),
         );
-        addTearDown(session.dispose);
+        addTearDown(engine.dispose);
 
-        session.recordRealtimeConnection(
+        engine.recordRealtimeConnection(
           id: 'ws-persistent',
           url: 'wss://api.example.com/live',
           timestamp: DateTime.now(),
         );
 
-        expect(session.entries.length, equals(1));
-        var entry = session.entries.first;
+        expect(engine.entries.length, equals(1));
+        var entry = engine.entries.first;
         expect(entry.id, equals('ws-persistent'));
         expect(entry.isRealtime, isTrue);
         expect(entry.statusCode, equals(0));
@@ -208,7 +218,7 @@ void main() {
         // Advance 100 seconds (well past 45s pending timeout)
         async.elapse(const Duration(seconds: 100));
 
-        entry = session.entries.first;
+        entry = engine.entries.first;
         expect(entry.statusCode, equals(0));
         expect(entry.hasError, isFalse);
         expect(entry.errorType, isNull);

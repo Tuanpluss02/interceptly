@@ -5,10 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:interceptly/src/model/body_location.dart';
 import 'package:interceptly/src/model/realtime_frame.dart';
 import 'package:interceptly/src/model/realtime_protocol_type.dart';
-import 'package:interceptly/src/session/inspector_session_view.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
 import 'package:interceptly/src/ui/widgets/toast_notification.dart';
 
+import '../scope/interceptly_scope.dart';
 import 'realtime/bounded_lru_cache.dart';
 import 'realtime/realtime_chat_bar.dart';
 import 'realtime/realtime_filter_header.dart';
@@ -21,14 +21,10 @@ class RealtimeMessagesTab extends StatefulWidget {
   /// Unique identifier of the connection / session whose frames are displayed.
   final String sessionId;
 
-  /// Active inspector session providing captured realtime frames.
-  final InspectorSessionView? session;
-
   /// Creates a [RealtimeMessagesTab] for the specified [sessionId].
   const RealtimeMessagesTab({
     super.key,
     required this.sessionId,
-    this.session,
   });
 
   @override
@@ -50,25 +46,31 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
   FrameType? _typeFilter;
   bool _showJumpToBottom = false;
   int _previousFrameCount = 0;
+  late InterceptlyScopeController _scope;
+  bool _initialized = false;
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    widget.session?.addListener(_onSessionChanged);
-    _previousFrameCount =
-        widget.session?.getRealtimeFrames(widget.sessionId).length ?? 0;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initialized) {
+      _initialized = true;
+      _scope = InterceptlyScope.read(context);
+      _scope.addListener(_onScopeChanged);
+      _previousFrameCount = _scope.getRealtimeFrames(widget.sessionId).length;
+    }
   }
 
   @override
   void didUpdateWidget(covariant RealtimeMessagesTab oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.session != oldWidget.session ||
-        widget.sessionId != oldWidget.sessionId) {
-      oldWidget.session?.removeListener(_onSessionChanged);
-      widget.session?.addListener(_onSessionChanged);
-      _previousFrameCount =
-          widget.session?.getRealtimeFrames(widget.sessionId).length ?? 0;
+    if (widget.sessionId != oldWidget.sessionId) {
+      _previousFrameCount = _scope.getRealtimeFrames(widget.sessionId).length;
     }
   }
 
@@ -76,7 +78,9 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
   void dispose() {
     _searchDebounceTimer?.cancel();
     _parsedJsonCache.clear();
-    widget.session?.removeListener(_onSessionChanged);
+    if (_initialized) {
+      _scope.removeListener(_onScopeChanged);
+    }
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _searchController.dispose();
@@ -119,10 +123,9 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
     });
   }
 
-  void _onSessionChanged() {
+  void _onScopeChanged() {
     if (!mounted) return;
-    final frames =
-        widget.session?.getRealtimeFrames(widget.sessionId) ?? const [];
+    final frames = _scope.getRealtimeFrames(widget.sessionId);
     final wasNearBottom = _isNearBottom();
     final hasNewFrames = frames.length > _previousFrameCount;
     _previousFrameCount = frames.length;
@@ -143,9 +146,9 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
   }
 
   Future<String> _resolvePayloadText(RealtimeFrame frame) async {
-    if (frame.location == BodyLocation.file && widget.session != null) {
+    if (frame.location == BodyLocation.file) {
       try {
-        final payload = await widget.session!.loadRealtimePayload(frame);
+        final payload = await _scope.loadRealtimePayload(frame);
         if (payload is Uint8List) {
           final decoded = tryDecodeBinaryToText(payload);
           if (decoded != null) return decoded;
@@ -178,8 +181,7 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
   }
 
   Future<void> _onResendFrame(RealtimeFrame frame) async {
-    final canSend =
-        widget.session?.canSendRealtimeMessage(widget.sessionId) ?? false;
+    final canSend = _scope.canSendRealtimeMessage(widget.sessionId);
     if (!canSend) {
       ToastNotification.show('Cannot send: connection is closed',
           contextHint: context);
@@ -193,7 +195,7 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
     );
 
     try {
-      await widget.session?.sendRealtimeMessage(widget.sessionId, draft);
+      await _scope.sendRealtimeMessage(widget.sessionId, draft);
     } catch (e) {
       if (mounted) {
         ToastNotification.show('Failed to resend message: $e',
@@ -205,7 +207,7 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
   Future<void> _sendMessage() async {
     final payload = _chatController.text;
     if (payload.trim().isEmpty) return;
-    final protocol = widget.session?.getRealtimeProtocol(widget.sessionId) ??
+    final protocol = _scope.getRealtimeProtocol(widget.sessionId) ??
         RealtimeProtocolType.webSocket;
     final isSocketIo = protocol == RealtimeProtocolType.socketIo;
     final event = isSocketIo ? _eventController.text.trim() : null;
@@ -216,7 +218,7 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
     );
 
     try {
-      await widget.session?.sendRealtimeMessage(widget.sessionId, draft);
+      await _scope.sendRealtimeMessage(widget.sessionId, draft);
       _chatController.clear();
       _scrollToBottom(animate: true);
     } catch (e) {
@@ -228,7 +230,7 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
   }
 
   void _onExpandComposer() {
-    final protocol = widget.session?.getRealtimeProtocol(widget.sessionId) ??
+    final protocol = _scope.getRealtimeProtocol(widget.sessionId) ??
         RealtimeProtocolType.webSocket;
 
     showModalBottomSheet<void>(
@@ -241,7 +243,7 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
         initialPayload: _chatController.text,
         onSend: (draft) async {
           if (draft.payload.toString().trim().isEmpty) return;
-          await widget.session?.sendRealtimeMessage(widget.sessionId, draft);
+          await _scope.sendRealtimeMessage(widget.sessionId, draft);
           _chatController.clear();
         },
       ),
@@ -250,8 +252,7 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
 
   @override
   Widget build(BuildContext context) {
-    final allFrames = widget.session?.getRealtimeFrames(widget.sessionId) ??
-        const <RealtimeFrame>[];
+    final allFrames = _scope.getRealtimeFrames(widget.sessionId);
 
     final Widget body;
 
@@ -365,7 +366,6 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
                               onCopy: () => _copyPayload(frame),
                               onEdit: () => _onEditFrame(frame),
                               onResend: () => _onResendFrame(frame),
-                              session: widget.session,
                               jsonCache: _parsedJsonCache,
                             );
                           },
@@ -414,7 +414,6 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
         body,
         RealtimeChatBar(
           sessionId: widget.sessionId,
-          session: widget.session,
           textController: _chatController,
           eventController: _eventController,
           onSend: _sendMessage,

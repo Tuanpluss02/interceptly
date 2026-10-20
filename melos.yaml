@@ -33,6 +33,7 @@ scripts:
 
   test:core:
     exec: flutter test --exclude-tags=stress,perf
+    concurrency: 1
     description: Run core test suites excluding stress and perf tests.
 
   test:stress:

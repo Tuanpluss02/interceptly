@@ -1,3 +1,4 @@
+// ignore_for_file: invalid_use_of_internal_member
 @Tags(['stress'])
 library;
 
@@ -7,11 +8,10 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/model/body_location.dart';
-import 'package:interceptly/src/model/body_truncation.dart';
 import 'package:interceptly/src/model/index_entry.dart';
-import 'package:interceptly/src/session/body_store.dart';
-import 'package:interceptly/src/session/master_search_controller.dart';
+import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/body_store.dart';
+import 'package:interceptly/src/engine/master_search_controller.dart';
 
 Uint8List _packBody({
   String? requestBody,
@@ -99,6 +99,7 @@ void main() {
   late String tempFilePath;
 
   setUp(() async {
+    await Interceptly.resetForTesting();
     controller = MasterSearchController();
     tempDir = await Directory.systemTemp.createTemp('deep_stress_');
     bodyStore = BodyStore();
@@ -112,6 +113,7 @@ void main() {
     if (tempDir.existsSync()) {
       await tempDir.delete(recursive: true);
     }
+    await Interceptly.resetForTesting();
   });
 
   group(

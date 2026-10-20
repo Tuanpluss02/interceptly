@@ -17,14 +17,8 @@ class ShareHandler {
   ShareHandler({
     required this.context,
     required this.fabKey,
-  }) : _share = InterceptlyShare();
-
-  @visibleForTesting
-  ShareHandler.withShare({
-    required this.context,
-    required this.fabKey,
-    required InterceptlyShare share,
-  }) : _share = share;
+    InterceptlyShare? share,
+  }) : _share = share ?? InterceptlyShare();
 
   final BuildContext context;
   final GlobalKey fabKey;

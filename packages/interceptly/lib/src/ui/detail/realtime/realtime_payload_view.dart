@@ -4,9 +4,9 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:interceptly/src/model/body_location.dart';
 import 'package:interceptly/src/model/realtime_frame.dart';
-import 'package:interceptly/src/session/inspector_session_view.dart';
-import 'package:interceptly/src/ui/interceptly_theme.dart';
-import 'package:interceptly/src/ui/widgets/json_viewer/json_viewer.dart';
+import '../../scope/interceptly_scope.dart';
+import '../../interceptly_theme.dart';
+import '../../widgets/json_viewer/json_viewer.dart';
 
 import 'bounded_lru_cache.dart';
 import 'realtime_formatters.dart';
@@ -16,14 +16,13 @@ import 'realtime_formatters.dart';
 /// When collapsed, renders [RealtimeFrame.shortPreview] with zero disk I/O and zero JSON parsing.
 /// When expanded / inspected:
 /// - If [frame.location] is [BodyLocation.file], asynchronously fetches the full payload
-///   via [session.loadRealtimePayload], displaying a loading indicator while awaiting.
+///   via [InterceptlyScopeController.loadRealtimePayload], displaying a loading indicator while awaiting.
 /// - Parses JSON lazily and caches parsed trees in [jsonCache].
 class RealtimePayloadView extends StatefulWidget {
   final RealtimeFrame frame;
   final bool isInspected;
   final dynamic parsedJson;
   final VoidCallback onToggleInspect;
-  final InspectorSessionView? session;
   final BoundedLruCache<String, dynamic>? jsonCache;
 
   const RealtimePayloadView({
@@ -32,7 +31,6 @@ class RealtimePayloadView extends StatefulWidget {
     required this.isInspected,
     required this.parsedJson,
     required this.onToggleInspect,
-    this.session,
     this.jsonCache,
   });
 
@@ -76,14 +74,14 @@ class _RealtimePayloadViewState extends State<RealtimePayloadView> {
   }
 
   void _fetchPayload() {
-    final session = widget.session;
+    final scope = InterceptlyScope.maybeRead(context);
     final requestedFrameId = widget.frame.id;
 
-    if (session == null) {
+    if (scope == null) {
       setState(() {
         _isLoading = false;
         _hasLoaded = true;
-        _loadedPayload = '[Payload unavailable: no session]';
+        _loadedPayload = '[Payload unavailable: no scope]';
         _loadedJson = null;
       });
       return;
@@ -93,7 +91,7 @@ class _RealtimePayloadViewState extends State<RealtimePayloadView> {
       _isLoading = true;
     });
 
-    session.loadRealtimePayload(widget.frame).then((payload) {
+    scope.loadRealtimePayload(widget.frame).then((payload) {
       if (!mounted || widget.frame.id != requestedFrameId) return;
       dynamic parsed;
       String? textToParse;

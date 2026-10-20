@@ -1,3 +1,5 @@
+// ignore_for_file: invalid_use_of_internal_member
+
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -5,21 +7,22 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
 import 'package:interceptly/src/capture/frame_normalizer.dart';
-import 'package:interceptly/src/session/realtime_store.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
+import 'package:interceptly/src/engine/realtime_store.dart';
 
 void main() {
   setUp(() async {
-    await InspectorSession.resetForTesting();
+    await Interceptly.resetForTesting();
   });
 
   tearDown(() async {
-    await InspectorSession.resetForTesting();
+    await Interceptly.resetForTesting();
   });
 
-  group('InspectorSession Realtime Frame Recording', () {
+  group('InterceptlyEngine Realtime Frame Recording', () {
     test('stores frames accessible via getRealtimeFrames', () {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+      final engine = InterceptlyEngine();
+      addTearDown(engine.dispose);
 
       final frame1 = RealtimeFrame.text(
         id: 'f-1',
@@ -34,10 +37,10 @@ void main() {
         text: '{"action":"subscribe"}',
       );
 
-      session.recordRealtimeFrame(frame1);
-      session.recordRealtimeFrame(frame2);
+      engine.recordRealtimeFrame(frame1);
+      engine.recordRealtimeFrame(frame2);
 
-      final frames = session.getRealtimeFrames('ws-100');
+      final frames = engine.getRealtimeFrames('ws-100');
       expect(frames.length, equals(2));
       expect(frames[0].id, equals('f-1'));
       expect(frames[0].textPayload, equals('{"event":"connected"}'));
@@ -45,14 +48,14 @@ void main() {
       expect(frames[1].textPayload, equals('{"action":"subscribe"}'));
 
       // Unknown session returns empty list
-      expect(session.getRealtimeFrames('ws-unknown'), isEmpty);
+      expect(engine.getRealtimeFrames('ws-unknown'), isEmpty);
     });
 
     test('isolates frames across distinct sessions', () {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+      final engine = InterceptlyEngine();
+      addTearDown(engine.dispose);
 
-      session.recordRealtimeFrame(
+      engine.recordRealtimeFrame(
         RealtimeFrame.text(
           id: 'f-a1',
           sessionId: 'session-a',
@@ -60,7 +63,7 @@ void main() {
           text: 'a1',
         ),
       );
-      session.recordRealtimeFrame(
+      engine.recordRealtimeFrame(
         RealtimeFrame.text(
           id: 'f-b1',
           sessionId: 'session-b',
@@ -69,20 +72,20 @@ void main() {
         ),
       );
 
-      expect(session.getRealtimeFrames('session-a').length, equals(1));
-      expect(session.getRealtimeFrames('session-a').first.id, equals('f-a1'));
-      expect(session.getRealtimeFrames('session-b').length, equals(1));
-      expect(session.getRealtimeFrames('session-b').first.id, equals('f-b1'));
+      expect(engine.getRealtimeFrames('session-a').length, equals(1));
+      expect(engine.getRealtimeFrames('session-a').first.id, equals('f-a1'));
+      expect(engine.getRealtimeFrames('session-b').length, equals(1));
+      expect(engine.getRealtimeFrames('session-b').first.id, equals('f-b1'));
     });
 
-    test('ignores frames when session is disabled and resumes on enable', () {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+    test('ignores frames when engine is disabled and resumes on enable', () {
+      final engine = InterceptlyEngine();
+      addTearDown(engine.dispose);
 
-      session.disable();
-      expect(session.isEnabled, isFalse);
+      engine.disable();
+      expect(engine.isEnabled, isFalse);
 
-      session.recordRealtimeFrame(
+      engine.recordRealtimeFrame(
         RealtimeFrame.text(
           id: 'f-dropped',
           sessionId: 'ws-drop',
@@ -91,12 +94,12 @@ void main() {
         ),
       );
 
-      expect(session.getRealtimeFrames('ws-drop'), isEmpty);
+      expect(engine.getRealtimeFrames('ws-drop'), isEmpty);
 
-      session.enable();
-      expect(session.isEnabled, isTrue);
+      engine.enable();
+      expect(engine.isEnabled, isTrue);
 
-      session.recordRealtimeFrame(
+      engine.recordRealtimeFrame(
         RealtimeFrame.text(
           id: 'f-kept',
           sessionId: 'ws-drop',
@@ -105,8 +108,8 @@ void main() {
         ),
       );
 
-      expect(session.getRealtimeFrames('ws-drop').length, equals(1));
-      expect(session.getRealtimeFrames('ws-drop').first.id, equals('f-kept'));
+      expect(engine.getRealtimeFrames('ws-drop').length, equals(1));
+      expect(engine.getRealtimeFrames('ws-drop').first.id, equals('f-kept'));
     });
   });
 
@@ -114,13 +117,13 @@ void main() {
     test(
         'drops oldest frames and retains newest when exceeding maxFramesPerSession',
         () {
-      final session = InspectorSession(
+      final engine = InterceptlyEngine(
         settings: const InterceptlySettings(maxFramesPerSession: 3),
       );
-      addTearDown(session.dispose);
+      addTearDown(engine.dispose);
 
       for (var i = 1; i <= 5; i++) {
-        session.recordRealtimeFrame(
+        engine.recordRealtimeFrame(
           RealtimeFrame.text(
             id: 'frame-$i',
             sessionId: 'ws-bounded',
@@ -130,7 +133,7 @@ void main() {
         );
       }
 
-      final frames = session.getRealtimeFrames('ws-bounded');
+      final frames = engine.getRealtimeFrames('ws-bounded');
       expect(frames.length, equals(3));
       expect(frames.map((f) => f.id).toList(),
           equals(['frame-3', 'frame-4', 'frame-5']));
@@ -138,16 +141,15 @@ void main() {
       expect(frames.last.id, equals('frame-5'));
     });
 
-    test(
-        'retains newest frames when maxFramesPerSession shrinks via configureSession',
+    test('retains newest frames when maxFramesPerSession shrinks via configure',
         () {
-      final session = InspectorSession(
+      final engine = InterceptlyEngine(
         settings: const InterceptlySettings(maxFramesPerSession: 5),
       );
-      addTearDown(session.dispose);
+      addTearDown(engine.dispose);
 
       for (var i = 1; i <= 5; i++) {
-        session.recordRealtimeFrame(
+        engine.recordRealtimeFrame(
           RealtimeFrame.text(
             id: 'frame-$i',
             sessionId: 'ws-shrink',
@@ -156,13 +158,13 @@ void main() {
           ),
         );
       }
-      expect(session.getRealtimeFrames('ws-shrink').length, equals(5));
+      expect(engine.getRealtimeFrames('ws-shrink').length, equals(5));
 
-      session.configureSession(
+      engine.configure(
         const InterceptlySettings(maxFramesPerSession: 2),
       );
 
-      final shrunk = session.getRealtimeFrames('ws-shrink');
+      final shrunk = engine.getRealtimeFrames('ws-shrink');
       expect(shrunk.length, equals(2));
       expect(shrunk.map((f) => f.id).toList(), equals(['frame-4', 'frame-5']));
     });
@@ -173,17 +175,17 @@ void main() {
         'burst of 500 frames within 50ms batches notifyListeners within ~100ms',
         () {
       fakeAsync((async) {
-        final session = InspectorSession(
+        final engine = InterceptlyEngine(
           settings: const InterceptlySettings(maxFramesPerSession: 100),
         );
-        addTearDown(session.dispose);
+        addTearDown(engine.dispose);
 
         var notifyCount = 0;
-        session.addListener(() => notifyCount++);
+        engine.addListener(() => notifyCount++);
 
         // Burst of 500 frames simulated across 50ms
         for (var i = 0; i < 500; i++) {
-          session.recordRealtimeFrame(
+          engine.recordRealtimeFrame(
             RealtimeFrame.text(
               id: 'storm-$i',
               sessionId: 'ws-storm',
@@ -213,13 +215,13 @@ void main() {
         expect(notifyCount, equals(1));
 
         // Verify ring buffer capped at 100
-        final retainedFrames = session.getRealtimeFrames('ws-storm');
+        final retainedFrames = engine.getRealtimeFrames('ws-storm');
         expect(retainedFrames.length, equals(100));
         expect(retainedFrames.first.id, equals('storm-400'));
         expect(retainedFrames.last.id, equals('storm-499'));
 
         // Next burst of frames triggers a new throttled notification cycle
-        session.recordRealtimeFrame(
+        engine.recordRealtimeFrame(
           RealtimeFrame.text(
             id: 'burst2-1',
             sessionId: 'ws-storm',
@@ -239,13 +241,13 @@ void main() {
     });
   });
 
-  group('InspectorSession Lifecycle: clear and dispose', () {
+  group('InterceptlyEngine Lifecycle: clear and dispose', () {
     test('clear wipes stored realtime frames and cancels throttler timer', () {
       fakeAsync((async) {
-        final session = InspectorSession();
-        addTearDown(session.dispose);
+        final engine = InterceptlyEngine();
+        addTearDown(engine.dispose);
 
-        session.recordRealtimeFrame(
+        engine.recordRealtimeFrame(
           RealtimeFrame.text(
             id: 'f-clear',
             sessionId: 'ws-clear',
@@ -253,14 +255,14 @@ void main() {
             text: 'to be cleared',
           ),
         );
-        expect(session.getRealtimeFrames('ws-clear').length, equals(1));
+        expect(engine.getRealtimeFrames('ws-clear').length, equals(1));
 
         var notifyCount = 0;
-        session.addListener(() => notifyCount++);
+        engine.addListener(() => notifyCount++);
 
         // Call clear before the 100ms throttler timer fires
-        session.clear();
-        expect(session.getRealtimeFrames('ws-clear'), isEmpty);
+        engine.clear();
+        expect(engine.getRealtimeFrames('ws-clear'), isEmpty);
         expect(
             notifyCount, equals(1)); // clear() itself calls notifyListeners()
 
@@ -272,9 +274,12 @@ void main() {
 
     test('dispose cancels throttler timer cleanly and releases frames', () {
       fakeAsync((async) {
-        final session = InspectorSession();
+        final store = RealtimeStore(
+          maxFramesPerSession: 100,
+          onThrottledBatch: () {},
+        );
 
-        session.recordRealtimeFrame(
+        store.recordFrame(
           RealtimeFrame.text(
             id: 'f-dispose',
             sessionId: 'ws-dispose',
@@ -282,10 +287,10 @@ void main() {
             text: 'to be disposed',
           ),
         );
-        expect(session.getRealtimeFrames('ws-dispose').length, equals(1));
+        expect(store.getRealtimeFrames('ws-dispose').length, equals(1));
 
-        session.dispose();
-        expect(session.getRealtimeFrames('ws-dispose'), isEmpty);
+        store.dispose();
+        expect(store.getRealtimeFrames('ws-dispose'), isEmpty);
 
         // Advancing time must not throw FlutterError on disposed ChangeNotifier
         expect(
@@ -297,10 +302,8 @@ void main() {
   });
 
   group('Interceptly Facade Forwarders', () {
-    test('recordRealtimeFrame and getRealtimeFrames forward to session', () {
-      final interceptly = Interceptly();
-      addTearDown(interceptly.dispose);
-      final session = InspectorSession.instance;
+    test('recordRealtimeFrame and getRealtimeFrames forward to engine', () {
+      final engine = InterceptlyEngine.instance;
 
       final frame = RealtimeFrame.text(
         id: 'f-facade',
@@ -309,45 +312,43 @@ void main() {
         text: 'hello via facade',
       );
 
-      interceptly.recordRealtimeFrame(frame);
+      engine.recordRealtimeFrame(frame);
 
-      expect(interceptly.getRealtimeFrames('ws-facade').length, equals(1));
-      expect(interceptly.getRealtimeFrames('ws-facade').first.id,
-          equals('f-facade'));
-      expect(session.getRealtimeFrames('ws-facade').length, equals(1));
+      expect(engine.getRealtimeFrames('ws-facade').length, equals(1));
+      expect(
+          engine.getRealtimeFrames('ws-facade').first.id, equals('f-facade'));
     });
 
     test(
         'recordRealtimeConnection and closeRealtimeConnection update session entries',
         () {
-      final interceptly = Interceptly();
-      addTearDown(interceptly.dispose);
+      final engine = InterceptlyEngine.instance;
 
-      interceptly.recordRealtimeConnection(
+      engine.recordRealtimeConnection(
         id: 'conn-1',
         url: 'wss://echo.example.com/ws',
         headers: {'sec-websocket-protocol': 'chat'},
       );
 
-      expect(interceptly.calls.length, equals(1));
-      expect(interceptly.calls.first.id, equals('conn-1'));
-      expect(interceptly.calls.first.method, equals('WS'));
-      expect(interceptly.calls.first.url, equals('wss://echo.example.com/ws'));
-      expect(interceptly.calls.first.statusCode, equals(0));
+      expect(engine.entries.length, equals(1));
+      expect(engine.entries.first.id, equals('conn-1'));
+      expect(engine.entries.first.method, equals('WS'));
+      expect(engine.entries.first.url, equals('wss://echo.example.com/ws'));
+      expect(engine.entries.first.statusCode, equals(0));
 
-      interceptly.closeRealtimeConnection('conn-1', closeCode: 1000);
+      engine.closeRealtimeConnection('conn-1', closeCode: 1000);
 
-      expect(interceptly.calls.first.statusCode, equals(1000));
-      expect(interceptly.calls.first.hasError, isFalse);
+      expect(engine.entries.first.statusCode, equals(1000));
+      expect(engine.entries.first.hasError, isFalse);
     });
   });
 
   group('Realtime Stream Hardening', () {
     test('binary payload uses zero-copy reference without unnecessary cloning',
         () {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
-      final collector = DefaultRealtimeTrafficCollector(session: session);
+      final engine = InterceptlyEngine();
+      addTearDown(engine.dispose);
+      final collector = DefaultRealtimeTrafficCollector(engine: engine);
 
       final originalBytes = Uint8List.fromList([10, 20, 30, 40]);
       collector.recordFrame(
@@ -357,18 +358,18 @@ void main() {
         payload: originalBytes,
       );
 
-      final storedFrames = session.getRealtimeFrames('ws-alias');
+      final storedFrames = engine.getRealtimeFrames('ws-alias');
       expect(storedFrames.length, equals(1));
       expect(identical(storedFrames.first.binaryPayload, originalBytes), isTrue,
           reason: 'Binary payload should be zero-copy');
     });
 
     test('truncates binary and text payload according to maxBodyBytes', () {
-      final session = InspectorSession(
+      final engine = InterceptlyEngine(
         settings: const InterceptlySettings(maxBodyBytes: 8),
       );
-      addTearDown(session.dispose);
-      final collector = DefaultRealtimeTrafficCollector(session: session);
+      addTearDown(engine.dispose);
+      final collector = DefaultRealtimeTrafficCollector(engine: engine);
 
       // Binary payload: 16 bytes truncated to 8
       final binaryData = Uint8List.fromList(List.generate(16, (i) => i));
@@ -387,7 +388,7 @@ void main() {
         payload: '12345678901234567890',
       );
 
-      final frames = session.getRealtimeFrames('ws-trunc');
+      final frames = engine.getRealtimeFrames('ws-trunc');
       expect(frames.length, equals(2));
 
       // Binary frame
@@ -402,13 +403,13 @@ void main() {
     });
 
     test('respects shouldCapture filter for realtime connections', () {
-      final session = InspectorSession(
+      final engine = InterceptlyEngine(
         settings: InterceptlySettings(
           shouldCapture: (url) => !url.contains('health-check'),
         ),
       );
-      addTearDown(session.dispose);
-      final collector = DefaultRealtimeTrafficCollector(session: session);
+      addTearDown(engine.dispose);
+      final collector = DefaultRealtimeTrafficCollector(engine: engine);
 
       collector.recordConnection(
         sessionId: 'ignored-session',
@@ -419,17 +420,17 @@ void main() {
         uri: Uri.parse('wss://example.com/stream'),
       );
 
-      expect(session.entries.length, equals(1));
-      expect(session.entries.first.id, equals('captured-session'));
+      expect(engine.entries.length, equals(1));
+      expect(engine.entries.first.id, equals('captured-session'));
     });
 
     test('RealtimeStore bounds sessions to max 50 using LRU eviction', () {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+      final engine = InterceptlyEngine();
+      addTearDown(engine.dispose);
 
       // Record frames across 55 distinct sessions
       for (var i = 0; i < 55; i++) {
-        session.recordRealtimeFrame(
+        engine.recordRealtimeFrame(
           RealtimeFrame.text(
             id: 'frame-$i',
             sessionId: 'sess-$i',
@@ -441,13 +442,13 @@ void main() {
 
       // First 5 sessions (sess-0 .. sess-4) should be evicted
       for (var i = 0; i < 5; i++) {
-        expect(session.getRealtimeFrames('sess-$i'), isEmpty,
+        expect(engine.getRealtimeFrames('sess-$i'), isEmpty,
             reason: 'sess-$i should be evicted');
       }
 
       // Latest 50 sessions (sess-5 .. sess-54) should exist
       for (var i = 5; i < 55; i++) {
-        expect(session.getRealtimeFrames('sess-$i').length, equals(1),
+        expect(engine.getRealtimeFrames('sess-$i').length, equals(1),
             reason: 'sess-$i should be retained');
       }
     });
@@ -469,25 +470,18 @@ void main() {
         type: FrameType.text,
         textPayload: 'Xin chào thế giới 🌍',
       );
-      // 'Xin chào thế giới 🌍':
-      // 'Xin ' = 4
-      // 'chào ' = 2 + 1 + 2 + 1 + 1 = 6
-      // 'thế ' = 2 + 2 + 1 = 5
-      // 'giới ' = 1 + 1 + 2 + 2 + 1 = 7
-      // '🌍' = 4 bytes (surrogate pair)
-      // total = 4 + 6 + 6 + 7 + 4 = 27 bytes
       expect(multiByteFrame.payloadSizeBytes, equals(27));
     });
 
     test('tracks and increments frame counts correctly across directions', () {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+      final engine = InterceptlyEngine();
+      addTearDown(engine.dispose);
 
-      expect(session.getRealtimeFrameCounts('ws-count').incoming, equals(0));
-      expect(session.getRealtimeFrameCounts('ws-count').outgoing, equals(0));
-      expect(session.getRealtimeFrameCounts('ws-count').total, equals(0));
+      expect(engine.getRealtimeFrameCounts('ws-count').incoming, equals(0));
+      expect(engine.getRealtimeFrameCounts('ws-count').outgoing, equals(0));
+      expect(engine.getRealtimeFrameCounts('ws-count').total, equals(0));
 
-      session.recordRealtimeFrame(
+      engine.recordRealtimeFrame(
         RealtimeFrame.text(
           id: 'f-in-1',
           sessionId: 'ws-count',
@@ -495,7 +489,7 @@ void main() {
           text: 'msg1',
         ),
       );
-      session.recordRealtimeFrame(
+      engine.recordRealtimeFrame(
         RealtimeFrame.text(
           id: 'f-in-2',
           sessionId: 'ws-count',
@@ -503,7 +497,7 @@ void main() {
           text: 'msg2',
         ),
       );
-      session.recordRealtimeFrame(
+      engine.recordRealtimeFrame(
         RealtimeFrame.text(
           id: 'f-out-1',
           sessionId: 'ws-count',
@@ -512,13 +506,13 @@ void main() {
         ),
       );
 
-      final counts = session.getRealtimeFrameCounts('ws-count');
+      final counts = engine.getRealtimeFrameCounts('ws-count');
       expect(counts.incoming, equals(2));
       expect(counts.outgoing, equals(1));
       expect(counts.total, equals(3));
 
-      session.clear();
-      expect(session.getRealtimeFrameCounts('ws-count').total, equals(0));
+      engine.clear();
+      expect(engine.getRealtimeFrameCounts('ws-count').total, equals(0));
     });
   });
 
@@ -533,7 +527,6 @@ void main() {
       expect(preview, equals('a' * 128));
 
       // Test with emojis at boundary (each emoji is 2 UTF-16 code units)
-      // 63 'a's + emoji at index 126-127 + emoji at index 128-129
       final textWithEmoji = '${'a' * 126}🌍🚀${'b' * 50}';
       final emojiPreview =
           RealtimeFrame.extractShortPreview(textWithEmoji, FrameType.text);
@@ -667,8 +660,8 @@ void main() {
           return url.contains('allowed');
         },
       );
-      final session = InspectorSession(settings: settings);
-      final collector = DefaultRealtimeTrafficCollector(session: session);
+      final engine = InterceptlyEngine(settings: settings);
+      final collector = DefaultRealtimeTrafficCollector(engine: engine);
 
       // Disallowed connection
       final droppedScope =
@@ -681,7 +674,7 @@ void main() {
       expect(checkCount, equals(1),
           reason:
               'Predicate must be cached and evaluated once per connection handshake');
-      expect(session.getRealtimeFrames(droppedScope.sessionId), isEmpty);
+      expect(engine.getRealtimeFrames(droppedScope.sessionId), isEmpty);
 
       // Allowed connection
       final allowedScope =
@@ -1047,27 +1040,27 @@ void main() {
     });
   });
 
-  group('RealtimeBodyStore Integration & Async Lazy Load in InspectorSession',
+  group('RealtimeBodyStore Integration & Async Lazy Load in InterceptlyEngine',
       () {
     test('frames >= 32 KB are offloaded to temp file and lazy-loaded',
         () async {
-      final session = InspectorSession(
+      final engine = InterceptlyEngine(
         settings: const InterceptlySettings(
           realtimeBodyOffloadThreshold: 32 * 1024,
         ),
       );
-      addTearDown(session.dispose);
+      addTearDown(engine.dispose);
 
       const smallText = 'hello world';
       final largeText = 'a' * (40 * 1024);
 
-      session.recordRealtimeConnection(
+      engine.recordRealtimeConnection(
         id: 'ws-offload',
         url: 'wss://example.com/ws',
       );
 
       // Small frame: memory
-      await session.recordRealtimeFrame(RealtimeFrame.text(
+      await engine.recordRealtimeFrame(RealtimeFrame.text(
         id: 'f-small',
         sessionId: 'ws-offload',
         direction: FrameDirection.incoming,
@@ -1075,20 +1068,20 @@ void main() {
       ));
 
       // Large frame: offloaded
-      await session.recordRealtimeFrame(RealtimeFrame.text(
+      await engine.recordRealtimeFrame(RealtimeFrame.text(
         id: 'f-large',
         sessionId: 'ws-offload',
         direction: FrameDirection.incoming,
         text: largeText,
       ));
 
-      final frames = session.getRealtimeFrames('ws-offload');
+      final frames = engine.getRealtimeFrames('ws-offload');
       expect(frames.length, equals(2));
 
       // Small frame remains in memory
       expect(frames[0].location, equals(BodyLocation.memory));
       expect(frames[0].textPayload, equals(smallText));
-      final loadedSmall = await session.loadRealtimePayload(frames[0]);
+      final loadedSmall = await engine.loadRealtimePayload(frames[0]);
       expect(loadedSmall, equals(smallText));
 
       // Large frame is offloaded to file
@@ -1098,40 +1091,40 @@ void main() {
       expect(frames[1].fileLength, equals(40 * 1024));
 
       // Lazy load reads back full payload
-      final loadedLarge = await session.loadRealtimePayload(frames[1]);
+      final loadedLarge = await engine.loadRealtimePayload(frames[1]);
       expect(loadedLarge, equals(largeText));
     });
 
     test('large binary frame is offloaded and loaded back as Uint8List',
         () async {
-      final session = InspectorSession(
+      final engine = InterceptlyEngine(
         settings: const InterceptlySettings(
           realtimeBodyOffloadThreshold: 1024,
         ),
       );
-      addTearDown(session.dispose);
+      addTearDown(engine.dispose);
 
       final largeBytes =
           Uint8List.fromList(List.generate(2048, (i) => i % 256));
 
-      session.recordRealtimeConnection(
+      engine.recordRealtimeConnection(
         id: 'ws-bin-off',
         url: 'wss://example.com/bin',
       );
 
-      await session.recordRealtimeFrame(RealtimeFrame.binary(
+      await engine.recordRealtimeFrame(RealtimeFrame.binary(
         id: 'f-bin-large',
         sessionId: 'ws-bin-off',
         direction: FrameDirection.outgoing,
         bytes: largeBytes,
       ));
 
-      final frames = session.getRealtimeFrames('ws-bin-off');
+      final frames = engine.getRealtimeFrames('ws-bin-off');
       expect(frames.length, equals(1));
       expect(frames[0].location, equals(BodyLocation.file));
       expect(frames[0].binaryPayload, isNull);
 
-      final loaded = await session.loadRealtimePayload(frames[0]);
+      final loaded = await engine.loadRealtimePayload(frames[0]);
       expect(loaded, isA<Uint8List>());
       expect(loaded, equals(largeBytes));
     });
@@ -1139,63 +1132,72 @@ void main() {
     test(
         'expired frame returns graceful expiration placeholder after file rotation',
         () async {
-      final session = InspectorSession(
-        settings: const InterceptlySettings(
-          realtimeBodyOffloadThreshold: 1024,
+      final store = RealtimeStore(
+        maxFramesPerSession: 100,
+        onThrottledBatch: () {},
+      );
+      addTearDown(store.dispose);
+
+      await store.ensureDiskStorageInitialized(
+        persistToDisk: true,
+        engineId: 'ws-rot',
+      );
+
+      await store.recordFrame(
+        RealtimeFrame.text(
+          id: 'f-rot',
+          sessionId: 'ws-rot',
+          direction: FrameDirection.incoming,
+          text: 'x' * 2048,
         ),
-      );
-      addTearDown(session.dispose);
-
-      session.recordRealtimeConnection(
-        id: 'ws-rot',
-        url: 'wss://example.com/rot',
+        persistToDisk: true,
+        offloadThreshold: 1024,
+        engineId: 'ws-rot',
       );
 
-      await session.recordRealtimeFrame(RealtimeFrame.text(
-        id: 'f-rot',
-        sessionId: 'ws-rot',
-        direction: FrameDirection.incoming,
-        text: 'x' * 2048,
-      ));
-
-      final frames = session.getRealtimeFrames('ws-rot');
+      final frames = store.getRealtimeFrames('ws-rot');
       final frame = frames.first;
       expect(frame.location, equals(BodyLocation.file));
 
-      // Force file rotation on the session's RealtimeBodyStore
-      await session.rotateRealtimeBodyStoreForTesting();
+      // Force file rotation on the store's RealtimeBodyStore
+      await store.bodyStore.rotate();
 
-      final result = await session.loadRealtimePayload(frame);
+      final result = await store.loadPayload(frame);
       expect(result, contains('expired due to file rotation'));
     });
 
     test(
         'clear resets realtime tmp file without touching REST session tmp file',
         () async {
-      final session = InspectorSession(
-        settings: const InterceptlySettings(
-          realtimeBodyOffloadThreshold: 1024,
+      final store = RealtimeStore(
+        maxFramesPerSession: 100,
+        onThrottledBatch: () {},
+      );
+      addTearDown(store.dispose);
+
+      await store.ensureDiskStorageInitialized(
+        persistToDisk: true,
+        engineId: 'ws-clear',
+      );
+
+      await store.recordFrame(
+        RealtimeFrame.text(
+          id: 'f-clear',
+          sessionId: 'ws-clear',
+          direction: FrameDirection.incoming,
+          text: 'c' * 2048,
         ),
-      );
-      addTearDown(session.dispose);
-
-      session.recordRealtimeConnection(
-        id: 'ws-clear',
-        url: 'wss://example.com/clear',
+        persistToDisk: true,
+        offloadThreshold: 1024,
+        engineId: 'ws-clear',
       );
 
-      await session.recordRealtimeFrame(RealtimeFrame.text(
-        id: 'f-clear',
-        sessionId: 'ws-clear',
-        direction: FrameDirection.incoming,
-        text: 'c' * 2048,
-      ));
+      expect(store.getRealtimeFrames('ws-clear').length, equals(1));
 
-      expect(session.getRealtimeFrames('ws-clear').length, equals(1));
-
-      await session.clear();
-      expect(session.getRealtimeFrames('ws-clear'), isEmpty);
-      expect(session.realtimeBodyStoreCurrentOffsetForTesting, equals(0));
+      store.clear();
+      await store.resetDiskStorage();
+      expect(store.getRealtimeFrames('ws-clear'), isEmpty);
+      expect(store.bodyStore.currentOffset, equals(0));
     });
   });
 }

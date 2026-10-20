@@ -1,37 +1,42 @@
+// ignore_for_file: invalid_use_of_internal_member
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
 import 'package:interceptly/src/model/index_entry.dart';
+import 'package:interceptly/src/ui/scope/interceptly_scope.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() async {
-    await InspectorSession.resetForTesting();
+    await Interceptly.resetForTesting();
   });
 
   tearDown(() async {
-    await InspectorSession.resetForTesting();
+    await Interceptly.resetForTesting();
   });
 
   group('Search and Filter Composition', () {
     test('entries compose both search query and filter criteria simultaneously',
         () async {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+      final engine = InterceptlyEngine();
+      final scope = InterceptlyScopeController(engine: engine);
+      addTearDown(scope.dispose);
+      addTearDown(engine.dispose);
 
-      session.recordPending(
+      engine.recordPending(
         id: '1',
         method: 'GET',
         url: 'https://api.com/users',
         timestamp: DateTime(2026, 1, 1),
       );
-      session.recordPending(
+      engine.recordPending(
         id: '2',
         method: 'POST',
         url: 'https://api.com/users',
         timestamp: DateTime(2026, 1, 1),
       );
-      session.recordPending(
+      engine.recordPending(
         id: '3',
         method: 'POST',
         url: 'https://api.com/posts',
@@ -39,18 +44,18 @@ void main() {
       );
 
       // Apply method filter: POST only
-      session.applyFilter(RequestFilter(methods: {'POST'}));
-      expect(session.entries.length, equals(2)); // id 2 and 3
+      scope.applyFilter(RequestFilter(methods: {'POST'}));
+      expect(scope.entries.length, equals(2)); // id 2 and 3
 
       // Start search for "users"
-      await session.startMasterSearch('users');
+      await scope.startMasterSearch('users');
 
       // Must return ONLY id 2 (matches POST and "users"), NOT id 1 (GET) and NOT id 3 (posts)
-      expect(session.entries.map((e) => e.id).toList(), equals(['2']));
+      expect(scope.entries.map((e) => e.id).toList(), equals(['2']));
 
       // Clear filter: now should return both id 1 and 2 (both match "users")
-      session.clearFilter();
-      expect(session.entries.map((e) => e.id).toSet(), equals({'1', '2'}));
+      scope.clearFilter();
+      expect(scope.entries.map((e) => e.id).toSet(), equals({'1', '2'}));
     });
 
     test(

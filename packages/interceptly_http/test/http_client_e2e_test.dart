@@ -31,12 +31,11 @@ void main() {
     } catch (_) {}
   });
 
-  test(
-      'Scenario 1: End-to-end HTTP client request capture into InspectorSession',
+  test('Scenario 1: End-to-end HTTP client request capture into Interceptly',
       () async {
-    await InspectorSession.resetForTesting();
-    final session = InspectorSession.instance;
-    await session.initialize();
+    await Interceptly.resetForTesting();
+    final interceptly = Interceptly.instance;
+    await interceptly.initialize();
 
     final mockClient = MockClient((request) async {
       if (request.url.path.contains('/api/items')) {
@@ -58,22 +57,22 @@ void main() {
     expect(response.statusCode, equals(200));
 
     final deadline = DateTime.now().add(const Duration(seconds: 3));
-    while (session.entries.isEmpty || session.entries.first.statusCode != 200) {
+    while (interceptly.entries.isEmpty ||
+        interceptly.entries.first.statusCode != 200) {
       if (DateTime.now().isAfter(deadline)) {
         fail(
-            'Timed out waiting for intercepted entry to settle in InspectorSession');
+            'Timed out waiting for intercepted entry to settle in Interceptly');
       }
       await Future<void>.delayed(const Duration(milliseconds: 50));
     }
 
-    final captured = session.entries.first;
+    final captured = interceptly.entries.first;
     expect(captured.statusCode, equals(200));
     expect(captured.method, equals('GET'));
     expect(captured.url, contains('/api/items'));
     expect(captured.requestHeaders['Authorization'],
         equals('Bearer secret_user_token'));
 
-    await session.dispose();
-    await InspectorSession.resetForTesting();
+    await Interceptly.resetForTesting();
   });
 }

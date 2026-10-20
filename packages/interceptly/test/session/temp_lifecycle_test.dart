@@ -1,13 +1,13 @@
+// ignore_for_file: invalid_use_of_internal_member
+
 import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/model/body_location.dart';
-import 'package:interceptly/src/model/interceptly_settings.dart';
-import 'package:interceptly/src/model/raw_capture.dart';
-import 'package:interceptly/src/session/body_store.dart';
-import 'package:interceptly/src/session/inspector_session.dart';
-import 'package:interceptly/src/session/writer_isolate.dart';
+import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/body_store.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
+import 'package:interceptly/src/engine/writer_isolate.dart';
 
 const _channel = MethodChannel('plugins.flutter.io/path_provider');
 
@@ -38,6 +38,7 @@ void main() {
   late Directory tempDir;
 
   setUp(() async {
+    await Interceptly.resetForTesting();
     tempDir = await Directory.systemTemp.createTemp('temp_lifecycle_');
   });
 
@@ -47,9 +48,10 @@ void main() {
     try {
       if (tempDir.existsSync()) await tempDir.delete(recursive: true);
     } catch (_) {}
+    await Interceptly.resetForTesting();
   });
 
-  group('temp file lifecycle (RED)', () {
+  group('temp file lifecycle', () {
     test('WriterIsolate.dispose while busy still deletes the temp file',
         () async {
       final writer = WriterIsolate(const InterceptlySettings(
@@ -88,36 +90,25 @@ void main() {
       await stale
           .setLastModified(DateTime.now().subtract(const Duration(hours: 25)));
 
-      final sessionA = InspectorSession();
+      final sessionA = InterceptlyEngine();
       await sessionA.initialize();
-      final fileA = tempDir
-          .listSync()
-          .whereType<File>()
-          .where((f) =>
-              f.uri.pathSegments.last.startsWith('interceptly_') &&
-              f.uri.pathSegments.last.endsWith('.tmp'))
-          .toList();
-      expect(fileA.length, equals(1));
+      final fileA = File(sessionA.tempFilePath!);
+      expect(await fileA.exists(), isTrue);
 
-      final sessionB = InspectorSession();
+      final sessionB = InterceptlyEngine();
       await sessionB.initialize();
+      final fileB = File(sessionB.tempFilePath!);
+      expect(await fileB.exists(), isTrue);
 
-      expect(await fileA.single.exists(), isTrue,
+      expect(await fileA.exists(), isTrue,
           reason: "B's init purge must spare live A's fresh file");
       expect(await stale.exists(), isFalse,
           reason: 'stale orphans older than 24h are still purged');
 
       await sessionA.dispose();
       await Future<void>.delayed(const Duration(milliseconds: 200));
-      expect(await fileA.single.exists(), isFalse);
-      final remaining = tempDir
-          .listSync()
-          .whereType<File>()
-          .where((f) =>
-              f.uri.pathSegments.last.startsWith('interceptly_') &&
-              f.uri.pathSegments.last.endsWith('.tmp'))
-          .toList();
-      expect(remaining.length, equals(1),
+      expect(await fileA.exists(), isFalse);
+      expect(await fileB.exists(), isTrue,
           reason: "disposing A must not delete live B's file");
 
       await sessionB.dispose();

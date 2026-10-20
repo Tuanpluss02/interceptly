@@ -1,15 +1,15 @@
+// ignore_for_file: invalid_use_of_internal_member
+
 import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/model/body_truncation.dart';
-import 'package:interceptly/src/model/body_location.dart';
+import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/bounded_event_queue.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
+import 'package:interceptly/src/engine/memory_index.dart';
+import 'package:interceptly/src/engine/ring_buffer.dart';
 import 'package:interceptly/src/model/index_entry.dart';
-import 'package:interceptly/src/model/raw_capture.dart';
-import 'package:interceptly/src/session/bounded_event_queue.dart';
-import 'package:interceptly/src/session/inspector_session.dart';
-import 'package:interceptly/src/session/memory_index.dart';
-import 'package:interceptly/src/session/ring_buffer.dart';
 
 const _channel = MethodChannel('plugins.flutter.io/path_provider');
 
@@ -34,10 +34,10 @@ RawCapture _capture(String id, {Uint8List? body}) {
   );
 }
 
-Future<bool> _waitForId(InspectorSession session, String id) async {
+Future<bool> _waitForId(InterceptlyEngine engine, String id) async {
   final end = DateTime.now().add(const Duration(seconds: 15));
   while (DateTime.now().isBefore(end)) {
-    for (final entry in session.entries) {
+    for (final entry in engine.entries) {
       if (entry.id == id) return true;
     }
     await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -68,6 +68,7 @@ void main() {
   late Directory tempDir;
 
   setUp(() async {
+    await Interceptly.resetForTesting();
     tempDir = await Directory.systemTemp.createTemp('clear_generation_');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_channel, (call) async {
@@ -82,47 +83,48 @@ void main() {
     try {
       if (tempDir.existsSync()) await tempDir.delete(recursive: true);
     } catch (_) {}
+    await Interceptly.resetForTesting();
   });
 
   group('clear generation fence', () {
     test('records racing mid-clear do not resurrect after clear', () async {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
-      await session.initialize();
+      final engine = InterceptlyEngine();
+      addTearDown(engine.dispose);
+      await engine.initialize();
       for (var i = 0; i < 100; i++) {
-        session.record(_capture('burst-$i'));
+        engine.record(_capture('burst-$i'));
       }
-      final clearing = session.clear();
+      final clearing = engine.clear();
       for (var i = 100; i < 120; i++) {
-        session.record(_capture('burst-$i'));
+        engine.record(_capture('burst-$i'));
       }
       await clearing;
       await Future<void>.delayed(const Duration(seconds: 2));
-      expect(session.entries, isEmpty);
-      expect(session.totalEntries, 0);
+      expect(engine.entries, isEmpty);
+      expect(engine.totalEntries, 0);
     });
 
     test('entries recorded after clear do not alias pre-clear file offsets',
         () async {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
-      await session.initialize();
-      session.record(
+      final engine = InterceptlyEngine();
+      addTearDown(engine.dispose);
+      await engine.initialize();
+      engine.record(
         _capture('pre-clear', body: _filledBytes(60 * 1024, 65)),
       );
-      final clearing = session.clear();
-      session.record(
+      final clearing = engine.clear();
+      engine.record(
         _capture('mid-clear', body: _filledBytes(60 * 1024, 66)),
       );
       await clearing;
-      session.record(
+      engine.record(
         _capture('post-clear', body: _filledBytes(60 * 1024, 67)),
       );
-      expect(await _waitForId(session, 'post-clear'), isTrue);
+      expect(await _waitForId(engine, 'post-clear'), isTrue);
       await Future<void>.delayed(const Duration(seconds: 1));
-      expect(session.entries.map((e) => e.id).toList(), ['post-clear']);
-      final entry = session.entries.singleWhere((e) => e.id == 'post-clear');
-      final record = await session.loadDetail(entry);
+      expect(engine.entries.map((e) => e.id).toList(), ['post-clear']);
+      final entry = engine.entries.singleWhere((e) => e.id == 'post-clear');
+      final record = await engine.loadDetail(entry);
       expect(record.responseBodyBytes, isNotNull);
       expect(record.responseBodyBytes!.length, 60 * 1024);
       expect(
@@ -135,9 +137,9 @@ void main() {
     test(
         'DetailLoader marks body as unavailable when entry fileRotationCount is older than current rotation',
         () async {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
-      await session.initialize();
+      final engine = InterceptlyEngine();
+      addTearDown(engine.dispose);
+      await engine.initialize();
 
       // Create an index entry that points to an older fileRotationCount
       final staleEntry = IndexEntry(
@@ -159,9 +161,9 @@ void main() {
       );
 
       // Trigger pipeline clear/reset which increments rotation
-      await session.clear();
+      await engine.clear();
 
-      final record = await session.loadDetail(staleEntry);
+      final record = await engine.loadDetail(staleEntry);
       expect(record.responseBodyPreview, equals('\x00[body unavailable]'));
       expect(record.responseBodyBytes, isNull);
     });

@@ -9,7 +9,7 @@ import 'request_summary.dart';
 ///
 /// Lives entirely in RAM. The list view reads only from [IndexEntry]s —
 /// zero file I/O on scroll. Full body data is accessed on demand via
-/// [InspectorSession.loadDetail].
+/// [InterceptlyEngine.loadDetail].
 class IndexEntry extends RequestSummary {
   IndexEntry({
     required super.id,

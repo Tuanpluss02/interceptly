@@ -1,14 +1,25 @@
+// ignore_for_file: invalid_use_of_internal_member
+
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/model/raw_capture.dart';
-import 'package:interceptly/src/session/inspector_session.dart';
+import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
 import 'package:interceptly/src/ui/detail/request_detail_page.dart';
+import 'package:interceptly/src/ui/scope/interceptly_scope.dart';
 
 void main() {
+  setUp(() async {
+    await Interceptly.resetForTesting();
+  });
+
+  tearDown(() async {
+    await Interceptly.resetForTesting();
+  });
+
   testWidgets('detail page opens file-backed large JSON without throwing',
       (tester) async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -29,11 +40,10 @@ void main() {
     final bigJson = jsonEncode({'data': items});
     expect(bigJson.length, greaterThan(50 * 1024));
 
-    late InspectorSession session;
+    final engine = InterceptlyEngine();
     await tester.runAsync(() async {
-      session = InspectorSession();
-      await session.initialize();
-      session.record(
+      await engine.initialize();
+      engine.record(
         RawCapture(
           id: 'r1',
           method: 'POST',
@@ -55,20 +65,27 @@ void main() {
       );
 
       final end = DateTime.now().add(const Duration(seconds: 15));
-      while (session.entries.isEmpty) {
+      while (engine.entries.isEmpty) {
         if (DateTime.now().isAfter(end)) {
           throw StateError('entries never arrived');
         }
         await Future.delayed(const Duration(milliseconds: 50));
       }
     });
-    addTearDown(session.dispose);
+
+    final controller = InterceptlyScopeController(engine: engine);
+    addTearDown(() async {
+      controller.dispose();
+      await engine.dispose();
+    });
 
     await tester.pumpWidget(
       MaterialApp(
-        home: RequestDetailPage(
-          entry: session.entries.first,
-          session: session,
+        home: InterceptlyScope(
+          controller: controller,
+          child: RequestDetailPage(
+            entry: engine.entries.first,
+          ),
         ),
       ),
     );

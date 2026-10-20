@@ -78,19 +78,18 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late Directory tempDir;
-  late InspectorSession session;
+  late Interceptly interceptly;
 
   setUp(() async {
-    await InspectorSession.resetForTesting();
+    await Interceptly.resetForTesting();
     tempDir = await Directory.systemTemp.createTemp('interceptly_dio_onerror');
     _mockTempDir(() async => tempDir.path);
-    session = InspectorSession.instance;
-    await session.initialize();
+    interceptly = Interceptly.instance;
+    await interceptly.initialize();
   });
 
   tearDown(() async {
-    await session.dispose();
-    await InspectorSession.resetForTesting();
+    await Interceptly.resetForTesting();
     try {
       await tempDir.delete(recursive: true);
     } catch (_) {}
@@ -119,15 +118,16 @@ void main() {
 
       await _waitFor(
         () =>
-            session.entries.isNotEmpty && session.entries.first.statusCode != 0,
+            interceptly.entries.isNotEmpty &&
+            interceptly.entries.first.statusCode != 0,
       );
-      expect(session.entries.length, equals(1));
-      final entry = session.entries.first;
+      expect(interceptly.entries.length, equals(1));
+      final entry = interceptly.entries.first;
       expect(entry.statusCode, equals(404));
       expect(entry.hasError, isFalse);
       expect(entry.errorType, isNull);
 
-      final detail = await session.loadDetail(entry);
+      final detail = await interceptly.loadDetail(entry);
       expect(detail.responseBodyPreview, contains('Not Found'));
     });
 
@@ -156,10 +156,11 @@ void main() {
 
       await _waitFor(
         () =>
-            session.entries.isNotEmpty && session.entries.first.statusCode != 0,
+            interceptly.entries.isNotEmpty &&
+            interceptly.entries.first.statusCode != 0,
       );
-      expect(session.entries.length, equals(1));
-      final entry = session.entries.first;
+      expect(interceptly.entries.length, equals(1));
+      final entry = interceptly.entries.first;
       expect(entry.statusCode, equals(500));
       expect(entry.hasError, isFalse);
       expect(entry.errorType, isNull);
@@ -185,10 +186,10 @@ void main() {
       expect(caught, isNotNull);
       expect(caught!.type, equals(DioExceptionType.connectionTimeout));
 
-      await _waitFor(
-          () => session.entries.isNotEmpty && session.entries.first.hasError);
-      expect(session.entries.length, equals(1));
-      final entry = session.entries.first;
+      await _waitFor(() =>
+          interceptly.entries.isNotEmpty && interceptly.entries.first.hasError);
+      expect(interceptly.entries.length, equals(1));
+      final entry = interceptly.entries.first;
       expect(entry.hasError, isTrue);
       expect(entry.errorType, equals(DioExceptionType.connectionTimeout.name));
     });
@@ -217,10 +218,10 @@ void main() {
       expect(caught, isNotNull);
       expect(caught!.type, equals(DioExceptionType.cancel));
 
-      await _waitFor(
-          () => session.entries.isNotEmpty && session.entries.first.hasError);
-      expect(session.entries.length, equals(1));
-      final entry = session.entries.first;
+      await _waitFor(() =>
+          interceptly.entries.isNotEmpty && interceptly.entries.first.hasError);
+      expect(interceptly.entries.length, equals(1));
+      final entry = interceptly.entries.first;
       expect(entry.hasError, isTrue);
       expect(entry.errorType, equals(DioExceptionType.cancel.name));
     });
@@ -253,10 +254,10 @@ void main() {
       expect(caught, isNotNull);
       expect(caught!.type, equals(DioExceptionType.cancel));
 
-      await _waitFor(
-          () => session.entries.isNotEmpty && session.entries.first.hasError);
-      expect(session.entries.length, equals(1));
-      final entry = session.entries.first;
+      await _waitFor(() =>
+          interceptly.entries.isNotEmpty && interceptly.entries.first.hasError);
+      expect(interceptly.entries.length, equals(1));
+      final entry = interceptly.entries.first;
       expect(entry.hasError, isTrue);
       expect(entry.errorType, equals('cancel'));
     });
@@ -279,12 +280,13 @@ void main() {
       expect(response.statusCode, equals(200));
 
       await _waitFor(() =>
-          session.entries.isNotEmpty && session.entries.first.statusCode != 0);
-      expect(session.entries.length, equals(1));
-      final entry = session.entries.first;
+          interceptly.entries.isNotEmpty &&
+          interceptly.entries.first.statusCode != 0);
+      expect(interceptly.entries.length, equals(1));
+      final entry = interceptly.entries.first;
       expect(entry.requestSizeBytes, greaterThanOrEqualTo(60 * 1024));
 
-      final detail = await session.loadDetail(entry);
+      final detail = await interceptly.loadDetail(entry);
       expect(detail.requestBodyPreview, isNotNull);
       expect(detail.requestBodyPreview!.length, greaterThan(1000));
     });
@@ -307,9 +309,10 @@ void main() {
       expect(response.statusCode, equals(200));
 
       await _waitFor(() =>
-          session.entries.isNotEmpty && session.entries.first.statusCode != 0);
-      expect(session.entries.length, equals(1));
-      final entry = session.entries.first;
+          interceptly.entries.isNotEmpty &&
+          interceptly.entries.first.statusCode != 0);
+      expect(interceptly.entries.length, equals(1));
+      final entry = interceptly.entries.first;
       expect(entry.responseSizeBytes, greaterThanOrEqualTo(64 * 1024));
     });
 

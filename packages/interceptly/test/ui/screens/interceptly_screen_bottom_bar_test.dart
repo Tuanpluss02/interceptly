@@ -1,6 +1,10 @@
+// ignore_for_file: invalid_use_of_internal_member
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
+import 'package:interceptly/src/ui/scope/interceptly_scope.dart';
 import 'package:interceptly/src/ui/screens/interceptly_screen.dart';
 import 'package:interceptly/src/ui/tabs/network_tab.dart';
 import 'package:interceptly/src/ui/tabs/realtime_list_tab.dart';
@@ -8,14 +12,18 @@ import 'package:interceptly/src/ui/widgets/interceptly_text_field.dart';
 
 void main() {
   group('InterceptlyScreen Bottom Navigation Bar', () {
-    late InspectorSession session;
+    late InterceptlyEngine engine;
+    late InterceptlyScopeController controller;
 
-    setUp(() {
-      session = InspectorSession();
+    setUp(() async {
+      await Interceptly.resetForTesting();
+      engine = InterceptlyEngine();
+      controller = InterceptlyScopeController(engine: engine);
     });
 
     tearDown(() async {
-      await session.dispose();
+      controller.dispose();
+      await Interceptly.resetForTesting();
     });
 
     testWidgets(
@@ -23,7 +31,7 @@ void main() {
         (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: InterceptlyScreen(session: session),
+          home: InterceptlyScreen(controller: controller),
         ),
       );
       await tester.pumpAndSettle();
@@ -36,11 +44,11 @@ void main() {
     testWidgets(
         'renders NavigationBar with REST and Realtime tabs when isRealtimeActive is true',
         (tester) async {
-      session.configureSession(const InterceptlySettings(enableRealtime: true));
+      engine.configure(const InterceptlySettings(enableRealtime: true));
 
       await tester.pumpWidget(
         MaterialApp(
-          home: InterceptlyScreen(session: session),
+          home: InterceptlyScreen(controller: controller),
         ),
       );
       await tester.pumpAndSettle();
@@ -66,7 +74,7 @@ void main() {
         (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: InterceptlyScreen(session: session),
+          home: InterceptlyScreen(controller: controller),
         ),
       );
       await tester.pumpAndSettle();
@@ -74,7 +82,7 @@ void main() {
       expect(find.byType(NavigationBar), findsNothing);
 
       // Record a websocket connection
-      session.recordRealtimeConnection(
+      engine.recordRealtimeConnection(
         id: 'ws_auto_1',
         url: 'wss://realtime.example.com/stream',
       );
@@ -85,21 +93,21 @@ void main() {
       expect(find.text('REST'), findsOneWidget);
       expect(find.text('Realtime'), findsOneWidget);
 
-      session.closeRealtimeConnection('ws_auto_1');
+      engine.closeRealtimeConnection('ws_auto_1');
       await tester.pumpAndSettle();
     });
 
     testWidgets(
         'tab switching alternates between REST requests and WebSocket connections',
         (tester) async {
-      session.configureSession(const InterceptlySettings(enableRealtime: true));
-      session.recordPending(
+      engine.configure(const InterceptlySettings(enableRealtime: true));
+      engine.recordPending(
         id: 'req_tab_1',
         method: 'GET',
         url: 'https://api.example.com/data',
         timestamp: DateTime(2026, 10, 14, 10, 0),
       );
-      session.recordRealtimeConnection(
+      engine.recordRealtimeConnection(
         id: 'ws_tab_1',
         url: 'wss://realtime.example.com/events',
         timestamp: DateTime(2026, 10, 14, 10, 1),
@@ -107,7 +115,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: InterceptlyScreen(session: session),
+          home: InterceptlyScreen(controller: controller),
         ),
       );
       await tester.pump();
@@ -123,17 +131,17 @@ void main() {
 
       expect(find.text('/events'), findsOneWidget);
 
-      await session.clear();
+      await engine.clear();
       await tester.pump();
     });
 
     testWidgets('realtime tab shows RealtimeListTab without search field',
         (tester) async {
-      session.configureSession(const InterceptlySettings(enableRealtime: true));
+      engine.configure(const InterceptlySettings(enableRealtime: true));
 
       await tester.pumpWidget(
         MaterialApp(
-          home: InterceptlyScreen(session: session),
+          home: InterceptlyScreen(controller: controller),
         ),
       );
       await tester.pumpAndSettle();
@@ -147,12 +155,12 @@ void main() {
 
     testWidgets('persists selected tab index across screen dismiss and re-open',
         (tester) async {
-      session.configureSession(const InterceptlySettings(enableRealtime: true));
+      engine.configure(const InterceptlySettings(enableRealtime: true));
 
       // 1. Open InterceptlyScreen
       await tester.pumpWidget(
         MaterialApp(
-          home: InterceptlyScreen(session: session),
+          home: InterceptlyScreen(controller: controller),
         ),
       );
       await tester.pumpAndSettle();
@@ -177,10 +185,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(InterceptlyScreen), findsNothing);
 
-      // 4. User opens InterceptlyScreen again with same session
+      // 4. User opens InterceptlyScreen again with same controller
       await tester.pumpWidget(
         MaterialApp(
-          home: InterceptlyScreen(session: session),
+          home: InterceptlyScreen(controller: controller),
         ),
       );
       await tester.pumpAndSettle();

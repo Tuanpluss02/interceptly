@@ -1,12 +1,12 @@
+// ignore_for_file: invalid_use_of_internal_member
+
 import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/model/body_truncation.dart';
-import 'package:interceptly/src/model/interceptly_settings.dart';
-import 'package:interceptly/src/model/raw_capture.dart';
-import 'package:interceptly/src/session/body_decode_service.dart';
-import 'package:interceptly/src/session/inspector_session.dart';
+import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/body_decode_service.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
 
 const _channel = MethodChannel('plugins.flutter.io/path_provider');
 
@@ -15,6 +15,7 @@ void main() {
   late Directory tempDir;
 
   setUp(() async {
+    await Interceptly.resetForTesting();
     tempDir = await Directory.systemTemp.createTemp('truncation_loss_test_');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_channel, (call) async {
@@ -24,31 +25,32 @@ void main() {
       return null;
     });
 
-    final session = InspectorSession.instance;
-    session.configureSession(
+    final engine = InterceptlyEngine.instance;
+    engine.configure(
       const InterceptlySettings(
         maxBodyBytes: 100, // 100 bytes storage cap
       ),
     );
-    await session.initialize();
+    await engine.initialize();
   });
 
   tearDown(() async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_channel, null);
-    final session = InspectorSession.instance;
-    await session.clear();
+    final engine = InterceptlyEngine.instance;
+    await engine.clear();
     try {
       if (tempDir.existsSync()) {
         await tempDir.delete(recursive: true);
       }
     } catch (_) {}
+    await Interceptly.resetForTesting();
   });
 
   test(
       'writer_isolate preserves original responseSizeBytes and detects storage truncation',
       () async {
-    final session = InspectorSession.instance;
+    final engine = InterceptlyEngine.instance;
 
     // Simulate an adapter that pre-capped the stream to 100 bytes,
     // but the original stream was 500 bytes.
@@ -67,15 +69,15 @@ void main() {
       responseContentType: 'application/octet-stream',
     );
 
-    session.record(capture);
+    engine.record(capture);
 
     final end = DateTime.now().add(const Duration(seconds: 5));
-    while (session.entries.isEmpty && DateTime.now().isBefore(end)) {
+    while (engine.entries.isEmpty && DateTime.now().isBefore(end)) {
       await Future<void>.delayed(const Duration(milliseconds: 20));
     }
 
-    expect(session.entries.length, equals(1));
-    final entry = session.entries.first;
+    expect(engine.entries.length, equals(1));
+    final entry = engine.entries.first;
 
     // Verify responseSizeBytes is the original 500 bytes, NOT the capped 100 bytes
     expect(entry.responseSizeBytes, equals(500));
@@ -90,8 +92,8 @@ void main() {
   test(
       'payload within maxBodyBytes does not trigger false positive storage truncation when length differs from responseSizeBytes',
       () async {
-    final session = InspectorSession.instance;
-    session.configureSession(
+    final engine = InterceptlyEngine.instance;
+    engine.configure(
       const InterceptlySettings(
         maxBodyBytes: 5 * 1024 * 1024, // 5 MB default
       ),
@@ -117,15 +119,15 @@ void main() {
       responseContentType: 'application/json',
     );
 
-    session.record(capture);
+    engine.record(capture);
 
     final end = DateTime.now().add(const Duration(seconds: 5));
-    while (session.entries.isEmpty && DateTime.now().isBefore(end)) {
+    while (engine.entries.isEmpty && DateTime.now().isBefore(end)) {
       await Future<void>.delayed(const Duration(milliseconds: 20));
     }
 
-    expect(session.entries.length, equals(1));
-    final entry = session.entries.first;
+    expect(engine.entries.length, equals(1));
+    final entry = engine.entries.first;
 
     expect(entry.responseSizeBytes, equals(20480));
     expect(entry.responseTruncation.isTruncated, isFalse);
@@ -137,8 +139,8 @@ void main() {
   test(
       'HEAD or 304 response with large content-length and empty body does not falsely report truncation',
       () async {
-    final session = InspectorSession.instance;
-    session.configureSession(
+    final engine = InterceptlyEngine.instance;
+    engine.configure(
       const InterceptlySettings(
         maxBodyBytes: 5 * 1024 * 1024, // 5 MB
       ),
@@ -159,15 +161,15 @@ void main() {
       responseSizeBytes: 10485760,
     );
 
-    session.record(capture);
+    engine.record(capture);
 
     final end = DateTime.now().add(const Duration(seconds: 5));
-    while (session.entries.isEmpty && DateTime.now().isBefore(end)) {
+    while (engine.entries.isEmpty && DateTime.now().isBefore(end)) {
       await Future<void>.delayed(const Duration(milliseconds: 20));
     }
 
-    expect(session.entries.length, equals(1));
-    final entry = session.entries.first;
+    expect(engine.entries.length, equals(1));
+    final entry = engine.entries.first;
 
     expect(entry.responseSizeBytes, equals(10485760));
     expect(entry.responseTruncation.isTruncated, isFalse);

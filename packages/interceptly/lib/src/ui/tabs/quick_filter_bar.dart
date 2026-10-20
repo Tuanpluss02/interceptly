@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../model/request_filter.dart';
-import '../../session/inspector_session_view.dart';
 import '../interceptly_theme.dart';
+import '../scope/interceptly_scope.dart';
 
 /// A horizontal scrollable bar of preset filter chips.
 ///
@@ -12,207 +12,198 @@ import '../interceptly_theme.dart';
 /// - "2xx", "3xx", "4xx", "5xx": Toggles specific status code ranges
 /// - "GET", "POST": Toggles single HTTP methods
 class QuickFilterBar extends StatelessWidget {
-  const QuickFilterBar({
-    super.key,
-    required this.session,
-  });
-
-  final InspectorSessionView session;
+  const QuickFilterBar({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: session,
-      builder: (context, _) {
-        final filter = session.filter;
-        final colors = InterceptlyTheme.colors;
+    final scope = InterceptlyScope.of(context);
+    final filter = scope.filter;
+    final colors = InterceptlyTheme.colors;
 
-        final isAllActive = filter.isEmpty;
-        final isErrorsActive = filter.onlyErrors;
-        final is2xxActive = filter.include2xx &&
-            !filter.include3xx &&
-            !filter.include4xx &&
-            !filter.include5xx &&
-            !filter.onlyErrors;
-        final is3xxActive = filter.include3xx &&
-            !filter.include2xx &&
-            !filter.include4xx &&
-            !filter.include5xx &&
-            !filter.onlyErrors;
-        final is4xxActive = filter.include4xx &&
-            !filter.include2xx &&
-            !filter.include3xx &&
-            !filter.include5xx &&
-            !filter.onlyErrors;
-        final is5xxActive = filter.include5xx &&
-            !filter.include2xx &&
-            !filter.include3xx &&
-            !filter.include4xx &&
-            !filter.onlyErrors;
-        final isGetActive =
-            filter.methods.length == 1 && filter.methods.contains('GET');
-        final isPostActive =
-            filter.methods.length == 1 && filter.methods.contains('POST');
+    final isAllActive = filter.isEmpty;
+    final isErrorsActive = filter.onlyErrors;
+    final is2xxActive = filter.include2xx &&
+        !filter.include3xx &&
+        !filter.include4xx &&
+        !filter.include5xx &&
+        !filter.onlyErrors;
+    final is3xxActive = filter.include3xx &&
+        !filter.include2xx &&
+        !filter.include4xx &&
+        !filter.include5xx &&
+        !filter.onlyErrors;
+    final is4xxActive = filter.include4xx &&
+        !filter.include2xx &&
+        !filter.include3xx &&
+        !filter.include5xx &&
+        !filter.onlyErrors;
+    final is5xxActive = filter.include5xx &&
+        !filter.include2xx &&
+        !filter.include3xx &&
+        !filter.include4xx &&
+        !filter.onlyErrors;
+    final isGetActive =
+        filter.methods.length == 1 && filter.methods.contains('GET');
+    final isPostActive =
+        filter.methods.length == 1 && filter.methods.contains('POST');
 
-        return Container(
-          height: 42,
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            children: [
-              _QuickChip(
-                label: 'All',
-                isSelected: isAllActive,
-                activeColor: colors.actionPrimary,
-                onTap: () => session.applyFilter(RequestFilter()),
-              ),
-              const SizedBox(width: 8),
-              _QuickChip(
-                label: 'Errors',
-                icon: Icons.error_outline_rounded,
-                isSelected: isErrorsActive,
-                activeColor: colors.errorDefault,
-                onTap: () {
-                  if (isErrorsActive) {
-                    session.applyFilter(filter.copyWith(onlyErrors: false));
-                  } else {
-                    session.applyFilter(filter.copyWith(
-                      onlyErrors: true,
-                      include2xx: true,
-                      include3xx: true,
-                      include4xx: true,
-                      include5xx: true,
-                    ));
-                  }
-                },
-              ),
-              const SizedBox(width: 8),
-              _QuickChip(
-                label: '2xx',
-                isSelected: is2xxActive,
-                activeColor: InterceptlyTheme.getStatusStyle(200).bg,
-                onTap: () {
-                  if (is2xxActive) {
-                    session.applyFilter(filter.copyWith(
-                      include2xx: true,
-                      include3xx: true,
-                      include4xx: true,
-                      include5xx: true,
-                    ));
-                  } else {
-                    session.applyFilter(filter.copyWith(
-                      include2xx: true,
-                      include3xx: false,
-                      include4xx: false,
-                      include5xx: false,
-                      onlyErrors: false,
-                    ));
-                  }
-                },
-              ),
-              const SizedBox(width: 8),
-              _QuickChip(
-                label: '3xx',
-                isSelected: is3xxActive,
-                activeColor: InterceptlyTheme.getStatusStyle(301).bg,
-                onTap: () {
-                  if (is3xxActive) {
-                    session.applyFilter(filter.copyWith(
-                      include2xx: true,
-                      include3xx: true,
-                      include4xx: true,
-                      include5xx: true,
-                    ));
-                  } else {
-                    session.applyFilter(filter.copyWith(
-                      include2xx: false,
-                      include3xx: true,
-                      include4xx: false,
-                      include5xx: false,
-                      onlyErrors: false,
-                    ));
-                  }
-                },
-              ),
-              const SizedBox(width: 8),
-              _QuickChip(
-                label: '4xx',
-                isSelected: is4xxActive,
-                activeColor: InterceptlyTheme.getStatusStyle(400).bg,
-                onTap: () {
-                  if (is4xxActive) {
-                    session.applyFilter(filter.copyWith(
-                      include2xx: true,
-                      include3xx: true,
-                      include4xx: true,
-                      include5xx: true,
-                    ));
-                  } else {
-                    session.applyFilter(filter.copyWith(
-                      include2xx: false,
-                      include3xx: false,
-                      include4xx: true,
-                      include5xx: false,
-                      onlyErrors: false,
-                    ));
-                  }
-                },
-              ),
-              const SizedBox(width: 8),
-              _QuickChip(
-                label: '5xx',
-                isSelected: is5xxActive,
-                activeColor: InterceptlyTheme.getStatusStyle(500).bg,
-                onTap: () {
-                  if (is5xxActive) {
-                    session.applyFilter(filter.copyWith(
-                      include2xx: true,
-                      include3xx: true,
-                      include4xx: true,
-                      include5xx: true,
-                    ));
-                  } else {
-                    session.applyFilter(filter.copyWith(
-                      include2xx: false,
-                      include3xx: false,
-                      include4xx: false,
-                      include5xx: true,
-                      onlyErrors: false,
-                    ));
-                  }
-                },
-              ),
-              const SizedBox(width: 8),
-              _QuickChip(
-                label: 'POST',
-                isSelected: isPostActive,
-                activeColor: InterceptlyTheme.getMethodStyle('POST').text,
-                onTap: () {
-                  if (isPostActive) {
-                    session.applyFilter(filter.copyWith(methods: {}));
-                  } else {
-                    session.applyFilter(filter.copyWith(methods: {'POST'}));
-                  }
-                },
-              ),
-              const SizedBox(width: 8),
-              _QuickChip(
-                label: 'GET',
-                isSelected: isGetActive,
-                activeColor: InterceptlyTheme.getMethodStyle('GET').text,
-                onTap: () {
-                  if (isGetActive) {
-                    session.applyFilter(filter.copyWith(methods: {}));
-                  } else {
-                    session.applyFilter(filter.copyWith(methods: {'GET'}));
-                  }
-                },
-              ),
-            ],
+    return Container(
+      height: 42,
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        children: [
+          _QuickChip(
+            label: 'All',
+            isSelected: isAllActive,
+            activeColor: colors.actionPrimary,
+            onTap: () => scope.applyFilter(RequestFilter()),
           ),
-        );
-      },
+          const SizedBox(width: 8),
+          _QuickChip(
+            label: 'Errors',
+            icon: Icons.error_outline_rounded,
+            isSelected: isErrorsActive,
+            activeColor: colors.errorDefault,
+            onTap: () {
+              if (isErrorsActive) {
+                scope.applyFilter(filter.copyWith(onlyErrors: false));
+              } else {
+                scope.applyFilter(filter.copyWith(
+                  onlyErrors: true,
+                  include2xx: true,
+                  include3xx: true,
+                  include4xx: true,
+                  include5xx: true,
+                ));
+              }
+            },
+          ),
+          const SizedBox(width: 8),
+          _QuickChip(
+            label: '2xx',
+            isSelected: is2xxActive,
+            activeColor: InterceptlyTheme.getStatusStyle(200).bg,
+            onTap: () {
+              if (is2xxActive) {
+                scope.applyFilter(filter.copyWith(
+                  include2xx: true,
+                  include3xx: true,
+                  include4xx: true,
+                  include5xx: true,
+                ));
+              } else {
+                scope.applyFilter(filter.copyWith(
+                  include2xx: true,
+                  include3xx: false,
+                  include4xx: false,
+                  include5xx: false,
+                  onlyErrors: false,
+                ));
+              }
+            },
+          ),
+          const SizedBox(width: 8),
+          _QuickChip(
+            label: '3xx',
+            isSelected: is3xxActive,
+            activeColor: InterceptlyTheme.getStatusStyle(301).bg,
+            onTap: () {
+              if (is3xxActive) {
+                scope.applyFilter(filter.copyWith(
+                  include2xx: true,
+                  include3xx: true,
+                  include4xx: true,
+                  include5xx: true,
+                ));
+              } else {
+                scope.applyFilter(filter.copyWith(
+                  include2xx: false,
+                  include3xx: true,
+                  include4xx: false,
+                  include5xx: false,
+                  onlyErrors: false,
+                ));
+              }
+            },
+          ),
+          const SizedBox(width: 8),
+          _QuickChip(
+            label: '4xx',
+            isSelected: is4xxActive,
+            activeColor: InterceptlyTheme.getStatusStyle(400).bg,
+            onTap: () {
+              if (is4xxActive) {
+                scope.applyFilter(filter.copyWith(
+                  include2xx: true,
+                  include3xx: true,
+                  include4xx: true,
+                  include5xx: true,
+                ));
+              } else {
+                scope.applyFilter(filter.copyWith(
+                  include2xx: false,
+                  include3xx: false,
+                  include4xx: true,
+                  include5xx: false,
+                  onlyErrors: false,
+                ));
+              }
+            },
+          ),
+          const SizedBox(width: 8),
+          _QuickChip(
+            label: '5xx',
+            isSelected: is5xxActive,
+            activeColor: InterceptlyTheme.getStatusStyle(500).bg,
+            onTap: () {
+              if (is5xxActive) {
+                scope.applyFilter(filter.copyWith(
+                  include2xx: true,
+                  include3xx: true,
+                  include4xx: true,
+                  include5xx: true,
+                ));
+              } else {
+                scope.applyFilter(filter.copyWith(
+                  include2xx: false,
+                  include3xx: false,
+                  include4xx: false,
+                  include5xx: true,
+                  onlyErrors: false,
+                ));
+              }
+            },
+          ),
+          const SizedBox(width: 8),
+          _QuickChip(
+            label: 'POST',
+            isSelected: isPostActive,
+            activeColor: InterceptlyTheme.getMethodStyle('POST').text,
+            onTap: () {
+              if (isPostActive) {
+                scope.applyFilter(filter.copyWith(methods: {}));
+              } else {
+                scope.applyFilter(filter.copyWith(methods: {'POST'}));
+              }
+            },
+          ),
+          const SizedBox(width: 8),
+          _QuickChip(
+            label: 'GET',
+            isSelected: isGetActive,
+            activeColor: InterceptlyTheme.getMethodStyle('GET').text,
+            onTap: () {
+              if (isGetActive) {
+                scope.applyFilter(filter.copyWith(methods: {}));
+              } else {
+                scope.applyFilter(filter.copyWith(methods: {'GET'}));
+              }
+            },
+          ),
+        ],
+      ),
     );
   }
 }

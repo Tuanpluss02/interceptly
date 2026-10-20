@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
+import 'package:interceptly/src/model/interceptly_settings.dart';
 import 'package:interceptly/src/model/network_protocol.dart';
-import 'package:interceptly/src/session/inspector_preferences.dart';
+import 'package:interceptly/src/ui/scope/interceptly_scope.dart';
+import 'package:interceptly/src/ui/settings/inspector_preferences.dart';
 
 void main() {
-  group('InspectorPreferences', () {
-    late InspectorPreferences prefs;
+  group('InterceptlyPreferences', () {
+    late InterceptlyPreferences prefs;
 
     setUp(() {
-      prefs = InspectorPreferences();
+      prefs = InterceptlyPreferences();
     });
 
     test('initializes with default values', () {
@@ -45,6 +48,56 @@ void main() {
       prefs.setSelectedProtocol(NetworkProtocol.rest);
       expect(prefs.selectedTabIndex, equals(0));
       expect(prefs.selectedProtocol, equals(NetworkProtocol.rest));
+    });
+
+    test('shared instance survives and resets cleanly for testing', () {
+      final shared1 = InterceptlyPreferences.shared;
+      shared1.setSelectedTabIndex(1);
+      shared1.setUrlDecodeEnabled(false);
+
+      expect(InterceptlyPreferences.shared.selectedTabIndex, equals(1));
+      expect(InterceptlyPreferences.shared.urlDecodeEnabled, isFalse);
+
+      InterceptlyPreferences.resetSharedForTesting();
+
+      expect(InterceptlyPreferences.shared.selectedTabIndex, equals(0));
+      expect(InterceptlyPreferences.shared.urlDecodeEnabled, isTrue);
+    });
+  });
+
+  group('InterceptlyPreferences & ScopeController Integration', () {
+    tearDown(() async {
+      InterceptlyPreferences.resetSharedForTesting();
+    });
+
+    test('ScopeController initializes urlDecodeEnabled from engine settings',
+        () {
+      final engine = InterceptlyEngine();
+      addTearDown(engine.dispose);
+      engine.configure(const InterceptlySettings(urlDecodeEnabled: false));
+
+      final controller = InterceptlyScopeController(engine: engine);
+      addTearDown(controller.dispose);
+
+      expect(controller.preferences.urlDecodeEnabled, isFalse);
+    });
+
+    test('ScopeController preserves shared preferences across screen reopens',
+        () {
+      final engine = InterceptlyEngine();
+      addTearDown(engine.dispose);
+
+      final controller1 = InterceptlyScopeController(engine: engine);
+      controller1.preferences.setSelectedTabIndex(1);
+      controller1.preferences.setThemeMode(ThemeMode.dark);
+      controller1.dispose();
+
+      // Second controller opens (simulating reopening the inspector)
+      final controller2 = InterceptlyScopeController(engine: engine);
+      addTearDown(controller2.dispose);
+
+      expect(controller2.preferences.selectedTabIndex, equals(1));
+      expect(controller2.preferences.themeMode, equals(ThemeMode.dark));
     });
   });
 }

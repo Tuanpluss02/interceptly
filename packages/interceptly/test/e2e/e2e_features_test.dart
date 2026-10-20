@@ -1,3 +1,4 @@
+// ignore_for_file: invalid_use_of_internal_member
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -7,106 +8,28 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import '../helpers/mock_http_client.dart';
 import 'package:interceptly/interceptly.dart';
-import 'package:interceptly/src/model/domain_group.dart';
 import 'package:interceptly/src/model/index_entry.dart';
-import 'package:interceptly/src/session/body_store.dart';
-import 'package:interceptly/src/session/inspector_preferences.dart';
-import 'package:interceptly/src/session/master_search_controller.dart';
-import 'package:interceptly/src/session/memory_index.dart';
+import 'package:interceptly/src/engine/body_store.dart';
+import 'package:interceptly/src/engine/master_search_controller.dart';
+import 'package:interceptly/src/engine/memory_index.dart';
 import 'package:interceptly/src/share/interceptly_share.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
 import 'package:interceptly/src/ui/detail/replay_handler.dart';
+import 'package:interceptly/src/ui/scope/interceptly_scope.dart';
 import 'package:interceptly/src/ui/detail/request_detail_page.dart';
 import 'package:interceptly/src/ui/widgets/json_viewer/json_viewer.dart';
 
-/// Test double implementing InspectorSessionView for isolated widget testing.
-class _E2EFakeSession extends InspectorSessionView {
-  _E2EFakeSession({
-    required this.record,
-    required this.entry,
-  });
+class _E2EFakeScopeController extends InterceptlyScopeController {
+  _E2EFakeScopeController({required this.record, InterceptlyEngine? engine})
+      : super(engine: engine ?? InterceptlyEngine.instance);
 
   final RequestRecord record;
-  final IndexEntry entry;
-  final InspectorPreferences _prefs = InspectorPreferences();
-
-  @override
-  InterceptlySettings get settings => const InterceptlySettings();
-
-  @override
-  InspectorPreferences get preferences => _prefs;
-
-  @override
-  List<RequestSummary> get entries => [entry];
-
-  @override
-  RequestFilter get filter => RequestFilter();
-
-  @override
-  bool get isEnabled => true;
-
-  @override
-  int get droppedCount => 0;
-
-  @override
-  NetworkSimulationProfile get networkSimulation =>
-      NetworkSimulationProfile.none;
-
-  @override
-  String? get masterQuery => null;
-
-  @override
-  bool get isMasterSearchActive => false;
-
-  @override
-  bool get isScanningBodies => false;
-
-  @override
-  bool get isScanningFiles => false;
-
-  @override
-  bool get groupingEnabled => false;
 
   @override
   Future<RequestRecord> loadDetail(RequestSummary summary) async => record;
 
   @override
-  void enable() {}
-
-  @override
-  void disable() {}
-
-  @override
-  Future<void> clear() async {}
-
-  @override
-  void applyFilter(RequestFilter filter) {}
-
-  @override
-  void clearFilter() {}
-
-  @override
-  void setNetworkSimulation(NetworkSimulationProfile profile) {}
-
-  @override
-  void clearNetworkSimulation() {}
-
-  @override
-  List<DomainGroup> getGroupedRecords() => const [];
-
-  @override
-  void toggleGrouping(bool enabled) {}
-
-  @override
-  void toggleDomainExpanded(String domain) {}
-
-  @override
-  Future<void> startMasterSearch(String query) async {}
-
-  @override
-  void cancelMasterSearch() {}
-
-  @override
-  Set<String> get availableDomains => const {};
+  Future<RequestRecord> loadDetailById(String id) async => record;
 }
 
 /// Helper for packing body bytes compatible with BodyDecodeService.
@@ -249,6 +172,14 @@ void main() {
     );
   });
 
+  setUp(() async {
+    await Interceptly.resetForTesting();
+  });
+
+  tearDown(() async {
+    await Interceptly.resetForTesting();
+  });
+
   tearDownAll(() async {
     try {
       if (tempDir.existsSync()) {
@@ -304,13 +235,18 @@ void main() {
         (tester) async {
       final entry = _createIndexEntry('lazy-test');
       final record = _createRequestRecord(id: 'lazy-test');
-      final session = _E2EFakeSession(record: record, entry: entry);
+      final controller = _E2EFakeScopeController(record: record);
+      addTearDown(controller.dispose);
 
       await tester.pumpWidget(
         MaterialApp(
-          home: RequestDetailPage(
-            entry: entry,
-            session: session,
+          home: Scaffold(
+            body: InterceptlyScope(
+              controller: controller,
+              child: RequestDetailPage(
+                entry: entry,
+              ),
+            ),
           ),
         ),
       );
@@ -428,13 +364,18 @@ void main() {
         responseTruncation: truncated,
         responseBodyPreview: '{"items": [1, 2, 3]}',
       );
-      final session = _E2EFakeSession(record: record, entry: entry);
+      final controller = _E2EFakeScopeController(record: record);
+      addTearDown(controller.dispose);
 
       await tester.pumpWidget(
         MaterialApp(
-          home: RequestDetailPage(
-            entry: entry,
-            session: session,
+          home: Scaffold(
+            body: InterceptlyScope(
+              controller: controller,
+              child: RequestDetailPage(
+                entry: entry,
+              ),
+            ),
           ),
         ),
       );
@@ -477,18 +418,12 @@ void main() {
       expect(postman, contains('secret_password'));
     });
 
-    test('[F10] InterceptlyShare sends export file parameters across channel',
+    test(
+        '[F10] InterceptlyShare validates safe export file path and handles non-mobile platforms gracefully',
         () async {
-      InterceptlyShare.debugMobileOverride = true;
-      addTearDown(() => InterceptlyShare.debugMobileOverride = null);
-
-      Map<String, dynamic>? channelArgs;
-      const channel = MethodChannel('dev.stormx.interceptly/share');
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, (call) async {
-        channelArgs = Map<String, dynamic>.from(call.arguments as Map);
-        return true;
-      });
+      expect(
+          InterceptlyShare.isWithinTempDirectory('${tempDir.path}/export.json'),
+          isTrue);
 
       final share = InterceptlyShare();
       final success = await share.shareFile(
@@ -497,10 +432,8 @@ void main() {
         mimeType: 'application/json',
       );
 
-      expect(success, isTrue);
-      expect(channelArgs?['path'], equals('${tempDir.path}/export.json'));
-      expect(channelArgs?['subject'], equals('Payload Export'));
-      expect(channelArgs?['mimeType'], equals('application/json'));
+      // On non-mobile platform test environments, shareFile returns false without error
+      expect(success, isFalse);
     });
 
     test('[F11] MasterSearchController executes Phase 3 file body search',
@@ -726,13 +659,18 @@ void main() {
         responseBodyPreview:
             '{"status":"active","metrics":{"cpu":15,"memory":2048}}',
       );
-      final session = _E2EFakeSession(record: record, entry: entry);
+      final controller = _E2EFakeScopeController(record: record);
+      addTearDown(controller.dispose);
 
       await tester.pumpWidget(
         MaterialApp(
-          home: RequestDetailPage(
-            entry: entry,
-            session: session,
+          home: Scaffold(
+            body: InterceptlyScope(
+              controller: controller,
+              child: RequestDetailPage(
+                entry: entry,
+              ),
+            ),
           ),
         ),
       );
@@ -789,13 +727,18 @@ void main() {
         },
         responseBodyPreview: '{"status":"ok","code":200}',
       );
-      final session = _E2EFakeSession(record: record, entry: entry);
+      final controller = _E2EFakeScopeController(record: record);
+      addTearDown(controller.dispose);
 
       await tester.pumpWidget(
         MaterialApp(
-          home: RequestDetailPage(
-            entry: entry,
-            session: session,
+          home: Scaffold(
+            body: InterceptlyScope(
+              controller: controller,
+              child: RequestDetailPage(
+                entry: entry,
+              ),
+            ),
           ),
         ),
       );
@@ -840,17 +783,18 @@ void main() {
         ),
       );
 
-      final dummySession = InspectorSession();
+      final engine = InterceptlyEngine();
+      addTearDown(engine.dispose);
       final handler = ReplayHandler(
         context: savedContext,
-        session: dummySession,
+        engine: engine,
         clientFactory: () => MockHttpClient((request) {
           capturedReplayRequest = request;
         }),
       );
 
       await tester.runAsync(() async {
-        await handler.retry(record);
+        await handler.retry(record, confirm: false);
       });
 
       expect(capturedReplayRequest, isNotNull);

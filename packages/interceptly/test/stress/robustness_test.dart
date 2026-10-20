@@ -1,3 +1,4 @@
+// ignore_for_file: invalid_use_of_internal_member
 @Tags(['stress'])
 library;
 
@@ -7,11 +8,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/core/interceptly_controller.dart';
-import 'package:interceptly/src/model/interceptly_settings.dart';
-import 'package:interceptly/src/model/raw_capture.dart';
-import 'package:interceptly/src/session/body_decode_service.dart';
-import 'package:interceptly/src/session/inspector_session.dart';
+import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/body_decode_service.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
 
 const _pathProviderChannel = MethodChannel('plugins.flutter.io/path_provider');
 
@@ -55,6 +54,7 @@ void main() {
   late Directory tempDir;
 
   setUp(() async {
+    await Interceptly.resetForTesting();
     tempDir = await Directory.systemTemp.createTemp('interceptly_robustness');
     _mockTempDir(() async => tempDir.path);
   });
@@ -63,6 +63,7 @@ void main() {
     try {
       await tempDir.delete(recursive: true);
     } catch (_) {}
+    await Interceptly.resetForTesting();
   });
 
   group('Session survives storage failures', () {
@@ -74,7 +75,7 @@ void main() {
         return tempDir.path;
       });
 
-      final session = InspectorSession();
+      final session = InterceptlyEngine();
       addTearDown(session.dispose);
 
       session.record(_capture('a'));
@@ -91,8 +92,11 @@ void main() {
       final blocker = File('${tempDir.path}/not_a_dir')..writeAsStringSync('x');
       _mockTempDir(() async => blocker.path);
 
-      final session = InspectorSession(
-        settings: const InterceptlySettings(bodyOffloadThreshold: 4),
+      final session = InterceptlyEngine(
+        settings: const InterceptlySettings(
+          bodyOffloadThreshold: 4,
+          persistToDisk: false,
+        ),
       );
       addTearDown(session.dispose);
       await session.initialize();
@@ -127,7 +131,7 @@ void main() {
 
   group('Session settings and filters', () {
     test('shouldCapture ignores matching requests completely', () async {
-      final session = InspectorSession(
+      final session = InterceptlyEngine(
         settings: InterceptlySettings(
           shouldCapture: (url) => !url.contains('/sensitive'),
         ),
@@ -158,22 +162,22 @@ void main() {
 
     test('multiple sessions have distinct sessionIds and do not collide',
         () async {
-      final s1 = InspectorSession();
-      final s2 = InspectorSession();
+      final s1 = InterceptlyEngine();
+      final s2 = InterceptlyEngine();
       addTearDown(s1.dispose);
       addTearDown(s2.dispose);
 
-      expect(s1.sessionId, isNot(equals(s2.sessionId)));
+      expect(s1.engineId, isNot(equals(s2.engineId)));
     });
   });
 
   group('Interceptly.init single-entrypoint setup', () {
     setUp(() async {
-      await InspectorSession.resetForTesting();
+      await Interceptly.resetForTesting();
     });
 
     tearDown(() async {
-      await InspectorSession.resetForTesting();
+      await Interceptly.resetForTesting();
     });
 
     test('Interceptly.init configures settings and target session', () async {
@@ -187,7 +191,7 @@ void main() {
         showFloatingButton: false,
       );
 
-      expect(InspectorSession.instance.settings.maxBodyBytes, 1024);
+      expect(Interceptly.instance.settings.maxBodyBytes, 1024);
     });
 
     test('Interceptly.init uses default settings when none provided', () async {
@@ -198,8 +202,8 @@ void main() {
         showFloatingButton: false,
       );
 
-      expect(InspectorSession.instance.settings.maxBodyBytes, 5 * 1024 * 1024);
-      expect(InspectorSession.instance.settings.maxEntries, 5000);
+      expect(Interceptly.instance.settings.maxBodyBytes, 5 * 1024 * 1024);
+      expect(Interceptly.instance.settings.maxEntries, 5000);
     });
   });
 }

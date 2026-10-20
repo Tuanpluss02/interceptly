@@ -35,13 +35,13 @@ Interceptly is organized as a modular monorepo managed with [Melos](https://melo
 
 ### Packages
 
-| Package | Version | Description |
-| :--- | :--- | :--- |
-| [`interceptly`](packages/interceptly) | `^2.1.0` | **Core package**: Flutter UI inspector overlay, background isolate pipeline, hybrid disk/RAM storage, throttling buffer, and realtime inspection. |
-| [`interceptly_dio`](packages/interceptly_dio) | `^1.0.0` | **Dio Adapter**: Non-intrusive `Interceptor` recording HTTP requests, responses, and errors. |
-| [`interceptly_http`](packages/interceptly_http) | `^1.0.0` | **HTTP Adapter**: Stream-teeing `http.Client` wrapper preserving single-subscription response streams. |
-| [`interceptly_chopper`](packages/interceptly_chopper) | `^1.0.0` | **Chopper Adapter**: `ResponseInterceptor` and `RequestInterceptor` capturing Chopper network traffic. |
-| [`interceptly_web_socket`](packages/interceptly_web_socket) | `^1.0.0` | **WebSocket Adapter**: `WebSocketChannel` wrapper capturing bidirectional text/binary frames in real time. |
+| Package | Pub | Description |
+| :--- | :---: | :--- |
+| [`interceptly`](packages/interceptly) | [![pub package](https://img.shields.io/pub/v/interceptly.svg)](https://pub.dev/packages/interceptly) | **Core package**: Flutter UI inspector overlay, background isolate pipeline, hybrid disk/RAM storage, throttling buffer, and realtime inspection. |
+| [`interceptly_dio`](packages/interceptly_dio) | [![pub package](https://img.shields.io/pub/v/interceptly_dio.svg)](https://pub.dev/packages/interceptly_dio) | **Dio Adapter**: Non-intrusive `Interceptor` recording HTTP requests, responses, and errors. |
+| [`interceptly_http`](packages/interceptly_http) | [![pub package](https://img.shields.io/pub/v/interceptly_http.svg)](https://pub.dev/packages/interceptly_http) | **HTTP Adapter**: Stream-teeing `http.Client` wrapper preserving single-subscription response streams. |
+| [`interceptly_chopper`](packages/interceptly_chopper) | [![pub package](https://img.shields.io/pub/v/interceptly_chopper.svg)](https://pub.dev/packages/interceptly_chopper) | **Chopper Adapter**: `ResponseInterceptor` and `RequestInterceptor` capturing Chopper network traffic. |
+| [`interceptly_web_socket`](packages/interceptly_web_socket) | [![pub package](https://img.shields.io/pub/v/interceptly_web_socket.svg)](https://pub.dev/packages/interceptly_web_socket) | **WebSocket Adapter**: `WebSocketChannel` wrapper capturing bidirectional text/binary frames in real time. |
 
 ---
 
@@ -192,9 +192,9 @@ InterceptlySettings(
 
 All satellite adapters in Interceptly follow a unified **Bridge & SPI** pattern, delegating coordination to core collectors:
 
-- **`HttpTrafficCollector` & `DefaultHttpTrafficCollector`**: Handles request lifecycle coordination, timing & duration calculation, network simulation (latency, bandwidth throttling, offline exceptions), request body/response body serialization to isolates, and session persistence.
+- **`HttpTrafficCollector` & `DefaultHttpTrafficCollector`**: Handles request lifecycle coordination, timing & duration calculation, network simulation (latency, bandwidth throttling, offline exceptions), request body/response body serialization to isolates, and headless engine persistence.
 - **`RealtimeTrafficCollector` & `DefaultRealtimeTrafficCollector`**: Handles WebSocket/SSE connection tracking, frame type conversion (text vs. binary), payload serialization, and 60fps throttled ring buffer storage.
-- **Marker Contracts**: Satellite adapters implement `HttpCaptureAdapter` or `RealtimeCaptureAdapter` to guarantee access to their underlying collector and session.
+- **Framework Adapters**: Satellite adapters encapsulate framework-specific clients and interceptors, delegating lifecycle events directly to `HttpTrafficCollector` or `RealtimeTrafficCollector`.
 
 This design decouples application networking frameworks from Interceptly's internal storage and simulation engines, making it trivial to create custom adapters for any protocol (gRPC, GraphQL, MQTT, Socket.IO) without duplicating code or leaking exceptions.
 

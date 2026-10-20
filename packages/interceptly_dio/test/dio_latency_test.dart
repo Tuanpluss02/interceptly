@@ -143,16 +143,12 @@ void main() {
 
       final future = interceptor.onResponse(response, handler);
 
-      // In the decoupled design, handler.next must be called immediately.
-      // With the old blocking design, handler.next is only called AFTER
-      // collector.completeResponse finishes (which is blocked by completeCompleter).
       expect(
         handler.nextCalled,
         isTrue,
         reason: 'handler.next must be called before completeResponse finishes',
       );
 
-      // Release the completer so background capture finishes
       collector.completeCompleter.complete();
       await future;
       expect(collector.completeResponseCalled, isTrue);
@@ -177,7 +173,6 @@ void main() {
       await interceptor.onResponse(response, handler);
 
       expect(handler.nextCalled, isTrue);
-      // Wait for background serialization and capture to finish
       final end = DateTime.now().add(const Duration(seconds: 2));
       while (collector.completedCalls.isEmpty && DateTime.now().isBefore(end)) {
         await Future<void>.delayed(const Duration(milliseconds: 10));

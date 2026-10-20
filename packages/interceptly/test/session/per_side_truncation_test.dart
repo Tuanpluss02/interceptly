@@ -1,13 +1,15 @@
+// ignore_for_file: invalid_use_of_internal_member
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:interceptly/src/engine/detail_loader.dart';
+import 'package:interceptly/src/engine/memory_index.dart';
 import 'package:interceptly/src/model/body_location.dart';
 import 'package:interceptly/src/model/body_truncation.dart';
 import 'package:interceptly/src/model/index_entry.dart';
-import 'package:interceptly/src/session/detail_loader.dart';
-import 'package:interceptly/src/session/memory_index.dart';
 
 /// Helper to pack bodies with the legacy trailing truncated byte.
 Uint8List _packLegacy(Uint8List? req, Uint8List? res,

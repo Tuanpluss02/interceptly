@@ -3,15 +3,15 @@ import 'package:flutter/foundation.dart';
 import '../capture/capture_guard.dart';
 import '../model/network_simulation.dart';
 import '../model/raw_capture.dart';
-import '../session/inspector_session.dart';
-import '../session/request_id.dart';
+import '../engine/interceptly_engine.dart';
+import '../engine/request_id.dart';
 import 'http_capture_scope.dart';
 import 'http_request_context.dart';
 
 /// Contract for coordinating HTTP traffic capture lifecycle events.
 ///
 /// Implementations handle pending record creation, network simulation,
-/// duration calculation, and finalized capture recording into an [InspectorSession].
+/// duration calculation, and finalized capture recording into an [InterceptlyEngine].
 abstract interface class HttpTrafficCollector {
   static HttpTrafficCollector? _instance;
 
@@ -92,29 +92,29 @@ abstract interface class HttpTrafficCollector {
   });
 }
 
-/// Default implementation of [HttpTrafficCollector] backed by [InspectorSession].
+/// Default implementation of [HttpTrafficCollector] backed by [InterceptlyEngine].
 class DefaultHttpTrafficCollector implements HttpTrafficCollector {
-  /// Creates a collector backed by [session] or [InspectorSession.instance].
-  DefaultHttpTrafficCollector({InspectorSession? session})
-      : _customSession = session;
+  /// Creates a collector backed by [engine] or [InterceptlyEngine.instance].
+  DefaultHttpTrafficCollector({InterceptlyEngine? engine})
+      : _customEngine = engine;
 
-  final InspectorSession? _customSession;
+  final InterceptlyEngine? _customEngine;
 
-  /// The underlying [InspectorSession] used for storing captured traffic.
-  InspectorSession get session => _customSession ?? InspectorSession.instance;
+  /// The underlying [InterceptlyEngine] used for storing captured traffic.
+  InterceptlyEngine get engine => _customEngine ?? InterceptlyEngine.instance;
 
   @override
-  int get maxBodyBytes => session.settings.maxBodyBytes;
+  int get maxBodyBytes => engine.settings.maxBodyBytes;
 
   @override
   Duration delayForChunk(int chunkBytes) =>
-      session.throughputDelayForChunk(chunkBytes);
+      engine.throughputDelayForChunk(chunkBytes);
 
   @override
   bool shouldCapture(Uri? uri) {
-    if (!session.isEnabled) return false;
+    if (!engine.isEnabled) return false;
     if (uri == null) return true;
-    final predicate = session.settings.shouldCapture;
+    final predicate = engine.settings.shouldCapture;
     if (predicate == null) return true;
     return predicate(uri.toString());
   }
@@ -169,7 +169,7 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
       );
 
       guardCapture(() {
-        session.recordPending(
+        engine.recordPending(
           id: id,
           method: method,
           url: uri.toString(),
@@ -181,7 +181,7 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
       });
 
       try {
-        await session.applyNetworkSimulationBeforeRequest(
+        await engine.applyNetworkSimulationBeforeRequest(
           uploadBytes: bodyBytes?.length ?? 0,
         );
       } on SimulatedNetworkException catch (e) {
@@ -237,7 +237,7 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
       }
 
       if (durationMs == null) {
-        await session.applyNetworkSimulationAfterResponse(
+        await engine.applyNetworkSimulationAfterResponse(
           downloadBytes: actualResponseSize,
         );
       }
@@ -271,7 +271,7 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
         responseTruncatedAtStorage: isResponseTruncated,
       );
 
-      session.record(capture);
+      engine.record(capture);
     });
   }
 
@@ -337,7 +337,7 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
         responseTruncatedAtStorage: isResponseTruncated,
       );
 
-      session.record(capture);
+      engine.record(capture);
     });
   }
 

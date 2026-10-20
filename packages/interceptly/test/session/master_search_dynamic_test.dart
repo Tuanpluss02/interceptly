@@ -1,15 +1,18 @@
+// ignore_for_file: invalid_use_of_internal_member
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
+import 'package:interceptly/src/engine/master_search_controller.dart';
 import 'package:interceptly/src/model/index_entry.dart';
-import 'package:interceptly/src/session/master_search_controller.dart';
+import 'package:interceptly/src/ui/scope/interceptly_scope.dart';
 
 void main() {
   setUp(() async {
-    await InspectorSession.resetForTesting();
+    await Interceptly.resetForTesting();
   });
 
   tearDown(() async {
-    await InspectorSession.resetForTesting();
+    await Interceptly.resetForTesting();
   });
 
   group('MasterSearchController Dynamic Updates', () {
@@ -111,15 +114,156 @@ void main() {
 
       expect(search.results, isEmpty);
     });
+
+    test('pruneMissing removes entries not in validIds and notifies listeners',
+        () async {
+      final search = MasterSearchController();
+      addTearDown(search.dispose);
+
+      final entry1 = _createEntry(
+        id: '1',
+        method: 'GET',
+        url: 'https://api.example.com/item1',
+        statusCode: 200,
+      );
+      final entry2 = _createEntry(
+        id: '2',
+        method: 'GET',
+        url: 'https://api.example.com/item2',
+        statusCode: 200,
+      );
+
+      await search.start(
+        query: 'item',
+        allEntries: [entry1, entry2],
+        filePath: null,
+      );
+
+      expect(search.results?.length, equals(2));
+
+      var notifications = 0;
+      search.addListener(() => notifications++);
+
+      // Prune entry 2
+      search.pruneMissing({'1'});
+
+      expect(search.results?.length, equals(1));
+      expect(search.results?.first.id, equals('1'));
+    });
+
+    test(
+        'active master search in InterceptlyScopeController picks up new engine entries and prunes evicted ones',
+        () async {
+      final engine = InterceptlyEngine();
+      final scope = InterceptlyScopeController(engine: engine);
+      addTearDown(scope.dispose);
+      addTearDown(engine.dispose);
+
+      engine.recordPending(
+        id: '1',
+        method: 'GET',
+        url: 'https://api.example.com/items',
+        timestamp: DateTime(2026, 1, 1),
+      );
+      engine.flushPendingNotifications();
+
+      await scope.startMasterSearch('orders');
+      expect(scope.entries, isEmpty);
+
+      // Now a new matching request arrives at the engine
+      engine.recordPending(
+        id: '2',
+        method: 'POST',
+        url: 'https://api.example.com/orders',
+        timestamp: DateTime(2026, 1, 1),
+      );
+      engine.flushPendingNotifications();
+
+      // Entries should dynamically include the new order request
+      expect(scope.entries.map((e) => e.id), contains('2'));
+    });
+
+    test(
+        'updateOrAddEntry preserves existing file-backed body matches across traffic updates',
+        () async {
+      final search = MasterSearchController();
+      addTearDown(search.dispose);
+
+      final fileEntry = _createEntry(
+        id: 'file-1',
+        method: 'POST',
+        url: 'https://api.example.com/upload',
+        statusCode: 200,
+        bodyLocation: BodyLocation.file,
+      );
+
+      // Start search that matches
+      await search.start(
+        query: 'secret-token',
+        allEntries: [],
+        filePath: null,
+      );
+
+      // Simulate Phase 3 file match having populated search results
+      search.recordFileMatchForTesting(fileEntry);
+      expect(search.results?.length, equals(1));
+
+      // Now an unrelated traffic update occurs with the pure file-backed entry (url doesn't match query)
+      // but it was previously matched by body
+      search.updateOrAddEntry(fileEntry.copyWith(statusCode: 204));
+
+      // The entry should still be in search results because file-body match is preserved
+      expect(search.results?.map((e) => e.id), contains('file-1'));
+      expect(search.results?.first.statusCode, equals(204));
+    });
+
+    test(
+        'InterceptlyScopeController skips search reconciliation when entriesVersion is unchanged',
+        () async {
+      final engine = InterceptlyEngine();
+      final scope = InterceptlyScopeController(engine: engine);
+      addTearDown(scope.dispose);
+      addTearDown(engine.dispose);
+
+      engine.recordPending(
+        id: '1',
+        method: 'GET',
+        url: 'https://api.example.com/test',
+        timestamp: DateTime(2026, 1, 1),
+      );
+      engine.flushPendingNotifications();
+
+      await scope.startMasterSearch('test');
+      expect(scope.entries.length, equals(1));
+
+      // Record a realtime frame which notifies without changing entriesVersion
+      final initialVersion = engine.entriesVersion;
+      await engine.recordRealtimeFrame(
+        RealtimeFrame(
+          id: 'frame-1',
+          sessionId: '1',
+          timestamp: DateTime(2026, 1, 1),
+          direction: FrameDirection.incoming,
+          type: FrameType.text,
+          textPayload: 'frame data',
+        ),
+      );
+
+      expect(engine.entriesVersion, equals(initialVersion));
+      expect(scope.entries.length, equals(1));
+    });
   });
 
-  group('InspectorSession Search Invalidation and Coalescing', () {
-    test('search updates invalidate grouped cache in InspectorSession',
+  group('InterceptlyEngine Search Invalidation and Coalescing', () {
+    test(
+        'search updates invalidate grouped cache in InterceptlyScopeController',
         () async {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+      final engine = InterceptlyEngine();
+      final scope = InterceptlyScopeController(engine: engine);
+      addTearDown(scope.dispose);
+      addTearDown(engine.dispose);
 
-      session.recordPending(
+      engine.recordPending(
         id: '1',
         method: 'GET',
         url: 'https://api.example.com/test',
@@ -127,29 +271,29 @@ void main() {
       );
 
       // Populate grouped cache
-      final initialGroups = session.getGroupedRecords();
+      final initialGroups = scope.getGroupedRecords();
       expect(initialGroups.length, equals(1));
 
       // Trigger search which should invalidate grouped cache and reflect in entries
-      await session.startMasterSearch('test');
+      await scope.startMasterSearch('test');
 
-      final searchGroups = session.getGroupedRecords();
+      final searchGroups = scope.getGroupedRecords();
       expect(searchGroups.length, equals(1));
     });
 
     test('recordPending coalesces notifications to prevent UI thrashing',
         () async {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+      final engine = InterceptlyEngine();
+      addTearDown(engine.dispose);
 
       var notificationCount = 0;
-      session.addListener(() {
+      engine.addListener(() {
         notificationCount++;
       });
 
       // Rapidly record 10 pending requests
       for (var i = 0; i < 10; i++) {
-        session.recordPending(
+        engine.recordPending(
           id: 'rapid-$i',
           method: 'GET',
           url: 'https://api.example.com/rapid/$i',
@@ -161,7 +305,7 @@ void main() {
       expect(notificationCount, lessThan(10));
 
       // Flush notifications
-      session.flushPendingNotifications();
+      engine.flushPendingNotifications();
       expect(notificationCount, equals(1));
     });
   });

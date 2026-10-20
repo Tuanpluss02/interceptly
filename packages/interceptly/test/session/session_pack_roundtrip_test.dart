@@ -1,13 +1,22 @@
+// ignore_for_file: invalid_use_of_internal_member
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/model/raw_capture.dart';
-import 'package:interceptly/src/session/inspector_session.dart';
+import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() async {
+    await Interceptly.resetForTesting();
+  });
+
+  tearDown(() async {
+    await Interceptly.resetForTesting();
+  });
 
   test('session pack round-trip through temp file', () async {
     final tempDir = await Directory.systemTemp.createTemp('interceptly_bisect');
@@ -20,7 +29,7 @@ void main() {
       },
     );
 
-    final session = InspectorSession();
+    final session = InterceptlyEngine();
     await session.initialize();
     session.record(
       RawCapture(
@@ -44,7 +53,7 @@ void main() {
       if (DateTime.now().isAfter(end)) {
         throw StateError('no entries within timeout');
       }
-      await Future.delayed(const Duration(milliseconds: 50));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
     }
     expect(session.entries.length, 1);
 
@@ -74,7 +83,7 @@ void main() {
       if (DateTime.now().isAfter(end2)) {
         throw StateError('second entry never arrived');
       }
-      await Future.delayed(const Duration(milliseconds: 50));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
     }
     final bigEntry = session.entries.firstWhere((e) => e.id == 'r2');
     final bigRecord = await session.loadDetail(bigEntry);

@@ -1,15 +1,18 @@
+// ignore_for_file: invalid_use_of_internal_member
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
+import 'package:interceptly/src/engine/memory_index.dart';
 import 'package:interceptly/src/model/index_entry.dart';
-import 'package:interceptly/src/session/memory_index.dart';
+import 'package:interceptly/src/ui/scope/interceptly_scope.dart';
 
 void main() {
   setUp(() async {
-    await InspectorSession.resetForTesting();
+    await Interceptly.resetForTesting();
   });
 
   tearDown(() async {
-    await InspectorSession.resetForTesting();
+    await Interceptly.resetForTesting();
   });
 
   test('MemoryIndex drops oldest entry when maxEntries is exceeded', () {
@@ -61,16 +64,35 @@ void main() {
     expect(index.length, 0);
   });
 
-  test('InspectorSession singleton is shared', () {
-    final a = InspectorSession.instance;
-    final b = InspectorSession.instance;
+  test('InterceptlyEngine singleton is shared', () {
+    final a = InterceptlyEngine.instance;
+    final b = InterceptlyEngine.instance;
     expect(identical(a, b), isTrue);
   });
 
-  test('Interceptly.init uses shared session by default', () {
-    final a = InspectorSession.instance;
-    final b = InspectorSession.instance;
+  test('Interceptly.engine uses shared engine by default', () {
+    final a = InterceptlyEngine.instance;
+    final b = Interceptly.engine;
     expect(identical(a, b), isTrue);
+  });
+
+  test('Interceptly public facade delegates correctly to engine', () {
+    final facade = Interceptly.instance;
+    expect(facade.entries, equals(Interceptly.engine.entries));
+    expect(facade.calls, equals(Interceptly.engine.entries));
+    expect(facade.droppedEvents, equals(Interceptly.engine.droppedCount));
+    expect(facade.isEnabled, equals(Interceptly.engine.isEnabled));
+    expect(
+        facade.networkSimulation, equals(Interceptly.engine.networkSimulation));
+    expect(facade.settings, equals(Interceptly.engine.settings));
+
+    facade.disable();
+    expect(facade.isEnabled, isFalse);
+    facade.enable();
+    expect(facade.isEnabled, isTrue);
+
+    facade.configure(const InterceptlySettings(maxEntries: 42));
+    expect(facade.settings.maxEntries, equals(42));
   });
 
   test(
@@ -131,87 +153,89 @@ void main() {
     },
   );
 
-  test('InspectorSession invalidates grouped cache on toggleGrouping',
+  test('InterceptlyScopeController invalidates grouped cache on toggleGrouping',
       () async {
-    final session = InspectorSession();
-    session.recordPending(
+    final engine = InterceptlyEngine();
+    final scope = InterceptlyScopeController(engine: engine);
+    engine.recordPending(
       id: 'req1',
       method: 'GET',
       url: 'https://api.example.com/items',
       timestamp: DateTime(2026, 1, 1),
     );
 
-    final initialGroups = session.getGroupedRecords();
+    final initialGroups = scope.getGroupedRecords();
     expect(initialGroups.length, 1);
 
-    session.toggleGrouping(true);
-    final enabledGroups = session.getGroupedRecords();
+    var notifications = 0;
+    scope.addListener(() => notifications++);
+
+    scope.toggleGrouping(true);
+    final enabledGroups = scope.getGroupedRecords();
     expect(enabledGroups.length, 1);
-    expect(session.groupingEnabled, isTrue);
+    expect(scope.groupingEnabled, isTrue);
+    expect(notifications, 1);
 
-    session.toggleGrouping(false);
-    final disabledGroups = session.getGroupedRecords();
+    scope.toggleGrouping(false);
+    final disabledGroups = scope.getGroupedRecords();
     expect(disabledGroups.length, 1);
-    expect(session.groupingEnabled, isFalse);
+    expect(scope.groupingEnabled, isFalse);
+    expect(notifications, 2);
 
-    await session.dispose();
+    scope.dispose();
+    await engine.dispose();
   });
 
   test(
-    'InspectorSession.getGroupedRecords() updates expanded state immediately when toggleDomainExpanded() is called',
+    'InterceptlyScopeController.getGroupedRecords() updates expanded state immediately when toggleDomainExpanded() is called',
     () async {
-      final session = InspectorSession();
-      session.recordPending(
+      final engine = InterceptlyEngine();
+      final scope = InterceptlyScopeController(engine: engine);
+      engine.recordPending(
         id: 'req1',
         method: 'GET',
         url: 'https://api.example.com/items',
         timestamp: DateTime(2026, 1, 1),
       );
 
-      var groups = session.getGroupedRecords();
+      var groups = scope.getGroupedRecords();
       expect(groups.length, 1);
       expect(groups.first.domain, 'api.example.com');
       expect(groups.first.isExpanded, isTrue);
 
-      session.toggleDomainExpanded('api.example.com');
-      groups = session.getGroupedRecords();
+      var notifications = 0;
+      scope.addListener(() => notifications++);
+
+      scope.toggleDomainExpanded('api.example.com');
+      groups = scope.getGroupedRecords();
       expect(groups.first.isExpanded, isFalse);
+      expect(notifications, 1);
 
-      session.toggleDomainExpanded('api.example.com');
-      groups = session.getGroupedRecords();
+      scope.toggleDomainExpanded('api.example.com');
+      groups = scope.getGroupedRecords();
       expect(groups.first.isExpanded, isTrue);
+      expect(notifications, 2);
 
-      await session.dispose();
+      scope.dispose();
+      await engine.dispose();
     },
   );
 
-  test('InspectorSession resets _instance singleton to null upon dispose()',
+  test('InterceptlyEngine resets _instance singleton to null upon dispose()',
       () async {
-    final instance1 = InspectorSession.instance;
+    final instance1 = InterceptlyEngine.instance;
     await instance1.dispose();
-    final instance2 = InspectorSession.instance;
+    final instance2 = InterceptlyEngine.instance;
     expect(identical(instance1, instance2), isFalse);
     await instance2.dispose();
   });
 
-  test('Interceptly resets _sharedInstance singleton to null upon dispose()',
-      () {
-    final instance1 = Interceptly.instance;
-    instance1.dispose();
-    final instance2 = Interceptly.instance;
-    expect(identical(instance1, instance2), isFalse);
-    instance2.dispose();
-  });
-
-  test('InspectorSession.resetForTesting resets singleton and Interceptly',
+  test('Interceptly.resetForTesting resets underlying engine singleton',
       () async {
-    final session1 = InspectorSession.instance;
-    final interceptly1 = Interceptly.instance;
-    await InspectorSession.resetForTesting();
-    final session2 = InspectorSession.instance;
-    final interceptly2 = Interceptly.instance;
-    expect(identical(session1, session2), isFalse);
-    expect(identical(interceptly1, interceptly2), isFalse);
+    final engine1 = InterceptlyEngine.instance;
+    await Interceptly.resetForTesting();
+    final engine2 = InterceptlyEngine.instance;
+    expect(identical(engine1, engine2), isFalse);
   });
 }
 

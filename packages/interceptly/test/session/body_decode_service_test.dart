@@ -1,8 +1,10 @@
+// ignore_for_file: invalid_use_of_internal_member
+
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/session/body_decode_service.dart';
+import 'package:interceptly/src/engine/body_decode_service.dart';
 
 void main() {
   group('BodyDecodeService.decode', () {
@@ -145,6 +147,7 @@ void main() {
       expect(res, isNull);
       expect(truncated, isFalse);
     });
+
     test('decodes clean packed format without trailing flag byte', () {
       final packed = _packClean('{"id":1}', '{"ok":true}');
       final (req, res, truncated) = BodyDecodeService.unpackToText(packed);

@@ -4,13 +4,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import '../../helpers/mock_http_client.dart';
-import 'package:interceptly/src/model/body_truncation.dart';
-import 'package:interceptly/src/model/request_record.dart';
-import 'package:interceptly/src/session/inspector_session.dart';
+import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
 import 'package:interceptly/src/ui/detail/detail_tabs_builder.dart';
 import 'package:interceptly/src/ui/detail/replay_handler.dart';
 import 'package:interceptly/src/ui/widgets/json_viewer/json_viewer.dart';
+import '../../../helpers/mock_http_client.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -188,7 +187,7 @@ void main() {
       'Bearer token lines do not wrap and can be scrolled horizontally',
       (tester) async {
         const token =
-            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
+            'dummy_token_horizontal_scroll_test_not_a_real_jwt_secret_token_1234567890_abcdefghijklmnopqrstuvwxyz_ABCDEFGHIJKLMNOPQRSTUVWXYZ_payload_signature_padding_test';
         final data = {
           'Authorization': 'Bearer $token',
         };
@@ -226,7 +225,7 @@ void main() {
       'dragging selection edge near right boundary auto-scrolls horizontally',
       (tester) async {
         const token =
-            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
+            'dummy_token_horizontal_scroll_test_not_a_real_jwt_secret_token_1234567890_abcdefghijklmnopqrstuvwxyz_ABCDEFGHIJKLMNOPQRSTUVWXYZ_payload_signature_padding_test';
         final data = {
           'Authorization': 'Bearer $token',
         };
@@ -403,9 +402,10 @@ void main() {
 
   group('ReplayHandler placeholder guard', () {
     late Directory tempDir;
-    late InspectorSession session;
+    late InterceptlyEngine engine;
 
     setUp(() async {
+      await Interceptly.resetForTesting();
       tempDir =
           await Directory.systemTemp.createTemp('interceptly_replay_test');
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -416,12 +416,11 @@ void main() {
           return null;
         },
       );
-      session = InspectorSession();
-      await session.initialize();
+      engine = InterceptlyEngine();
     });
 
     tearDown(() async {
-      session.dispose();
+      await Interceptly.resetForTesting();
       try {
         await tempDir.delete(recursive: true);
       } catch (_) {}
@@ -463,7 +462,7 @@ void main() {
         await tester.runAsync(() async {
           final handler = ReplayHandler(
             context: savedContext,
-            session: session,
+            engine: engine,
             clientFactory: () => MockHttpClient((request) {
               capturedRequest = request;
             }),
@@ -518,7 +517,7 @@ void main() {
       await tester.runAsync(() async {
         final handler = ReplayHandler(
           context: savedContext,
-          session: session,
+          engine: engine,
           clientFactory: () => MockHttpClient((request) {
             capturedRequest = request;
           }),

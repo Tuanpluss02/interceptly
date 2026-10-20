@@ -24,4 +24,4 @@ export 'src/model/realtime_frame.dart'
     show FrameDirection, FrameType, RealtimeFrame;
 export 'src/model/realtime_protocol_type.dart'
     show RealtimeConnectionSender, RealtimeMessageDraft, RealtimeProtocolType;
-export 'src/session/request_id.dart' show RequestId;
+export 'src/engine/request_id.dart' show RequestId;

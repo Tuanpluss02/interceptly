@@ -1,3 +1,4 @@
+// ignore_for_file: invalid_use_of_internal_member
 @Tags(['stress'])
 library;
 
@@ -7,9 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import '../helpers/mock_http_client.dart';
-import 'package:interceptly/src/model/body_truncation.dart';
-import 'package:interceptly/src/model/request_record.dart';
-import 'package:interceptly/src/session/inspector_session.dart';
+import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
 import 'package:interceptly/src/ui/detail/custom_request_page.dart';
 import 'package:interceptly/src/ui/detail/detail_tabs_builder.dart';
 import 'package:interceptly/src/ui/detail/replay_handler.dart';
@@ -19,7 +19,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late Directory tempDir;
-  late InspectorSession session;
+  late InterceptlyEngine session;
 
   setUpAll(() async {
     tempDir = await Directory.systemTemp.createTemp('challenger_m3_test');
@@ -31,12 +31,20 @@ void main() {
         return null;
       },
     );
-    session = InspectorSession();
+  });
+
+  setUp(() async {
+    await Interceptly.resetForTesting();
+    session = InterceptlyEngine();
     await session.initialize();
   });
 
+  tearDown(() async {
+    await session.dispose();
+    await Interceptly.resetForTesting();
+  });
+
   tearDownAll(() async {
-    session.dispose();
     try {
       if (tempDir.existsSync()) {
         await tempDir.delete(recursive: true);
@@ -518,12 +526,12 @@ void main() {
       await tester.runAsync(() async {
         final handler = ReplayHandler(
           context: savedContext,
-          session: session,
+          engine: session,
           clientFactory: () => MockHttpClient((req) {
             capturedRequest = req;
           }),
         );
-        await handler.retry(record);
+        await handler.retry(record, confirm: false);
       });
 
       expect(capturedRequest, isNotNull);
@@ -568,12 +576,12 @@ void main() {
       await tester.runAsync(() async {
         final handler = ReplayHandler(
           context: savedContext,
-          session: session,
+          engine: session,
           clientFactory: () => MockHttpClient((req) {
             capturedRequest = req;
           }),
         );
-        await handler.retry(record);
+        await handler.retry(record, confirm: false);
       });
 
       expect(capturedRequest, isNotNull);
@@ -620,12 +628,12 @@ void main() {
       await tester.runAsync(() async {
         final handler = ReplayHandler(
           context: savedContext,
-          session: session,
+          engine: session,
           clientFactory: () => MockHttpClient((req) {
             capturedRequest = req;
           }),
         );
-        await handler.retry(record);
+        await handler.retry(record, confirm: false);
       });
 
       expect(capturedRequest, isNotNull);
@@ -671,12 +679,12 @@ void main() {
       await tester.runAsync(() async {
         final handler = ReplayHandler(
           context: savedContext,
-          session: session,
+          engine: session,
           clientFactory: () => MockHttpClient((req) {
             capturedRequest = req;
           }),
         );
-        await handler.retry(record);
+        await handler.retry(record, confirm: false);
       });
 
       expect(capturedRequest, isNotNull);
@@ -730,12 +738,12 @@ void main() {
         await tester.runAsync(() async {
           final handler = ReplayHandler(
             context: savedContext,
-            session: session,
+            engine: session,
             clientFactory: () => MockHttpClient((req) {
               capturedRequest = req;
             }),
           );
-          await handler.retry(record);
+          await handler.retry(record, confirm: false);
         });
 
         expect(capturedRequest, isNotNull);
@@ -797,7 +805,7 @@ void main() {
           ),
         );
 
-        final handler = ReplayHandler(context: savedContext, session: session);
+        final handler = ReplayHandler(context: savedContext, engine: session);
         handler.duplicateAndEdit(record);
         await tester.pump();
 

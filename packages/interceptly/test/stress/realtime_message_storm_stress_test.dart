@@ -1,17 +1,27 @@
+// ignore_for_file: invalid_use_of_internal_member
 @Tags(['stress'])
 library;
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
 
 void main() {
+  setUp(() async {
+    await Interceptly.resetForTesting();
+  });
+
+  tearDown(() async {
+    await Interceptly.resetForTesting();
+  });
+
   group('Realtime Message Storm & Throughput Stress Tests', () {
     test(
       'Test 1: 10 concurrent sessions x 1,000 frames (10,000 frames total) - bounds & FIFO eviction',
       () async {
         const capacity = 500;
-        final session = InspectorSession(
+        final session = InterceptlyEngine(
           settings: const InterceptlySettings(maxFramesPerSession: capacity),
         );
         addTearDown(session.dispose);
@@ -86,7 +96,7 @@ void main() {
     test(
       'Test 1.1: Default settings (1,000 capacity) with 10 sessions x 1,200 frames (12,000 frames total)',
       () async {
-        final session = InspectorSession(
+        final session = InterceptlyEngine(
           settings: const InterceptlySettings(
             maxFramesPerSession: 1000,
             maxTotalRealtimeFrames: 10000,
@@ -128,7 +138,7 @@ void main() {
       'Test 2: Ticking Throttler Message Storm Protection with fakeAsync',
       () {
         fakeAsync((async) {
-          final session = InspectorSession(
+          final session = InterceptlyEngine(
             settings: const InterceptlySettings(maxFramesPerSession: 1000),
           );
           addTearDown(session.dispose);
@@ -211,7 +221,7 @@ void main() {
     test(
       'Test 3: Concurrent dispose & clear under flight without exceptions',
       () async {
-        final session = InspectorSession(
+        final session = InterceptlyEngine(
           settings: const InterceptlySettings(maxFramesPerSession: 500),
         );
 

@@ -1,3 +1,4 @@
+// ignore_for_file: invalid_use_of_internal_member
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -115,7 +116,7 @@ void main() {
         return null;
       });
 
-      final handler = ShareHandler.withShare(
+      final handler = ShareHandler(
         context: savedContext,
         fabKey: fabKey,
         share: _NeverShare(),
@@ -168,7 +169,7 @@ void main() {
         return null;
       });
 
-      final handler = ShareHandler.withShare(
+      final handler = ShareHandler(
         context: savedContext,
         fabKey: fabKey,
         share: _NeverShare(),

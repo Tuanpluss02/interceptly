@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/src/model/body_truncation.dart';
 import 'package:interceptly/src/model/request_record.dart';
-import 'package:interceptly/src/session/inspector_session.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
 import 'package:interceptly/src/ui/detail/replay_handler.dart';
 
-import '../helpers/mock_http_client.dart';
+import '../../helpers/mock_http_client.dart';
 
 void main() {
   group('ReplayHandler data loss awareness', () {
@@ -13,8 +13,8 @@ void main() {
       'shows warning toast when replaying request with truncated body (hasDataLoss == true)',
       (tester) async {
         MockHttpClientRequest? capturedRequest;
-        final session = InspectorSession();
-        addTearDown(session.dispose);
+        final engine = InterceptlyEngine();
+        addTearDown(engine.dispose);
 
         late BuildContext savedContext;
         await tester.pumpWidget(
@@ -30,7 +30,7 @@ void main() {
 
         final handler = ReplayHandler(
           context: savedContext,
-          session: session,
+          engine: engine,
           clientFactory: () => MockHttpClient((req) => capturedRequest = req),
         );
 
@@ -66,8 +66,8 @@ void main() {
       'does not show warning toast when replaying request without data loss',
       (tester) async {
         MockHttpClientRequest? capturedRequest;
-        final session = InspectorSession();
-        addTearDown(session.dispose);
+        final engine = InterceptlyEngine();
+        addTearDown(engine.dispose);
 
         late BuildContext savedContext;
         await tester.pumpWidget(
@@ -83,7 +83,7 @@ void main() {
 
         final handler = ReplayHandler(
           context: savedContext,
-          session: session,
+          engine: engine,
           clientFactory: () => MockHttpClient((req) => capturedRequest = req),
         );
 
@@ -115,8 +115,8 @@ void main() {
       'does not show warning toast when replaying request with preview-only truncation',
       (tester) async {
         MockHttpClientRequest? capturedRequest;
-        final session = InspectorSession();
-        addTearDown(session.dispose);
+        final engine = InterceptlyEngine();
+        addTearDown(engine.dispose);
 
         late BuildContext savedContext;
         await tester.pumpWidget(
@@ -132,7 +132,7 @@ void main() {
 
         final handler = ReplayHandler(
           context: savedContext,
-          session: session,
+          engine: engine,
           clientFactory: () => MockHttpClient((req) => capturedRequest = req),
         );
 

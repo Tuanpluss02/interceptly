@@ -1,9 +1,13 @@
-import 'dart:async';
-import 'dart:typed_data';
+// ignore_for_file: invalid_use_of_internal_member
 
+import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/adapter.dart';
 import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
 import 'package:interceptly_web_socket/interceptly_web_socket.dart';
 import 'package:stream_channel/stream_channel.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -106,19 +110,33 @@ class _FakeWebSocketSink implements WebSocketSink {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('InterceptlyWebSocketChannel', () {
-    late InspectorSession session;
+    late Directory tempDir;
+    late InterceptlyEngine engine;
     late FakeWebSocketChannel fakeChannel;
 
     setUp(() async {
-      await InspectorSession.resetForTesting();
-      session = InspectorSession.instance;
+      await Interceptly.resetForTesting();
+      tempDir = await Directory.systemTemp.createTemp('interceptly_ws_test');
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        const MethodChannel('plugins.flutter.io/path_provider'),
+        (call) async {
+          if (call.method == 'getTemporaryDirectory') return tempDir.path;
+          return null;
+        },
+      );
+      engine = InterceptlyEngine.instance;
       fakeChannel = FakeWebSocketChannel(protocol: 'chat-v1');
     });
 
     tearDown(() async {
-      await session.dispose();
-      await InspectorSession.resetForTesting();
+      await Interceptly.resetForTesting();
+      try {
+        if (tempDir.existsSync()) await tempDir.delete(recursive: true);
+      } catch (_) {}
     });
 
     test('initializes with custom sessionId, uri, headers and getters',
@@ -138,9 +156,9 @@ void main() {
       expect(channel.inner, equals(fakeChannel));
       await expectLater(channel.ready, completes);
 
-      // Verify connection recorded in session
-      expect(session.entries.length, equals(1));
-      final entry = session.entries.first;
+      // Verify connection recorded in engine
+      expect(engine.entries.length, equals(1));
+      final entry = engine.entries.first;
       expect(entry.id, equals('custom-session-1'));
       expect(entry.method, equals('WS'));
       expect(entry.url, equals('wss://example.com/socket'));
@@ -155,8 +173,8 @@ void main() {
 
       expect(channel.sessionId, isNotEmpty);
       expect(channel.uri, equals(Uri(scheme: 'ws', host: 'unknown-socket')));
-      expect(session.entries.length, equals(1));
-      expect(session.entries.first.url, equals('ws://unknown-socket'));
+      expect(engine.entries.length, equals(1));
+      expect(engine.entries.first.url, equals('ws://unknown-socket'));
     });
 
     test('captures outgoing text frame via sink.add', () async {
@@ -172,7 +190,7 @@ void main() {
       expect(fakeChannel.sentData, equals(['Hello, Server!']));
 
       // Verified captured by Interceptly
-      final frames = session.getRealtimeFrames('ws-out-text');
+      final frames = engine.getRealtimeFrames('ws-out-text');
       expect(frames.length, equals(1));
       final frame = frames.first;
       expect(frame.sessionId, equals('ws-out-text'));
@@ -197,7 +215,7 @@ void main() {
 
       expect(fakeChannel.sentData.length, equals(2));
 
-      final frames = session.getRealtimeFrames('ws-out-bin');
+      final frames = engine.getRealtimeFrames('ws-out-bin');
       expect(frames.length, equals(2));
 
       expect(frames[0].direction, equals(FrameDirection.outgoing));
@@ -225,7 +243,7 @@ void main() {
 
       expect(received, equals(['Welcome to chat!']));
 
-      final frames = session.getRealtimeFrames('ws-in-text');
+      final frames = engine.getRealtimeFrames('ws-in-text');
       expect(frames.length, equals(1));
       final frame = frames.first;
       expect(frame.sessionId, equals('ws-in-text'));
@@ -254,7 +272,7 @@ void main() {
 
       expect(received.length, equals(2));
 
-      final frames = session.getRealtimeFrames('ws-in-bin');
+      final frames = engine.getRealtimeFrames('ws-in-bin');
       expect(frames.length, equals(2));
 
       expect(frames[0].direction, equals(FrameDirection.incoming));
@@ -285,7 +303,7 @@ void main() {
 
       expect(fakeChannel.sentData.length, equals(3));
 
-      final frames = session.getRealtimeFrames('ws-stream-out');
+      final frames = engine.getRealtimeFrames('ws-stream-out');
       expect(frames.length, equals(3));
       expect(frames[0].textPayload, equals('message 1'));
       expect(frames[1].binaryPayload, equals(Uint8List.fromList([10, 20])));
@@ -307,7 +325,7 @@ void main() {
       expect(fakeChannel.sinkCloseCode, equals(1000));
       expect(fakeChannel.sinkCloseReason, equals('User logged out'));
 
-      final entry = session.entries.firstWhere((e) => e.id == 'ws-close-sink');
+      final entry = engine.entries.firstWhere((e) => e.id == 'ws-close-sink');
       expect(entry.statusCode, equals(1000));
       expect(entry.errorMessage, equals('User logged out'));
     });
@@ -328,8 +346,7 @@ void main() {
       await completer.future;
       await pumpEventQueue();
 
-      final entry =
-          session.entries.firstWhere((e) => e.id == 'ws-close-server');
+      final entry = engine.entries.firstWhere((e) => e.id == 'ws-close-server');
       expect(entry.statusCode, equals(1001));
       expect(entry.errorMessage, equals('Going away'));
     });
@@ -354,7 +371,7 @@ void main() {
       await completer.future;
       await pumpEventQueue();
 
-      final entry = session.entries.firstWhere((e) => e.id == 'ws-idempotent');
+      final entry = engine.entries.firstWhere((e) => e.id == 'ws-idempotent');
       // Should retain client close status
       expect(entry.statusCode, equals(1000));
       expect(entry.errorMessage, equals('Client closed'));
@@ -410,7 +427,7 @@ void main() {
       channel.sink.add('Wrapped ping');
       await pumpEventQueue();
 
-      final frames = session.getRealtimeFrames('wrapped-id');
+      final frames = engine.getRealtimeFrames('wrapped-id');
       expect(frames.length, equals(1));
       expect(frames.first.textPayload, equals('Wrapped ping'));
     });
@@ -444,7 +461,7 @@ void main() {
       fake.completeReadyError(StateError('Handshake failure'));
       await pumpEventQueue();
 
-      final entry = session.entries.firstWhere((e) => e.id == 'ws-ready-fail');
+      final entry = engine.entries.firstWhere((e) => e.id == 'ws-ready-fail');
       expect(entry.statusCode, equals(1006));
       expect(entry.hasError, isTrue);
       expect(entry.errorMessage, contains('Handshake failure'));
@@ -469,7 +486,7 @@ void main() {
       await pumpEventQueue();
 
       expect(receivedError, isA<StateError>());
-      final entry = session.entries.firstWhere((e) => e.id == 'ws-stream-err');
+      final entry = engine.entries.firstWhere((e) => e.id == 'ws-stream-err');
       expect(entry.statusCode, equals(1006));
       expect(entry.hasError, isTrue);
       expect(entry.errorMessage, contains('Unexpected connection reset'));
@@ -487,7 +504,7 @@ void main() {
       await pumpEventQueue();
 
       expect(fakeChannel.sentData.first, equals(bd));
-      final frames = session.getRealtimeFrames('ws-bytedata');
+      final frames = engine.getRealtimeFrames('ws-bytedata');
       expect(frames.length, equals(1));
       expect(frames.first.type, equals(FrameType.binary));
       expect(frames.first.binaryPayload, isNotNull);
@@ -495,7 +512,7 @@ void main() {
     });
 
     test('truncates payload according to session maxBodyBytes', () async {
-      session.configureSession(session.settings.copyWith(maxBodyBytes: 32));
+      engine.configure(engine.settings.copyWith(maxBodyBytes: 32));
       final channel = InterceptlyWebSocketChannel(
         fakeChannel,
         sessionId: 'ws-truncate',
@@ -505,7 +522,7 @@ void main() {
       channel.sink.add(bigText);
       await pumpEventQueue();
 
-      final frames = session.getRealtimeFrames('ws-truncate');
+      final frames = engine.getRealtimeFrames('ws-truncate');
       expect(frames.length, equals(1));
       expect(frames.first.textPayload!.length, equals(32));
     });
@@ -516,13 +533,21 @@ void main() {
     late _SpyRealtimeTrafficCollector spyCollector;
 
     setUp(() async {
-      await InspectorSession.resetForTesting();
+      await Interceptly.resetForTesting();
       fakeChannel = FakeWebSocketChannel(protocol: 'spy-v1');
       spyCollector = _SpyRealtimeTrafficCollector();
     });
 
     tearDown(() async {
-      await InspectorSession.resetForTesting();
+      await Interceptly.resetForTesting();
+    });
+
+    test('uses DefaultRealtimeTrafficCollector by default', () {
+      final channel = InterceptlyWebSocketChannel(fakeChannel);
+      expect(channel.collector, isA<DefaultRealtimeTrafficCollector>());
+      final defaultCollector =
+          channel.collector as DefaultRealtimeTrafficCollector;
+      expect(defaultCollector.engine, same(InterceptlyEngine.instance));
     });
 
     test('exposes collector and scope getters', () {
@@ -776,10 +801,10 @@ void main() {
 }
 
 class _SpyRealtimeTrafficCollector implements RealtimeTrafficCollector {
-  _SpyRealtimeTrafficCollector([InspectorSession? session])
-      : session = session ?? InspectorSession.instance;
+  _SpyRealtimeTrafficCollector([InterceptlyEngine? engine])
+      : engine = engine ?? InterceptlyEngine.instance;
 
-  final InspectorSession session;
+  final InterceptlyEngine engine;
 
   final List<Map<String, dynamic>> recordConnectionCalls = [];
   final List<Map<String, dynamic>> recordFrameCalls = [];
@@ -791,10 +816,10 @@ class _SpyRealtimeTrafficCollector implements RealtimeTrafficCollector {
   bool throwOnClose = false;
 
   @override
-  int get maxBodyBytes => session.settings.maxBodyBytes;
+  int get maxBodyBytes => engine.settings.maxBodyBytes;
 
   @override
-  int get offloadThreshold => session.settings.realtimeBodyOffloadThreshold;
+  int get offloadThreshold => engine.settings.realtimeBodyOffloadThreshold;
 
   @override
   bool shouldCapture(Uri? uri) => true;
@@ -814,6 +839,7 @@ class _SpyRealtimeTrafficCollector implements RealtimeTrafficCollector {
           sessionId: effectiveId,
           uri: uri,
           headers: headers,
+          protocolType: protocolType,
         );
       } catch (_) {}
     }

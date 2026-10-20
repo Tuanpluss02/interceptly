@@ -1,20 +1,24 @@
+// ignore_for_file: invalid_use_of_internal_member
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
 
-/// Scoped clear: the AppBar delete button clears only the active tab.
+/// Scoped clear: clears only the active tab traffic.
 void main() {
-  group('InspectorSession scoped clear', () {
-    late InspectorSession session;
+  group('InterceptlyEngine scoped clear', () {
+    late InterceptlyEngine engine;
 
-    setUp(() {
-      session = InspectorSession();
-      session.recordPending(
+    setUp(() async {
+      await Interceptly.resetForTesting();
+      engine = InterceptlyEngine();
+      engine.recordPending(
         id: 'req_1',
         method: 'GET',
         url: 'https://api.example.com/items',
         timestamp: DateTime(2026, 10, 14, 10, 0, 0),
       );
-      session.recordRealtimeConnection(
+      engine.recordRealtimeConnection(
         id: 'ws_1',
         url: 'wss://socket.example.com/feed',
         timestamp: DateTime(2026, 10, 14, 10, 1, 0),
@@ -22,27 +26,28 @@ void main() {
     });
 
     tearDown(() async {
-      await session.dispose();
+      await engine.dispose();
+      await Interceptly.resetForTesting();
     });
 
     test('clearRest removes REST entries and keeps realtime', () async {
-      await session.clearRest();
+      await engine.clearRest();
 
-      final ids = session.entries.map((e) => e.id).toList();
+      final ids = engine.entries.map((e) => e.id).toList();
       expect(ids, contains('ws_1'));
       expect(ids, isNot(contains('req_1')));
     });
 
     test('clearRealtime removes realtime entries and keeps REST', () async {
-      await session.clearRealtime();
+      await engine.clearRealtime();
 
-      final ids = session.entries.map((e) => e.id).toList();
+      final ids = engine.entries.map((e) => e.id).toList();
       expect(ids, contains('req_1'));
       expect(ids, isNot(contains('ws_1')));
     });
 
     test('clearRealtime drops realtime frames, clearRest keeps them', () async {
-      await session.recordRealtimeFrame(
+      await engine.recordRealtimeFrame(
         RealtimeFrame(
           id: 'f_1',
           sessionId: 'ws_1',
@@ -51,12 +56,12 @@ void main() {
           textPayload: 'hello',
         ),
       );
-      expect(session.getRealtimeFrames('ws_1'), hasLength(1));
+      expect(engine.getRealtimeFrames('ws_1'), hasLength(1));
 
-      await session.clearRest();
-      expect(session.getRealtimeFrames('ws_1'), hasLength(1));
+      await engine.clearRest();
+      expect(engine.getRealtimeFrames('ws_1'), hasLength(1));
 
-      await session.recordRealtimeFrame(
+      await engine.recordRealtimeFrame(
         RealtimeFrame(
           id: 'f_2',
           sessionId: 'ws_1',
@@ -65,42 +70,32 @@ void main() {
           textPayload: 'again',
         ),
       );
-      await session.clearRealtime();
-      expect(session.getRealtimeFrames('ws_1'), isEmpty);
-    });
-
-    test('scoped clear resets the REST filter like clear() does', () async {
-      session.applyFilter(
-        RequestFilter(methods: {'POST'}),
-      );
-      expect(session.filter.isEmpty, isFalse);
-
-      await session.clearRest();
-      expect(session.filter.isEmpty, isTrue);
+      await engine.clearRealtime();
+      expect(engine.getRealtimeFrames('ws_1'), isEmpty);
     });
 
     test('sequential clears keep working after new records arrive', () async {
-      await session.clearRest();
-      expect(session.entries.map((e) => e.id), contains('ws_1'));
+      await engine.clearRest();
+      expect(engine.entries.map((e) => e.id), contains('ws_1'));
 
-      session.recordPending(
+      engine.recordPending(
         id: 'req_2',
         method: 'POST',
         url: 'https://api.example.com/items',
         timestamp: DateTime(2026, 10, 14, 10, 2, 0),
       );
-      await session.clearRealtime();
+      await engine.clearRealtime();
       expect(
-        session.entries.map((e) => e.id).toList(),
+        engine.entries.map((e) => e.id).toList(),
         contains('req_2'),
       );
       expect(
-        session.entries.map((e) => e.id),
+        engine.entries.map((e) => e.id),
         isNot(contains('ws_1')),
       );
 
-      await session.clear();
-      expect(session.entries, isEmpty);
+      await engine.clear();
+      expect(engine.entries, isEmpty);
     });
   });
 }

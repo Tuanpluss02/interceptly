@@ -1,3 +1,4 @@
+// ignore_for_file: invalid_use_of_internal_member
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -8,7 +9,7 @@ import 'package:interceptly/src/export/har_exporter.dart';
 import 'package:interceptly/src/export/postman_exporter.dart';
 import 'package:interceptly/src/model/body_truncation.dart';
 import 'package:interceptly/src/model/request_record.dart';
-import 'package:interceptly/src/session/inspector_session.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
 import 'package:interceptly/src/share/interceptly_share.dart';
 import 'package:interceptly/src/ui/detail/replay_handler.dart';
 import 'package:interceptly/src/ui/detail/share_handler.dart';
@@ -258,12 +259,12 @@ void main() {
         ),
       );
 
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+      final engine = InterceptlyEngine();
+      addTearDown(engine.dispose);
 
       final handler = ReplayHandler(
         context: savedContext,
-        session: session,
+        engine: engine,
         clientFactory: () => MockHttpClient((req) => capturedRequest = req),
       );
 
@@ -275,8 +276,8 @@ void main() {
 
     testWidgets('blocks loopback IP and localhost', (tester) async {
       MockHttpClientRequest? capturedRequest;
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+      final engine = InterceptlyEngine();
+      addTearDown(engine.dispose);
 
       late BuildContext savedContext;
       await tester.pumpWidget(
@@ -290,7 +291,7 @@ void main() {
 
       final handler = ReplayHandler(
         context: savedContext,
-        session: session,
+        engine: engine,
         clientFactory: () => MockHttpClient((req) => capturedRequest = req),
       );
 
@@ -311,8 +312,8 @@ void main() {
 
     testWidgets('blocks cloud metadata IP 169.254.169.254', (tester) async {
       MockHttpClientRequest? capturedRequest;
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+      final engine = InterceptlyEngine();
+      addTearDown(engine.dispose);
 
       late BuildContext savedContext;
       await tester.pumpWidget(
@@ -326,7 +327,7 @@ void main() {
 
       final handler = ReplayHandler(
         context: savedContext,
-        session: session,
+        engine: engine,
         clientFactory: () => MockHttpClient((req) => capturedRequest = req),
       );
 
@@ -341,8 +342,8 @@ void main() {
 
     testWidgets('blocks RFC1918 and .internal/.local hosts', (tester) async {
       MockHttpClientRequest? capturedRequest;
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+      final engine = InterceptlyEngine();
+      addTearDown(engine.dispose);
 
       late BuildContext savedContext;
       await tester.pumpWidget(
@@ -356,7 +357,7 @@ void main() {
 
       final handler = ReplayHandler(
         context: savedContext,
-        session: session,
+        engine: engine,
         clientFactory: () => MockHttpClient((req) => capturedRequest = req),
       );
 
@@ -378,8 +379,8 @@ void main() {
 
     testWidgets('retry prompts for GET too', (tester) async {
       MockHttpClientRequest? capturedRequest;
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+      final engine = InterceptlyEngine();
+      addTearDown(engine.dispose);
 
       late BuildContext savedContext;
       await tester.pumpWidget(
@@ -394,7 +395,7 @@ void main() {
       var dialogPrompted = false;
       final handler = ReplayHandler(
         context: savedContext,
-        session: session,
+        engine: engine,
         clientFactory: () => MockHttpClient((req) => capturedRequest = req),
         confirmDialog: (ctx, method) async {
           dialogPrompted = true;
@@ -413,8 +414,8 @@ void main() {
     testWidgets('prompts confirmation on non-idempotent methods',
         (tester) async {
       MockHttpClientRequest? capturedRequest;
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+      final engine = InterceptlyEngine();
+      addTearDown(engine.dispose);
 
       late BuildContext savedContext;
       await tester.pumpWidget(
@@ -431,7 +432,7 @@ void main() {
 
       final handler = ReplayHandler(
         context: savedContext,
-        session: session,
+        engine: engine,
         clientFactory: () => MockHttpClient((req) => capturedRequest = req),
         confirmDialog: (ctx, method) async {
           dialogPrompted = true;
@@ -518,7 +519,7 @@ void main() {
         return true;
       });
 
-      final handler = ShareHandler.withShare(
+      final handler = ShareHandler(
         context: savedContext,
         fabKey: fabKey,
         share: mockShare,
@@ -562,7 +563,7 @@ void main() {
         return true;
       });
 
-      final handler = ShareHandler.withShare(
+      final handler = ShareHandler(
         context: savedContext,
         fabKey: fabKey,
         share: mockShare,

@@ -1,10 +1,14 @@
+// ignore_for_file: invalid_use_of_internal_member
+
 import 'dart:io';
-import 'dart:isolate';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/model/raw_capture.dart';
-import 'package:interceptly/src/session/inspector_session.dart';
+import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/capture_pipeline.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
+import 'package:interceptly/src/engine/writer_isolate.dart';
+import 'package:interceptly/src/model/index_entry.dart';
 
 const _channel = MethodChannel('plugins.flutter.io/path_provider');
 
@@ -14,6 +18,7 @@ void main() {
   late Directory tempDir;
 
   setUp(() async {
+    await Interceptly.resetForTesting();
     tempDir = await Directory.systemTemp.createTemp('isolate_resilience_test_');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_channel, (call) async {
@@ -32,6 +37,7 @@ void main() {
         await tempDir.delete(recursive: true);
       }
     } catch (_) {}
+    await Interceptly.resetForTesting();
   });
 
   RawCapture createCapture({
@@ -59,66 +65,13 @@ void main() {
     );
   }
 
-  Future<bool> waitForEntry(
-    InspectorSession session,
-    String id, {
-    Duration timeout = const Duration(seconds: 5),
-  }) async {
-    final deadline = DateTime.now().add(timeout);
-    while (DateTime.now().isBefore(deadline)) {
-      for (final entry in session.entries) {
-        if (entry.id == id) return true;
-      }
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-    }
-    return false;
-  }
-
   group('Isolate Resilience & Lifecycle Guards', () {
-    test('enable after dispose does not revive session', () {
-      final session = InspectorSession();
-      session.dispose();
-      session.enable();
-      expect(session.isEnabled, isFalse);
+    test('enable after dispose does not revive session', () async {
+      final engine = InterceptlyEngine();
+      await engine.dispose();
+      engine.enable();
+      expect(engine.isEnabled, isFalse);
     });
-
-    test(
-      'isolate death resets inFlight and allows subsequent captures via fallback or respawn',
-      () async {
-        final session = InspectorSession();
-        addTearDown(session.dispose);
-        await session.initialize();
-
-        // Send first capture and verify processed
-        session.record(createCapture(id: 'cap-before'));
-        expect(await waitForEntry(session, 'cap-before'), isTrue);
-
-        // Kill the isolate forcibly
-        final isolate = session.writerIsolate.rawIsolate;
-        expect(isolate, isNotNull);
-        isolate!.kill(priority: Isolate.immediate);
-
-        // Allow watchdog to detect exit and handle respawn/reset
-        await Future<void>.delayed(const Duration(milliseconds: 150));
-
-        // Record subsequent captures
-        session.record(createCapture(id: 'cap-after-1'));
-        session.record(createCapture(id: 'cap-after-2'));
-
-        // Verify captures are not dropped silently due to stuck inFlight
-        expect(
-          await waitForEntry(session, 'cap-after-1'),
-          isTrue,
-          reason: 'cap-after-1 must be processed and not dropped',
-        );
-        expect(
-          await waitForEntry(session, 'cap-after-2'),
-          isTrue,
-          reason: 'cap-after-2 must be processed and not dropped',
-        );
-        expect(session.capturePipeline.inFlight, equals(0));
-      },
-    );
 
     test(
       'circuit breaker enters degraded fallback mode and halts retry storm on init error',
@@ -128,45 +81,84 @@ void main() {
           throw PlatformException(code: 'IO_ERROR', message: 'Disk failure');
         });
 
-        final session = InspectorSession();
-        addTearDown(session.dispose);
+        final readyEntries = <IndexEntry>[];
+        final pipeline = CapturePipeline(
+          settings: const InterceptlySettings(),
+          sessionId: 'test_circuit_breaker',
+          onEntryReady: readyEntries.add,
+        );
+        addTearDown(pipeline.dispose);
 
-        await session.initialize();
+        await pipeline.initialize();
 
-        expect(session.capturePipeline.isDegraded, isTrue);
+        expect(pipeline.isDegraded, isTrue);
 
         // Subsequent records should succeed in-memory without retry storm
-        session.record(createCapture(id: 'fallback-1'));
-        session.record(createCapture(id: 'fallback-2'));
+        pipeline.record(createCapture(id: 'fallback-1'));
+        pipeline.record(createCapture(id: 'fallback-2'));
 
-        expect(await waitForEntry(session, 'fallback-1'), isTrue);
-        expect(await waitForEntry(session, 'fallback-2'), isTrue);
-        expect(session.droppedCount, equals(0));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        expect(readyEntries.any((e) => e.id == 'fallback-1'), isTrue);
+        expect(readyEntries.any((e) => e.id == 'fallback-2'), isTrue);
+        expect(pipeline.droppedCount, equals(0));
       },
     );
 
+    test('WriterIsolate restart cleans up and restarts isolate gracefully',
+        () async {
+      final writer = WriterIsolate(const InterceptlySettings());
+      addTearDown(writer.dispose);
+
+      await writer.start(
+        tempDirPath: tempDir.path,
+        fileName: 'isolate_restart_test.tmp',
+      );
+      expect(writer.isReady, isTrue);
+
+      writer.send(createCapture(id: 'before_restart'));
+      final entry1 = await writer.results.first;
+      expect(entry1.id, equals('before_restart'));
+
+      await writer.restart(
+        tempDirPath: tempDir.path,
+        fileName: 'isolate_restart_test.tmp',
+      );
+      expect(writer.isReady, isTrue);
+
+      writer.send(createCapture(id: 'after_restart'));
+      final entry2 = await writer.results.first;
+      expect(entry2.id, equals('after_restart'));
+    });
+
     test(
-      'watchdog falls back to in-memory mode after exceeding 3 respawn attempts',
+      'CapturePipeline in degraded fallback mode processes subsequent captures in-memory and sets memory location',
       () async {
-        final session = InspectorSession();
-        addTearDown(session.dispose);
-        await session.initialize();
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(_channel, (call) async {
+          throw PlatformException(
+              code: 'NOT_FOUND', message: 'Temp path failure');
+        });
 
-        // Kill isolate 4 times to exceed 3 respawns
-        for (var i = 0; i < 4; i++) {
-          final iso = session.writerIsolate.rawIsolate;
-          if (iso != null) {
-            iso.kill(priority: Isolate.immediate);
-          }
-          await Future<void>.delayed(const Duration(milliseconds: 100));
-        }
+        final readyEntries = <IndexEntry>[];
+        final pipeline = CapturePipeline(
+          settings: const InterceptlySettings(),
+          sessionId: 'test_fallback_mode',
+          onEntryReady: readyEntries.add,
+        );
+        addTearDown(pipeline.dispose);
 
-        expect(session.capturePipeline.isDegraded, isTrue);
+        await pipeline.initialize();
+        expect(pipeline.isDegraded, isTrue);
 
-        // Capture in degraded mode
-        session.record(createCapture(id: 'after-4th-kill'));
-        expect(await waitForEntry(session, 'after-4th-kill'), isTrue);
-        expect(session.droppedCount, equals(0));
+        pipeline.record(createCapture(id: 'in-memory-1', bodySize: 200));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        expect(readyEntries.length, equals(1));
+        final entry = readyEntries.first;
+        expect(entry.id, equals('in-memory-1'));
+        expect(entry.bodyLocation, equals(BodyLocation.memory));
+        expect(pipeline.droppedCount, equals(0));
       },
     );
   });

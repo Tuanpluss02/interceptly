@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import '../capture/body_bytes.dart';
 import '../model/request_record.dart';
-import '../session/body_decode_service.dart';
+import '../engine/body_decode_service.dart';
 
 /// Exports captured request records to Postman Collection v2.1 format.
 ///

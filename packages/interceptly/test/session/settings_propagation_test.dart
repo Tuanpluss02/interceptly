@@ -1,15 +1,13 @@
+// ignore_for_file: invalid_use_of_internal_member
 import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/model/body_location.dart';
-import 'package:interceptly/src/model/body_truncation.dart';
+import 'package:interceptly/interceptly.dart';
 import 'package:interceptly/src/model/index_entry.dart';
-import 'package:interceptly/src/model/interceptly_settings.dart';
-import 'package:interceptly/src/model/raw_capture.dart';
-import 'package:interceptly/src/session/bounded_event_queue.dart';
-import 'package:interceptly/src/session/inspector_session.dart';
-import 'package:interceptly/src/session/memory_index.dart';
+import 'package:interceptly/src/engine/bounded_event_queue.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
+import 'package:interceptly/src/engine/memory_index.dart';
 import 'package:interceptly/src/ui/detail/detail_search.dart';
 
 const _channel = MethodChannel('plugins.flutter.io/path_provider');
@@ -35,7 +33,7 @@ RawCapture _capture(String id, Uint8List body) {
   );
 }
 
-Future<IndexEntry> _waitForEntry(InspectorSession session, String id) async {
+Future<IndexEntry> _waitForEntry(InterceptlyEngine session, String id) async {
   final end = DateTime.now().add(const Duration(seconds: 15));
   while (DateTime.now().isBefore(end)) {
     for (final entry in session.entries) {
@@ -69,6 +67,7 @@ void main() {
   late Directory tempDir;
 
   setUp(() async {
+    await Interceptly.resetForTesting();
     tempDir = await Directory.systemTemp.createTemp('settings_propagation_');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_channel, (call) async {
@@ -78,6 +77,7 @@ void main() {
   });
 
   tearDown(() async {
+    await Interceptly.resetForTesting();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_channel, null);
     try {
@@ -86,11 +86,10 @@ void main() {
   });
 
   group('Settings propagation to storage', () {
-    test('configureSession before init applies maxBodyBytes to isolate',
-        () async {
-      final session = InspectorSession();
+    test('configure before init applies maxBodyBytes to isolate', () async {
+      final session = InterceptlyEngine();
       addTearDown(session.dispose);
-      session.configureSession(const InterceptlySettings(
+      session.configure(const InterceptlySettings(
         maxBodyBytes: 50 * 1024 * 1024,
         maxUiPreviewBytes: 50 * 1024 * 1024,
       ));
@@ -104,7 +103,7 @@ void main() {
     });
 
     test('defaults truncate a 7MB body', () async {
-      final session = InspectorSession();
+      final session = InterceptlyEngine();
       addTearDown(session.dispose);
       await session.initialize();
       session.record(_capture('big-2', _textBytes(7 * 1024 * 1024)));
@@ -115,15 +114,15 @@ void main() {
       expect(entry.responseTruncation.retainedBytes, 5 * 1024 * 1024);
     });
 
-    test('configureSession after init updates running isolate', () async {
-      final session = InspectorSession();
+    test('configure after init updates running isolate', () async {
+      final session = InterceptlyEngine();
       addTearDown(session.dispose);
       await session.initialize();
-      session.configureSession(const InterceptlySettings(maxBodyBytes: 1024));
+      session.configure(const InterceptlySettings(maxBodyBytes: 1024));
       session.record(_capture('small-1', _textBytes(4 * 1024)));
       final entry = await _waitForEntry(session, 'small-1');
       expect(entry.responseTruncation.stage, TruncationStage.storage);
-      session.configureSession(const InterceptlySettings(
+      session.configure(const InterceptlySettings(
         maxBodyBytes: 50 * 1024 * 1024,
         maxUiPreviewBytes: 50 * 1024 * 1024,
       ));
@@ -133,9 +132,9 @@ void main() {
     });
 
     test('closure shouldCapture does not break isolate spawn', () async {
-      final session = InspectorSession();
+      final session = InterceptlyEngine();
       addTearDown(session.dispose);
-      session.configureSession(InterceptlySettings(
+      session.configure(InterceptlySettings(
         shouldCapture: (url) => !url.contains('skip'),
       ));
       await session.initialize();
@@ -182,7 +181,7 @@ void main() {
 
   group('Truncation reporting per stage', () {
     test('body under both caps reports no truncation', () async {
-      final session = InspectorSession();
+      final session = InterceptlyEngine();
       addTearDown(session.dispose);
       await session.initialize();
       session.record(_capture('clean', _textBytes(512 * 1024)));
@@ -194,9 +193,9 @@ void main() {
 
     test('maxUi below maxBody reports preview-only, keeps full bytes',
         () async {
-      final session = InspectorSession();
+      final session = InterceptlyEngine();
       addTearDown(session.dispose);
-      session.configureSession(const InterceptlySettings(
+      session.configure(const InterceptlySettings(
         maxBodyBytes: 50 * 1024 * 1024,
         maxUiPreviewBytes: 2 * 1024 * 1024,
       ));
@@ -218,9 +217,9 @@ void main() {
     });
 
     test('body over both caps reports storageAndPreview', () async {
-      final session = InspectorSession();
+      final session = InterceptlyEngine();
       addTearDown(session.dispose);
-      session.configureSession(const InterceptlySettings(
+      session.configure(const InterceptlySettings(
         maxBodyBytes: 5 * 1024 * 1024,
         maxUiPreviewBytes: 1024 * 1024,
       ));
@@ -260,9 +259,9 @@ void main() {
     });
 
     test('request and response truncation are tracked independently', () async {
-      final session = InspectorSession();
+      final session = InterceptlyEngine();
       addTearDown(session.dispose);
-      session.configureSession(const InterceptlySettings(
+      session.configure(const InterceptlySettings(
         maxBodyBytes: 1024,
         maxUiPreviewBytes: 50 * 1024 * 1024,
       ));

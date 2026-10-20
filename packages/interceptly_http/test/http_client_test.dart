@@ -1,3 +1,5 @@
+// ignore_for_file: invalid_use_of_internal_member
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -7,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:interceptly/adapter.dart';
 import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
 import 'package:interceptly_http/interceptly_http.dart';
 
 class _StreamingMockClient extends http.BaseClient {
@@ -55,10 +58,10 @@ class _FixedMockClient extends http.BaseClient {
 }
 
 class _SpyHttpTrafficCollector implements HttpTrafficCollector {
-  _SpyHttpTrafficCollector([InspectorSession? session])
-      : session = session ?? InspectorSession.instance;
+  _SpyHttpTrafficCollector([InterceptlyEngine? engine])
+      : engine = engine ?? InterceptlyEngine.instance;
 
-  final InspectorSession session;
+  final InterceptlyEngine engine;
   HttpRequestContext? nextContext;
   bool returnNullContext = false;
   bool throwSimulatedException = false;
@@ -68,11 +71,11 @@ class _SpyHttpTrafficCollector implements HttpTrafficCollector {
   final List<Map<String, dynamic>> failRequestCalls = [];
 
   @override
-  int get maxBodyBytes => session.settings.maxBodyBytes;
+  int get maxBodyBytes => engine.settings.maxBodyBytes;
 
   @override
   Duration delayForChunk(int chunkBytes) =>
-      session.throughputDelayForChunk(chunkBytes);
+      engine.throughputDelayForChunk(chunkBytes);
 
   @override
   bool shouldCapture(Uri? uri) => true;
@@ -204,8 +207,8 @@ void main() {
 
       expect(client.collector, isA<DefaultHttpTrafficCollector>());
       expect(
-        (client.collector as DefaultHttpTrafficCollector).session,
-        same(InspectorSession.instance),
+        (client.collector as DefaultHttpTrafficCollector).engine,
+        same(InterceptlyEngine.instance),
       );
     });
 
@@ -370,12 +373,12 @@ void main() {
     });
   });
 
-  group('Integration with InspectorSession and Network Simulation', () {
+  group('Integration with Interceptly and Network Simulation', () {
     late Directory tempDir;
-    late InspectorSession session;
+    late Interceptly interceptly;
 
     setUp(() async {
-      await InspectorSession.resetForTesting();
+      await Interceptly.resetForTesting();
       tempDir = await Directory.systemTemp.createTemp('interceptly_http_test');
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
@@ -385,13 +388,12 @@ void main() {
           return null;
         },
       );
-      session = InspectorSession.instance;
-      await session.initialize();
+      interceptly = Interceptly.instance;
+      await interceptly.initialize();
     });
 
     tearDown(() async {
-      await session.dispose();
-      await InspectorSession.resetForTesting();
+      await Interceptly.resetForTesting();
       try {
         await tempDir.delete(recursive: true);
       } catch (_) {}
@@ -408,18 +410,18 @@ void main() {
           http.Request('GET', Uri.parse('https://api.example.com/stream')),
         );
 
-        expect(session.entries.length, 1);
-        expect(session.entries.first.statusCode, 0);
-        expect(session.entries.first.hasError, isFalse);
+        expect(interceptly.entries.length, 1);
+        expect(interceptly.entries.first.statusCode, 0);
+        expect(interceptly.entries.first.hasError, isFalse);
 
         streamCtrl.add([1, 2, 3, 4]);
         final sub = response.stream.listen((chunk) {});
         await sub.cancel();
         await streamCtrl.close();
 
-        await _waitFor(() => session.entries.first.hasError);
+        await _waitFor(() => interceptly.entries.first.hasError);
 
-        final entry = session.entries.first;
+        final entry = interceptly.entries.first;
         expect(entry.hasError, isTrue);
         expect(entry.errorType, 'CancellationException');
         expect(
@@ -432,7 +434,7 @@ void main() {
     test(
       'cancellation during simulated throughput delay does not throw unhandled StateError',
       () async {
-        session.setNetworkSimulation(NetworkSimulationProfile.slow3G);
+        interceptly.setNetworkSimulation(NetworkSimulationProfile.slow3G);
         final streamCtrl = StreamController<List<int>>();
         final innerClient = _StreamingMockClient(streamCtrl);
         final client = InterceptlyHttpClient(innerClient);
@@ -449,8 +451,8 @@ void main() {
 
         await Future<void>.delayed(const Duration(milliseconds: 150));
 
-        await _waitFor(() => session.entries.first.hasError);
-        final entry = session.entries.first;
+        await _waitFor(() => interceptly.entries.first.hasError);
+        final entry = interceptly.entries.first;
         expect(entry.hasError, isTrue);
         expect(entry.errorType, 'CancellationException');
       },
@@ -479,9 +481,10 @@ void main() {
       await completer.future;
 
       await _waitFor(() =>
-          session.entries.isNotEmpty && session.entries.first.statusCode != 0);
+          interceptly.entries.isNotEmpty &&
+          interceptly.entries.first.statusCode != 0);
 
-      final entry = session.entries.first;
+      final entry = interceptly.entries.first;
       expect(entry.statusCode, 200);
       expect(entry.hasError, isFalse);
       expect(entry.errorType, isNull);
@@ -509,9 +512,9 @@ void main() {
       await streamCtrl.close();
       await completer.future;
 
-      await _waitFor(() => session.entries.first.hasError);
+      await _waitFor(() => interceptly.entries.first.hasError);
 
-      final entry = session.entries.first;
+      final entry = interceptly.entries.first;
       expect(entry.hasError, isTrue);
       expect(entry.errorType, contains('Exception'));
       expect(entry.errorMessage, contains('stream broken mid-flight'));
@@ -528,10 +531,10 @@ void main() {
         throwsA(isA<http.ClientException>()),
       );
 
-      await _waitFor(
-          () => session.entries.isNotEmpty && session.entries.first.hasError);
+      await _waitFor(() =>
+          interceptly.entries.isNotEmpty && interceptly.entries.first.hasError);
 
-      final entry = session.entries.first;
+      final entry = interceptly.entries.first;
       expect(entry.hasError, isTrue);
       expect(entry.errorType, 'ClientException');
       expect(entry.errorMessage, contains('Simulated network failure'));
@@ -540,7 +543,7 @@ void main() {
     test(
         'offline simulation aborts request with SimulatedNetworkException and records failure in session',
         () async {
-      session.setNetworkSimulation(NetworkSimulationProfile.offlineProfile);
+      interceptly.setNetworkSimulation(NetworkSimulationProfile.offlineProfile);
 
       final client = InterceptlyHttpClient(_FixedMockClient());
 
@@ -549,10 +552,10 @@ void main() {
         throwsA(isA<SimulatedNetworkException>()),
       );
 
-      await _waitFor(
-          () => session.entries.isNotEmpty && session.entries.first.hasError);
+      await _waitFor(() =>
+          interceptly.entries.isNotEmpty && interceptly.entries.first.hasError);
 
-      final entry = session.entries.first;
+      final entry = interceptly.entries.first;
       expect(entry.hasError, isTrue);
       expect(entry.errorType, equals('SimulatedNetworkException'));
       expect(entry.errorMessage, contains('offline'));

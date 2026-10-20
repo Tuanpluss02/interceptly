@@ -10,8 +10,7 @@ import '../../model/body_truncation.dart';
 import '../../model/index_entry.dart';
 import '../../model/request_record.dart';
 import '../../model/request_summary.dart';
-import '../../session/inspector_session.dart';
-import '../../session/inspector_session_view.dart';
+import '../scope/interceptly_scope.dart';
 import 'detail_search.dart';
 import 'detail_tabs_builder.dart';
 import 'realtime_detail_page.dart';
@@ -23,23 +22,18 @@ class RequestDetailPage extends StatefulWidget {
   /// Summary entry selected from the list tab.
   final RequestSummary entry;
 
-  /// Session used to load full detail and replay actions.
-  final InspectorSessionView session;
-
   /// Optional initial query carried over from master list search.
   final String? initialQuery;
 
-  /// Optional time provider for testing live duration ticking.
-  @visibleForTesting
+  /// Optional time provider for custom duration calculation.
   final DateTime Function()? nowProvider;
 
-  /// Creates a detail page for [entry] using [session].
+  /// Creates a detail page for [entry].
   const RequestDetailPage({
     super.key,
     required this.entry,
-    required this.session,
     this.initialQuery,
-    @visibleForTesting this.nowProvider,
+    this.nowProvider,
   });
 
   @override
@@ -53,6 +47,8 @@ class _RequestDetailPageState extends State<RequestDetailPage>
   final TextEditingController _searchController = TextEditingController();
   late Future<RequestRecord> _recordFuture;
   final GlobalKey _fabKey = GlobalKey();
+  late InterceptlyScopeController _scope;
+  bool _initialized = false;
 
   String _query = '';
   int _currentMatchIndex = 0;
@@ -81,31 +77,40 @@ class _RequestDetailPageState extends State<RequestDetailPage>
       _query = initial;
       _searchController.text = initial;
     }
-    _recordFuture = _loadDetailForEntry(_currentEntry);
-    widget.session.addListener(_onSessionChanged);
-    _recordFuture.then((record) {
-      if (mounted) {
-        setState(() {
-          _cachedRecord = record;
-        });
-        _parseBodiesAsync(record);
-        _recomputeMatchesAsync();
-      }
-    });
     _tabController = TabController(length: 4, vsync: this);
     _tabController.addListener(_onTabChanged);
   }
 
-  Future<RequestRecord> _loadDetailForEntry(RequestSummary entry) async {
-    try {
-      return await widget.session.loadDetailById(entry.id);
-    } catch (_) {
-      return await widget.session.loadDetail(entry);
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initialized) {
+      _initialized = true;
+      _scope = InterceptlyScope.read(context);
+      _scope.addListener(_onScopeChanged);
+      _recordFuture = _loadDetailForEntry(_currentEntry);
+      _recordFuture.then((record) {
+        if (mounted) {
+          setState(() {
+            _cachedRecord = record;
+          });
+          _parseBodiesAsync(record);
+          _recomputeMatchesAsync();
+        }
+      });
     }
   }
 
-  void _onSessionChanged() {
-    final latest = widget.session.byId(_currentEntry.id);
+  Future<RequestRecord> _loadDetailForEntry(RequestSummary entry) async {
+    try {
+      return await _scope.loadDetailById(entry.id);
+    } catch (_) {
+      return await _scope.loadDetail(entry);
+    }
+  }
+
+  void _onScopeChanged() {
+    final latest = _scope.byId(_currentEntry.id);
     if (latest == null) return;
 
     if (_entryChanged(_currentEntry, latest)) {
@@ -302,7 +307,9 @@ class _RequestDetailPageState extends State<RequestDetailPage>
 
   @override
   void dispose() {
-    widget.session.removeListener(_onSessionChanged);
+    if (_initialized) {
+      _scope.removeListener(_onScopeChanged);
+    }
     _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     _searchController.dispose();
@@ -330,13 +337,13 @@ class _RequestDetailPageState extends State<RequestDetailPage>
     if (_currentEntry.isRealtime) {
       return RealtimeDetailPage(
         entry: _currentEntry,
-        session: widget.session,
         nowProvider: widget.nowProvider,
       );
     }
 
-    final themeMode = widget.session.preferences.themeMode;
-    final urlDecodeEnabled = widget.session.preferences.urlDecodeEnabled;
+    final scope = InterceptlyScope.of(context);
+    final themeMode = scope.preferences.themeMode;
+    final urlDecodeEnabled = scope.preferences.urlDecodeEnabled;
 
     InterceptlyTheme.bind(
       context: context,
@@ -502,7 +509,6 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                               tryParseJson: _tryParseJson,
                               sectionKeys: _sectionKeys,
                               scrollTrigger: _scrollNavGeneration,
-                              session: widget.session,
                               now: widget.nowProvider,
                             );
                             return IndexedStack(
@@ -662,7 +668,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
 
     final replayHandler = ReplayHandler(
       context: ctx,
-      session: widget.session as InspectorSession,
+      engine: _scope.engine,
     );
     replayHandler.showReplayMenu(record);
   }

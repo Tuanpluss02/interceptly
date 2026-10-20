@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/model/request_filter.dart';
-import 'package:interceptly/src/model/index_entry.dart';
 import 'package:interceptly/src/model/body_location.dart';
 import 'package:interceptly/src/model/body_truncation.dart';
+import 'package:interceptly/src/model/index_entry.dart';
+import 'package:interceptly/src/model/request_filter.dart';
 
 void main() {
   group('RequestFilter.isEmpty', () {

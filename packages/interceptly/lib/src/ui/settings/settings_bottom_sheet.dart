@@ -2,24 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
 
 import '../../model/network_simulation.dart';
-import '../../session/inspector_session_view.dart';
 import '../overlay/floating_overlay_manager.dart';
+import '../scope/interceptly_scope.dart';
 
 /// Bottom-sheet UI for inspector runtime settings.
 class SettingsBottomSheet extends StatefulWidget {
-  /// Session to read/update URL decode and simulation options.
-  final InspectorSessionView session;
+  /// Creates a settings sheet.
+  const SettingsBottomSheet({super.key});
 
-  /// Creates a settings sheet bound to [session].
-  const SettingsBottomSheet({super.key, required this.session});
-
-  /// Opens the settings bottom sheet for [session].
-  static Future<void> show(BuildContext context, InspectorSessionView session) {
+  /// Opens the settings bottom sheet.
+  static Future<void> show(BuildContext context) {
+    final scope = InterceptlyScope.read(context);
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: InterceptlyGlobalColor.transparent,
-      builder: (context) => SettingsBottomSheet(session: session),
+      builder: (_) => InterceptlyScope(
+        controller: scope,
+        child: const SettingsBottomSheet(),
+      ),
     );
   }
 
@@ -28,6 +29,9 @@ class SettingsBottomSheet extends StatefulWidget {
 }
 
 class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
+  late InterceptlyScopeController _scope;
+  bool _initialized = false;
+
   bool _urlDecodeEnabled = true;
   bool _hideFloatingButtonForSession = false;
   late NetworkSimulationProfile _networkSimulation;
@@ -48,13 +52,17 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
   }
 
   @override
-  void initState() {
-    super.initState();
-    _urlDecodeEnabled = widget.session.preferences.urlDecodeEnabled;
-    _networkSimulation = widget.session.networkSimulation;
-    _themeMode = widget.session.preferences.themeMode;
-    _hideFloatingButtonForSession =
-        FloatingOverlayManager.instance.isHiddenForSession;
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initialized) {
+      _initialized = true;
+      _scope = InterceptlyScope.read(context);
+      _urlDecodeEnabled = _scope.preferences.urlDecodeEnabled;
+      _networkSimulation = _scope.networkSimulation;
+      _themeMode = _scope.preferences.themeMode;
+      _hideFloatingButtonForSession =
+          FloatingOverlayManager.instance.isHiddenForSession;
+    }
   }
 
   @override
@@ -106,9 +114,14 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                       children: [
                         Text(
                           'Settings',
-                          style: _typography.titleSmallBold.copyWith(
+                          style: _typography.headlineLarge.copyWith(
                             color: _colors.textPrimary,
                           ),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.close, color: _colors.textSecondary),
+                          onPressed: () => Navigator.of(context).pop(),
+                          tooltip: 'Close settings',
                         ),
                       ],
                     ),
@@ -118,13 +131,16 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
             ),
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 12.0,
+                ),
                 children: [
-                  _buildSectionTitle('UI & Behavior'),
+                  _buildSectionTitle('Display & Appearance'),
                   _buildSectionCard([
                     _SettingsTile(
-                      icon: Icons.dark_mode_outlined,
-                      title: 'Theme Mode',
+                      icon: Icons.brightness_6_outlined,
+                      title: 'Theme',
                       trailing: DropdownButtonHideUnderline(
                         child: DropdownButton<ThemeMode>(
                           dropdownColor: _colors.surfaceSecondary,
@@ -135,16 +151,16 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                           iconEnabledColor: _colors.textSecondary,
                           iconDisabledColor: _colors.textTertiary,
                           value: _themeMode,
-                          items: [
-                            const DropdownMenuItem(
+                          items: const [
+                            DropdownMenuItem(
                               value: ThemeMode.system,
                               child: Text('System'),
                             ),
-                            const DropdownMenuItem(
+                            DropdownMenuItem(
                               value: ThemeMode.light,
                               child: Text('Light'),
                             ),
-                            const DropdownMenuItem(
+                            DropdownMenuItem(
                               value: ThemeMode.dark,
                               child: Text('Dark'),
                             ),
@@ -152,7 +168,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                           onChanged: (mode) {
                             if (mode == null) return;
                             setState(() => _themeMode = mode);
-                            widget.session.preferences.setThemeMode(mode);
+                            _scope.preferences.setThemeMode(mode);
                           },
                         ),
                       ),
@@ -163,14 +179,14 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                       onTap: () {
                         final next = !_urlDecodeEnabled;
                         setState(() => _urlDecodeEnabled = next);
-                        widget.session.preferences.setUrlDecodeEnabled(next);
+                        _scope.preferences.setUrlDecodeEnabled(next);
                       },
                       trailing: _CustomSwitch(
                         value: _urlDecodeEnabled,
                         activeColor: _colors.actionPrimary,
                         onChanged: (val) {
                           setState(() => _urlDecodeEnabled = val);
-                          widget.session.preferences.setUrlDecodeEnabled(val);
+                          _scope.preferences.setUrlDecodeEnabled(val);
                         },
                       ),
                     ),
@@ -242,7 +258,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                                 name: _customPresetName,
                               );
                               setState(() => _networkSimulation = next);
-                              widget.session.setNetworkSimulation(next);
+                              _scope.setNetworkSimulation(next);
                               return;
                             }
 
@@ -250,7 +266,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                               (p) => p.name == value,
                             );
                             setState(() => _networkSimulation = selected);
-                            widget.session.setNetworkSimulation(selected);
+                            _scope.setNetworkSimulation(selected);
                           },
                         ),
                       ),
@@ -271,7 +287,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                         setState(() => _networkSimulation = next);
                       },
                       onChangeEnd: (v) {
-                        widget.session.setNetworkSimulation(_networkSimulation);
+                        _scope.setNetworkSimulation(_networkSimulation);
                       },
                     ),
                     const SizedBox(height: 8),
@@ -288,7 +304,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                         setState(() => _networkSimulation = next);
                       },
                       onChangeEnd: (v) {
-                        widget.session.setNetworkSimulation(_networkSimulation);
+                        _scope.setNetworkSimulation(_networkSimulation);
                       },
                     ),
                     const SizedBox(height: 8),
@@ -305,7 +321,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                         setState(() => _networkSimulation = next);
                       },
                       onChangeEnd: (v) {
-                        widget.session.setNetworkSimulation(_networkSimulation);
+                        _scope.setNetworkSimulation(_networkSimulation);
                       },
                     ),
                   ],
@@ -319,19 +335,55 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
     );
   }
 
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4.0, bottom: 8.0),
+      child: Text(
+        title.toUpperCase(),
+        style: _typography.labelSmallMedium.copyWith(
+          color: _colors.textTertiary,
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionCard(List<Widget> children) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _colors.surfaceSecondary,
+        borderRadius: BorderRadius.circular(InterceptlyTheme.radius.md),
+        border: Border.all(color: InterceptlyTheme.dividerSubtle),
+      ),
+      child: Column(
+        children: [
+          for (int i = 0; i < children.length; i++) ...[
+            children[i],
+            if (i < children.length - 1)
+              Divider(
+                height: 1,
+                color: InterceptlyTheme.dividerSubtle,
+                indent: 44,
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildThrottlingSlider({
     required String title,
     required double value,
     required double max,
     required String unit,
     required ValueChanged<double> onChanged,
-    ValueChanged<double>? onChangeEnd,
+    required ValueChanged<double> onChangeEnd,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
       decoration: BoxDecoration(
         color: _colors.surfaceSecondary,
-        borderRadius: BorderRadius.circular(12.0),
+        borderRadius: BorderRadius.circular(InterceptlyTheme.radius.md),
         border: Border.all(color: InterceptlyTheme.dividerSubtle),
       ),
       child: Column(
@@ -343,74 +395,35 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
               Text(
                 title,
                 style: _typography.bodyMediumMedium.copyWith(
-                  fontSize: 13,
                   color: _colors.textPrimary,
                 ),
               ),
               Text(
                 '${value.round()} $unit',
-                style: _typography.bodyMediumRegular.copyWith(
-                  fontSize: 12,
-                  color: InterceptlyTheme.textMuted,
+                style: _typography.labelSmallRegular.copyWith(
+                  color: _colors.textSecondary,
                 ),
               ),
             ],
           ),
           SliderTheme(
-            data: InterceptlyTheme.themeData(
-              context: context,
-              themeMode: _themeMode,
-            ).sliderTheme,
+            data: SliderThemeData(
+              activeTrackColor: _colors.actionPrimary,
+              inactiveTrackColor: InterceptlyTheme.controlMuted,
+              thumbColor: _colors.actionPrimary,
+              overlayColor: _colors.actionPrimary.withValues(alpha: 0.12),
+              trackHeight: 3,
+            ),
             child: Slider(
               value: value.clamp(0, max),
               min: 0,
               max: max,
-              divisions: 100,
               onChanged: onChanged,
               onChangeEnd: onChangeEnd,
             ),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildSectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4.0, bottom: 12.0),
-      child: Text(
-        title.toUpperCase(),
-        style: _typography.bodyMediumBold.copyWith(
-          fontSize: 12,
-          color: _colors.actionSecondary,
-          letterSpacing: 1.0,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSectionCard(List<Widget> children) {
-    final List<Widget> separatedChildren = [];
-    for (int i = 0; i < children.length; i++) {
-      separatedChildren.add(children[i]);
-      if (i < children.length - 1) {
-        separatedChildren.add(
-          Divider(
-            height: 1,
-            color: InterceptlyTheme.dividerSubtle,
-            indent: 16,
-          ),
-        );
-      }
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        color: _colors.surfaceSecondary,
-        borderRadius: BorderRadius.circular(12.0),
-        border: Border.all(color: InterceptlyTheme.dividerSubtle),
-      ),
-      child: Column(children: separatedChildren),
     );
   }
 }
@@ -437,42 +450,37 @@ class _SettingsTile extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      hoverColor: InterceptlyTheme.hoverOverlay,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 48),
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Row(
-            children: [
-              Icon(icon, color: colors.textTertiary, size: 20),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+      borderRadius: BorderRadius.circular(InterceptlyTheme.radius.md),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: colors.textSecondary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: typography.bodyMediumMedium.copyWith(
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
                     Text(
-                      title,
-                      style: typography.bodyMediumMedium.copyWith(
-                        fontSize: 14,
-                        color: colors.textPrimary,
+                      subtitle!,
+                      style: typography.labelSmallRegular.copyWith(
+                        color: colors.textTertiary,
                       ),
                     ),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle!,
-                        style: typography.bodySmallRegular.copyWith(
-                          fontSize: 11,
-                          color: colors.textTertiary,
-                        ),
-                      ),
-                    ],
                   ],
-                ),
+                ],
               ),
-              trailing,
-            ],
-          ),
+            ),
+            trailing,
+          ],
         ),
       ),
     );
@@ -494,9 +502,9 @@ class _CustomSwitch extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       toggled: value,
-      button: true,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+      child: SizedBox(
+        width: 48,
+        height: 28,
         child: Center(
           child: GestureDetector(
             onTap: () => onChanged(!value),

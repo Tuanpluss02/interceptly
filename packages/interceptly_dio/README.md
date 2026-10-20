@@ -67,7 +67,7 @@ void main() {
 
 ## Configuration Options & SPI Injection
 
-`InterceptlyDioInterceptor` implements `HttpCaptureAdapter`. By default it uses `DefaultHttpTrafficCollector()`, which automatically coordinates with `InspectorSession.instance`. You can also inject a custom `HttpTrafficCollector`:
+By default `InterceptlyDioInterceptor` uses `HttpTrafficCollector.instance`, which automatically coordinates with the Interceptly headless engine. You can also inject a custom `HttpTrafficCollector`:
 
 ```dart
 // Custom collector:

@@ -1,24 +1,23 @@
+// ignore_for_file: invalid_use_of_internal_member
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/adapter/realtime_traffic_collector.dart';
-import 'package:interceptly/src/model/interceptly_settings.dart';
-import 'package:interceptly/src/model/realtime_frame.dart';
-import 'package:interceptly/src/session/inspector_session.dart';
+import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
 
 void main() {
   setUp(() async {
-    await InspectorSession.resetForTesting();
+    await Interceptly.resetForTesting();
   });
 
   tearDown(() async {
-    await InspectorSession.resetForTesting();
+    await Interceptly.resetForTesting();
   });
 
   group('Realtime traffic collection', () {
     test('realtime connection records headers and query params intact',
         () async {
-      final session = InspectorSession.instance;
+      final session = InterceptlyEngine.instance;
       session.recordRealtimeConnection(
         id: 'ws1',
         url: 'wss://x/?token=SECRET',
@@ -30,8 +29,8 @@ void main() {
     });
 
     test('shouldCapture false suppresses realtime connection', () async {
-      final session = InspectorSession.instance;
-      session.configureSession(
+      final session = InterceptlyEngine.instance;
+      session.configure(
         const InterceptlySettings(shouldCapture: _blockAll),
       );
       session
@@ -40,7 +39,7 @@ void main() {
     });
 
     test('realtime frames preserve raw text and binary payloads', () async {
-      final session = InspectorSession.instance;
+      final session = InterceptlyEngine.instance;
       final collector = DefaultRealtimeTrafficCollector();
       collector.recordFrame(
         sessionId: 'ws-raw',
@@ -61,8 +60,8 @@ void main() {
     });
 
     test('frames for filtered sessions are skipped', () async {
-      final session = InspectorSession.instance;
-      session.configureSession(InterceptlySettings(
+      final session = InterceptlyEngine.instance;
+      session.configure(InterceptlySettings(
         shouldCapture: (url) => !url.contains('blocked'),
       ));
       session.recordRealtimeConnection(

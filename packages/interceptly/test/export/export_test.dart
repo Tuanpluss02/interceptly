@@ -1,3 +1,4 @@
+// ignore_for_file: invalid_use_of_internal_member
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -6,7 +7,7 @@ import 'package:interceptly/src/export/curl_generator.dart';
 import 'package:interceptly/src/export/har_exporter.dart';
 import 'package:interceptly/src/export/postman_exporter.dart';
 import 'package:interceptly/src/model/request_record.dart';
-import 'package:interceptly/src/session/body_store.dart';
+import 'package:interceptly/src/engine/body_store.dart';
 
 void main() {
   group('CurlGenerator', () {

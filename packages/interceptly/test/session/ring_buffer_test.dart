@@ -1,5 +1,7 @@
+// ignore_for_file: invalid_use_of_internal_member
+
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/session/ring_buffer.dart';
+import 'package:interceptly/src/engine/ring_buffer.dart';
 
 void main() {
   group('RingBuffer basic operations', () {

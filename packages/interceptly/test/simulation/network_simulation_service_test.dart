@@ -1,6 +1,8 @@
+// ignore_for_file: invalid_use_of_internal_member
+
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/simulation/network_simulation_service.dart';
 import 'package:interceptly/src/model/network_simulation.dart';
+import 'package:interceptly/src/simulation/network_simulation_service.dart';
 
 void main() {
   group('NetworkSimulationService.throughputDelayForChunk', () {
@@ -21,7 +23,7 @@ void main() {
     });
 
     test('computes correct delay for known bandwidth', () {
-      final profile = const NetworkSimulationProfile(
+      const profile = NetworkSimulationProfile(
         name: 'test',
         offline: false,
         latencyMs: 0,

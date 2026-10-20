@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:interceptly/src/session/inspector_session_view.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
 import 'package:interceptly/src/ui/widgets/error_summary.dart';
 import 'package:interceptly/src/ui/widgets/json_viewer/json_viewer.dart';
@@ -17,7 +16,6 @@ class DetailTabsBuilder {
   final dynamic Function(String?) tryParseJson;
   final Map<DetailSection, GlobalKey>? sectionKeys;
   final int? scrollTrigger;
-  final InspectorSessionView? session;
   final DateTime Function()? now;
 
   DetailTabsBuilder({
@@ -29,7 +27,6 @@ class DetailTabsBuilder {
     required this.tryParseJson,
     this.sectionKeys,
     this.scrollTrigger,
-    this.session,
     this.now,
   });
 

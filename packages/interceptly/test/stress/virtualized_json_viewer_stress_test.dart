@@ -1,3 +1,4 @@
+// ignore_for_file: invalid_use_of_internal_member
 @Tags(['stress'])
 library;
 
@@ -8,85 +9,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import '../helpers/mock_http_client.dart';
-import 'package:interceptly/src/export/curl_generator.dart';
-import 'package:interceptly/src/export/har_exporter.dart';
-import 'package:interceptly/src/export/postman_exporter.dart';
-import 'package:interceptly/src/model/body_location.dart';
-import 'package:interceptly/src/model/body_truncation.dart';
-import 'package:interceptly/src/model/domain_group.dart';
+import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
 import 'package:interceptly/src/model/index_entry.dart';
-import 'package:interceptly/src/model/interceptly_settings.dart';
-import 'package:interceptly/src/model/network_simulation.dart';
-import 'package:interceptly/src/model/raw_capture.dart';
-import 'package:interceptly/src/model/request_filter.dart';
-import 'package:interceptly/src/model/request_record.dart';
-import 'package:interceptly/src/model/request_summary.dart';
-import 'package:interceptly/src/session/inspector_preferences.dart';
-import 'package:interceptly/src/session/inspector_session.dart';
-import 'package:interceptly/src/session/inspector_session_view.dart';
 import 'package:interceptly/src/ui/detail/replay_handler.dart';
 import 'package:interceptly/src/ui/detail/request_detail_page.dart';
+import 'package:interceptly/src/ui/scope/interceptly_scope.dart';
 import 'package:interceptly/src/ui/widgets/json_viewer/json_viewer.dart';
 
-class _MockSessionView extends InspectorSessionView {
-  _MockSessionView({required this.record, required this.entry});
+class _MockSessionScopeController extends InterceptlyScopeController {
+  _MockSessionScopeController({required this.record, InterceptlyEngine? engine})
+      : super(engine: engine ?? InterceptlyEngine.instance);
+
   final RequestRecord record;
-  final IndexEntry entry;
-  final InspectorPreferences _prefs = InspectorPreferences();
 
   @override
-  InterceptlySettings get settings => const InterceptlySettings();
-  @override
-  InspectorPreferences get preferences => _prefs;
-  @override
-  List<RequestSummary> get entries => [entry];
-  @override
-  RequestFilter get filter => RequestFilter();
-  @override
-  bool get isEnabled => true;
-  @override
-  int get droppedCount => 0;
-  @override
-  NetworkSimulationProfile get networkSimulation =>
-      NetworkSimulationProfile.none;
-  @override
-  String? get masterQuery => null;
-  @override
-  bool get isMasterSearchActive => false;
-  @override
-  bool get isScanningBodies => false;
-  @override
-  bool get isScanningFiles => false;
-  @override
-  bool get groupingEnabled => false;
-  @override
   Future<RequestRecord> loadDetail(RequestSummary summary) async => record;
+
   @override
-  void enable() {}
-  @override
-  void disable() {}
-  @override
-  Future<void> clear() async {}
-  @override
-  void applyFilter(RequestFilter filter) {}
-  @override
-  void clearFilter() {}
-  @override
-  void setNetworkSimulation(NetworkSimulationProfile profile) {}
-  @override
-  void clearNetworkSimulation() {}
-  @override
-  List<DomainGroup> getGroupedRecords() => const [];
-  @override
-  void toggleGrouping(bool enabled) {}
-  @override
-  void toggleDomainExpanded(String domain) {}
-  @override
-  void cancelMasterSearch() {}
-  @override
-  Future<void> startMasterSearch(String query) async {}
-  @override
-  Set<String> get availableDomains => const {};
+  Future<RequestRecord> loadDetailById(String id) async => record;
 }
 
 void main() {
@@ -95,6 +36,7 @@ void main() {
   late Directory globalTempDir;
 
   setUp(() async {
+    await Interceptly.resetForTesting();
     globalTempDir =
         await Directory.systemTemp.createTemp('interceptly_challenger_m2_');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -108,6 +50,7 @@ void main() {
   });
 
   tearDown(() async {
+    await Interceptly.resetForTesting();
     try {
       await globalTempDir.delete(recursive: true);
     } catch (_) {}
@@ -351,7 +294,7 @@ void main() {
     test(
         '3 MB payload (>2MB UI limit) is stored 100% intact to disk; UI preview is cleanly sliced to 2MB',
         () async {
-      final session = InspectorSession(
+      final session = InterceptlyEngine(
         settings: const InterceptlySettings(
           bodyOffloadThreshold: 10 * 1024,
           maxBodyBytes: 50 * 1024 * 1024,
@@ -420,7 +363,7 @@ void main() {
     test(
         'storage ceiling: when maxBodyBytes = 4MB, a 6MB payload is truncated at 4MB reported as preview-truncated',
         () async {
-      final session = InspectorSession(
+      final session = InterceptlyEngine(
         settings: const InterceptlySettings(
           bodyOffloadThreshold: 10 * 1024,
           maxBodyBytes: 4 * 1024 * 1024,
@@ -472,7 +415,7 @@ void main() {
     test(
         'unlimited storage: when maxBodyBytes <= 0, bodies are preserved without ceiling cap',
         () async {
-      final session = InspectorSession(
+      final session = InterceptlyEngine(
         settings: const InterceptlySettings(
           bodyOffloadThreshold: 10 * 1024,
           maxBodyBytes: 0,
@@ -525,7 +468,7 @@ void main() {
       'Empirical Challenge 3: Exporters & Replay Byte Fidelity with Payloads > 2MB',
       () {
     late Directory replayTempDir;
-    late InspectorSession replaySession;
+    late InterceptlyEngine replaySession;
 
     setUp(() async {
       replayTempDir =
@@ -538,7 +481,9 @@ void main() {
           return null;
         },
       );
-      replaySession = InspectorSession();
+      replaySession = InterceptlyEngine(
+        settings: const InterceptlySettings(persistToDisk: false),
+      );
       await replaySession.initialize();
     });
 
@@ -661,12 +606,12 @@ void main() {
       await tester.runAsync(() async {
         final handler = ReplayHandler(
           context: savedContext,
-          session: replaySession,
+          engine: replaySession,
           clientFactory: () => MockHttpClient((request) {
             capturedRequest = request;
           }),
         );
-        await handler.retry(record);
+        await handler.retry(record, confirm: false);
       });
 
       expect(capturedRequest, isNotNull);
@@ -714,13 +659,18 @@ void main() {
         responseTruncation: const BodyTruncation.complete(0),
         bodyLocation: BodyLocation.memory,
       );
-      final session = _MockSessionView(record: record, entry: entry);
+      final controller = _MockSessionScopeController(record: record);
+      addTearDown(controller.dispose);
 
       await tester.pumpWidget(
         MaterialApp(
-          home: RequestDetailPage(
-            entry: entry,
-            session: session,
+          home: Scaffold(
+            body: InterceptlyScope(
+              controller: controller,
+              child: RequestDetailPage(
+                entry: entry,
+              ),
+            ),
           ),
         ),
       );

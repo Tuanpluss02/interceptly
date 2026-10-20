@@ -100,7 +100,7 @@ void main() {
 
       final lines = flattener.flatten(data, query: query);
       expect(expansion.isExpanded(r'$.items', 25), isTrue);
-      expect(expansion.searchAutoExpandedForTest.contains(r'$.items'), isTrue);
+      expect(expansion.explicitState[r'$.items'], isNull);
 
       final matchLine = lines.firstWhere((l) => l.hasActiveMatch);
       expect(matchLine.spans.any((s) => s.text?.contains('item_10') ?? false),

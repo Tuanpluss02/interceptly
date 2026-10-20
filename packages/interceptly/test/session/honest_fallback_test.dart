@@ -1,10 +1,73 @@
+// ignore_for_file: invalid_use_of_internal_member
 import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:interceptly/src/model/body_location.dart';
 import 'package:interceptly/src/model/body_truncation.dart';
+import 'package:interceptly/src/model/index_entry.dart';
 import 'package:interceptly/src/model/raw_capture.dart';
-import 'package:interceptly/src/session/writer_isolate.dart';
+
+IndexEntry fallbackEntryForTesting(
+  RawCapture capture, [
+  Uint8List? materializedReq,
+  Uint8List? materializedRes,
+]) {
+  int? reqLen = materializedReq?.length;
+  if (reqLen == null) {
+    try {
+      reqLen = capture.requestBodyBytes?.materialize().asUint8List().length;
+    } catch (_) {}
+  }
+  final reqSize = capture.requestSizeBytes ?? reqLen ?? 0;
+  final hasReq = reqSize > 0 || capture.requestBodyBytes != null;
+
+  int? resLen = materializedRes?.length;
+  if (resLen == null) {
+    try {
+      resLen = capture.responseBodyBytes?.materialize().asUint8List().length;
+    } catch (_) {}
+  }
+  final resSize = capture.responseSizeBytes ?? resLen ?? 0;
+  final hasRes = resSize > 0 || capture.responseBodyBytes != null;
+
+  return IndexEntry(
+    id: capture.id,
+    method: capture.method,
+    url: capture.url,
+    statusCode: capture.statusCode,
+    durationMs: capture.durationMs,
+    requestSizeBytes: reqSize,
+    responseSizeBytes: resSize,
+    timestamp: capture.timestamp,
+    hasError: capture.hasError,
+    bodyLocation: BodyLocation.memory,
+    inlineRequestBody: null,
+    inlineResponseBody: null,
+    requestHeaders: capture.requestHeaders,
+    responseHeaders: capture.responseHeaders,
+    requestContentType: capture.requestContentType,
+    responseContentType: capture.responseContentType,
+    errorType: capture.errorType,
+    errorMessage: capture.errorMessage,
+    requestTruncation: hasReq
+        ? BodyTruncation(
+            originalBytes: reqSize,
+            retainedBytes: 0,
+            stage: TruncationStage.storage,
+          )
+        : const BodyTruncation.complete(0),
+    responseTruncation: hasRes
+        ? BodyTruncation(
+            originalBytes: resSize,
+            retainedBytes: 0,
+            stage: TruncationStage.storage,
+          )
+        : const BodyTruncation.complete(0),
+    fileOffset: null,
+    fileLength: null,
+  );
+}
 
 RawCapture _createCapture({
   String id = '1',

@@ -1,8 +1,12 @@
+// ignore_for_file: invalid_use_of_internal_member
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
 import 'package:interceptly/src/ui/filter/filter_panel.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
+import 'package:interceptly/src/ui/scope/interceptly_scope.dart';
 import 'package:interceptly/src/ui/screens/interceptly_screen.dart';
 import 'package:interceptly/src/ui/settings/settings_bottom_sheet.dart';
 import 'package:interceptly/src/ui/widgets/interceptly_confirm_dialog.dart';
@@ -34,11 +38,11 @@ void main() {
 
   group('Theme isolation tests', () {
     setUp(() async {
-      await InspectorSession.resetForTesting();
+      await Interceptly.resetForTesting();
     });
 
     tearDown(() async {
-      await InspectorSession.resetForTesting();
+      await Interceptly.resetForTesting();
     });
 
     testWidgets('InterceptlyScreen completely overrides host ThemeData',
@@ -113,8 +117,8 @@ void main() {
 
     testWidgets('SettingsBottomSheet is isolated from host ThemeData',
         (tester) async {
-      final session = InspectorSession.instance;
-      session.setNetworkSimulation(
+      final engine = InterceptlyEngine();
+      engine.setNetworkSimulation(
         const NetworkSimulationProfile(
           name: 'Custom',
           offline: false,
@@ -123,12 +127,17 @@ void main() {
           uploadKbps: 500,
         ),
       );
+      final controller = InterceptlyScopeController(engine: engine);
+      addTearDown(controller.dispose);
 
       await tester.pumpWidget(
         MaterialApp(
           theme: hostTheme,
           home: Scaffold(
-            body: SettingsBottomSheet(session: session),
+            body: InterceptlyScope(
+              controller: controller,
+              child: const SettingsBottomSheet(),
+            ),
           ),
         ),
       );

@@ -45,32 +45,24 @@ class _Model {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  late Directory tempDir;
-
-  setUp(() async {
-    tempDir =
-        await Directory.systemTemp.createTemp('interceptly_chopper_robustness');
-    _mockTempDir(() async => tempDir.path);
-  });
-
-  tearDown(() async {
-    try {
-      await tempDir.delete(recursive: true);
-    } catch (_) {}
-  });
-
   group('Chopper interceptor never breaks the request', () {
-    late InspectorSession session;
+    late Directory tempDir;
+    late Interceptly interceptly;
 
     setUp(() async {
-      await InspectorSession.resetForTesting();
-      session = InspectorSession.instance;
-      await session.initialize();
+      await Interceptly.resetForTesting();
+      tempDir = await Directory.systemTemp
+          .createTemp('interceptly_chopper_robustness');
+      _mockTempDir(() async => tempDir.path);
+      interceptly = Interceptly.instance;
+      await interceptly.initialize();
     });
 
     tearDown(() async {
-      await session.dispose();
-      await InspectorSession.resetForTesting();
+      await Interceptly.resetForTesting();
+      try {
+        if (tempDir.existsSync()) await tempDir.delete(recursive: true);
+      } catch (_) {}
     });
 
     test('multipart base request does not throw', () async {
@@ -137,10 +129,11 @@ void main() {
       await interceptor.intercept(chain);
       await _waitFor(
         () =>
-            session.entries.isNotEmpty && session.entries.first.statusCode != 0,
+            interceptly.entries.isNotEmpty &&
+            interceptly.entries.first.statusCode != 0,
       );
 
-      final detail = await session.loadDetail(session.entries.first);
+      final detail = await interceptly.loadDetail(interceptly.entries.first);
       expect(detail.responseBodyPreview, '{"a":1}');
     });
   });

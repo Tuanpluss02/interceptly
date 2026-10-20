@@ -122,7 +122,7 @@ class BodyStore {
 
   /// Reads [length] bytes starting at [offset] from [filePath].
   ///
-  /// Called by [InspectorSession.loadDetail] on the main isolate.
+  /// Called by [InterceptlyEngine.loadDetail] on the main isolate.
   /// Creates a read-only handle and closes it immediately after.
   static Future<Uint8List> readBytes(
     String filePath,

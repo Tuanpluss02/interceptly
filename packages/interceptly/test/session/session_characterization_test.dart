@@ -1,3 +1,4 @@
+// ignore_for_file: invalid_use_of_internal_member
 import 'dart:convert';
 import 'dart:io';
 
@@ -5,6 +6,7 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
 
 const MethodChannel _channel =
     MethodChannel('plugins.flutter.io/path_provider');
@@ -15,6 +17,7 @@ void main() {
   late Directory tempDir;
 
   setUp(() async {
+    await Interceptly.resetForTesting();
     tempDir =
         await Directory.systemTemp.createTemp('session_characterization_');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -25,6 +28,7 @@ void main() {
   });
 
   tearDown(() async {
+    await Interceptly.resetForTesting();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_channel, null);
     try {
@@ -32,9 +36,9 @@ void main() {
     } catch (_) {}
   });
 
-  group('InspectorSession characterization', () {
+  group('InterceptlyEngine characterization', () {
     test('record to loadDetail and loadDetailById lifecycle', () async {
-      final session = InspectorSession();
+      final session = InterceptlyEngine();
       addTearDown(session.dispose);
       await session.initialize();
 
@@ -81,7 +85,7 @@ void main() {
 
     test('recordPending times out with TimeoutException', () {
       fakeAsync((async) {
-        final session = InspectorSession(
+        final session = InterceptlyEngine(
           settings: const InterceptlySettings(
             pendingTimeout: Duration(seconds: 2),
           ),
@@ -110,7 +114,7 @@ void main() {
 
     test('realtime connection, frame recording, and clear', () {
       fakeAsync((async) {
-        final session = InspectorSession();
+        final session = InterceptlyEngine();
         addTearDown(session.dispose);
 
         session.recordRealtimeConnection(

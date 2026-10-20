@@ -63,7 +63,7 @@ void main() async {
 
 ## Configuration Options & SPI Injection
 
-`InterceptlyHttpClient` implements `HttpCaptureAdapter`. By default it uses `DefaultHttpTrafficCollector()`, which automatically coordinates with `InspectorSession.instance`. You can also inject a custom `HttpTrafficCollector`:
+By default `InterceptlyHttpClient` uses `HttpTrafficCollector.instance`, which automatically coordinates with the Interceptly headless engine. You can also inject a custom `HttpTrafficCollector`:
 
 ```dart
 // Inject a custom HttpTrafficCollector:

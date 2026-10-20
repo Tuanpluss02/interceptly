@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/session/grouping_controller.dart';
+import 'package:interceptly/src/ui/scope/grouping_controller.dart';
 
 void main() {
   late GroupingController controller;

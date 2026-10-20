@@ -1,3 +1,4 @@
+// ignore_for_file: invalid_use_of_internal_member
 @Tags(['stress'])
 library;
 
@@ -7,14 +8,11 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/export/curl_generator.dart';
-import 'package:interceptly/src/model/body_location.dart';
-import 'package:interceptly/src/model/body_truncation.dart';
+import 'package:interceptly/interceptly.dart';
 import 'package:interceptly/src/model/index_entry.dart';
-import 'package:interceptly/src/model/request_record.dart';
-import 'package:interceptly/src/session/body_store.dart';
-import 'package:interceptly/src/session/master_search_controller.dart';
-import 'package:interceptly/src/session/memory_index.dart';
+import 'package:interceptly/src/engine/body_store.dart';
+import 'package:interceptly/src/engine/master_search_controller.dart';
+import 'package:interceptly/src/engine/memory_index.dart';
 import 'package:interceptly/src/ui/widgets/json_viewer/json_viewer.dart';
 
 Uint8List _packBody({

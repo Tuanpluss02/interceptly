@@ -1,8 +1,10 @@
+// ignore_for_file: invalid_use_of_internal_member
+
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/session/realtime_body_store.dart';
+import 'package:interceptly/src/engine/realtime_body_store.dart';
 
 void main() {
   late Directory tempDir;

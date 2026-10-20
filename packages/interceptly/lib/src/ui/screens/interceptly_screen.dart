@@ -7,39 +7,74 @@ import 'package:interceptly/src/ui/tabs/realtime_list_tab.dart';
 import 'package:interceptly/src/ui/widgets/interceptly_confirm_dialog.dart';
 import 'package:interceptly/src/ui/widgets/toast_notification.dart';
 
-import '../../session/inspector_session.dart';
-import '../../session/inspector_session_view.dart';
+import '../../engine/interceptly_engine.dart';
+import '../scope/interceptly_scope.dart';
 
 /// Main inspector screen showing captured network calls and actions.
 class InterceptlyScreen extends StatefulWidget {
-  /// Creates the inspector screen bound to [session] (defaults to [InspectorSession.instance]).
-  InterceptlyScreen({super.key, InspectorSessionView? session})
-      : session = session ?? InspectorSession.instance;
+  /// Creates the inspector screen.
+  ///
+  /// Optionally accepts [controller] or [engine] for testing isolation.
+  const InterceptlyScreen({
+    super.key,
+    this.controller,
+    this.engine,
+  });
 
-  /// Session used to read and mutate captured data.
-  final InspectorSessionView session;
+  /// Optional pre-configured scope controller (primarily for testing).
+  final InterceptlyScopeController? controller;
+
+  /// Optional underlying engine (primarily for testing).
+  final InterceptlyEngine? engine;
 
   @override
   State<InterceptlyScreen> createState() => _InterceptlyScreenState();
 }
 
 class _InterceptlyScreenState extends State<InterceptlyScreen> {
+  late final InterceptlyScopeController _controller;
+  late final bool _ownsController;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.controller != null) {
+      _controller = widget.controller!;
+      _ownsController = false;
+    } else {
+      _controller = InterceptlyScopeController(
+        engine: widget.engine ?? InterceptlyEngine.instance,
+      );
+      _ownsController = true;
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_ownsController) {
+      _controller.dispose();
+    }
+    super.dispose();
+  }
+
   void _showSettings(BuildContext ctx) {
-    SettingsBottomSheet.show(ctx, widget.session);
+    SettingsBottomSheet.show(ctx);
   }
 
   void _showFilterPanel(BuildContext ctx) {
+    final scope = InterceptlyScope.read(ctx);
     FilterPanel.show(
       context: ctx,
-      currentFilter: widget.session.filter,
-      availableDomains: widget.session.availableDomains,
+      currentFilter: scope.filter,
+      availableDomains: scope.availableDomains,
       onFilterChanged: (newFilter) {
-        widget.session.applyFilter(newFilter);
+        scope.applyFilter(newFilter);
       },
     );
   }
 
   Future<void> _clearLogs(BuildContext ctx, {required bool realtime}) async {
+    final scope = InterceptlyScope.read(ctx);
     final shouldClear = await InterceptlyConfirmDialog.show(
       ctx,
       title: realtime ? 'Clear realtime logs?' : 'Clear REST logs?',
@@ -52,9 +87,9 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
 
     if (!shouldClear) return;
     if (realtime) {
-      await widget.session.clearRealtime();
+      await scope.clearRealtime();
     } else {
-      await widget.session.clearRest();
+      await scope.clearRest();
     }
     if (!mounted) return;
     ToastNotification.show(
@@ -65,105 +100,105 @@ class _InterceptlyScreenState extends State<InterceptlyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: widget.session.preferences,
-      builder: (context, _) {
-        final themeMode = widget.session.preferences.themeMode;
-        InterceptlyTheme.bind(context: context, themeMode: themeMode);
+    return InterceptlyScope(
+      controller: _controller,
+      child: ListenableBuilder(
+        listenable: _controller.preferences,
+        builder: (context, _) {
+          final themeMode = _controller.preferences.themeMode;
+          InterceptlyTheme.bind(context: context, themeMode: themeMode);
 
-        return Theme(
-          data: InterceptlyTheme.themeData(
-            context: context,
-            themeMode: themeMode,
-          ),
-          child: Builder(
-            builder: (themedContext) => ListenableBuilder(
-              listenable: widget.session,
-              builder: (context, _) {
-                final isRealtime = widget.session.isRealtimeActive;
-                final selectedTabIndex =
-                    widget.session.preferences.selectedTabIndex.clamp(0, 1);
+          return Theme(
+            data: InterceptlyTheme.themeData(
+              context: context,
+              themeMode: themeMode,
+            ),
+            child: Builder(
+              builder: (themedContext) => ListenableBuilder(
+                listenable: _controller,
+                builder: (context, _) {
+                  final isRealtime = _controller.isRealtimeActive;
+                  final selectedTabIndex =
+                      _controller.preferences.selectedTabIndex.clamp(0, 1);
 
-                return Scaffold(
-                  appBar: AppBar(
-                    title: const Text('Interceptly'),
-                    actions: [
-                      IconButton(
-                        icon: Icon(widget.session.groupingEnabled
-                            ? Icons.group_work
-                            : Icons.public),
-                        onPressed: () => widget.session
-                            .toggleGrouping(!widget.session.groupingEnabled),
-                        tooltip: 'Group by domain',
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline),
-                        onPressed: () => _clearLogs(
-                          themedContext,
-                          realtime: isRealtime && selectedTabIndex == 1,
+                  return Scaffold(
+                    appBar: AppBar(
+                      title: const Text('Interceptly'),
+                      actions: [
+                        IconButton(
+                          icon: Icon(_controller.groupingEnabled
+                              ? Icons.group_work
+                              : Icons.public),
+                          onPressed: () => _controller
+                              .toggleGrouping(!_controller.groupingEnabled),
+                          tooltip: 'Group by domain',
                         ),
-                        tooltip: 'Clear logs',
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.settings_outlined),
-                        onPressed: () => _showSettings(themedContext),
-                        tooltip: 'Settings',
-                      ),
-                    ],
-                    bottom: PreferredSize(
-                      preferredSize: const Size.fromHeight(1.0),
-                      child: Container(
-                        color: InterceptlyTheme.dividerSubtle,
-                        height: 1.0,
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          onPressed: () => _clearLogs(
+                            themedContext,
+                            realtime: isRealtime && selectedTabIndex == 1,
+                          ),
+                          tooltip: 'Clear logs',
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.settings_outlined),
+                          onPressed: () => _showSettings(themedContext),
+                          tooltip: 'Settings',
+                        ),
+                      ],
+                      bottom: PreferredSize(
+                        preferredSize: const Size.fromHeight(1.0),
+                        child: Container(
+                          color: InterceptlyTheme.dividerSubtle,
+                          height: 1.0,
+                        ),
                       ),
                     ),
-                  ),
-                  body: !isRealtime
-                      ? NetworkTab(
-                          session: widget.session,
-                          groupingEnabled: widget.session.groupingEnabled,
-                          onShowFilterPanel: () =>
-                              _showFilterPanel(themedContext),
-                        )
-                      : IndexedStack(
-                          index: selectedTabIndex,
-                          children: [
-                            NetworkTab(
-                              key: const ValueKey('tab_rest'),
-                              session: widget.session,
-                              groupingEnabled: widget.session.groupingEnabled,
-                              onShowFilterPanel: () =>
-                                  _showFilterPanel(themedContext),
-                            ),
-                            RealtimeListTab(
-                              key: const ValueKey('tab_realtime'),
-                              session: widget.session,
-                            ),
-                          ],
-                        ),
-                  bottomNavigationBar: isRealtime
-                      ? NavigationBar(
-                          selectedIndex: selectedTabIndex,
-                          onDestinationSelected: (i) =>
-                              widget.session.preferences.setSelectedTabIndex(i),
-                          destinations: const [
-                            NavigationDestination(
-                              icon: Icon(Icons.http),
-                              label: 'REST',
-                            ),
-                            NavigationDestination(
-                              icon: Icon(Icons.cable),
-                              label: 'Realtime',
-                            ),
-                          ],
-                        )
-                      : null,
-                );
-              },
+                    body: !isRealtime
+                        ? NetworkTab(
+                            groupingEnabled: _controller.groupingEnabled,
+                            onShowFilterPanel: () =>
+                                _showFilterPanel(themedContext),
+                          )
+                        : IndexedStack(
+                            index: selectedTabIndex,
+                            children: [
+                              NetworkTab(
+                                key: const ValueKey('tab_rest'),
+                                groupingEnabled: _controller.groupingEnabled,
+                                onShowFilterPanel: () =>
+                                    _showFilterPanel(themedContext),
+                              ),
+                              const RealtimeListTab(
+                                key: ValueKey('tab_realtime'),
+                              ),
+                            ],
+                          ),
+                    bottomNavigationBar: isRealtime
+                        ? NavigationBar(
+                            selectedIndex: selectedTabIndex,
+                            onDestinationSelected: (i) =>
+                                _controller.preferences.setSelectedTabIndex(i),
+                            destinations: const [
+                              NavigationDestination(
+                                icon: Icon(Icons.http),
+                                label: 'REST',
+                              ),
+                              NavigationDestination(
+                                icon: Icon(Icons.cable),
+                                label: 'Realtime',
+                              ),
+                            ],
+                          )
+                        : null,
+                  );
+                },
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }

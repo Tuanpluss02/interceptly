@@ -1,19 +1,20 @@
+// ignore_for_file: invalid_use_of_internal_member
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/adapter/realtime_traffic_collector.dart';
-import 'package:interceptly/src/model/interceptly_settings.dart';
-import 'package:interceptly/src/model/realtime_protocol_type.dart';
-import 'package:interceptly/src/session/inspector_session.dart';
+import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
 
 void main() {
   group('Realtime Capability Auto-Detection', () {
-    late InspectorSession session;
+    late InterceptlyEngine session;
 
-    setUp(() {
-      session = InspectorSession();
+    setUp(() async {
+      await Interceptly.resetForTesting();
+      session = InterceptlyEngine();
     });
 
-    tearDown(() {
-      session.dispose();
+    tearDown(() async {
+      await session.dispose();
+      await Interceptly.resetForTesting();
     });
 
     test(
@@ -24,7 +25,7 @@ void main() {
 
     test('isRealtimeActive is true when settings explicitly enable realtime',
         () {
-      session.configureSession(const InterceptlySettings(enableRealtime: true));
+      session.configure(const InterceptlySettings(enableRealtime: true));
       expect(session.isRealtimeActive, isTrue);
     });
 
@@ -59,7 +60,7 @@ void main() {
     test(
         'DefaultRealtimeTrafficCollector triggers markRealtimeActive on openSession and recordConnection',
         () {
-      final collector = DefaultRealtimeTrafficCollector(session: session);
+      final collector = DefaultRealtimeTrafficCollector(engine: session);
       expect(session.isRealtimeActive, isFalse);
 
       collector.openSession(uri: Uri.parse('wss://example.com/socket'));
@@ -69,7 +70,7 @@ void main() {
     test('RealtimeTrafficCollector.markActive activates realtime capability',
         () {
       RealtimeTrafficCollector.instance =
-          DefaultRealtimeTrafficCollector(session: session);
+          DefaultRealtimeTrafficCollector(engine: session);
       expect(session.isRealtimeActive, isFalse);
 
       RealtimeTrafficCollector.markActive();
@@ -100,7 +101,7 @@ void main() {
     test(
         'recordRealtimeConnection maps protocolType to correct method (WS, SIO, SSE)',
         () {
-      final collector = DefaultRealtimeTrafficCollector(session: session);
+      final collector = DefaultRealtimeTrafficCollector(engine: session);
 
       collector.openSession(
         sessionId: 'conn_ws',

@@ -1,51 +1,47 @@
+// ignore_for_file: invalid_use_of_internal_member
 @Tags(['stress'])
 library;
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/model/body_location.dart';
-import 'package:interceptly/src/model/body_truncation.dart';
-import 'package:interceptly/src/model/index_entry.dart';
-import 'package:interceptly/src/model/interceptly_settings.dart';
-import 'package:interceptly/src/model/realtime_frame.dart';
-import 'package:interceptly/src/session/inspector_session.dart';
+import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
 import 'package:interceptly/src/ui/detail/realtime_messages_tab.dart';
-import 'package:interceptly/src/ui/widgets/json_viewer/json_viewer.dart';
+import 'package:interceptly/src/ui/scope/interceptly_scope.dart';
+import 'package:interceptly/src/ui/widgets/json_viewer/json_expansion_state.dart';
+import 'package:interceptly/src/ui/widgets/json_viewer/json_line_flattener.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  IndexEntry createDummyEntry(int i) {
-    return IndexEntry(
-      id: 'req_burst_$i',
-      method: 'GET',
-      url: 'https://api.example.com/items/$i',
-      statusCode: 200,
-      durationMs: 12,
-      requestSizeBytes: 0,
-      responseSizeBytes: 256,
-      timestamp: DateTime(2026, 1, 1, 12, 0, 0).add(Duration(milliseconds: i)),
-      hasError: false,
-      requestTruncation: const BodyTruncation.complete(0),
-      responseTruncation: const BodyTruncation.complete(256),
-      bodyLocation: BodyLocation.memory,
-    );
-  }
+  setUp(() async {
+    await Interceptly.resetForTesting();
+  });
+
+  tearDown(() async {
+    await Interceptly.resetForTesting();
+  });
 
   group('Task 7 Perf Hardening: Coalesce Notify & Search Debounce', () {
     test('coalesces 1000 burst capture ready notifications to <= 20 calls', () {
       fakeAsync((async) {
-        final session = InspectorSession(
+        final engine = InterceptlyEngine(
           settings: const InterceptlySettings(maxEntries: 2000),
         );
-        addTearDown(session.dispose);
+        addTearDown(engine.dispose);
 
         var notifyCount = 0;
-        session.addListener(() => notifyCount++);
+        engine.addListener(() => notifyCount++);
 
         for (var i = 0; i < 1000; i++) {
-          session.handleEntryReadyForTesting(createDummyEntry(i));
+          engine.recordPending(
+            id: 'req_burst_$i',
+            method: 'GET',
+            url: 'https://api.example.com/items/$i',
+            timestamp: DateTime(2026, 1, 1).add(Duration(milliseconds: i)),
+          );
+
           if (i % 20 == 0) {
             async.elapse(const Duration(milliseconds: 1));
           }
@@ -53,8 +49,8 @@ void main() {
 
         async.elapse(const Duration(milliseconds: 100));
 
-        expect(session.entriesVersion, 1000);
-        expect(session.totalEntries, 1000);
+        expect(engine.entriesVersion, 1000);
+        expect(engine.totalEntries, 1000);
         expect(
           notifyCount,
           lessThanOrEqualTo(20),
@@ -67,11 +63,11 @@ void main() {
     testWidgets(
         'realtime messages search input debounces filtering by 150-200ms',
         (tester) async {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
+      final engine = InterceptlyEngine();
+      addTearDown(engine.dispose);
 
       for (var i = 0; i < 10; i++) {
-        session.recordRealtimeFrame(
+        await engine.recordRealtimeFrame(
           RealtimeFrame.text(
             id: 'frame_$i',
             sessionId: 'ws_debounce_test',
@@ -81,12 +77,17 @@ void main() {
         );
       }
 
+      final controller = InterceptlyScopeController(engine: engine);
+      addTearDown(controller.dispose);
+
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: RealtimeMessagesTab(
-              sessionId: 'ws_debounce_test',
-              session: session,
+            body: InterceptlyScope(
+              controller: controller,
+              child: const RealtimeMessagesTab(
+                sessionId: 'ws_debounce_test',
+              ),
             ),
           ),
         ),

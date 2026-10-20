@@ -1,9 +1,12 @@
+// ignore_for_file: invalid_use_of_internal_member
+
 import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/session/body_store.dart';
-import 'package:interceptly/src/session/inspector_session.dart';
+import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/body_store.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
 
 /// Specification implementation of orphan purge contract used for verification.
 Future<int> _purgeOrphanedTempFiles(
@@ -37,6 +40,7 @@ void main() {
   late Directory tempDir;
 
   setUp(() async {
+    await Interceptly.resetForTesting();
     tempDir = await Directory.systemTemp.createTemp('temp_cleanup_test_');
   });
 
@@ -46,6 +50,7 @@ void main() {
         await tempDir.delete(recursive: true);
       }
     } catch (_) {}
+    await Interceptly.resetForTesting();
   });
 
   group('Temp File Management: BodyStore Lifecycle', () {
@@ -167,7 +172,7 @@ void main() {
     });
   });
 
-  group('Temp File Management: InspectorSession Lifecycle & Cleanup', () {
+  group('Temp File Management: InterceptlyEngine Lifecycle & Cleanup', () {
     test(
         'BodyStore.purgeOrphanedTempFiles purges orphaned files and ignores active file',
         () async {
@@ -208,7 +213,7 @@ void main() {
       await store.dispose();
     });
 
-    test('InspectorSession cleans up session file on dispose()', () async {
+    test('InterceptlyEngine cleans up session file on dispose()', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
         const MethodChannel('plugins.flutter.io/path_provider'),
@@ -218,31 +223,22 @@ void main() {
         },
       );
 
-      final session = InspectorSession();
-      await session.initialize();
+      final engine = InterceptlyEngine();
+      await engine.initialize();
 
-      final files = tempDir.listSync().whereType<File>().toList();
-      final hasSessionFile = files.any(
-        (f) =>
-            f.uri.pathSegments.last.startsWith('interceptly_') &&
-            f.uri.pathSegments.last.endsWith('.tmp'),
-      );
-      expect(hasSessionFile, isTrue);
+      final sessionPath = engine.tempFilePath;
+      expect(sessionPath, isNotNull);
+      final sessionFile = File(sessionPath!);
+      expect(await sessionFile.exists(), isTrue);
 
-      await session.dispose();
+      await engine.dispose();
       await Future<void>.delayed(const Duration(milliseconds: 100));
 
-      final remaining = tempDir.listSync().whereType<File>().toList();
-      final sessionStillExists = remaining.any(
-        (f) =>
-            f.uri.pathSegments.last.startsWith('interceptly_') &&
-            f.uri.pathSegments.last.endsWith('.tmp'),
-      );
-      expect(sessionStillExists, isFalse);
+      expect(await sessionFile.exists(), isFalse);
     });
 
     test(
-        'InspectorSession.initialize() automatically purges prior orphan session files',
+        'InterceptlyEngine.initialize() automatically purges prior orphan session files',
         () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
@@ -264,14 +260,14 @@ void main() {
           .setLastModified(DateTime.now().subtract(const Duration(hours: 25)));
       await regularFile.writeAsString('keep me');
 
-      final session = InspectorSession();
-      await session.initialize();
+      final engine = InterceptlyEngine();
+      await engine.initialize();
 
       expect(await orphan1.exists(), isFalse);
       expect(await orphan2.exists(), isFalse);
       expect(await regularFile.exists(), isTrue);
 
-      await session.dispose();
+      await engine.dispose();
     });
   });
 }

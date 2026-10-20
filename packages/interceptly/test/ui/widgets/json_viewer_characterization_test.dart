@@ -71,8 +71,31 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    final dynamic state = tester.state(find.byType(JsonViewer));
-    final lines = state.memoLinesForTest as List<dynamic>;
+    final effectiveQuery =
+        (query != null && query.isNotEmpty) ? query.toLowerCase().trim() : null;
+    final lineCountMemo = Expando<int>('json_line_counts');
+    final analysis = JsonLineFlattener.countLinesAndMatches(
+      data,
+      effectiveQuery,
+      lineCountMemo,
+    );
+    final expansion = JsonExpansionState();
+    expansion.forceCollapse =
+        analysis.lineCount > JsonViewerMetrics.largeDocLineThreshold;
+    final matchCounts = effectiveQuery == null ? null : analysis.matchCounts;
+
+    final flattener = JsonLineFlattener(
+      expansion: expansion,
+      activeGlobalIndex: activeIndex,
+      matchCounts: matchCounts,
+      lineCountMemo: lineCountMemo,
+      baseTextStyle: const TextStyle(),
+    );
+
+    final lines = flattener.flatten(
+      data,
+      query: effectiveQuery,
+    );
     return '=== $name ===\n${serialize(lines)}';
   }
 

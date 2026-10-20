@@ -1,15 +1,15 @@
+// ignore_for_file: invalid_use_of_internal_member
+
 import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/model/body_location.dart';
-import 'package:interceptly/src/model/body_truncation.dart';
+import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/body_decode_service.dart';
+import 'package:interceptly/src/engine/detail_loader.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
+import 'package:interceptly/src/engine/memory_index.dart';
 import 'package:interceptly/src/model/index_entry.dart';
-import 'package:interceptly/src/model/interceptly_settings.dart';
-import 'package:interceptly/src/session/body_decode_service.dart';
-import 'package:interceptly/src/session/detail_loader.dart';
-import 'package:interceptly/src/session/inspector_session.dart';
-import 'package:interceptly/src/session/memory_index.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -18,6 +18,7 @@ void main() {
   const channel = MethodChannel('plugins.flutter.io/path_provider');
 
   setUp(() async {
+    await Interceptly.resetForTesting();
     tempDir = await Directory.systemTemp.createTemp('body_store_eof_test_');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
@@ -36,6 +37,7 @@ void main() {
         await tempDir.delete(recursive: true);
       }
     } catch (_) {}
+    await Interceptly.resetForTesting();
   });
 
   IndexEntry createFileEntry({
@@ -160,17 +162,17 @@ void main() {
     });
 
     test(
-        'end-to-end via InspectorSession when session file is purged or rotated',
+        'end-to-end via InterceptlyEngine when session file is purged or rotated',
         () async {
-      final session = InspectorSession(
+      final engine = InterceptlyEngine(
         settings: const InterceptlySettings(bodyOffloadThreshold: 50),
       );
-      addTearDown(session.dispose);
-      await session.initialize();
+      addTearDown(engine.dispose);
+      await engine.initialize();
 
       final fakeEntry = createFileEntry(
           id: 'session_e2e_eof', fileOffset: 99999, fileLength: 500);
-      final record = await session.loadDetail(fakeEntry);
+      final record = await engine.loadDetail(fakeEntry);
 
       expect(record.requestBodyPreview,
           equals(BodyDecodeService.unavailablePlaceholder));

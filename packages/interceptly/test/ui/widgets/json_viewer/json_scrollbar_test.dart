@@ -33,19 +33,40 @@ void main() {
       final scrollbars = find.byType(Scrollbar);
       expect(scrollbars, findsNWidgets(2));
 
-      final jvState = tester.state(find.byType(JsonViewer)) as dynamic;
-      final vCtrl = jvState.contentScrollControllerForTest as ScrollController;
-      final hCtrl =
-          jvState.horizontalScrollControllerForTest as ScrollController;
-
       final scrollbarWidgets =
           tester.widgetList<Scrollbar>(scrollbars).toList();
       final verticalBar = scrollbarWidgets.firstWhere(
-        (sb) => sb.controller == vCtrl,
+        (sb) => sb.notificationPredicate!(
+          ScrollUpdateNotification(
+            metrics: FixedScrollMetrics(
+              minScrollExtent: 0,
+              maxScrollExtent: 500,
+              pixels: 0,
+              viewportDimension: 300,
+              axisDirection: AxisDirection.down,
+              devicePixelRatio: 1.0,
+            ),
+            context: tester.element(find.byType(JsonViewer)),
+          ),
+        ),
       );
       final horizontalBar = scrollbarWidgets.firstWhere(
-        (sb) => sb.controller == hCtrl,
+        (sb) => sb.notificationPredicate!(
+          ScrollUpdateNotification(
+            metrics: FixedScrollMetrics(
+              minScrollExtent: 0,
+              maxScrollExtent: 500,
+              pixels: 0,
+              viewportDimension: 300,
+              axisDirection: AxisDirection.right,
+              devicePixelRatio: 1.0,
+            ),
+            context: tester.element(find.byType(JsonViewer)),
+          ),
+        ),
       );
+      expect(verticalBar.controller, isNotNull);
+      expect(horizontalBar.controller, isNotNull);
 
       expect(verticalBar.thumbVisibility, isTrue);
       expect(horizontalBar.thumbVisibility, isTrue);
@@ -131,10 +152,41 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final jvState = tester.state(find.byType(JsonViewer)) as dynamic;
-      final vCtrl = jvState.contentScrollControllerForTest as ScrollController;
-      final hCtrl =
-          jvState.horizontalScrollControllerForTest as ScrollController;
+      final scrollbars = find.byType(Scrollbar);
+      final scrollbarWidgets =
+          tester.widgetList<Scrollbar>(scrollbars).toList();
+      final verticalBar = scrollbarWidgets.firstWhere(
+        (sb) => sb.notificationPredicate!(
+          ScrollUpdateNotification(
+            metrics: FixedScrollMetrics(
+              minScrollExtent: 0,
+              maxScrollExtent: 500,
+              pixels: 0,
+              viewportDimension: 300,
+              axisDirection: AxisDirection.down,
+              devicePixelRatio: 1.0,
+            ),
+            context: tester.element(find.byType(JsonViewer)),
+          ),
+        ),
+      );
+      final horizontalBar = scrollbarWidgets.firstWhere(
+        (sb) => sb.notificationPredicate!(
+          ScrollUpdateNotification(
+            metrics: FixedScrollMetrics(
+              minScrollExtent: 0,
+              maxScrollExtent: 500,
+              pixels: 0,
+              viewportDimension: 300,
+              axisDirection: AxisDirection.right,
+              devicePixelRatio: 1.0,
+            ),
+            context: tester.element(find.byType(JsonViewer)),
+          ),
+        ),
+      );
+      final vCtrl = verticalBar.controller!;
+      final hCtrl = horizontalBar.controller!;
 
       expect(vCtrl.position.maxScrollExtent, greaterThan(0));
       expect(hCtrl.position.maxScrollExtent, greaterThan(0));

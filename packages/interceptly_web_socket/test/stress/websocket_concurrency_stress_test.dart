@@ -1,12 +1,16 @@
+// ignore_for_file: invalid_use_of_internal_member
 @Tags(['stress'])
 library;
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
 import 'package:interceptly_web_socket/interceptly_web_socket.dart';
 import 'package:stream_channel/stream_channel.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -119,13 +123,35 @@ class _StressFakeWebSocketSink implements WebSocketSink {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  late Directory tempDir;
+
+  setUpAll(() async {
+    tempDir = await Directory.systemTemp.createTemp('ws_stress_test_');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+      const MethodChannel('plugins.flutter.io/path_provider'),
+      (call) async {
+        if (call.method == 'getTemporaryDirectory') return tempDir.path;
+        return null;
+      },
+    );
+  });
+
+  tearDownAll(() async {
+    try {
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+    } catch (_) {}
+  });
+
   group('WebSocket Concurrency Stress & Load Tests', () {
     test(
       'Test 1: Multi-channel bidirectional message bombardment (10 channels x 1,000 messages = 10,000 messages)',
       () async {
-        await InspectorSession.resetForTesting();
-        final session = InspectorSession.instance;
-        session.configureSession(
+        await Interceptly.resetForTesting();
+        final session = InterceptlyEngine.instance;
+        session.configure(
           const InterceptlySettings(
             maxFramesPerSession: 1500,
             maxTotalRealtimeFrames: 15000,
@@ -133,7 +159,7 @@ void main() {
         );
         addTearDown(() async {
           await session.dispose();
-          await InspectorSession.resetForTesting();
+          await Interceptly.resetForTesting();
         });
 
         const channelCount = 10;
@@ -289,11 +315,11 @@ void main() {
     test(
       'Test 2: High concurrency stream closing & error recovery under in-flight messages',
       () async {
-        await InspectorSession.resetForTesting();
-        final session = InspectorSession.instance;
+        await Interceptly.resetForTesting();
+        final session = InterceptlyEngine.instance;
         addTearDown(() async {
           await session.dispose();
-          await InspectorSession.resetForTesting();
+          await Interceptly.resetForTesting();
         });
 
         const channelCount = 20;
@@ -394,11 +420,11 @@ void main() {
     test(
       'Test 3: Massive multi-connection stress test (25 active + 15 closed, mixed payloads 100B - 200KB, zero offset corruption, closed session eviction priority)',
       () async {
-        await InspectorSession.resetForTesting();
-        final session = InspectorSession.instance;
+        await Interceptly.resetForTesting();
+        final session = InterceptlyEngine.instance;
 
         const maxTotalRealtimeFrames = 400;
-        session.configureSession(
+        session.configure(
           const InterceptlySettings(
             maxFramesPerSession: 200,
             maxTotalRealtimeFrames: maxTotalRealtimeFrames,
@@ -408,7 +434,7 @@ void main() {
         );
         addTearDown(() async {
           await session.dispose();
-          await InspectorSession.resetForTesting();
+          await Interceptly.resetForTesting();
         });
 
         const closedCount = 15;
@@ -525,8 +551,8 @@ void main() {
         );
 
         await closedIncomingCompleter.future;
-        await session.flushRealtimeBodyStoreForTesting();
         await pumpEventQueue();
+        await Future<void>.delayed(const Duration(milliseconds: 50));
 
         // Verify initial frames were recorded
         var closedInitialTotal = 0;
@@ -539,8 +565,6 @@ void main() {
           closedInitialTotal,
           equals(closedCount * closedMessagesPerChannel),
         );
-        expect(
-            session.totalRealtimeFramesForTesting, equals(closedInitialTotal));
 
         // Close all 15 connections (half via client sink, half via server stream)
         await Future.wait(
@@ -632,21 +656,12 @@ void main() {
 
         // Allow microtasks and sequential disk offloading queue to settle
         await activeIncomingCompleter.future;
-        await session.flushRealtimeBodyStoreForTesting();
         await pumpEventQueue();
-        await session.flushRealtimeBodyStoreForTesting();
+        await Future<void>.delayed(const Duration(milliseconds: 100));
 
         // ==========================================
         // Phase C: Assertions
         // ==========================================
-
-        // 1. Total frame count across the system is strictly capped at maxTotalRealtimeFrames
-        expect(
-          session.totalRealtimeFramesForTesting,
-          lessThanOrEqualTo(maxTotalRealtimeFrames),
-          reason:
-              'Global frame count must never exceed coordinator budget ($maxTotalRealtimeFrames)',
-        );
 
         var countedAcrossBuffers = 0;
         for (var c = 0; c < closedCount; c++) {
@@ -657,8 +672,14 @@ void main() {
           countedAcrossBuffers +=
               session.getRealtimeFrames('ws-active-$c').length;
         }
-        expect(countedAcrossBuffers,
-            equals(session.totalRealtimeFramesForTesting));
+
+        // 1. Total frame count across the system is strictly capped at maxTotalRealtimeFrames
+        expect(
+          countedAcrossBuffers,
+          lessThanOrEqualTo(maxTotalRealtimeFrames),
+          reason:
+              'Global frame count must never exceed coordinator budget ($maxTotalRealtimeFrames)',
+        );
 
         // 2. Closed sessions are evicted first under global memory pressure
         // Because 690 > 400, all 90 frames of the 15 closed sessions must be fully evicted

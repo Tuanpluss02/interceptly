@@ -1,174 +1,34 @@
-import 'package:flutter/foundation.dart';
+// ignore_for_file: invalid_use_of_internal_member
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/model/domain_group.dart';
-import 'package:interceptly/src/model/interceptly_settings.dart';
-import 'package:interceptly/src/model/network_simulation.dart';
-import 'package:interceptly/src/model/realtime_frame.dart';
-import 'package:interceptly/src/model/realtime_protocol_type.dart';
-import 'package:interceptly/src/model/request_filter.dart';
-import 'package:interceptly/src/model/request_record.dart';
-import 'package:interceptly/src/model/request_summary.dart';
-import 'package:interceptly/src/model/search_match_scope.dart';
-import 'package:interceptly/src/session/inspector_preferences.dart';
-import 'package:interceptly/src/session/inspector_session_view.dart';
+import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
 import 'package:interceptly/src/ui/overlay/floating_overlay_manager.dart';
+import 'package:interceptly/src/ui/scope/interceptly_scope.dart';
 import 'package:interceptly/src/ui/settings/settings_bottom_sheet.dart';
 
-class _FakeSessionView extends ChangeNotifier implements InspectorSessionView {
+class _FakeScopeController extends InterceptlyScopeController {
+  _FakeScopeController({required super.engine});
   int setNetworkSimulationCallCount = 0;
-  NetworkSimulationProfile _sim = const NetworkSimulationProfile(
-    name: 'Custom',
-    offline: false,
-    latencyMs: 100,
-    downloadKbps: 1000,
-    uploadKbps: 500,
-  );
-
-  final _prefs = InspectorPreferences();
-
-  @override
-  NetworkSimulationProfile get networkSimulation => _sim;
 
   @override
   void setNetworkSimulation(NetworkSimulationProfile profile) {
     setNetworkSimulationCallCount++;
-    _sim = profile;
-    notifyListeners();
+    super.setNetworkSimulation(profile);
   }
-
-  @override
-  void clearNetworkSimulation() {
-    _sim = NetworkSimulationProfile.none;
-    notifyListeners();
-  }
-
-  @override
-  InspectorPreferences get preferences => _prefs;
-
-  @override
-  InterceptlySettings get settings => const InterceptlySettings();
-
-  @override
-  bool get isRealtimeActive => false;
-
-  @override
-  List<RequestSummary> get entries => const [];
-
-  @override
-  int get entriesVersion => 0;
-
-  @override
-  RequestFilter get filter => RequestFilter();
-
-  @override
-  bool get isEnabled => true;
-
-  @override
-  int get droppedCount => 0;
-
-  @override
-  String? get masterQuery => null;
-
-  @override
-  bool get isMasterSearchActive => false;
-
-  @override
-  bool get isScanningBodies => false;
-
-  @override
-  bool get isScanningFiles => false;
-
-  @override
-  bool get groupingEnabled => false;
-
-  @override
-  Set<SearchMatchScope> getSearchScopes(String id) => const {};
-
-  @override
-  Future<RequestRecord> loadDetail(RequestSummary summary) =>
-      throw UnimplementedError();
-
-  @override
-  Future<RequestRecord> loadDetailById(String id) => throw UnimplementedError();
-
-  @override
-  RequestSummary? byId(String id) => null;
-
-  @override
-  void enable() {}
-
-  @override
-  void disable() {}
-
-  @override
-  Future<void> clear() async {}
-
-  @override
-  Future<void> clearRest() async {}
-
-  @override
-  Future<void> clearRealtime() async {}
-
-  @override
-  void applyFilter(RequestFilter filter) {}
-
-  @override
-  void clearFilter() {}
-
-  @override
-  List<DomainGroup> getGroupedRecords() => const [];
-
-  @override
-  void toggleGrouping(bool enabled) {}
-
-  @override
-  void toggleDomainExpanded(String domain) {}
-
-  @override
-  void cancelMasterSearch() {}
-
-  @override
-  Future<void> startMasterSearch(String query) async {}
-
-  @override
-  Set<String> get availableDomains => const {};
-
-  @override
-  List<RealtimeFrame> getRealtimeFrames(String sessionId) => const [];
-
-  @override
-  RealtimeFrameCounts getRealtimeFrameCounts(String sessionId) =>
-      const RealtimeFrameCounts();
-
-  @override
-  bool canSendRealtimeMessage(String sessionId) => false;
-
-  @override
-  RealtimeProtocolType? getRealtimeProtocol(String sessionId) => null;
-
-  @override
-  ValueListenable<RealtimeFrameCounts> getRealtimeFrameCountsNotifier(
-    String sessionId,
-  ) =>
-      ValueNotifier(getRealtimeFrameCounts(sessionId));
-
-  @override
-  Future<dynamic> loadRealtimePayload(RealtimeFrame frame) async =>
-      frame.textPayload ?? frame.binaryPayload ?? '';
-
-  @override
-  Future<void> sendRealtimeMessage(
-    String sessionId,
-    RealtimeMessageDraft draft,
-  ) async {}
 }
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  tearDown(() {
+  setUp(() async {
+    await Interceptly.resetForTesting();
+  });
+
+  tearDown(() async {
     FloatingOverlayManager.instance.detach();
+    await Interceptly.resetForTesting();
   });
 
   group('FloatingOverlayManager lifecycle', () {
@@ -242,12 +102,23 @@ void main() {
     testWidgets(
         'slider drag updates local state and commits only on onChangeEnd',
         (tester) async {
-      final fakeSession = _FakeSessionView();
+      final engine = InterceptlyEngine();
+      engine.setNetworkSimulation(const NetworkSimulationProfile(
+        name: 'Custom',
+        offline: false,
+        latencyMs: 100,
+        downloadKbps: 1000,
+        uploadKbps: 500,
+      ));
+      final fakeScope = _FakeScopeController(engine: engine);
 
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: SettingsBottomSheet(session: fakeSession),
+            body: InterceptlyScope(
+              controller: fakeScope,
+              child: const SettingsBottomSheet(),
+            ),
           ),
         ),
       );
@@ -265,7 +136,7 @@ void main() {
       await tester.pump();
 
       expect(
-        fakeSession.setNetworkSimulationCallCount,
+        fakeScope.setNetworkSimulationCallCount,
         0,
         reason: 'Should not commit to session during drag ticks (onChanged)',
       );
@@ -274,7 +145,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        fakeSession.setNetworkSimulationCallCount,
+        fakeScope.setNetworkSimulationCallCount,
         1,
         reason: 'Should commit to session exactly once on onChangeEnd',
       );

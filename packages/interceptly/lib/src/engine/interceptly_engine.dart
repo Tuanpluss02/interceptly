@@ -1,47 +1,36 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:path_provider/path_provider.dart';
-
-import '../model/body_location.dart';
 
 import '../adapter/realtime_traffic_collector.dart';
-import '../core/interceptly_controller.dart';
-import '../model/domain_group.dart';
+import 'capture_pipeline.dart';
+import 'detail_loader.dart';
+import 'memory_index.dart';
+import 'pending_tracker.dart';
+import 'realtime_store.dart';
 import '../model/index_entry.dart';
 import '../model/interceptly_settings.dart';
 import '../model/network_simulation.dart';
 import '../model/raw_capture.dart';
 import '../model/realtime_frame.dart';
 import '../model/realtime_protocol_type.dart';
-import '../model/request_filter.dart';
 import '../model/request_record.dart';
 import '../model/request_summary.dart';
-import '../model/search_match_scope.dart';
 import '../simulation/network_simulation_service.dart';
-import 'capture_pipeline.dart';
-import 'detail_loader.dart';
-import 'grouping_controller.dart';
-import 'inspector_preferences.dart';
-import 'inspector_session_view.dart';
-import 'master_search_controller.dart';
-import 'memory_index.dart';
-import 'pending_tracker.dart';
-import 'realtime_body_store.dart';
-import 'realtime_store.dart';
-import 'writer_isolate.dart';
 
-/// Central lifecycle facade for an Interceptly inspection session.
+/// Central headless data engine for Interceptly.
 ///
-/// Composes [CapturePipeline], [PendingTracker], [RealtimeStore], [DetailLoader],
-/// and [MemoryIndex] to provide a unified entry point.
-class InspectorSession extends ChangeNotifier implements InspectorSessionView {
-  /// Creates an inspector session configured with [settings].
-  InspectorSession({InterceptlySettings? settings})
+/// Orchestrates [CapturePipeline], [PendingTracker], [RealtimeStore], [DetailLoader],
+/// and [MemoryIndex] to provide asynchronous capture ingestion and hybrid storage.
+///
+/// This engine is internal to the Interceptly package and should not be accessed directly
+/// by app developers or satellite adapters.
+@internal
+class InterceptlyEngine extends ChangeNotifier {
+  /// Creates an interceptly engine configured with [settings].
+  InterceptlyEngine({InterceptlySettings? settings})
       : _settings = settings ?? _defaultSettings,
-        sessionId = _generateSessionId() {
+        engineId = _generateEngineId() {
     _memoryIndex = MemoryIndex(maxEntries: _settings.maxEntries);
     _pendingTracker = PendingTracker(
       timeoutDuration: _settings.pendingTimeout,
@@ -50,7 +39,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     );
     _capturePipeline = CapturePipeline(
       settings: _settings,
-      sessionId: sessionId,
+      sessionId: engineId,
       onEntryReady: _onCaptureReady,
       onEntryReceived: _pendingTracker.cancel,
     );
@@ -59,118 +48,76 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       maxTotalRealtimeFrames: _settings.maxTotalRealtimeFrames,
       onThrottledBatch: notifyListeners,
     );
-    _realtimeBodyStore = RealtimeBodyStore();
     _detailLoader = DetailLoader(
       memoryIndex: _memoryIndex,
       tempFilePathProvider: () => _capturePipeline.tempFilePath,
       maxUiPreviewBytesProvider: () => _settings.maxUiPreviewBytes,
       fileRotationCountProvider: () => _capturePipeline.fileRotationCount,
     );
-    _search.addListener(_onSearchChanged);
-    _grouping.addListener(_onGroupingChanged);
-    _preferences.addListener(notifyListeners);
   }
 
   static InterceptlySettings _defaultSettings = const InterceptlySettings();
-  static int _sessionCounter = 0;
+  static int _engineCounter = 0;
 
-  static String _generateSessionId() {
-    final seq = ++_sessionCounter;
+  static String _generateEngineId() {
+    final seq = ++_engineCounter;
     final time = DateTime.now().microsecondsSinceEpoch;
     return '${time}_$seq';
   }
 
-  static InspectorSession? _instance;
+  static InterceptlyEngine? _instance;
 
-  /// Returns the shared default session singleton.
-  static InspectorSession get instance =>
-      _instance ??= InspectorSession(settings: _defaultSettings);
+  /// Returns the shared default engine singleton.
+  static InterceptlyEngine get instance =>
+      _instance ??= InterceptlyEngine(settings: _defaultSettings);
 
   /// Resets the singleton instance and configuration for isolated unit/widget tests.
-  @visibleForTesting
   static Future<void> resetForTesting() async {
     await _instance?.dispose();
     _instance = null;
     _defaultSettings = const InterceptlySettings();
-    // ignore: invalid_use_of_visible_for_testing_member
-    Interceptly.resetForTesting();
   }
 
-  /// Unique ID for this session instance to isolate temporary files.
-  final String sessionId;
+  /// Unique ID for this engine instance to isolate temporary files.
+  final String engineId;
 
   InterceptlySettings _settings;
   late final MemoryIndex _memoryIndex;
   late final CapturePipeline _capturePipeline;
   late final PendingTracker _pendingTracker;
   late final RealtimeStore _realtimeStore;
-  late final RealtimeBodyStore _realtimeBodyStore;
   late final DetailLoader _detailLoader;
-  String? _realtimeDirPath;
-  Future<void>? _realtimeBodyStoreInitFuture;
 
-  final InspectorPreferences _preferences = InspectorPreferences();
-  final MasterSearchController _search = MasterSearchController();
-  final GroupingController _grouping = GroupingController();
-
-  RequestFilter _filter = RequestFilter();
   NetworkSimulationProfile _networkSimulation = NetworkSimulationProfile.none;
   Future<void>? _clearFuture;
   bool _enabled = true;
   bool _isDisposed = false;
-
-  Set<String>? _cachedAvailableDomains;
-  List<DomainGroup>? _cachedGroupedRecords;
-  int _cacheVersion = 0;
-  int _lastComputedCacheVersion = -1;
   int _entriesVersion = 0;
+  final List<IndexEntry> _recentChangedEntries = [];
   Timer? _coalesceNotifyTimer;
   bool _hasPendingCoalescedNotify = false;
 
-  @override
   InterceptlySettings get settings => _settings;
 
-  /// Whether this session has been disposed.
+  /// Whether this engine has been disposed.
   bool get isDisposed => _isDisposed;
 
-  @override
   int get entriesVersion => _entriesVersion;
 
-  @override
+  /// Entries that were added or updated since the last notification cycle.
+  List<IndexEntry> get recentChangedEntries =>
+      List.unmodifiable(_recentChangedEntries);
+
   bool get isEnabled => _enabled;
 
-  @override
   int get droppedCount => _capturePipeline.droppedCount;
 
-  @override
-  InspectorPreferences get preferences => _preferences;
-
-  @override
   NetworkSimulationProfile get networkSimulation => _networkSimulation;
-
-  @override
-  RequestFilter get filter => _filter;
 
   int get totalEntries => _memoryIndex.length;
 
-  @override
-  String? get masterQuery => _search.query;
-
-  @override
-  bool get isMasterSearchActive => _search.isActive;
-
-  @override
-  bool get isScanningBodies => _search.isScanningBodies;
-
-  @override
-  bool get isScanningFiles => _search.isScanningFiles;
-
-  @override
-  bool get groupingEnabled => _grouping.enabled;
-
   bool _realtimeExplicitlyEnabled = false;
 
-  @override
   bool get isRealtimeActive {
     if (_settings.enableRealtime != null) {
       return _settings.enableRealtime!;
@@ -187,26 +134,15 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     }
   }
 
-  @override
-  Set<SearchMatchScope> getSearchScopes(String id) => _search.getScopes(id);
+  /// Returns captured entries in newest-first order.
+  List<RequestSummary> get entries =>
+      _memoryIndex.entries.cast<RequestSummary>();
 
-  @override
-  List<RequestSummary> get entries {
-    final baseList = _search.isActive
-        ? (_search.results ?? const <IndexEntry>[])
-        : _memoryIndex.entries;
-    if (_filter.isEmpty) {
-      return baseList.cast<RequestSummary>();
-    }
-    return baseList.where(_filter.matches).toList().cast<RequestSummary>();
-  }
+  /// Path to the active REST temporary file on disk.
+  String? get tempFilePath => _capturePipeline.tempFilePath;
 
-  @override
-  Set<String> get availableDomains {
-    return _cachedAvailableDomains ??= _memoryIndex.entries
-        .map((entry) => RequestFilter.extractDomain(entry.url))
-        .toSet();
-  }
+  /// Current file rotation count for the REST temporary file.
+  int get fileRotationCount => _capturePipeline.fileRotationCount;
 
   @override
   void notifyListeners() {
@@ -223,59 +159,28 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       maxTotalFrames: newSettings.maxTotalRealtimeFrames,
     );
     _memoryIndex.updateMaxEntries(newSettings.maxEntries);
-    _preferences.setUrlDecodeEnabled(newSettings.urlDecodeEnabled);
     notifyListeners();
   }
 
-  /// Configures settings for this specific session instance.
-  void configureSession(InterceptlySettings newSettings) =>
+  /// Configures settings for this engine instance.
+  void configure(InterceptlySettings newSettings) =>
       _applySettings(newSettings);
 
   /// Initializes background workers and disk storage.
-  Future<void> initialize() => _capturePipeline.initialize();
-
-  Future<void> _ensureRealtimeBodyStoreInitialized() {
-    if (_realtimeBodyStore.isInitialized || _isDisposed) {
-      return Future<void>.value();
-    }
-    return _realtimeBodyStoreInitFuture ??= _performRealtimeBodyStoreInit();
-  }
-
-  Future<void> _performRealtimeBodyStoreInit() async {
-    if (_realtimeBodyStore.isInitialized || _isDisposed) return;
-    String dirPath;
+  Future<void> initialize() async {
+    await _capturePipeline.initialize();
     if (_settings.persistToDisk) {
-      try {
-        final dir = await getTemporaryDirectory();
-        dirPath = dir.path;
-      } catch (_) {
-        dirPath = Directory.systemTemp.path;
-      }
-    } else {
-      dirPath = Directory.systemTemp.path;
+      await _realtimeStore.ensureDiskStorageInitialized(
+        persistToDisk: true,
+        engineId: engineId,
+      );
     }
-    _realtimeDirPath = dirPath;
-    await _realtimeBodyStore.initForWrite(
-      dirPath,
-      fileName: 'interceptly_${sessionId}_realtime.tmp',
-    );
-  }
-
-  void _onGroupingChanged() {
-    _invalidateGroupedCache();
-    notifyListeners();
-  }
-
-  void _onSearchChanged() {
-    _invalidateGroupedCache();
-    notifyListeners();
   }
 
   void _onCaptureReady(IndexEntry entry) {
     _entriesVersion++;
     _memoryIndex.add(entry);
-    _invalidateGroupedCache();
-    _search.updateOrAddEntry(entry);
+    _recentChangedEntries.add(entry);
     _scheduleCoalescedNotify();
   }
 
@@ -287,6 +192,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       if (_hasPendingCoalescedNotify && !_isDisposed) {
         _hasPendingCoalescedNotify = false;
         notifyListeners();
+        _recentChangedEntries.clear();
       }
     });
   }
@@ -299,36 +205,19 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       if (_hasPendingCoalescedNotify && !_isDisposed) {
         _hasPendingCoalescedNotify = false;
         notifyListeners();
+        _recentChangedEntries.clear();
       }
     }
   }
 
-  /// Manually dispatches an incoming [entry] through the ingestion pipeline for testing.
-  @visibleForTesting
-  void handleEntryReadyForTesting(IndexEntry entry) => _onCaptureReady(entry);
-
-  /// Access to the underlying capture pipeline for testing.
-  @visibleForTesting
-  CapturePipeline get capturePipeline => _capturePipeline;
-
-  /// Access to the underlying writer isolate for testing.
-  @visibleForTesting
-  WriterIsolate get writerIsolate => _capturePipeline.writerIsolate;
-
   void _onPendingTimeout(IndexEntry timedOutEntry) {
     _entriesVersion++;
-    _invalidateGroupedCache();
+    _recentChangedEntries.add(timedOutEntry);
     notifyListeners();
-  }
-
-  void _invalidateGroupedCache() {
-    _cachedGroupedRecords = null;
-    _cacheVersion++;
-    _cachedAvailableDomains = null;
+    _recentChangedEntries.clear();
   }
 
   /// Enables traffic capture.
-  @override
   void enable() {
     if (_isDisposed || _enabled) return;
     _enabled = true;
@@ -336,61 +225,21 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   }
 
   /// Disables traffic capture, dropping new captures silently.
-  @override
   void disable() {
     if (!_enabled) return;
     _enabled = false;
     notifyListeners();
   }
 
-  @override
   void setNetworkSimulation(NetworkSimulationProfile profile) {
     _networkSimulation = profile;
     notifyListeners();
   }
 
-  @override
   void clearNetworkSimulation() {
     if (_networkSimulation.isNoThrottling) return;
     _networkSimulation = NetworkSimulationProfile.none;
     notifyListeners();
-  }
-
-  @override
-  void toggleGrouping(bool enabled) {
-    _grouping.setEnabled(enabled);
-    _invalidateGroupedCache();
-  }
-
-  @override
-  void toggleDomainExpanded(String domain) {
-    _grouping.toggleDomainExpanded(domain);
-    _invalidateGroupedCache();
-  }
-
-  @override
-  List<DomainGroup> getGroupedRecords() {
-    if (_cachedGroupedRecords != null &&
-        _lastComputedCacheVersion == _cacheVersion) {
-      return _cachedGroupedRecords!;
-    }
-    final currentEntries = entries;
-    final grouped = <String, List<RequestSummary>>{};
-    for (final entry in currentEntries) {
-      final domain = RequestFilter.extractDomain(entry.url);
-      grouped.putIfAbsent(domain, () => []).add(entry);
-    }
-    _cachedGroupedRecords = grouped.entries
-        .map(
-          (e) => DomainGroup(
-            domain: e.key,
-            requests: e.value,
-            isExpanded: _grouping.isExpanded(e.key),
-          ),
-        )
-        .toList();
-    _lastComputedCacheVersion = _cacheVersion;
-    return _cachedGroupedRecords!;
   }
 
   /// Applies simulated upload network latency and bandwidth throttling.
@@ -464,7 +313,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     String? requestContentType,
   }) {
     _entriesVersion++;
-    final pending = _pendingTracker.recordPending(
+    final entry = _pendingTracker.recordPending(
       id: id,
       method: method,
       url: url,
@@ -474,16 +323,11 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       requestContentType: requestContentType,
       settings: _settings,
     );
-    _invalidateGroupedCache();
-    _search.updateOrAddEntry(pending);
+    _recentChangedEntries.add(entry);
     _scheduleCoalescedNotify();
   }
 
-  /// Records a captured [RealtimeFrame] into the session buffer.
-  ///
-  /// If the frame exceeds [InterceptlySettings.realtimeBodyOffloadThreshold]
-  /// and disk persistence is enabled, it is appended to [RealtimeBodyStore]
-  /// and swapped with an offloaded [RealtimeFrame] in-place.
+  /// Records a captured [RealtimeFrame] into the buffer.
   Future<void> recordRealtimeFrame(RealtimeFrame frame) {
     if (!_enabled || _isDisposed) return Future<void>.value();
     final predicate = _settings.shouldCapture;
@@ -491,102 +335,30 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       final entry = _memoryIndex.byId(frame.sessionId);
       if (entry == null) return Future<void>.value();
     }
-
-    if (_settings.persistToDisk &&
-        frame.location == BodyLocation.memory &&
-        frame.payloadSizeBytes >= _settings.realtimeBodyOffloadThreshold) {
-      _realtimeStore.recordFrame(frame);
-      return _offloadAndReplaceFrame(frame);
-    } else {
-      _realtimeStore.recordFrame(frame);
-      return Future<void>.value();
-    }
+    return _realtimeStore.recordFrame(
+      frame,
+      persistToDisk: _settings.persistToDisk,
+      offloadThreshold: _settings.realtimeBodyOffloadThreshold,
+      engineId: engineId,
+    );
   }
 
-  Future<void> _offloadAndReplaceFrame(RealtimeFrame frame) async {
-    await _ensureRealtimeBodyStoreInitialized();
-    final Uint8List bytes = frame.preEncodedBytes ??
-        (frame.type == FrameType.text
-            ? Uint8List.fromList(utf8.encode(frame.textPayload ?? ''))
-            : frame.binaryPayload ?? Uint8List(0));
+  /// Loads full payload for [frame] asynchronously from disk or memory.
+  Future<dynamic> loadRealtimePayload(RealtimeFrame frame) =>
+      _realtimeStore.loadPayload(frame);
 
-    try {
-      final (offset, length, rotation) = await _realtimeBodyStore.append(bytes);
-
-      final offloaded = RealtimeFrame.offloaded(
-        id: frame.id,
-        sessionId: frame.sessionId,
-        direction: frame.direction,
-        timestamp: frame.timestamp,
-        type: frame.type,
-        payloadSizeBytes: frame.payloadSizeBytes,
-        shortPreview: frame.shortPreview,
-        fileOffset: offset,
-        fileLength: length,
-        rotationCount: rotation,
-        eventName: frame.eventName,
-      );
-
-      _realtimeStore.replaceFrame(offloaded);
-    } catch (error) {
-      debugPrint(
-        '[Interceptly] realtime body offload fallback to memory: $error',
-      );
-    }
-  }
-
-  @override
-  Future<dynamic> loadRealtimePayload(RealtimeFrame frame) async {
-    if (frame.location == BodyLocation.memory) {
-      if (frame.type == FrameType.text) {
-        return frame.textPayload ?? '';
-      }
-      return frame.binaryPayload ?? Uint8List(0);
-    }
-
-    if (frame.rotationCount != null &&
-        frame.rotationCount! < _realtimeBodyStore.rotationCount) {
-      return '[Payload expired due to file rotation]';
-    }
-
-    if (!_realtimeBodyStore.isInitialized) {
-      return '[Payload unavailable: store uninitialized]';
-    }
-
-    final offset = frame.fileOffset;
-    final length = frame.fileLength;
-    if (offset == null || length == null || length <= 0) {
-      return frame.type == FrameType.text ? '' : Uint8List(0);
-    }
-
-    try {
-      final bytes = await _realtimeBodyStore.readBytes(offset, length);
-      if (frame.type == FrameType.text) {
-        return utf8.decode(bytes, allowMalformed: true);
-      }
-      return bytes;
-    } catch (e) {
-      return '[Error loading payload: $e]';
-    }
-  }
-
-  @override
   List<RealtimeFrame> getRealtimeFrames(String sessionId) =>
       _realtimeStore.getRealtimeFrames(sessionId);
 
-  @override
   RealtimeFrameCounts getRealtimeFrameCounts(String sessionId) =>
       _realtimeStore.getFrameCounts(sessionId);
 
-  @override
   bool canSendRealtimeMessage(String sessionId) =>
       RealtimeTrafficCollector.instance.canSend(sessionId);
 
-  @override
   RealtimeProtocolType? getRealtimeProtocol(String sessionId) =>
       RealtimeTrafficCollector.instance.getSender(sessionId)?.protocolType;
 
-  @override
   Future<void> sendRealtimeMessage(
     String sessionId,
     RealtimeMessageDraft draft,
@@ -637,53 +409,27 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       closeReason: closeReason,
     );
     _realtimeStore.markSessionClosed(id);
-    _invalidateGroupedCache();
+    final entry = _memoryIndex.byId(id);
+    if (entry != null) {
+      _recentChangedEntries.add(entry);
+    }
     notifyListeners();
+    _recentChangedEntries.clear();
   }
 
-  @override
   ValueListenable<RealtimeFrameCounts> getRealtimeFrameCountsNotifier(
     String sessionId,
   ) =>
       _realtimeStore.getFrameCountsNotifier(sessionId);
 
-  @override
-  void applyFilter(RequestFilter filter) {
-    if (_filter == filter) return;
-    _filter = filter;
-    _invalidateGroupedCache();
-    notifyListeners();
-  }
-
-  @override
-  void clearFilter() {
-    _filter = RequestFilter();
-    _invalidateGroupedCache();
-    notifyListeners();
-  }
-
-  @override
-  void cancelMasterSearch() => _search.cancel();
-
-  @override
-  Future<void> startMasterSearch(String query) => _search.start(
-        query: query,
-        allEntries: _memoryIndex.entries,
-        filePath: _capturePipeline.tempFilePath,
-        currentFileRotationCount: _capturePipeline.fileRotationCount,
-      );
-
   /// Looks up an entry by its unique [id] in O(1) time.
-  @override
   RequestSummary? byId(String id) => _memoryIndex.byId(id);
 
   /// Loads the full request record by request [id].
-  @override
   Future<RequestRecord> loadDetailById(String id) =>
       _detailLoader.loadDetailById(id);
 
   /// Loads full details for [summary].
-  @override
   Future<RequestRecord> loadDetail(RequestSummary summary) {
     if (summary is IndexEntry) {
       return _detailLoader.loadDetailByEntry(summary);
@@ -691,7 +437,6 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     return loadDetailById(summary.id);
   }
 
-  @override
   Future<void> clear() async {
     if (_clearFuture != null) return _clearFuture!;
     final future = _performClear();
@@ -703,7 +448,6 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     }
   }
 
-  @override
   Future<void> clearRest() async {
     if (_clearFuture != null) return _clearFuture!;
     final future = _performScopedClear(isRealtime: false);
@@ -715,7 +459,6 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
     }
   }
 
-  @override
   Future<void> clearRealtime() async {
     if (_clearFuture != null) return _clearFuture!;
     final future = _performScopedClear(isRealtime: true);
@@ -734,6 +477,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       _coalesceNotifyTimer = null;
       _hasPendingCoalescedNotify = false;
       _entriesVersion++;
+      _recentChangedEntries.clear();
       final ids = _memoryIndex.entries
           .where((e) => e.isRealtime == isRealtime)
           .map((e) => e.id)
@@ -752,17 +496,11 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       if (isRealtime) {
         _realtimeStore.clear();
       }
-      _invalidateGroupedCache();
-      _filter = RequestFilter();
-      _search.reset();
       if (!_isDisposed) {
         notifyListeners();
       }
-      if (isRealtime &&
-          _realtimeBodyStore.isInitialized &&
-          _realtimeDirPath != null) {
-        await _realtimeBodyStore.resetFile(_realtimeDirPath!);
-        _realtimeBodyStoreInitFuture = null;
+      if (isRealtime) {
+        await _realtimeStore.resetDiskStorage();
       }
     } finally {
       _clearFuture = null;
@@ -775,6 +513,7 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       _coalesceNotifyTimer = null;
       _hasPendingCoalescedNotify = false;
       _entriesVersion++;
+      _recentChangedEntries.clear();
       if (_capturePipeline.isInitialized) {
         await _capturePipeline.clear();
       } else {
@@ -783,16 +522,10 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
       _memoryIndex.clear();
       _pendingTracker.clear();
       _realtimeStore.clear();
-      _invalidateGroupedCache();
-      _filter = RequestFilter();
-      _search.reset();
       if (!_isDisposed) {
         notifyListeners();
       }
-      if (_realtimeBodyStore.isInitialized && _realtimeDirPath != null) {
-        await _realtimeBodyStore.resetFile(_realtimeDirPath!);
-      }
-      _realtimeBodyStoreInitFuture = null;
+      await _realtimeStore.resetDiskStorage();
     } finally {
       _clearFuture = null;
     }
@@ -801,53 +534,20 @@ class InspectorSession extends ChangeNotifier implements InspectorSessionView {
   @override
   Future<void> dispose() async {
     if (_isDisposed) {
-      throw StateError('InspectorSession has already been disposed.');
+      throw StateError('InterceptlyEngine has already been disposed.');
     }
     _isDisposed = true;
     if (identical(_instance, this)) {
       _instance = null;
     }
-    _realtimeBodyStoreInitFuture = null;
     _coalesceNotifyTimer?.cancel();
     _coalesceNotifyTimer = null;
     _hasPendingCoalescedNotify = false;
     _enabled = false;
-    _realtimeStore.dispose();
     _pendingTracker.dispose();
     _memoryIndex.clear();
-    _search.cancel();
-    _search.dispose();
-    _grouping.removeListener(_onGroupingChanged);
-    _grouping.dispose();
-    _preferences.removeListener(notifyListeners);
-    _preferences.dispose();
     await _capturePipeline.dispose();
-    await _realtimeBodyStore.dispose();
+    await _realtimeStore.dispose();
     super.dispose();
   }
-
-  /// Forces file rotation on the session's [RealtimeBodyStore] for testing.
-  @visibleForTesting
-  Future<void> rotateRealtimeBodyStoreForTesting() =>
-      _realtimeBodyStore.rotate();
-
-  /// Current byte offset in [RealtimeBodyStore] for testing.
-  @visibleForTesting
-  int get realtimeBodyStoreCurrentOffsetForTesting =>
-      _realtimeBodyStore.currentOffset;
-
-  /// Underlying [RealtimeBodyStore] for testing.
-  @visibleForTesting
-  RealtimeBodyStore get realtimeBodyStoreForTesting => _realtimeBodyStore;
-
-  /// Total count of realtime frames currently retained across all sessions for testing.
-  @visibleForTesting
-  int get totalRealtimeFramesForTesting =>
-      _realtimeStore.totalFramesAcrossSessions;
-
-  /// Flushes pending operations in [RealtimeBodyStore] for testing.
-  @visibleForTesting
-  Future<void> flushRealtimeBodyStoreForTesting() =>
-      // ignore: invalid_use_of_visible_for_testing_member
-      _realtimeBodyStore.flushForTesting();
 }

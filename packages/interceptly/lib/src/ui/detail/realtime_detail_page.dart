@@ -7,16 +7,13 @@ import 'package:interceptly/src/ui/interceptly_theme.dart';
 import '../../model/index_entry.dart';
 import '../../model/request_record.dart';
 import '../../model/request_summary.dart';
-import '../../session/inspector_session_view.dart';
+import '../scope/interceptly_scope.dart';
 import 'realtime_messages_tab.dart';
 
 /// Detail screen dedicated to inspect Realtime (WebSocket, SSE, Socket.IO) connections.
 class RealtimeDetailPage extends StatefulWidget {
   /// The realtime connection summary entry.
   final RequestSummary entry;
-
-  /// The inspector session tracking connection traffic and frames.
-  final InspectorSessionView session;
 
   /// Optional time provider for deterministic testing of live duration ticking.
   final DateTime Function()? nowProvider;
@@ -25,7 +22,6 @@ class RealtimeDetailPage extends StatefulWidget {
   const RealtimeDetailPage({
     super.key,
     required this.entry,
-    required this.session,
     this.nowProvider,
   });
 
@@ -40,31 +36,38 @@ class _RealtimeDetailPageState extends State<RealtimeDetailPage>
   late Future<RequestRecord> _recordFuture;
   RequestRecord? _cachedRecord;
   Timer? _liveTicker;
+  late InterceptlyScopeController _scope;
+  bool _initialized = false;
 
   @override
   void initState() {
     super.initState();
     _currentEntry = widget.entry;
     _tabController = TabController(length: 2, vsync: this, initialIndex: 0);
-    _recordFuture = _loadDetailForEntry(_currentEntry);
-    widget.session.addListener(_onSessionChanged);
-    _recordFuture.then((record) {
-      if (mounted) {
-        setState(() {
-          _cachedRecord = record;
-        });
-      }
-    });
-    _updateLiveTicker();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initialized) {
+      _initialized = true;
+      _scope = InterceptlyScope.read(context);
+      _scope.addListener(_onScopeChanged);
+      _recordFuture = _loadDetailForEntry(_currentEntry);
+      _recordFuture.then((record) {
+        if (mounted) {
+          setState(() {
+            _cachedRecord = record;
+          });
+        }
+      });
+      _updateLiveTicker();
+    }
   }
 
   @override
   void didUpdateWidget(covariant RealtimeDetailPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.session != oldWidget.session) {
-      oldWidget.session.removeListener(_onSessionChanged);
-      widget.session.addListener(_onSessionChanged);
-    }
     if (widget.entry.id != oldWidget.entry.id ||
         widget.entry.statusCode != oldWidget.entry.statusCode ||
         widget.entry.hasError != oldWidget.entry.hasError) {
@@ -78,7 +81,9 @@ class _RealtimeDetailPageState extends State<RealtimeDetailPage>
   void dispose() {
     _liveTicker?.cancel();
     _liveTicker = null;
-    widget.session.removeListener(_onSessionChanged);
+    if (_initialized) {
+      _scope.removeListener(_onScopeChanged);
+    }
     _tabController.dispose();
     super.dispose();
   }
@@ -99,14 +104,14 @@ class _RealtimeDetailPageState extends State<RealtimeDetailPage>
 
   Future<RequestRecord> _loadDetailForEntry(RequestSummary entry) async {
     try {
-      return await widget.session.loadDetailById(entry.id);
+      return await _scope.loadDetailById(entry.id);
     } catch (_) {
-      return await widget.session.loadDetail(entry);
+      return await _scope.loadDetail(entry);
     }
   }
 
-  void _onSessionChanged() {
-    final latest = widget.session.byId(_currentEntry.id);
+  void _onScopeChanged() {
+    final latest = _scope.byId(_currentEntry.id);
     if (latest == null) return;
 
     if (_entryChanged(_currentEntry, latest)) {
@@ -157,120 +162,113 @@ class _RealtimeDetailPageState extends State<RealtimeDetailPage>
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: widget.session.preferences,
-      builder: (context, _) {
-        final themeMode = widget.session.preferences.themeMode;
-        InterceptlyTheme.bind(
-          context: context,
-          themeMode: themeMode,
-        );
-        final themedData = InterceptlyTheme.themeData(
-          context: context,
-          themeMode: themeMode,
-        );
-        final entry = _currentEntry;
-        final (:path, :host) = _splitUrl(entry.url);
-        final isPending = entry.statusCode == 0 && !entry.hasError;
+    final scope = InterceptlyScope.of(context);
+    final themeMode = scope.preferences.themeMode;
+    InterceptlyTheme.bind(
+      context: context,
+      themeMode: themeMode,
+    );
+    final themedData = InterceptlyTheme.themeData(
+      context: context,
+      themeMode: themeMode,
+    );
+    final entry = _currentEntry;
+    final (:path, :host) = _splitUrl(entry.url);
+    final isPending = entry.statusCode == 0 && !entry.hasError;
 
-        return Theme(
-          data: themedData,
-          child: Builder(
-            builder: (themedContext) {
-              final colors = InterceptlyTheme.colorsOf(themedContext);
-              return Scaffold(
-                backgroundColor: InterceptlyTheme.surface,
-                appBar: AppBar(
-                  backgroundColor: InterceptlyTheme.surface,
-                  elevation: 0,
-                  scrolledUnderElevation: 0,
-                  iconTheme:
-                      IconThemeData(color: InterceptlyTheme.textSecondary),
-                  leading: IconButton(
-                    icon: Icon(Icons.arrow_back,
-                        color: InterceptlyTheme.textPrimary),
-                    onPressed: () => Navigator.of(context).pop(),
+    return Theme(
+      data: themedData,
+      child: Builder(
+        builder: (themedContext) {
+          final colors = InterceptlyTheme.colorsOf(themedContext);
+          return Scaffold(
+            backgroundColor: InterceptlyTheme.surface,
+            appBar: AppBar(
+              backgroundColor: InterceptlyTheme.surface,
+              elevation: 0,
+              scrolledUnderElevation: 0,
+              iconTheme: IconThemeData(color: InterceptlyTheme.textSecondary),
+              leading: IconButton(
+                icon:
+                    Icon(Icons.arrow_back, color: InterceptlyTheme.textPrimary),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+              title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    path,
+                    style: InterceptlyTheme.typography.bodyMediumBold.copyWith(
+                      fontSize: 14,
+                      color: InterceptlyTheme.textPrimary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  title: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        path,
-                        style:
-                            InterceptlyTheme.typography.bodyMediumBold.copyWith(
-                          fontSize: 14,
-                          color: InterceptlyTheme.textPrimary,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                  if (host.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      host,
+                      style:
+                          InterceptlyTheme.typography.bodySmallRegular.copyWith(
+                        fontSize: 11,
+                        color: InterceptlyTheme.textTertiary,
                       ),
-                      if (host.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          host,
-                          style: InterceptlyTheme.typography.bodySmallRegular
-                              .copyWith(
-                            fontSize: 11,
-                            color: InterceptlyTheme.textTertiary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ],
-                  ),
-                  actions: [
-                    Padding(
-                      padding: const EdgeInsets.only(right: 16.0),
-                      child: _buildStatusBadge(
-                        entry: entry,
-                        isPending: isPending,
-                        colors: colors,
-                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
-                  bottom: TabBar(
-                    controller: _tabController,
-                    indicatorColor: InterceptlyTheme.indigo500,
-                    labelColor: InterceptlyTheme.indigo400,
-                    unselectedLabelColor: InterceptlyTheme.textTertiary,
-                    dividerColor: InterceptlyGlobalColor.transparent,
-                    tabs: const [
-                      Tab(text: 'Messages'),
-                      Tab(text: 'Overview'),
-                    ],
+                ],
+              ),
+              actions: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 16.0),
+                  child: _buildStatusBadge(
+                    entry: entry,
+                    isPending: isPending,
+                    colors: colors,
                   ),
                 ),
-                body: FutureBuilder<RequestRecord>(
-                  future: _recordFuture,
-                  initialData: _cachedRecord,
-                  builder: (context, snapshot) {
-                    final record = snapshot.data ?? _cachedRecord;
-                    return TabBarView(
-                      controller: _tabController,
-                      children: [
-                        RealtimeMessagesTab(
-                          session: widget.session,
-                          sessionId: entry.id,
+              ],
+              bottom: TabBar(
+                controller: _tabController,
+                indicatorColor: InterceptlyTheme.indigo500,
+                labelColor: InterceptlyTheme.indigo400,
+                unselectedLabelColor: InterceptlyTheme.textTertiary,
+                dividerColor: InterceptlyGlobalColor.transparent,
+                tabs: const [
+                  Tab(text: 'Messages'),
+                  Tab(text: 'Overview'),
+                ],
+              ),
+            ),
+            body: FutureBuilder<RequestRecord>(
+              future: _recordFuture,
+              initialData: _cachedRecord,
+              builder: (context, snapshot) {
+                final record = snapshot.data ?? _cachedRecord;
+                return TabBarView(
+                  controller: _tabController,
+                  children: [
+                    RealtimeMessagesTab(
+                      sessionId: entry.id,
+                    ),
+                    if (record != null)
+                      _buildOverviewTab(record, isPending, colors)
+                    else
+                      const Center(
+                        child: CircularProgressIndicator(
+                          color: InterceptlyTheme.indigo500,
                         ),
-                        if (record != null)
-                          _buildOverviewTab(record, isPending, colors)
-                        else
-                          const Center(
-                            child: CircularProgressIndicator(
-                              color: InterceptlyTheme.indigo500,
-                            ),
-                          ),
-                      ],
-                    );
-                  },
-                ),
-              );
-            },
-          ),
-        );
-      },
+                      ),
+                  ],
+                );
+              },
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -344,7 +342,7 @@ class _RealtimeDetailPageState extends State<RealtimeDetailPage>
     bool isPending,
     InterceptlyColors colors,
   ) {
-    final decodeEnabled = widget.session.preferences.urlDecodeEnabled;
+    final decodeEnabled = _scope.preferences.urlDecodeEnabled;
     String displayUrl = record.url;
     if (decodeEnabled) {
       try {
@@ -371,7 +369,7 @@ class _RealtimeDetailPageState extends State<RealtimeDetailPage>
       durationValue = formatDuration(Duration(milliseconds: record.durationMs));
     }
 
-    final frameCounts = widget.session.getRealtimeFrameCounts(record.id);
+    final frameCounts = _scope.getRealtimeFrameCounts(record.id);
 
     return ListView(
       padding: const EdgeInsets.all(16.0),

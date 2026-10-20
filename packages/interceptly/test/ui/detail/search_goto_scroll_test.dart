@@ -1,11 +1,13 @@
+// ignore_for_file: invalid_use_of_internal_member
+
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
-import 'package:interceptly/src/model/domain_group.dart';
 import 'package:interceptly/src/model/index_entry.dart';
-import 'package:interceptly/src/session/inspector_preferences.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
+import 'package:interceptly/src/ui/scope/interceptly_scope.dart';
 import 'package:interceptly/src/ui/detail/detail_search.dart';
 import 'package:interceptly/src/ui/detail/request_detail_page.dart';
 import 'package:interceptly/src/ui/widgets/json_viewer/json_viewer.dart';
@@ -37,98 +39,31 @@ IndexEntry _createEntry(
   );
 }
 
-class _MockDetailSession extends InspectorSessionView {
-  _MockDetailSession({
+class _MockDetailScope extends InterceptlyScopeController {
+  _MockDetailScope({
     required this.record,
-    required this.entry,
+    required super.engine,
   });
 
   final RequestRecord record;
-  final IndexEntry entry;
-  final InspectorPreferences _prefs = InspectorPreferences();
-
-  @override
-  InterceptlySettings get settings => const InterceptlySettings();
-
-  @override
-  InspectorPreferences get preferences => _prefs;
-
-  @override
-  List<RequestSummary> get entries => [entry];
-
-  @override
-  RequestFilter get filter => RequestFilter();
-
-  @override
-  bool get isEnabled => true;
-
-  @override
-  int get droppedCount => 0;
-
-  @override
-  NetworkSimulationProfile get networkSimulation =>
-      NetworkSimulationProfile.none;
-
-  @override
-  String? get masterQuery => null;
-
-  @override
-  bool get isMasterSearchActive => false;
-
-  @override
-  bool get isScanningBodies => false;
-
-  @override
-  bool get isScanningFiles => false;
-
-  @override
-  bool get groupingEnabled => false;
 
   @override
   Future<RequestRecord> loadDetail(RequestSummary summary) async => record;
 
   @override
-  void enable() {}
-
-  @override
-  void disable() {}
-
-  @override
-  Future<void> clear() async {}
-
-  @override
-  void applyFilter(RequestFilter filter) {}
-
-  @override
-  void clearFilter() {}
-
-  @override
-  void setNetworkSimulation(NetworkSimulationProfile profile) {}
-
-  @override
-  void clearNetworkSimulation() {}
-
-  @override
-  List<DomainGroup> getGroupedRecords() => const [];
-
-  @override
-  void toggleGrouping(bool enabled) {}
-
-  @override
-  void toggleDomainExpanded(String domain) {}
-
-  @override
-  void cancelMasterSearch() {}
-
-  @override
-  Future<void> startMasterSearch(String query) async {}
-
-  @override
-  Set<String> get availableDomains => const {};
+  Future<RequestRecord> loadDetailById(String id) async => record;
 }
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() async {
+    await Interceptly.resetForTesting();
+  });
+
+  tearDown(() async {
+    await Interceptly.resetForTesting();
+  });
 
   group('Search goto match counting & synchronization', () {
     test(
@@ -265,12 +200,17 @@ void main() {
             '{"nested":{"deep_target":"secret_scroll_target"}}',
       );
 
-      final session = _MockDetailSession(record: record, entry: entry);
+      final engine = InterceptlyEngine();
+      final controller = _MockDetailScope(record: record, engine: engine);
+      addTearDown(controller.dispose);
 
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: RequestDetailPage(entry: entry, session: session),
+            body: InterceptlyScope(
+              controller: controller,
+              child: RequestDetailPage(entry: entry),
+            ),
           ),
         ),
       );
@@ -371,9 +311,14 @@ void main() {
 
       final jsonViewerFinder = find.byType(JsonViewer);
       expect(jsonViewerFinder, findsOneWidget);
-      final jvState = tester.state(jsonViewerFinder) as dynamic;
-      final hController =
-          jvState.horizontalScrollControllerForTest as ScrollController;
+      final hController = tester
+          .widget<SingleChildScrollView>(
+            find.descendant(
+              of: jsonViewerFinder,
+              matching: find.byType(SingleChildScrollView),
+            ),
+          )
+          .controller!;
 
       expect(hController.offset, greaterThan(0.0));
       expect(tester.takeException(), isNull);
@@ -414,12 +359,17 @@ void main() {
         responseBodyPreview: bodyJson,
       );
 
-      final session = _MockDetailSession(record: record, entry: entry);
+      final engine = InterceptlyEngine();
+      final controller = _MockDetailScope(record: record, engine: engine);
+      addTearDown(controller.dispose);
 
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: RequestDetailPage(entry: entry, session: session),
+            body: InterceptlyScope(
+              controller: controller,
+              child: RequestDetailPage(entry: entry),
+            ),
           ),
         ),
       );
@@ -438,9 +388,14 @@ void main() {
 
       final jsonViewerFinder = find.byType(JsonViewer).last;
       expect(jsonViewerFinder, findsOneWidget);
-      final jvState = tester.state(jsonViewerFinder) as dynamic;
-      final hController =
-          jvState.horizontalScrollControllerForTest as ScrollController;
+      final hController = tester
+          .widget<SingleChildScrollView>(
+            find.descendant(
+              of: jsonViewerFinder,
+              matching: find.byType(SingleChildScrollView),
+            ),
+          )
+          .controller!;
 
       final nextButton = find.byTooltip('Next match');
       final prevButton = find.byTooltip('Previous match');
@@ -482,15 +437,19 @@ void main() {
         responseBodyPreview: '{"secret_key": "initial_target_value"}',
       );
 
-      final session = _MockDetailSession(record: record, entry: entry);
+      final engine = InterceptlyEngine();
+      final controller = _MockDetailScope(record: record, engine: engine);
+      addTearDown(controller.dispose);
 
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: RequestDetailPage(
-              entry: entry,
-              session: session,
-              initialQuery: 'initial_target',
+            body: InterceptlyScope(
+              controller: controller,
+              child: RequestDetailPage(
+                entry: entry,
+                initialQuery: 'initial_target',
+              ),
             ),
           ),
         ),
@@ -539,12 +498,17 @@ void main() {
         responseBodyPreview: bodyJson,
       );
 
-      final session = _MockDetailSession(record: record, entry: entry);
+      final engine = InterceptlyEngine();
+      final controller = _MockDetailScope(record: record, engine: engine);
+      addTearDown(controller.dispose);
 
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: RequestDetailPage(entry: entry, session: session),
+            body: InterceptlyScope(
+              controller: controller,
+              child: RequestDetailPage(entry: entry),
+            ),
           ),
         ),
       );
@@ -561,9 +525,14 @@ void main() {
 
       final jsonViewerFinder = find.byType(JsonViewer).last;
       expect(jsonViewerFinder, findsOneWidget);
-      final jvState = tester.state(jsonViewerFinder) as dynamic;
+      final contentListViewFinder = find
+          .descendant(
+            of: jsonViewerFinder,
+            matching: find.byType(ListView),
+          )
+          .last;
       final contentScroll =
-          jvState.contentScrollControllerForTest as ScrollController;
+          tester.widget<ListView>(contentListViewFinder).controller!;
 
       final matchOffset = contentScroll.offset;
       expect(matchOffset, greaterThan(0.0));
@@ -608,12 +577,17 @@ void main() {
         requestBodyPreview: '{"needle": "find_in_request_body"}',
       );
 
-      final session = _MockDetailSession(record: record, entry: entry);
+      final engine = InterceptlyEngine();
+      final controller = _MockDetailScope(record: record, engine: engine);
+      addTearDown(controller.dispose);
 
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: RequestDetailPage(entry: entry, session: session),
+            body: InterceptlyScope(
+              controller: controller,
+              child: RequestDetailPage(entry: entry),
+            ),
           ),
         ),
       );
@@ -690,12 +664,17 @@ void main() {
         responseBodyPreview: bodyJson,
       );
 
-      final session = _MockDetailSession(record: record, entry: entry);
+      final engine = InterceptlyEngine();
+      final controller = _MockDetailScope(record: record, engine: engine);
+      addTearDown(controller.dispose);
 
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: RequestDetailPage(entry: entry, session: session),
+            body: InterceptlyScope(
+              controller: controller,
+              child: RequestDetailPage(entry: entry),
+            ),
           ),
         ),
       );
@@ -714,9 +693,14 @@ void main() {
       await tester.pumpAndSettle();
 
       final jsonViewerFinder = find.byType(JsonViewer).last;
-      final jvState = tester.state(jsonViewerFinder) as dynamic;
+      final contentListViewFinder = find
+          .descendant(
+            of: jsonViewerFinder,
+            matching: find.byType(ListView),
+          )
+          .last;
       final contentScroll =
-          jvState.contentScrollControllerForTest as ScrollController;
+          tester.widget<ListView>(contentListViewFinder).controller!;
 
       final matchOffset = contentScroll.offset;
       expect(matchOffset, greaterThan(0.0));
@@ -765,12 +749,17 @@ void main() {
         responseBodyPreview: bodyJson,
       );
 
-      final session = _MockDetailSession(record: record, entry: entry);
+      final engine = InterceptlyEngine();
+      final controller = _MockDetailScope(record: record, engine: engine);
+      addTearDown(controller.dispose);
 
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: RequestDetailPage(entry: entry, session: session),
+            body: InterceptlyScope(
+              controller: controller,
+              child: RequestDetailPage(entry: entry),
+            ),
           ),
         ),
       );
@@ -789,9 +778,14 @@ void main() {
       await tester.pumpAndSettle();
 
       final jsonViewerFinder = find.byType(JsonViewer).last;
-      final jvState = tester.state(jsonViewerFinder) as dynamic;
+      final contentListViewFinder = find
+          .descendant(
+            of: jsonViewerFinder,
+            matching: find.byType(ListView),
+          )
+          .last;
       final contentScroll =
-          jvState.contentScrollControllerForTest as ScrollController;
+          tester.widget<ListView>(contentListViewFinder).controller!;
 
       final matchOffset = contentScroll.offset;
       expect(matchOffset, greaterThan(0.0));

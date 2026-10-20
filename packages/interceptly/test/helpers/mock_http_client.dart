@@ -5,14 +5,14 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 class MockHttpClient extends Fake implements HttpClient {
-  MockHttpClient(this.onRequest);
+  MockHttpClient([this.onRequest]);
 
-  final void Function(MockHttpClientRequest request) onRequest;
+  final void Function(MockHttpClientRequest request)? onRequest;
 
   @override
   Future<HttpClientRequest> openUrl(String method, Uri url) async {
     final req = MockHttpClientRequest(method, url);
-    onRequest(req);
+    onRequest?.call(req);
     return req;
   }
 
@@ -34,6 +34,8 @@ class MockHttpClientRequest extends Fake implements HttpClientRequest {
   List<int> get bodyBytes => _body;
   String get body => utf8.decode(_body, allowMalformed: true);
 
+  MockHttpClientResponse response = MockHttpClientResponse();
+
   @override
   void add(List<int> data) {
     _body.addAll(data);
@@ -41,18 +43,23 @@ class MockHttpClientRequest extends Fake implements HttpClientRequest {
 
   @override
   Future<HttpClientResponse> close() async {
-    return MockHttpClientResponse();
+    return response;
   }
 }
 
 class MockHttpClientResponse extends Fake implements HttpClientResponse {
-  MockHttpClientResponse({this.statusCode = 200});
+  MockHttpClientResponse({
+    this.statusCode = 200,
+    this.bodyStream,
+  });
 
   @override
   final int statusCode;
 
   @override
   final HttpHeaders headers = MockHttpHeaders();
+
+  final Stream<List<int>>? bodyStream;
 
   @override
   StreamSubscription<List<int>> listen(
@@ -61,7 +68,7 @@ class MockHttpClientResponse extends Fake implements HttpClientResponse {
     void Function()? onDone,
     bool? cancelOnError,
   }) {
-    return const Stream<List<int>>.empty().listen(
+    return (bodyStream ?? const Stream<List<int>>.empty()).listen(
       onData,
       onError: onError,
       onDone: onDone,

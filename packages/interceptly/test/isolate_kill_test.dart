@@ -1,14 +1,14 @@
+// ignore_for_file: invalid_use_of_internal_member
+
 import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/model/body_truncation.dart';
+import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/capture_pipeline.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
+import 'package:interceptly/src/engine/writer_isolate.dart';
 import 'package:interceptly/src/model/index_entry.dart';
-import 'package:interceptly/src/model/interceptly_settings.dart';
-import 'package:interceptly/src/model/raw_capture.dart';
-import 'package:interceptly/src/session/capture_pipeline.dart';
-import 'package:interceptly/src/session/inspector_session.dart';
-import 'package:interceptly/src/session/writer_isolate.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -17,6 +17,7 @@ void main() {
   const channel = MethodChannel('plugins.flutter.io/path_provider');
 
   setUp(() async {
+    await Interceptly.resetForTesting();
     tempDir = await Directory.systemTemp.createTemp('isolate_kill_test_');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
@@ -35,6 +36,7 @@ void main() {
         await tempDir.delete(recursive: true);
       }
     } catch (_) {}
+    await Interceptly.resetForTesting();
   });
 
   RawCapture createCapture({
@@ -151,17 +153,17 @@ void main() {
   group('Large Payload Storage Cap and hasDataLoss Invariant', () {
     test('recording payload exceeding maxBodyBytes sets hasDataLoss = true',
         () async {
-      final session = InspectorSession(
+      final engine = InterceptlyEngine(
         settings: const InterceptlySettings(
           maxBodyBytes: 1024,
           bodyOffloadThreshold: 256,
         ),
       );
-      addTearDown(session.dispose);
-      await session.initialize();
+      addTearDown(engine.dispose);
+      await engine.initialize();
 
       final largeBody = Uint8List(4096);
-      session.record(
+      engine.record(
         RawCapture(
           id: 'large-cap-1',
           method: 'POST',
@@ -177,15 +179,15 @@ void main() {
       );
 
       final end = DateTime.now().add(const Duration(seconds: 4));
-      while (session.entries.isEmpty && DateTime.now().isBefore(end)) {
+      while (engine.entries.isEmpty && DateTime.now().isBefore(end)) {
         await Future<void>.delayed(const Duration(milliseconds: 20));
       }
 
-      expect(session.entries.isNotEmpty, isTrue);
-      final summary = session.entries.first;
+      expect(engine.entries.isNotEmpty, isTrue);
+      final summary = engine.entries.first;
       expect(summary.id, equals('large-cap-1'));
 
-      final record = await session.loadDetail(summary);
+      final record = await engine.loadDetail(summary);
 
       expect(record.requestTruncation.hasDataLoss, isTrue);
       expect(record.requestTruncation.stage, equals(TruncationStage.storage));

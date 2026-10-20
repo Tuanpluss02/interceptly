@@ -9,7 +9,7 @@ Interceptly is a client-agnostic network and realtime traffic inspector for Flut
 
 This repository is managed with [Melos](https://melos.invertase.dev/). It is organized into 5 publishable packages and 1 example app:
 
-- `packages/interceptly`: Core engine, UI overlay, background isolate pipeline (`WriterIsolate`), hybrid RAM/disk storage (`BodyStore`, `RealtimeBodyStore`), and session management (`InspectorSession`).
+- `packages/interceptly`: Core engine (`InterceptlyEngine`), UI overlay (`InterceptlyScope`), background isolate pipeline (`WriterIsolate`), hybrid RAM/disk storage (`BodyStore`, `RealtimeBodyStore`), and public singleton facade (`Interceptly`).
 - `packages/interceptly_dio`: Adapter interceptor for `Dio`.
 - `packages/interceptly_http`: Adapter client wrapper for `package:http`.
 - `packages/interceptly_chopper`: Adapter interceptor for `Chopper`.
@@ -39,9 +39,9 @@ Always use Melos commands across workspace packages:
 - Adapters must interact only through public collector APIs (`begin`, `startRequest`, `completeResponse`, `failRequest`, `shouldCapture`).
 - Never use `dynamic` to bypass type checks or hide API divergence. Maintain strong typing across all packages.
 
-### Session Lifecycle in Tests
-- `InspectorSession.instance` is a shared singleton.
-- In unit/widget tests that interact with `InspectorSession`, **always** call and `await InspectorSession.resetForTesting()` in `setUp()` and `tearDown()` to prevent isolate race conditions and cross-test state leakage.
+### Lifecycle in Tests
+- `Interceptly.instance` and `InterceptlyEngine.instance` are shared singletons.
+- In unit/widget tests that interact with `Interceptly` or collectors, **always** call and `await Interceptly.resetForTesting()` in `setUp()` and `tearDown()` to prevent isolate race conditions and cross-test state leakage.
 
 ### SemVer & Inter-Package Dependencies
 - If a new public API or parameter is added to `packages/interceptly`, bump its SemVer version appropriately.
@@ -56,7 +56,6 @@ Always use Melos commands across workspace packages:
 
 ## 4. Development Workflow
 
-- Do not use or enforce external superpowers/SDD processes. Develop directly using Melos, standard Flutter/Dart toolchains, and git.
 - Always run `melos run check` before concluding any feature or bugfix to ensure 0 analyzer issues, 0 formatting errors, and 100% passing tests.
 
 ---
@@ -69,7 +68,7 @@ For detailed architecture specifications, SPI contracts, code conventions, testi
 |---|--------|-------|
 | 01 | [`01-architecture.md`](docs/development-guide/01-architecture.md) | Monorepo structure, core vs adapter responsibilities |
 | 02 | [`02-spi-contracts.md`](docs/development-guide/02-spi-contracts.md) | `HttpTrafficCollector`, `HttpCaptureScope`, `RealtimeTrafficCollector`, `RealtimeSessionScope` |
-| 03 | [`03-core-internals.md`](docs/development-guide/03-core-internals.md) | `InspectorSession`, `CapturePipeline`/`WriterIsolate`, hybrid storage, truncation |
+| 03 | [`03-core-internals.md`](docs/development-guide/03-core-internals.md) | `InterceptlyEngine`, `CapturePipeline`/`WriterIsolate`, hybrid storage, truncation |
 | 04 | [`04-code-conventions.md`](docs/development-guide/04-code-conventions.md) | Type safety, adapter patterns, async/error handling, naming |
 | 05 | [`05-quality-rules.md`](docs/development-guide/05-quality-rules.md) | `melos run check`, analyze, format, pana 160/160, test requirements |
 | 06 | [`06-adapter-development.md`](docs/development-guide/06-adapter-development.md) | Step-by-step new adapter, checklist, SPI compliance |

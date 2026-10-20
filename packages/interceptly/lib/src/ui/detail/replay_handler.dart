@@ -8,8 +8,8 @@ import 'package:flutter/material.dart';
 import '../../model/raw_capture.dart';
 import '../../model/body_truncation.dart';
 import '../../model/request_record.dart';
-import '../../session/body_decode_service.dart';
-import '../../session/inspector_session.dart';
+import '../../engine/body_decode_service.dart';
+import '../../engine/interceptly_engine.dart';
 import '../interceptly_theme.dart';
 import '../widgets/toast_notification.dart';
 import 'custom_request_page.dart';
@@ -18,18 +18,16 @@ import 'custom_request_page.dart';
 class ReplayHandler {
   const ReplayHandler({
     required this.context,
-    required this.session,
-    @visibleForTesting this.clientFactory,
-    @visibleForTesting this.confirmDialog,
+    required this.engine,
+    this.clientFactory,
+    this.confirmDialog,
   });
 
   final BuildContext context;
-  final InspectorSession session;
+  final InterceptlyEngine engine;
 
-  @visibleForTesting
   final HttpClient Function()? clientFactory;
 
-  @visibleForTesting
   final Future<bool> Function(BuildContext context, String method)?
       confirmDialog;
 
@@ -289,7 +287,7 @@ class ReplayHandler {
         responseHeaders[name] = values.join(', ');
       });
 
-      session.record(
+      engine.record(
         RawCapture(
           id: 'r_replay_${DateTime.now().microsecondsSinceEpoch}',
           method: upperMethod,
@@ -352,7 +350,6 @@ class ReplayHandler {
     return result ?? false;
   }
 
-  @visibleForTesting
   static bool isBlockedHost(String host) {
     var clean =
         host.toLowerCase().trim().replaceAll('[', '').replaceAll(']', '');

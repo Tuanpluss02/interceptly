@@ -1,7 +1,11 @@
+// ignore_for_file: invalid_use_of_internal_member
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
 import 'package:interceptly/src/ui/detail/realtime_detail_page.dart';
+import 'package:interceptly/src/ui/scope/interceptly_scope.dart';
 import 'package:interceptly/src/ui/tabs/quick_filter_bar.dart';
 import 'package:interceptly/src/ui/tabs/realtime_list_tab.dart';
 import 'package:interceptly/src/ui/widgets/filter_badge.dart';
@@ -9,31 +13,43 @@ import 'package:interceptly/src/ui/widgets/interceptly_text_field.dart';
 
 void main() {
   group('RealtimeListTab', () {
-    late InspectorSession session;
+    late InterceptlyEngine engine;
+    late InterceptlyScopeController controller;
 
-    setUp(() {
-      session = InspectorSession();
-      session.recordPending(
+    setUp(() async {
+      await Interceptly.resetForTesting();
+      engine = InterceptlyEngine();
+      controller = InterceptlyScopeController(engine: engine);
+      engine.recordPending(
         id: 'req_1',
         method: 'GET',
         url: 'https://api.example.com/items',
         timestamp: DateTime(2026, 10, 14, 10, 0, 0),
       );
-      session.recordRealtimeConnection(
+      engine.recordRealtimeConnection(
         id: 'ws_1',
         url: 'wss://socket.example.com/feed',
         timestamp: DateTime(2026, 10, 14, 10, 1, 0),
       );
     });
 
-    tearDown(() {
-      session.dispose();
+    tearDown(() async {
+      controller.dispose();
+      await Interceptly.resetForTesting();
     });
 
     testWidgets('realtime list shows only realtime, no search or filter UI',
         (tester) async {
       await tester.pumpWidget(
-          MaterialApp(home: Scaffold(body: RealtimeListTab(session: session))));
+        MaterialApp(
+          home: Scaffold(
+            body: InterceptlyScope(
+              controller: controller,
+              child: const RealtimeListTab(),
+            ),
+          ),
+        ),
+      );
       await tester.pump();
       expect(find.text('/feed'), findsOneWidget);
       expect(find.text('/items'), findsNothing);
@@ -43,11 +59,20 @@ void main() {
     });
 
     testWidgets('empty session shows websocket empty message', (tester) async {
-      final emptySession = InspectorSession();
-      addTearDown(emptySession.dispose);
+      final emptyEngine = InterceptlyEngine();
+      final emptyController = InterceptlyScopeController(engine: emptyEngine);
+      addTearDown(emptyController.dispose);
 
-      await tester.pumpWidget(MaterialApp(
-          home: Scaffold(body: RealtimeListTab(session: emptySession))));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: InterceptlyScope(
+              controller: emptyController,
+              child: const RealtimeListTab(),
+            ),
+          ),
+        ),
+      );
       await tester.pump();
 
       expect(find.text('No WebSocket connections yet.'), findsOneWidget);
@@ -56,7 +81,15 @@ void main() {
     testWidgets('tapping realtime row opens RealtimeDetailPage',
         (tester) async {
       await tester.pumpWidget(
-          MaterialApp(home: Scaffold(body: RealtimeListTab(session: session))));
+        MaterialApp(
+          home: Scaffold(
+            body: InterceptlyScope(
+              controller: controller,
+              child: const RealtimeListTab(),
+            ),
+          ),
+        ),
+      );
       await tester.pump();
 
       await tester.tap(find.text('/feed'));
@@ -70,10 +103,16 @@ void main() {
         (tester) async {
       var currentTime = DateTime(2026, 10, 14, 10, 1, 3);
 
-      await tester.pumpWidget(MaterialApp(
+      await tester.pumpWidget(
+        MaterialApp(
           home: Scaffold(
-              body: RealtimeListTab(
-                  session: session, nowProvider: () => currentTime))));
+            body: InterceptlyScope(
+              controller: controller,
+              child: RealtimeListTab(nowProvider: () => currentTime),
+            ),
+          ),
+        ),
+      );
       await tester.pump();
 
       expect(find.textContaining('3s'), findsOneWidget);

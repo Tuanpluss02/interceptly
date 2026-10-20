@@ -1,10 +1,12 @@
+// ignore_for_file: invalid_use_of_internal_member
+
 import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/model/interceptly_settings.dart';
-import 'package:interceptly/src/model/raw_capture.dart';
-import 'package:interceptly/src/session/inspector_session.dart';
+import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/capture_pipeline.dart';
+import 'package:interceptly/src/model/index_entry.dart';
 
 const _channel = MethodChannel('plugins.flutter.io/path_provider');
 
@@ -14,6 +16,7 @@ void main() {
   late Directory tempDir;
 
   setUp(() async {
+    await Interceptly.resetForTesting();
     tempDir = await Directory.systemTemp.createTemp('backpressure_bytes_test_');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_channel, (call) async {
@@ -32,6 +35,7 @@ void main() {
         await tempDir.delete(recursive: true);
       }
     } catch (_) {}
+    await Interceptly.resetForTesting();
   });
 
   RawCapture createLargeCapture({
@@ -55,50 +59,57 @@ void main() {
   group('Dual Backpressure (inFlightBytes)', () {
     test('dual backpressure drops capture when inFlightBytes exceeds 32MB',
         () async {
-      final session = InspectorSession(
+      final readyEntries = <IndexEntry>[];
+      final pipeline = CapturePipeline(
         settings: const InterceptlySettings(
           maxQueuedEvents: 1000,
         ),
+        sessionId: 'test_backpressure',
+        onEntryReady: readyEntries.add,
       );
-      addTearDown(session.dispose);
-      await session.initialize();
+      addTearDown(pipeline.dispose);
+      await pipeline.initialize();
 
       // maxInFlightBytes is 32MB (33,554,432 bytes)
       // Send two 20MB captures (40MB total) -> exceeds 32MB
       const twentyMb = 20 * 1024 * 1024;
-      session.record(createLargeCapture(id: 'large-1', byteSize: twentyMb));
-      session.record(createLargeCapture(id: 'large-2', byteSize: twentyMb));
+      pipeline.record(createLargeCapture(id: 'large-1', byteSize: twentyMb));
+      pipeline.record(createLargeCapture(id: 'large-2', byteSize: twentyMb));
 
       // 3rd capture should be dropped immediately due to inFlightBytes >= 32MB
-      session.record(createLargeCapture(id: 'large-3', byteSize: 1024));
+      pipeline.record(createLargeCapture(id: 'large-3', byteSize: 1024));
 
-      expect(session.droppedCount, greaterThanOrEqualTo(1),
+      expect(pipeline.droppedCount, greaterThanOrEqualTo(1),
           reason: 'large-3 must be dropped because inFlightBytes exceeds 32MB');
     });
 
     test('inFlightBytes drains and allows subsequent captures after completion',
         () async {
-      final session = InspectorSession();
-      addTearDown(session.dispose);
-      await session.initialize();
+      final readyEntries = <IndexEntry>[];
+      final pipeline = CapturePipeline(
+        settings: const InterceptlySettings(),
+        sessionId: 'test_drain',
+        onEntryReady: readyEntries.add,
+      );
+      addTearDown(pipeline.dispose);
+      await pipeline.initialize();
 
       const thirtyMb = 30 * 1024 * 1024;
-      session.record(createLargeCapture(id: 'first-big', byteSize: thirtyMb));
+      pipeline.record(createLargeCapture(id: 'first-big', byteSize: thirtyMb));
 
       // Wait for first-big to complete processing
       final deadline = DateTime.now().add(const Duration(seconds: 5));
-      while (session.capturePipeline.inFlightBytes > 0 &&
-          DateTime.now().isBefore(deadline)) {
+      while (pipeline.inFlightBytes > 0 && DateTime.now().isBefore(deadline)) {
         await Future<void>.delayed(const Duration(milliseconds: 20));
       }
 
-      expect(session.capturePipeline.inFlightBytes, equals(0));
+      expect(pipeline.inFlightBytes, equals(0));
 
       // Now sending another capture should not be dropped
-      final initialDropped = session.droppedCount;
-      session.record(createLargeCapture(id: 'second-cap', byteSize: 1024));
+      final initialDropped = pipeline.droppedCount;
+      pipeline.record(createLargeCapture(id: 'second-cap', byteSize: 1024));
 
-      expect(session.droppedCount, equals(initialDropped));
+      expect(pipeline.droppedCount, equals(initialDropped));
     });
   });
 }

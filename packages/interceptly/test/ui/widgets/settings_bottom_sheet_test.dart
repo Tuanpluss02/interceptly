@@ -1,16 +1,28 @@
+// ignore_for_file: invalid_use_of_internal_member
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
 import 'package:interceptly/src/ui/interceptly_theme.dart';
 import 'package:interceptly/src/ui/overlay/floating_overlay_manager.dart';
+import 'package:interceptly/src/ui/scope/interceptly_scope.dart';
 import 'package:interceptly/src/ui/settings/settings_bottom_sheet.dart';
 
 void main() {
+  setUp(() async {
+    await Interceptly.resetForTesting();
+  });
+
+  tearDown(() async {
+    await Interceptly.resetForTesting();
+  });
+
   testWidgets(
     'SettingsBottomSheet slider uses InterceptlyTheme sliderTheme and ignores host SliderTheme',
     (tester) async {
-      final session = InspectorSession();
-      session.setNetworkSimulation(
+      final engine = InterceptlyEngine();
+      engine.setNetworkSimulation(
         const NetworkSimulationProfile(
           name: 'Custom',
           offline: false,
@@ -19,6 +31,8 @@ void main() {
           uploadKbps: 512,
         ),
       );
+      final controller = InterceptlyScopeController(engine: engine);
+      addTearDown(controller.dispose);
 
       const hostActiveColor = Colors.purpleAccent;
       const hostThumbColor = Colors.lime;
@@ -32,7 +46,10 @@ void main() {
             ),
           ),
           home: Scaffold(
-            body: SettingsBottomSheet(session: session),
+            body: InterceptlyScope(
+              controller: controller,
+              child: const SettingsBottomSheet(),
+            ),
           ),
         ),
       );
@@ -53,7 +70,7 @@ void main() {
         );
         expect(
           sliderTheme.data.thumbColor,
-          InterceptlyTheme.colors.actionSecondary,
+          InterceptlyTheme.colors.actionPrimary,
         );
       }
     },
@@ -62,13 +79,18 @@ void main() {
   testWidgets(
     'SettingsBottomSheet toggles hide for session in FloatingOverlayManager',
     (tester) async {
-      final session = InspectorSession();
+      final engine = InterceptlyEngine();
+      final controller = InterceptlyScopeController(engine: engine);
+      addTearDown(controller.dispose);
       FloatingOverlayManager.instance.setHiddenForSession(false);
 
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: SettingsBottomSheet(session: session),
+            body: InterceptlyScope(
+              controller: controller,
+              child: const SettingsBottomSheet(),
+            ),
           ),
         ),
       );

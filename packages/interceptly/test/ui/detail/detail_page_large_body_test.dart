@@ -1,83 +1,36 @@
+// ignore_for_file: invalid_use_of_internal_member
+
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/model/body_location.dart';
-import 'package:interceptly/src/model/body_truncation.dart';
-import 'package:interceptly/src/model/domain_group.dart';
+import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
 import 'package:interceptly/src/model/index_entry.dart';
-import 'package:interceptly/src/model/interceptly_settings.dart';
-import 'package:interceptly/src/model/network_simulation.dart';
-import 'package:interceptly/src/model/request_filter.dart';
-import 'package:interceptly/src/model/request_record.dart';
-import 'package:interceptly/src/model/request_summary.dart';
-import 'package:interceptly/src/session/inspector_preferences.dart';
-import 'package:interceptly/src/session/inspector_session_view.dart';
 import 'package:interceptly/src/ui/detail/request_detail_page.dart';
+import 'package:interceptly/src/ui/scope/interceptly_scope.dart';
 
-class _FakeSession extends InspectorSessionView {
-  _FakeSession({required this.record, required this.entry});
+class _FakeScopeController extends InterceptlyScopeController {
+  _FakeScopeController({required this.record, required super.engine});
 
   final RequestRecord record;
-  final IndexEntry entry;
-  final InspectorPreferences _prefs = InspectorPreferences();
 
   @override
-  InterceptlySettings get settings => const InterceptlySettings();
-  @override
-  InspectorPreferences get preferences => _prefs;
-  @override
-  List<RequestSummary> get entries => [entry];
-  @override
-  RequestFilter get filter => RequestFilter();
-  @override
-  bool get isEnabled => true;
-  @override
-  int get droppedCount => 0;
-  @override
-  NetworkSimulationProfile get networkSimulation =>
-      NetworkSimulationProfile.none;
-  @override
-  String? get masterQuery => null;
-  @override
-  bool get isMasterSearchActive => false;
-  @override
-  bool get isScanningBodies => false;
-  @override
-  bool get isScanningFiles => false;
-  @override
-  bool get groupingEnabled => false;
-  @override
   Future<RequestRecord> loadDetail(RequestSummary summary) async => record;
+
   @override
-  void enable() {}
-  @override
-  void disable() {}
-  @override
-  Future<void> clear() async {}
-  @override
-  void applyFilter(RequestFilter filter) {}
-  @override
-  void clearFilter() {}
-  @override
-  void setNetworkSimulation(NetworkSimulationProfile profile) {}
-  @override
-  void clearNetworkSimulation() {}
-  @override
-  List<DomainGroup> getGroupedRecords() => const [];
-  @override
-  void toggleGrouping(bool enabled) {}
-  @override
-  void toggleDomainExpanded(String domain) {}
-  @override
-  void cancelMasterSearch() {}
-  @override
-  Future<void> startMasterSearch(String query) async {}
-  @override
-  Set<String> get availableDomains => const {};
+  Future<RequestRecord> loadDetailById(String id) async => record;
 }
 
 void main() {
+  setUp(() async {
+    await Interceptly.resetForTesting();
+  });
+
+  tearDown(() async {
+    await Interceptly.resetForTesting();
+  });
+
   testWidgets('detail page opens large JSON body without throwing',
       (tester) async {
     final items = List.generate(
@@ -116,11 +69,17 @@ void main() {
       responseBodyPreview: bigJson,
     );
 
+    final engine = InterceptlyEngine();
+    final controller = _FakeScopeController(record: record, engine: engine);
+    addTearDown(controller.dispose);
+
     await tester.pumpWidget(
       MaterialApp(
-        home: RequestDetailPage(
-          entry: entry,
-          session: _FakeSession(record: record, entry: entry),
+        home: InterceptlyScope(
+          controller: controller,
+          child: RequestDetailPage(
+            entry: entry,
+          ),
         ),
       ),
     );
@@ -168,11 +127,17 @@ void main() {
       responseBodyPreview: smallJson,
     );
 
+    final engine = InterceptlyEngine();
+    final controller = _FakeScopeController(record: record, engine: engine);
+    addTearDown(controller.dispose);
+
     await tester.pumpWidget(
       MaterialApp(
-        home: RequestDetailPage(
-          entry: entry,
-          session: _FakeSession(record: record, entry: entry),
+        home: InterceptlyScope(
+          controller: controller,
+          child: RequestDetailPage(
+            entry: entry,
+          ),
         ),
       ),
     );

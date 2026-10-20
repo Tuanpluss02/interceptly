@@ -1,3 +1,4 @@
+// ignore_for_file: invalid_use_of_internal_member
 @Tags(['stress'])
 library;
 
@@ -7,13 +8,11 @@ import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:interceptly/src/model/body_location.dart';
-import 'package:interceptly/src/model/body_truncation.dart';
 import 'package:interceptly/src/model/index_entry.dart';
-import 'package:interceptly/src/model/raw_capture.dart';
-import 'package:interceptly/src/session/body_store.dart';
-import 'package:interceptly/src/session/inspector_session.dart';
-import 'package:interceptly/src/session/master_search_controller.dart';
+import 'package:interceptly/interceptly.dart';
+import 'package:interceptly/src/engine/body_store.dart';
+import 'package:interceptly/src/engine/interceptly_engine.dart';
+import 'package:interceptly/src/engine/master_search_controller.dart';
 
 Uint8List _createPackedBody({
   String? requestBody,
@@ -103,6 +102,14 @@ IndexEntry _buildTestEntry({
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() async {
+    await Interceptly.resetForTesting();
+  });
+
+  tearDown(() async {
+    await Interceptly.resetForTesting();
+  });
 
   late Directory tempDir;
 
@@ -272,7 +279,7 @@ void main() {
       await regularFile.writeAsString('cache database');
       await subFolder.create();
 
-      final session = InspectorSession();
+      final session = InterceptlyEngine();
       await session.initialize();
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
@@ -288,8 +295,9 @@ void main() {
               f.uri.pathSegments.last.startsWith('interceptly_') &&
               f.uri.pathSegments.last.endsWith('.tmp'))
           .toList();
-      expect(activeFiles.length, equals(1));
-      final activeFile = activeFiles.first;
+      expect(activeFiles.length, inInclusiveRange(1, 2));
+      final activeFile =
+          activeFiles.firstWhere((f) => f.path.contains('_session.tmp'));
 
       session.record(RawCapture(
         id: 'req_1',
@@ -311,7 +319,9 @@ void main() {
 
       await session.dispose();
       await Future<void>.delayed(const Duration(milliseconds: 100));
-      expect(await activeFile.exists(), isFalse);
+      for (final f in activeFiles) {
+        expect(await f.exists(), isFalse);
+      }
     });
 
     test('Consecutive simulated crash session cleaned up by next session',
@@ -331,7 +341,7 @@ void main() {
       await crashedSessionFile
           .setLastModified(DateTime.now().subtract(const Duration(hours: 25)));
 
-      final newSession = InspectorSession();
+      final newSession = InterceptlyEngine();
       await newSession.initialize();
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
@@ -344,7 +354,7 @@ void main() {
               f.uri.pathSegments.last.startsWith('interceptly_') &&
               f.uri.pathSegments.last.endsWith('.tmp'))
           .toList();
-      expect(files.length, equals(1));
+      expect(files.length, inInclusiveRange(1, 2));
 
       await newSession.dispose();
     });

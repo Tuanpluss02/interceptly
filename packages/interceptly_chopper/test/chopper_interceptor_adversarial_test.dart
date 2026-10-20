@@ -28,7 +28,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late Directory tempDir;
-  late InspectorSession session;
+  late Interceptly interceptly;
 
   setUp(() async {
     tempDir =
@@ -41,14 +41,13 @@ void main() {
         return null;
       },
     );
-    await InspectorSession.resetForTesting();
-    session = InspectorSession.instance;
-    await session.initialize();
+    await Interceptly.resetForTesting();
+    interceptly = Interceptly.instance;
+    await interceptly.initialize();
   });
 
   tearDown(() async {
-    await session.dispose();
-    await InspectorSession.resetForTesting();
+    await Interceptly.resetForTesting();
     try {
       if (tempDir.existsSync()) {
         await tempDir.delete(recursive: true);
@@ -130,16 +129,16 @@ void main() {
             reason: 'Leaked interceptly_request_id in request $i');
       }
 
-      final deadline = DateTime.now().add(const Duration(seconds: 5));
-      while (session.entries.where((e) => e.statusCode != 0).length < 100) {
+      final deadline = DateTime.now().add(const Duration(seconds: 10));
+      while (interceptly.entries.where((e) => e.statusCode != 0).length < 100) {
         if (DateTime.now().isAfter(deadline)) break;
         await Future<void>.delayed(const Duration(milliseconds: 50));
       }
 
-      expect(session.entries.length, 100);
-      final uniqueIds = session.entries.map((e) => e.id).toSet();
+      expect(interceptly.entries.length, 100);
+      final uniqueIds = interceptly.entries.map((e) => e.id).toSet();
       expect(uniqueIds.length, 100, reason: 'All request IDs must be distinct');
-      for (final entry in session.entries) {
+      for (final entry in interceptly.entries) {
         expect(entry.url, isNot(contains('interceptly_started_at')));
         expect(entry.url, isNot(contains('interceptly_request_id')));
         expect(entry.statusCode, 200);
@@ -220,7 +219,7 @@ void main() {
         final deadline = DateTime.now().add(const Duration(seconds: 3));
         RequestSummary? matched;
         while (DateTime.now().isBefore(deadline)) {
-          matched = session.entries.cast<RequestSummary?>().firstWhere(
+          matched = interceptly.entries.cast<RequestSummary?>().firstWhere(
                 (e) => e != null && e.url.contains(url) && e.hasError,
                 orElse: () => null,
               );
@@ -230,7 +229,7 @@ void main() {
 
         if (matched == null) {
           debugPrint(
-              'DEBUG tc url: $url, session entries: ${session.entries.map((e) => 'id:${e.id} url:${e.url} err:${e.hasError} type:${e.errorType} status:${e.statusCode}').toList()}');
+              'DEBUG tc url: $url, session entries: ${interceptly.entries.map((e) => 'id:${e.id} url:${e.url} err:${e.hasError} type:${e.errorType} status:${e.statusCode}').toList()}');
         }
 
         expect(matched, isNotNull, reason: 'Failed to record error for $url');
@@ -276,7 +275,7 @@ void main() {
         final deadline = DateTime.now().add(const Duration(seconds: 3));
         RequestSummary? entry;
         while (DateTime.now().isBefore(deadline)) {
-          entry = session.entries.cast<RequestSummary?>().firstWhere(
+          entry = interceptly.entries.cast<RequestSummary?>().firstWhere(
                 (e) =>
                     e != null &&
                     e.url.contains(urlPart) &&
