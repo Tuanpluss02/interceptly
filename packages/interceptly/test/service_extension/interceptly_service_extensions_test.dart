@@ -79,8 +79,10 @@ void main() {
       );
 
       expect(res['status'], 'ok');
+      expect(res['appName'], 'Interceptly');
       expect(res['extensionApiVersion'], 1);
       expect(res['entryCount'], 0);
+      expect(res['requestCount'], 0);
       expect(res['networkSimulation'], 'No throttling');
     });
 
@@ -264,6 +266,26 @@ void main() {
       expect(res['status'], 'ok');
       expect(res['networkSimulation'], 'Slow 3G');
       expect(engine.networkSimulation, NetworkSimulationProfile.slow3G);
+
+      // Custom profile by latency_ms
+      final resCustom = InterceptlyServiceExtensions.handleSetNetworkSimulation(
+        engine: engine,
+        parameters: {'latency_ms': '250', 'download_kbps': '1000'},
+      );
+      expect(resCustom['status'], 'ok');
+      expect(resCustom['networkSimulation'], 'Custom');
+      expect(engine.networkSimulation.latencyMs, 250);
+      expect(engine.networkSimulation.downloadKbps, 1000);
+
+      // Disable via enabled: false
+      final resDisabled =
+          InterceptlyServiceExtensions.handleSetNetworkSimulation(
+        engine: engine,
+        parameters: {'enabled': 'false'},
+      );
+      expect(resDisabled['status'], 'ok');
+      expect(resDisabled['networkSimulation'], 'No throttling');
+      expect(engine.networkSimulation, NetworkSimulationProfile.none);
     });
 
     test('handleClearTraffic clears session entries', () async {

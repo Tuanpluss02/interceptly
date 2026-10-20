@@ -130,6 +130,24 @@ void main() {
       expect(resTrue.length, 1);
     });
 
+    test('guards against binary content-type even if request body is empty',
+        () async {
+      final pngBytes = Uint8List.fromList([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A]);
+      engine.recordEntryForTesting(_buildEntry(
+        id: '30',
+        url: 'https://cdn.example.com/item/12345',
+        requestSizeBytes: 0,
+        requestContentType: null,
+        responseSizeBytes: pngBytes.length,
+        responseContentType: 'image/png',
+        inlineResponseBody: pngBytes,
+      ));
+
+      // Query that would match "PNG" if raw bytes were searched as ASCII/UTF-8
+      final res = await engine.search(query: 'PNG', searchBody: true);
+      expect(res, isEmpty);
+    });
+
     test('applies statusFilter, sinceId cursor, and limit', () async {
       for (var i = 1; i <= 10; i++) {
         engine.recordEntryForTesting(_buildEntry(

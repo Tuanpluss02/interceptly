@@ -16,6 +16,7 @@ import '../model/request_summary.dart';
 import '../model/search_match_scope.dart';
 import '../model/search_result.dart';
 import '../simulation/network_simulation_service.dart';
+import 'body_decode_service.dart';
 import 'body_store.dart';
 import 'capture_pipeline.dart';
 import 'detail_loader.dart';
@@ -504,9 +505,12 @@ class InterceptlyEngine extends ChangeNotifier {
       // If searchBody is disabled, don't check Phase 2 / Phase 3
       if (!searchBody) continue;
 
-      // Content-type guard: skip binary payloads
-      if (_isBinaryContentType(e.responseContentType) &&
-          _isBinaryContentType(e.requestContentType)) {
+      // Content-type guard: skip when all payloads are binary or empty
+      final reqIsBinaryOrEmpty = (e.requestSizeBytes == 0) ||
+          BodyDecodeService.isBinary(e.requestContentType);
+      final resIsBinaryOrEmpty = (e.responseSizeBytes == 0) ||
+          BodyDecodeService.isBinary(e.responseContentType);
+      if (reqIsBinaryOrEmpty && resIsBinaryOrEmpty) {
         continue;
       }
 
@@ -562,17 +566,6 @@ class InterceptlyEngine extends ChangeNotifier {
     }
 
     return results;
-  }
-
-  static bool _isBinaryContentType(String? contentType) {
-    if (contentType == null) return false;
-    final ct = contentType.toLowerCase();
-    return ct.startsWith('image/') ||
-        ct.startsWith('video/') ||
-        ct.startsWith('audio/') ||
-        ct.contains('octet-stream') ||
-        ct.contains('pdf') ||
-        ct.contains('zip');
   }
 
   /// Records an entry directly into the memory index for testing.

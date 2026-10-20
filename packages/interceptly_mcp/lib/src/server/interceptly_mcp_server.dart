@@ -148,20 +148,28 @@ base class InterceptlyMcpServer extends MCPServer
   final Tool _setNetworkSimulationTool = Tool(
     name: 'set_network_simulation',
     description:
-        'Simulates network latency and error conditions on the connected Flutter app.',
+        'Simulates network latency, throttling, or offline conditions on the connected Flutter app.',
     inputSchema: Schema.object(
       properties: {
+        'profile': Schema.string(
+          description:
+              'Preset profile name: "none", "offline", "slow3g", "fast3g", "4g", "wifi", or "custom".',
+        ),
         'enabled': Schema.bool(
-          description: 'Enable or disable network simulation.',
+          description:
+              'Enable or disable network simulation. Setting false resets to "none".',
+        ),
+        'offline': Schema.bool(
+          description: 'If true, simulates complete network failure (offline).',
         ),
         'latency_ms': Schema.int(
           description: 'Simulated network delay in milliseconds.',
         ),
-        'error_rate': Schema.num(
-          description: 'Probability of request failure (0.0 to 1.0).',
+        'download_kbps': Schema.int(
+          description: 'Simulated download bandwidth in Kbps.',
         ),
-        'status_code': Schema.int(
-          description: 'Simulated HTTP failure status code (e.g. 500, 503).',
+        'upload_kbps': Schema.int(
+          description: 'Simulated upload bandwidth in Kbps.',
         ),
       },
     ),
@@ -217,7 +225,9 @@ base class InterceptlyMcpServer extends MCPServer
       buffer.writeln('- Active Isolate: ${vmServiceClient.activeIsolateId}');
       buffer.writeln('- App Name: ${res['appName'] ?? "Unknown"}');
       buffer.writeln('- Extension API Version: ${res['extensionApiVersion']}');
-      buffer.writeln('- Total Recorded Requests: ${res['requestCount']}');
+      buffer.writeln(
+        '- Total Recorded Requests: ${res['requestCount'] ?? res['entryCount'] ?? 0}',
+      );
 
       final version = res['extensionApiVersion'] as int?;
       if (version != null &&
@@ -324,17 +334,23 @@ base class InterceptlyMcpServer extends MCPServer
 
     try {
       final args = <String, String>{};
+      if (request.arguments?['profile'] case final String profile) {
+        args['profile'] = profile;
+      }
       if (request.arguments?['enabled'] case final bool enabled) {
         args['enabled'] = enabled.toString();
+      }
+      if (request.arguments?['offline'] case final bool offline) {
+        args['offline'] = offline.toString();
       }
       if (request.arguments?['latency_ms'] case final int latencyMs) {
         args['latency_ms'] = latencyMs.toString();
       }
-      if (request.arguments?['error_rate'] case final num errorRate) {
-        args['error_rate'] = errorRate.toString();
+      if (request.arguments?['download_kbps'] case final int downloadKbps) {
+        args['download_kbps'] = downloadKbps.toString();
       }
-      if (request.arguments?['status_code'] case final int statusCode) {
-        args['status_code'] = statusCode.toString();
+      if (request.arguments?['upload_kbps'] case final int uploadKbps) {
+        args['upload_kbps'] = uploadKbps.toString();
       }
 
       final res = await vmServiceClient.invoke(

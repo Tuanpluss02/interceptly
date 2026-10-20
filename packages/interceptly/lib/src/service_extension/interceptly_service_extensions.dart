@@ -156,9 +156,11 @@ class InterceptlyServiceExtensions {
 
     return {
       'status': 'ok',
+      'appName': 'Interceptly',
       'extensionApiVersion': extensionApiVersion,
       'sessionId': engine?.engineId ?? 'unknown',
       'entryCount': engine?.entries.length ?? 0,
+      'requestCount': engine?.entries.length ?? 0,
       'droppedCount': engine?.droppedCount ?? 0,
       'networkSimulation': engine?.networkSimulation.name ?? 'none',
     };
@@ -396,23 +398,46 @@ class InterceptlyServiceExtensions {
       );
     }
 
-    final profileStr = parameters['profile']?.toLowerCase() ?? 'none';
+    final profileStr = parameters['profile']?.toLowerCase();
+    final enabledParam = parameters['enabled'];
+    final latencyMsParam = parameters['latency_ms'];
+    final offlineParam = parameters['offline'] == 'true';
+    final downloadKbpsParam = parameters['download_kbps'];
+    final uploadKbpsParam = parameters['upload_kbps'];
 
-    final profile = switch (profileStr) {
-      'offline' => NetworkSimulationProfile.offlineProfile,
-      'slow3g' || 'slow_3g' => NetworkSimulationProfile.slow3G,
-      'fast3g' || 'fast_3g' => NetworkSimulationProfile.fast3G,
-      '4g' => NetworkSimulationProfile.fourG,
-      'wifi' => NetworkSimulationProfile.wifi,
-      'custom' => NetworkSimulationProfile(
-          name: 'Custom',
-          offline: parameters['offline'] == 'true',
-          latencyMs: int.tryParse(parameters['latency_ms'] ?? '0') ?? 0,
-          downloadKbps: int.tryParse(parameters['download_kbps'] ?? '0') ?? 0,
-          uploadKbps: int.tryParse(parameters['upload_kbps'] ?? '0') ?? 0,
-        ),
-      _ => NetworkSimulationProfile.none,
-    };
+    NetworkSimulationProfile profile;
+    if (enabledParam == 'false') {
+      profile = NetworkSimulationProfile.none;
+    } else if (profileStr != null && profileStr.isNotEmpty) {
+      profile = switch (profileStr) {
+        'offline' => NetworkSimulationProfile.offlineProfile,
+        'slow3g' || 'slow_3g' => NetworkSimulationProfile.slow3G,
+        'fast3g' || 'fast_3g' => NetworkSimulationProfile.fast3G,
+        '4g' => NetworkSimulationProfile.fourG,
+        'wifi' => NetworkSimulationProfile.wifi,
+        'custom' => NetworkSimulationProfile(
+            name: 'Custom',
+            offline: offlineParam,
+            latencyMs: int.tryParse(latencyMsParam ?? '0') ?? 0,
+            downloadKbps: int.tryParse(downloadKbpsParam ?? '0') ?? 0,
+            uploadKbps: int.tryParse(uploadKbpsParam ?? '0') ?? 0,
+          ),
+        _ => NetworkSimulationProfile.none,
+      };
+    } else if (latencyMsParam != null ||
+        offlineParam ||
+        downloadKbpsParam != null ||
+        uploadKbpsParam != null) {
+      profile = NetworkSimulationProfile(
+        name: 'Custom',
+        offline: offlineParam,
+        latencyMs: int.tryParse(latencyMsParam ?? '0') ?? 0,
+        downloadKbps: int.tryParse(downloadKbpsParam ?? '0') ?? 0,
+        uploadKbps: int.tryParse(uploadKbpsParam ?? '0') ?? 0,
+      );
+    } else {
+      profile = NetworkSimulationProfile.none;
+    }
 
     engine.setNetworkSimulation(profile);
 
