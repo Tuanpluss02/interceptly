@@ -709,6 +709,11 @@ class ExampleLocalServer {
     // 4. Handle incoming messages
     socket.listen(
       (dynamic rawMessage) {
+        if (rawMessage is List<int>) {
+          socket.add(rawMessage);
+          return;
+        }
+
         final text = rawMessage.toString().trim();
         String userQuery = text;
         try {
@@ -717,6 +722,21 @@ class ExampleLocalServer {
             userQuery = decoded['message'].toString();
           }
         } catch (_) {}
+
+        if (userQuery == 'ticker') {
+          final price =
+              68400.0 + (DateTime.now().millisecondsSinceEpoch % 1000) / 10;
+          socket.add(
+            jsonEncode({
+              'type': 'ticker_quote',
+              'from': 'StormX Ticker',
+              'symbol': 'BTC/USDT',
+              'price': '\$${price.toStringAsFixed(2)}',
+              'timestamp': DateTime.now().millisecondsSinceEpoch,
+            }),
+          );
+          return;
+        }
 
         // Send typing indicator after 150ms
         Timer(const Duration(milliseconds: 150), () {
@@ -899,6 +919,35 @@ class ExampleLocalServer {
             if (parsed is List && parsed.isNotEmpty) {
               final eventName = parsed[0].toString();
               final eventData = parsed.length > 1 ? parsed[1] : null;
+
+              if (eventName == 'ticker') {
+                final price = 68400.0 +
+                    (DateTime.now().millisecondsSinceEpoch % 1000) / 10;
+                socket.add('42${jsonEncode([
+                      'ticker_quote',
+                      {
+                        'symbol': 'BTC/USDT',
+                        'price': '\$${price.toStringAsFixed(2)}',
+                        'timestamp': DateTime.now().millisecondsSinceEpoch,
+                      }
+                    ])}');
+                return;
+              }
+
+              if (eventName == 'binary_data') {
+                final count = eventData is List ? eventData.length : 1024;
+                socket.add('42${jsonEncode([
+                      'chat_message',
+                      {
+                        'type': 'agent_message',
+                        'from': 'StormX (Socket.IO Bot)',
+                        'message':
+                            'Nhận thành công binary payload ($count bytes) qua Socket.IO!',
+                        'timestamp': DateTime.now().millisecondsSinceEpoch,
+                      }
+                    ])}');
+                return;
+              }
 
               if (eventName == 'chat_message') {
                 String userQuery = '';

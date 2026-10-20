@@ -36,7 +36,8 @@ void main() {
       expect(find.byKey(const ValueKey('chat_open_inspector')), findsOneWidget);
     });
 
-    testWidgets('renders quick action chips and input bar', (tester) async {
+    testWidgets('renders quick action chips, status chips and input bar',
+        (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: ExampleChatPage(
@@ -46,11 +47,23 @@ void main() {
         ),
       );
 
+      expect(find.text('WebSocket'), findsOneWidget);
+      expect(find.text('Socket.IO'), findsOneWidget);
+      expect(find.text('Song song'), findsOneWidget);
+
       expect(find.byKey(const ValueKey('chip_ping')), findsOneWidget);
+      expect(find.byKey(const ValueKey('chip_ticker')), findsOneWidget);
+      expect(find.byKey(const ValueKey('chip_binary')), findsOneWidget);
+      expect(find.byKey(const ValueKey('chip_drop')), findsOneWidget);
       expect(find.byKey(const ValueKey('chip_bug')), findsOneWidget);
       expect(find.byKey(const ValueKey('chip_order')), findsOneWidget);
       expect(find.byKey(const ValueKey('chat_message_input')), findsOneWidget);
       expect(find.byKey(const ValueKey('chat_send_button')), findsOneWidget);
+
+      final textField = tester.widget<TextField>(
+        find.byKey(const ValueKey('chat_message_input')),
+      );
+      expect(textField.decoration?.hintText, equals('Send message'));
     });
 
     testWidgets('tapping quick chip populates input or sends message',
@@ -70,36 +83,10 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
 
-      // Input or message list has ping
       expect(find.textContaining('ping'), findsWidgets);
     });
 
-    testWidgets(
-        'renders protocol selector and switches between WebSocket and Socket.IO',
-        (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ExampleChatPage(
-            baseUrl: server.baseUrl,
-            autoConnect: false,
-          ),
-        ),
-      );
-
-      expect(
-          find.byKey(const ValueKey('chat_protocol_selector')), findsOneWidget);
-      expect(find.text('WebSocket'), findsOneWidget);
-      expect(find.text('Socket.IO'), findsOneWidget);
-
-      await tester.tap(find.text('Socket.IO'));
-      await tester.pumpAndSettle();
-
-      expect(
-          find.byKey(const ValueKey('chat_protocol_selector')), findsOneWidget);
-    });
-
-    testWidgets('renders Song song mode and broadcasts message to both',
-        (tester) async {
+    testWidgets('sends binary payload without error', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: ExampleChatPage(
@@ -108,16 +95,36 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle(const Duration(milliseconds: 300));
 
-      expect(find.text('Song song'), findsOneWidget);
-      await tester.tap(find.text('Song song'));
+      await tester.tap(find.byKey(const ValueKey('chip_binary')));
+      await tester.pumpAndSettle(const Duration(milliseconds: 400));
+
+      expect(find.textContaining('binary'), findsWidgets);
+    });
+
+    testWidgets('toggles live ticker without error', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ExampleChatPage(
+            baseUrl: server.baseUrl,
+            autoConnect: true,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(milliseconds: 300));
+
+      // Start ticker
+      await tester.tap(find.byKey(const ValueKey('chip_ticker')));
+      await tester.pumpAndSettle(const Duration(milliseconds: 900));
+
+      expect(find.text('⏹ Dừng Ticker'), findsOneWidget);
+
+      // Stop ticker
+      await tester.tap(find.byKey(const ValueKey('chip_ticker')));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const ValueKey('chip_ping')));
-      await tester.pumpAndSettle(const Duration(milliseconds: 600));
-
-      expect(find.textContaining('ping'), findsWidgets);
+      expect(find.text('📈 Live Ticker'), findsOneWidget);
     });
   });
 }

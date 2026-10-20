@@ -202,7 +202,7 @@ class _RealtimeChatBarState extends State<RealtimeChatBar> {
                     ),
                     decoration: InputDecoration(
                       isDense: true,
-                      hintText: 'Send message or JSON...',
+                      hintText: 'Send message',
                       hintStyle:
                           InterceptlyTheme.typography.bodySmallRegular.copyWith(
                         color: InterceptlyTheme.textMuted,
