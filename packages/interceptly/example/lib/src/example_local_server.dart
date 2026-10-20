@@ -677,18 +677,40 @@ class ExampleLocalServer {
   ]);
 
   void _handleStockSocket(WebSocket socket) {
-    var btcPrice = 68420.50;
-    var ethPrice = 3540.20;
-    var bdsPrice = 28500.00;
+    var vcbPrice = 92500.0;
+    var fptPrice = 138200.0;
+    var hpgPrice = 28600.0;
+    var mwgPrice = 65400.0;
 
     // Send initial snapshot
     if (socket.readyState == WebSocket.open) {
       socket.add(jsonEncode({
         'type': 'snapshot',
         'stocks': [
-          {'symbol': 'BTC/USDT', 'price': btcPrice, 'change': '+3.42%'},
-          {'symbol': 'ETH/USDT', 'price': ethPrice, 'change': '+1.85%'},
-          {'symbol': 'BDS/VND', 'price': bdsPrice, 'change': '+5.12%'},
+          {
+            'symbol': 'VCB',
+            'name': 'Vietcombank',
+            'price': vcbPrice,
+            'change': '+1.20%',
+          },
+          {
+            'symbol': 'FPT',
+            'name': 'FPT Corp',
+            'price': fptPrice,
+            'change': '+2.45%',
+          },
+          {
+            'symbol': 'HPG',
+            'name': 'Hòa Phát',
+            'price': hpgPrice,
+            'change': '-0.85%',
+          },
+          {
+            'symbol': 'MWG',
+            'name': 'Thế Giới Di Động',
+            'price': mwgPrice,
+            'change': '+1.71%',
+          },
         ],
         'timestamp': DateTime.now().millisecondsSinceEpoch,
       }));
@@ -699,31 +721,42 @@ class ExampleLocalServer {
       if (socket.readyState != WebSocket.open) return;
       tickCount++;
 
-      final symbolIndex = tickCount % 3;
+      final symbolIndex = tickCount % 4;
       String symbol;
+      String name;
       double price;
       double changeVal;
 
       if (symbolIndex == 0) {
-        btcPrice += (tickCount % 2 == 0 ? 12.5 : -8.3);
-        symbol = 'BTC/USDT';
-        price = btcPrice;
-        changeVal = 3.42 + (tickCount % 5) * 0.1;
+        vcbPrice += (tickCount % 2 == 0 ? 300.0 : -200.0);
+        symbol = 'VCB';
+        name = 'Vietcombank';
+        price = vcbPrice;
+        changeVal = 1.20 + (tickCount % 5) * 0.08;
       } else if (symbolIndex == 1) {
-        ethPrice += (tickCount % 2 == 0 ? 3.2 : -2.1);
-        symbol = 'ETH/USDT';
-        price = ethPrice;
-        changeVal = 1.85 + (tickCount % 4) * 0.08;
+        fptPrice += (tickCount % 2 == 0 ? 500.0 : -300.0);
+        symbol = 'FPT';
+        name = 'FPT Corp';
+        price = fptPrice;
+        changeVal = 2.45 + (tickCount % 4) * 0.12;
+      } else if (symbolIndex == 2) {
+        hpgPrice += (tickCount % 2 == 0 ? -150.0 : 100.0);
+        symbol = 'HPG';
+        name = 'Hòa Phát';
+        price = hpgPrice;
+        changeVal = -0.85 - (tickCount % 3) * 0.06;
       } else {
-        bdsPrice += (tickCount % 2 == 0 ? 150 : -100);
-        symbol = 'BDS/VND';
-        price = bdsPrice;
-        changeVal = 5.12 + (tickCount % 6) * 0.05;
+        mwgPrice += (tickCount % 2 == 0 ? 400.0 : -250.0);
+        symbol = 'MWG';
+        name = 'Thế Giới Di Động';
+        price = mwgPrice;
+        changeVal = 1.71 + (tickCount % 4) * 0.09;
       }
 
       socket.add(jsonEncode({
         'type': 'tick',
         'symbol': symbol,
+        'name': name,
         'price': price,
         'change':
             '${changeVal >= 0 ? '+' : ''}${changeVal.toStringAsFixed(2)}%',
@@ -805,13 +838,13 @@ class ExampleLocalServer {
 
         if (userQuery == 'ticker') {
           final price =
-              68400.0 + (DateTime.now().millisecondsSinceEpoch % 1000) / 10;
+              138200.0 + (DateTime.now().millisecondsSinceEpoch % 1000);
           socket.add(
             jsonEncode({
               'type': 'ticker_quote',
               'from': 'StormX Ticker',
-              'symbol': 'BTC/USDT',
-              'price': '\$${price.toStringAsFixed(2)}',
+              'symbol': 'FPT',
+              'price': '${price.toStringAsFixed(0)} đ',
               'timestamp': DateTime.now().millisecondsSinceEpoch,
             }),
           );

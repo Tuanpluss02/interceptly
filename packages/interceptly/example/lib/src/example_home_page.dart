@@ -108,9 +108,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_selectedTab == 1
-            ? 'Realtime (WS & Socket.IO)'
-            : 'Interceptly Showcase'),
+        title: Text(_selectedTab == 1 ? 'Realtime' : 'Interceptly Showcase'),
         elevation: 1,
         actions: [
           IconButton(
@@ -130,7 +128,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
         index: _selectedTab,
         children: [
           _buildHttpTab(theme, colorScheme),
-          ExampleChatPage(baseUrl: widget.server.baseUrl, showAppBar: false),
+          ExampleChatPage(baseUrl: widget.server.baseUrl),
           _buildStressLabTab(theme, colorScheme),
         ],
       ),

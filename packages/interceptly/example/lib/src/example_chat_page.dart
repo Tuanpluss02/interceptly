@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:interceptly/interceptly.dart';
 import 'package:interceptly_socket_io/interceptly_socket_io.dart';
 import 'package:interceptly_web_socket/interceptly_web_socket.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
@@ -27,9 +26,10 @@ class ChatMessage {
   }) : timestamp = timestamp ?? DateTime.now();
 }
 
-/// Model representing a live stock / crypto instrument.
+/// Model representing a live stock instrument.
 class StockItem {
   final String symbol;
+  final String name;
   double price;
   String change;
   DateTime lastUpdated;
@@ -37,6 +37,7 @@ class StockItem {
 
   StockItem({
     required this.symbol,
+    required this.name,
     required this.price,
     required this.change,
     required this.lastUpdated,
@@ -44,8 +45,8 @@ class StockItem {
   });
 }
 
-/// Realtime showcase screen containing two parallel sub-tabs:
-/// 1. Stock / Crypto high-frequency price feed over **WebSocket**.
+/// Realtime showcase screen containing two separate sub-tabs:
+/// 1. Stock price feed over **WebSocket**.
 /// 2. Interactive customer support chat over **Socket.IO**.
 class ExampleChatPage extends StatefulWidget {
   final String baseUrl;
@@ -56,7 +57,7 @@ class ExampleChatPage extends StatefulWidget {
     super.key,
     required this.baseUrl,
     this.autoConnect = true,
-    this.showAppBar = true,
+    this.showAppBar = false,
   });
 
   @override
@@ -68,7 +69,7 @@ class _ExampleChatPageState extends State<ExampleChatPage>
   late final TabController _tabController;
 
   // ---------------------------------------------------------------------------
-  // Tab 1: WebSocket Stock / Crypto Ticker State
+  // Tab 1: WebSocket Stock Ticker State
   // ---------------------------------------------------------------------------
   InterceptlyWebSocketChannel? _stockChannel;
   StreamSubscription? _stockSubscription;
@@ -76,23 +77,37 @@ class _ExampleChatPageState extends State<ExampleChatPage>
   bool _stockConnecting = false;
   bool _stockPaused = false;
   final Map<String, StockItem> _stocks = {
-    'BTC/USDT': StockItem(
-      symbol: 'BTC/USDT',
-      price: 68420.50,
-      change: '+3.42%',
+    'VCB': StockItem(
+      symbol: 'VCB',
+      name: 'Vietcombank',
+      price: 92500.00,
+      change: '+1.20%',
       lastUpdated: DateTime.now(),
+      isUp: true,
     ),
-    'ETH/USDT': StockItem(
-      symbol: 'ETH/USDT',
-      price: 3540.20,
-      change: '+1.85%',
+    'FPT': StockItem(
+      symbol: 'FPT',
+      name: 'FPT Corp',
+      price: 138200.00,
+      change: '+2.45%',
       lastUpdated: DateTime.now(),
+      isUp: true,
     ),
-    'BDS/VND': StockItem(
-      symbol: 'BDS/VND',
-      price: 28500.00,
-      change: '+5.12%',
+    'HPG': StockItem(
+      symbol: 'HPG',
+      name: 'Hòa Phát',
+      price: 28600.00,
+      change: '-0.85%',
       lastUpdated: DateTime.now(),
+      isUp: false,
+    ),
+    'MWG': StockItem(
+      symbol: 'MWG',
+      name: 'Thế Giới Di Động',
+      price: 65400.00,
+      change: '+1.71%',
+      lastUpdated: DateTime.now(),
+      isUp: true,
     ),
   };
   final List<String> _stockTicksLog = [];
@@ -109,25 +124,37 @@ class _ExampleChatPageState extends State<ExampleChatPage>
   final TextEditingController _chatController = TextEditingController();
   final ScrollController _chatScrollController = ScrollController();
 
-  bool get _isConnected => _stockConnected || _sioConnected;
-  bool get _isConnecting => _stockConnecting || _sioConnecting;
-
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     if (widget.autoConnect) {
-      _connectAll();
+      _connectStockWebSocket();
+      _connectSocketIo();
     }
   }
 
   @override
   void dispose() {
     _tabController.dispose();
-    _disconnectAll(updateState: false);
+    _disconnectStockWebSocket(updateState: false);
+    _disconnectSocketIo(updateState: false);
     _chatController.dispose();
     _chatScrollController.dispose();
     super.dispose();
+  }
+
+  String _formatPrice(double price) {
+    final intPrice = price.round();
+    final str = intPrice.toString();
+    final buffer = StringBuffer();
+    for (var i = 0; i < str.length; i++) {
+      if (i > 0 && (str.length - i) % 3 == 0) {
+        buffer.write(',');
+      }
+      buffer.write(str[i]);
+    }
+    return '${buffer.toString()} đ';
   }
 
   void _scrollToChatBottom() {
@@ -140,27 +167,6 @@ class _ExampleChatPageState extends State<ExampleChatPage>
         );
       }
     });
-  }
-
-  void _connectAll() {
-    _connectStockWebSocket();
-    _connectSocketIo();
-  }
-
-  void _disconnectAll({bool updateState = true}) {
-    _disconnectStockWebSocket(updateState: false);
-    _disconnectSocketIo(updateState: false);
-    if (updateState && mounted) {
-      setState(() {});
-    }
-  }
-
-  void _toggleConnections() {
-    if (_isConnected) {
-      _disconnectAll();
-    } else {
-      _connectAll();
-    }
   }
 
   // ---------------------------------------------------------------------------
@@ -229,7 +235,7 @@ class _ExampleChatPageState extends State<ExampleChatPage>
     if (rawData is List<int>) {
       setState(() {
         _stockTicksLog.insert(
-            0, '🖼️ Nhận binary tick (${rawData.length} bytes)');
+            0, '[Binary] Nhận payload (${rawData.length} bytes)');
         if (_stockTicksLog.length > 50) _stockTicksLog.removeLast();
       });
       return;
@@ -244,10 +250,12 @@ class _ExampleChatPageState extends State<ExampleChatPage>
         setState(() {
           for (final item in decoded['stocks'] as List) {
             final sym = item['symbol']?.toString() ?? '';
+            final name = item['name']?.toString() ?? sym;
             final price = (item['price'] as num?)?.toDouble() ?? 0.0;
             final change = item['change']?.toString() ?? '+0.00%';
             _stocks[sym] = StockItem(
               symbol: sym,
+              name: name,
               price: price,
               change: change,
               lastUpdated: DateTime.now(),
@@ -255,13 +263,14 @@ class _ExampleChatPageState extends State<ExampleChatPage>
             );
           }
           _stockTicksLog.insert(
-              0, '📦 Nhận snapshot ban đầu: ${_stocks.keys.join(', ')}');
+              0, '[Snapshot] Khởi tạo ${_stocks.keys.join(', ')}');
         });
         return;
       }
 
       if (type == 'tick') {
         final sym = decoded['symbol']?.toString() ?? '';
+        final name = decoded['name']?.toString() ?? sym;
         final price = (decoded['price'] as num?)?.toDouble() ?? 0.0;
         final change = decoded['change']?.toString() ?? '+0.00%';
         final isUp = change.startsWith('+');
@@ -270,6 +279,7 @@ class _ExampleChatPageState extends State<ExampleChatPage>
           final existing = _stocks[sym];
           _stocks[sym] = StockItem(
             symbol: sym,
+            name: name,
             price: price,
             change: change,
             lastUpdated: DateTime.now(),
@@ -277,11 +287,11 @@ class _ExampleChatPageState extends State<ExampleChatPage>
           );
           final diff = existing != null ? (price - existing.price) : 0.0;
           final diffStr = diff >= 0
-              ? '+${diff.toStringAsFixed(2)}'
-              : diff.toStringAsFixed(2);
+              ? '+${diff.toStringAsFixed(0)}'
+              : diff.toStringAsFixed(0);
           _stockTicksLog.insert(
             0,
-            '$sym: \$${price.toStringAsFixed(2)} ($change, $diffStr)',
+            '$sym: ${_formatPrice(price)} ($change, $diffStr)',
           );
           if (_stockTicksLog.length > 50) _stockTicksLog.removeLast();
         });
@@ -290,7 +300,7 @@ class _ExampleChatPageState extends State<ExampleChatPage>
 
       if (type == 'pong') {
         setState(() {
-          _stockTicksLog.insert(0, '🏓 Nhận Pong từ WebSocket server!');
+          _stockTicksLog.insert(0, '[Pong] Nhận phản hồi từ WebSocket');
         });
         return;
       }
@@ -303,7 +313,7 @@ class _ExampleChatPageState extends State<ExampleChatPage>
     if (_stockConnected && _stockChannel != null) {
       _stockChannel!.sink.add(jsonEncode({'action': 'ping'}));
       setState(() {
-        _stockTicksLog.insert(0, '➡️ Gửi Ping lên WebSocket...');
+        _stockTicksLog.insert(0, '[Send] Ping -> WebSocket');
       });
     }
   }
@@ -316,7 +326,7 @@ class _ExampleChatPageState extends State<ExampleChatPage>
       }
       _stockChannel!.sink.add(bytes);
       setState(() {
-        _stockTicksLog.insert(0, '➡️ Gửi 1KB binary buffer lên WebSocket...');
+        _stockTicksLog.insert(0, '[Send] 1KB binary buffer -> WebSocket');
       });
     }
   }
@@ -523,251 +533,36 @@ class _ExampleChatPageState extends State<ExampleChatPage>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: widget.showAppBar
-          ? AppBar(
-              titleSpacing: 0,
-              title: Row(
-                children: [
-                  CircleAvatar(
-                    backgroundColor: Colors.indigo.shade100,
-                    child:
-                        const Icon(Icons.support_agent, color: Colors.indigo),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          'StormX (Support Bot)',
-                          style: TextStyle(
-                              fontSize: 15, fontWeight: FontWeight.bold),
-                        ),
-                        Row(
-                          children: [
-                            Container(
-                              key: const ValueKey('chat_connection_status'),
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: _isConnected
-                                    ? Colors.green
-                                    : _isConnecting
-                                        ? Colors.orange
-                                        : Colors.grey,
-                              ),
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              _isConnected
-                                  ? 'Online (Connected)'
-                                  : _isConnecting
-                                      ? 'Đang kết nối...'
-                                      : 'Offline',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: _isConnected
-                                    ? Colors.green.shade700
-                                    : Colors.grey.shade600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                IconButton(
-                  key: const ValueKey('chat_toggle_connection'),
-                  icon: Icon(
-                    _isConnected ? Icons.link_off : Icons.link,
-                    color: _isConnected ? Colors.red.shade400 : Colors.indigo,
-                  ),
-                  tooltip: _isConnected ? 'Ngắt kết nối' : 'Kết nối lại',
-                  onPressed: _toggleConnections,
-                ),
-                IconButton(
-                  key: const ValueKey('chat_open_inspector'),
-                  icon: const Icon(Icons.bug_report, color: Colors.indigo),
-                  tooltip: 'Mở Interceptly Inspector',
-                  onPressed: () => Interceptly.showInspector(context),
-                ),
-              ],
-            )
-          : null,
-      body: SafeArea(
-        child: Column(
-          children: [
-            if (!widget.showAppBar)
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color:
-                          Theme.of(context).dividerColor.withValues(alpha: 0.2),
-                    ),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 14,
-                      backgroundColor: Colors.indigo.shade100,
-                      child: const Icon(Icons.support_agent,
-                          size: 16, color: Colors.indigo),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Row(
-                        children: [
-                          const Text(
-                            'StormX (Support Bot)',
-                            style: TextStyle(
-                                fontSize: 14, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            key: const ValueKey('chat_connection_status'),
-                            width: 7,
-                            height: 7,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: _isConnected
-                                  ? Colors.green
-                                  : _isConnecting
-                                      ? Colors.orange
-                                      : Colors.grey,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            _isConnected
-                                ? 'Online (Connected)'
-                                : (_isConnecting ? 'Connecting' : 'Offline'),
-                            style: TextStyle(
-                                fontSize: 12, color: Colors.grey.shade600),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      key: const ValueKey('chat_toggle_connection'),
-                      icon: Icon(
-                        _isConnected ? Icons.link_off : Icons.link,
-                        size: 20,
-                        color:
-                            _isConnected ? Colors.red.shade400 : Colors.indigo,
-                      ),
-                      tooltip: _isConnected ? 'Ngắt kết nối' : 'Kết nối lại',
-                      onPressed: _toggleConnections,
-                    ),
-                  ],
-                ),
-              ),
-
-            // Dual connection status banner
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14.0, vertical: 6.0),
-              decoration: BoxDecoration(
-                color: Theme.of(context)
-                    .colorScheme
-                    .surfaceContainerHighest
-                    .withValues(alpha: 0.25),
-                border: Border(
-                  bottom: BorderSide(
-                    color:
-                        Theme.of(context).dividerColor.withValues(alpha: 0.12),
-                  ),
-                ),
-              ),
-              child: Row(
-                children: [
-                  _ProtocolStatusChip(
-                    label: 'WebSocket',
-                    protocolType: 'WS Stock',
-                    isConnected: _stockConnected,
-                    isConnecting: _stockConnecting,
-                    onTap: _stockConnected
-                        ? _disconnectStockWebSocket
-                        : _connectStockWebSocket,
-                  ),
-                  const SizedBox(width: 8),
-                  _ProtocolStatusChip(
-                    label: 'Socket.IO',
-                    protocolType: 'SIO Chat',
-                    isConnected: _sioConnected,
-                    isConnecting: _sioConnecting,
-                    onTap:
-                        _sioConnected ? _disconnectSocketIo : _connectSocketIo,
-                  ),
-                  const Spacer(),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.indigo.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.sync_alt, size: 12, color: Colors.indigo),
-                        SizedBox(width: 4),
-                        Text(
-                          'Song song',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.indigo,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Tab bar: Stock (WebSocket) & Chat (Socket.IO)
-            TabBar(
-              controller: _tabController,
-              labelColor: Colors.indigo,
-              unselectedLabelColor: Colors.grey.shade600,
-              indicatorColor: Colors.indigo,
-              indicatorWeight: 3,
-              tabs: const [
-                Tab(
-                  icon: Icon(Icons.trending_up, size: 18),
-                  text: '📈 Stock (WebSocket)',
-                ),
-                Tab(
-                  icon: Icon(Icons.chat_bubble_outline, size: 18),
-                  text: '💬 Chat (Socket.IO)',
-                ),
-              ],
-            ),
-
-            // TabBar views
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildStockTab(),
-                  _buildChatTab(),
-                ],
-              ),
-            ),
-          ],
+    return Column(
+      children: [
+        // Tab selection header
+        Material(
+          color: Theme.of(context).cardColor,
+          elevation: 1,
+          child: TabBar(
+            controller: _tabController,
+            labelColor: Theme.of(context).colorScheme.primary,
+            unselectedLabelColor: Colors.grey.shade600,
+            indicatorColor: Theme.of(context).colorScheme.primary,
+            indicatorWeight: 3,
+            tabs: const [
+              Tab(text: 'Stock (WebSocket)'),
+              Tab(text: 'Chat (Socket.IO)'),
+            ],
+          ),
         ),
-      ),
+
+        // Tab Views
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              _buildStockTab(),
+              _buildChatTab(),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -777,71 +572,101 @@ class _ExampleChatPageState extends State<ExampleChatPage>
   Widget _buildStockTab() {
     return Column(
       children: [
-        // Live Price Cards
+        // Tab 1 Dedicated Header
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 8.0),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            border: Border(
+              bottom: BorderSide(
+                color: Theme.of(context).dividerColor.withValues(alpha: 0.15),
+              ),
+            ),
+          ),
           child: Row(
-            children: _stocks.values.map((item) {
-              return Expanded(
-                child: Card(
-                  elevation: 1,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    side: BorderSide(
-                      color: item.isUp
-                          ? Colors.green.withValues(alpha: 0.3)
-                          : Colors.red.withValues(alpha: 0.3),
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.teal.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.candlestick_chart,
+                    size: 18, color: Colors.teal),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Thị trường chứng khoán',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  color: item.isUp
-                      ? Colors.green.withValues(alpha: 0.05)
-                      : Colors.red.withValues(alpha: 0.05),
-                  child: Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    Row(
                       children: [
-                        Text(
-                          item.symbol,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
+                        Container(
+                          key: const ValueKey('stock_connection_status'),
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _stockConnected
+                                ? Colors.green
+                                : _stockConnecting
+                                    ? Colors.orange
+                                    : Colors.grey,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(width: 5),
                         Text(
-                          '\$${item.price.toStringAsFixed(2)}',
+                          _stockConnected
+                              ? 'WebSocket Live'
+                              : _stockConnecting
+                                  ? 'Đang kết nối...'
+                                  : 'Disconnected',
                           style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: item.isUp
+                            fontSize: 12,
+                            color: _stockConnected
                                 ? Colors.green.shade700
-                                : Colors.red.shade700,
-                          ),
-                        ),
-                        Text(
-                          item.change,
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: item.isUp
-                                ? Colors.green.shade800
-                                : Colors.red.shade800,
+                                : Colors.grey.shade600,
                           ),
                         ),
                       ],
                     ),
-                  ),
+                  ],
                 ),
-              );
-            }).toList(),
+              ),
+              IconButton(
+                key: const ValueKey('stock_toggle_connection'),
+                icon: Icon(
+                  _stockConnected ? Icons.link_off : Icons.link,
+                  size: 20,
+                  color: _stockConnected ? Colors.red.shade400 : Colors.teal,
+                ),
+                tooltip: _stockConnected ? 'Ngắt kết nối WS' : 'Kết nối WS',
+                onPressed: () {
+                  if (_stockConnected) {
+                    _disconnectStockWebSocket();
+                  } else {
+                    _connectStockWebSocket();
+                  }
+                },
+              ),
+            ],
           ),
         ),
 
+        // Live Stock Grid (2x2)
+        _buildStockGrid(),
+
         // Quick Controls
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12.0),
+          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -849,7 +674,7 @@ class _ExampleChatPageState extends State<ExampleChatPage>
                 ActionChip(
                   key: const ValueKey('chip_ping_ws'),
                   avatar: const Icon(Icons.speed, size: 14),
-                  label: const Text('🏓 Ping WS'),
+                  label: const Text('Ping WS'),
                   onPressed: _pingStockWebSocket,
                 ),
                 const SizedBox(width: 6),
@@ -869,25 +694,36 @@ class _ExampleChatPageState extends State<ExampleChatPage>
                 const SizedBox(width: 6),
                 ActionChip(
                   avatar: const Icon(Icons.data_object, size: 14),
-                  label: const Text('🖼️ Binary 1KB'),
+                  label: const Text('Send Binary'),
                   onPressed: _sendStockBinary,
+                ),
+                const SizedBox(width: 6),
+                ActionChip(
+                  avatar: const Icon(Icons.delete_outline, size: 14),
+                  label: const Text('Xóa log'),
+                  onPressed: () {
+                    setState(() {
+                      _stockTicksLog.clear();
+                    });
+                  },
                 ),
               ],
             ),
           ),
         ),
 
-        const Divider(height: 16),
+        const Divider(height: 12),
 
-        // Stream Log Feed
+        // Stream Log Feed Header
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
           child: Row(
             children: [
-              const Icon(Icons.candlestick_chart, size: 14, color: Colors.cyan),
+              const Icon(Icons.analytics_outlined,
+                  size: 14, color: Colors.indigo),
               const SizedBox(width: 6),
               Text(
-                'Live WebSocket Stream Log (${_stockTicksLog.length} ticks)',
+                'WebSocket Stream Log (${_stockTicksLog.length} ticks)',
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
@@ -898,12 +734,13 @@ class _ExampleChatPageState extends State<ExampleChatPage>
           ),
         ),
 
+        // Log Items
         Expanded(
           child: _stockTicksLog.isEmpty
               ? Center(
                   child: Text(
                     _stockConnected
-                        ? 'Đang lắng nghe giá realtime từ WebSocket...'
+                        ? 'Đang lắng nghe dữ liệu thị trường từ WebSocket...'
                         : 'WebSocket chưa kết nối.',
                     style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
                   ),
@@ -922,7 +759,7 @@ class _ExampleChatPageState extends State<ExampleChatPage>
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 5, vertical: 1.5),
                             decoration: BoxDecoration(
-                              color: Colors.cyan.withValues(alpha: 0.15),
+                              color: Colors.teal.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
@@ -930,7 +767,7 @@ class _ExampleChatPageState extends State<ExampleChatPage>
                               style: TextStyle(
                                 fontSize: 9,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.cyan.shade900,
+                                color: Colors.teal.shade900,
                               ),
                             ),
                           ),
@@ -954,12 +791,214 @@ class _ExampleChatPageState extends State<ExampleChatPage>
     );
   }
 
+  Widget _buildStockGrid() {
+    final items = _stocks.values.toList();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              if (items.isNotEmpty) Expanded(child: _buildStockCard(items[0])),
+              const SizedBox(width: 8),
+              if (items.length > 1) Expanded(child: _buildStockCard(items[1])),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              if (items.length > 2) Expanded(child: _buildStockCard(items[2])),
+              const SizedBox(width: 8),
+              if (items.length > 3) Expanded(child: _buildStockCard(items[3])),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStockCard(StockItem item) {
+    final upColor = const Color(0xFF059669);
+    final downColor = const Color(0xFFDC2626);
+    final color = item.isUp ? upColor : downColor;
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: color.withValues(alpha: 0.35),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                item.symbol,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                  color: Colors.black87,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      item.isUp ? Icons.arrow_drop_up : Icons.arrow_drop_down,
+                      color: Colors.white,
+                      size: 14,
+                    ),
+                    Text(
+                      item.change,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            item.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey.shade600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _formatPrice(item.price),
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // View 2: Support Chat (Socket.IO)
   // ---------------------------------------------------------------------------
   Widget _buildChatTab() {
     return Column(
       children: [
+        // Tab 2 Dedicated Header
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 8.0),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            border: Border(
+              bottom: BorderSide(
+                color: Theme.of(context).dividerColor.withValues(alpha: 0.15),
+              ),
+            ),
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: Colors.indigo.shade100,
+                child: const Icon(Icons.support_agent,
+                    size: 18, color: Colors.indigo),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'StormX (Support Bot)',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        Container(
+                          key: const ValueKey('chat_connection_status'),
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _sioConnected
+                                ? Colors.green
+                                : _sioConnecting
+                                    ? Colors.orange
+                                    : Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          _sioConnected
+                              ? 'Socket.IO Online'
+                              : _sioConnecting
+                                  ? 'Đang kết nối...'
+                                  : 'Disconnected',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: _sioConnected
+                                ? Colors.green.shade700
+                                : Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                key: const ValueKey('chat_toggle_connection'),
+                icon: Icon(
+                  _sioConnected ? Icons.link_off : Icons.link,
+                  size: 20,
+                  color: _sioConnected ? Colors.red.shade400 : Colors.indigo,
+                ),
+                tooltip: _sioConnected
+                    ? 'Ngắt kết nối Socket.IO'
+                    : 'Kết nối Socket.IO',
+                onPressed: () {
+                  if (_sioConnected) {
+                    _disconnectSocketIo();
+                  } else {
+                    _connectSocketIo();
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+
         // Message list
         Expanded(
           child: ListView.builder(
@@ -1190,14 +1229,14 @@ class _ExampleChatPageState extends State<ExampleChatPage>
                 ActionChip(
                   key: const ValueKey('chip_ping'),
                   avatar: const Icon(Icons.speed, size: 14),
-                  label: const Text('🏓 Ping SIO'),
+                  label: const Text('Ping SIO'),
                   onPressed: () => _sendChatMessage('ping'),
                 ),
                 const SizedBox(width: 6),
                 ActionChip(
                   key: const ValueKey('chip_bug'),
                   avatar: const Icon(Icons.bug_report, size: 14),
-                  label: const Text('🐞 Báo lỗi'),
+                  label: const Text('Báo lỗi'),
                   onPressed: () =>
                       _sendChatMessage('Ứng dụng bị lỗi kết nối timeout'),
                 ),
@@ -1205,7 +1244,7 @@ class _ExampleChatPageState extends State<ExampleChatPage>
                 ActionChip(
                   key: const ValueKey('chip_order'),
                   avatar: const Icon(Icons.local_shipping, size: 14),
-                  label: const Text('📦 Kiểm tra đơn hàng'),
+                  label: const Text('Kiểm tra đơn hàng'),
                   onPressed: () => _sendChatMessage(
                       'Kiểm tra tình trạng đơn hàng #DH-20261014'),
                 ),
@@ -1213,7 +1252,7 @@ class _ExampleChatPageState extends State<ExampleChatPage>
                 ActionChip(
                   key: const ValueKey('chip_binary'),
                   avatar: const Icon(Icons.data_object, size: 14),
-                  label: const Text('🖼️ Binary 1KB'),
+                  label: const Text('Send Binary'),
                   onPressed: _sendChatBinary,
                 ),
               ],
@@ -1256,64 +1295,6 @@ class _ExampleChatPageState extends State<ExampleChatPage>
           ),
         ),
       ],
-    );
-  }
-}
-
-class _ProtocolStatusChip extends StatelessWidget {
-  const _ProtocolStatusChip({
-    required this.label,
-    required this.protocolType,
-    required this.isConnected,
-    required this.isConnecting,
-    required this.onTap,
-  });
-
-  final String label;
-  final String protocolType;
-  final bool isConnected;
-  final bool isConnecting;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isConnected
-        ? Colors.green
-        : (isConnecting ? Colors.orange : Colors.grey);
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.4)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 6,
-              height: 6,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: color,
-              ),
-            ),
-            const SizedBox(width: 5),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: color.shade800,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
