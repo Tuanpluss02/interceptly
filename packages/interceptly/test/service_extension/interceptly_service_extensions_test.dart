@@ -45,6 +45,8 @@ void main() {
     int statusCode = 200,
     String requestBody = '{"query":"flutter"}',
     String responseBody = '{"items":[{"id":1,"name":"Widget"}]}',
+    Map<String, String>? requestHeaders,
+    Map<String, String>? responseHeaders,
   }) {
     final reqBytes = Uint8List.fromList(utf8.encode(requestBody));
     final resBytes = Uint8List.fromList(utf8.encode(responseBody));
@@ -55,8 +57,10 @@ void main() {
       statusCode: statusCode,
       durationMs: 45,
       timestamp: DateTime.now(),
-      requestHeaders: {'content-type': 'application/json'},
-      responseHeaders: {'content-type': 'application/json'},
+      requestHeaders:
+          requestHeaders ?? const {'content-type': 'application/json'},
+      responseHeaders:
+          responseHeaders ?? const {'content-type': 'application/json'},
       requestContentType: 'application/json',
       responseContentType: 'application/json',
       requestBodyBytes: TransferableTypedData.fromList([reqBytes]),
@@ -113,7 +117,7 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 100));
 
       // 1. List all
-      final all = InterceptlyServiceExtensions.handleListRequests(
+      final all = await InterceptlyServiceExtensions.handleListRequests(
         engine: engine,
         parameters: {'status_filter': 'all'},
       );
@@ -121,7 +125,7 @@ void main() {
       expect(allList.length, 3);
 
       // 2. Filter failed only (4xx, 5xx)
-      final failed = InterceptlyServiceExtensions.handleListRequests(
+      final failed = await InterceptlyServiceExtensions.handleListRequests(
         engine: engine,
         parameters: {'status_filter': 'failed'},
       );
@@ -130,7 +134,7 @@ void main() {
       expect(failedList.map((e) => e['statusCode']), containsAll([404, 500]));
 
       // 3. Search query
-      final search = InterceptlyServiceExtensions.handleListRequests(
+      final search = await InterceptlyServiceExtensions.handleListRequests(
         engine: engine,
         parameters: {'search': 'missing'},
       );
@@ -139,12 +143,59 @@ void main() {
       expect(searchList.first['id'], 'req_2');
 
       // 4. Cursor pagination since_id (newest-first, entries after req_2)
-      final since = InterceptlyServiceExtensions.handleListRequests(
+      final since = await InterceptlyServiceExtensions.handleListRequests(
         engine: engine,
         parameters: {'since_id': 'req_2'},
       );
       final sinceList = since['requests'] as List;
       expect(sinceList.any((e) => e['id'] == 'req_2'), isFalse);
+    });
+
+    test(
+        'handleListRequests searches across headers and body and returns matchScopes',
+        () async {
+      engine.record(createCapture(
+        id: 'req_hdr',
+        statusCode: 200,
+        url: 'https://api.example.com/data',
+        requestHeaders: {'X-Custom-Auth': 'token-auth-xyz'},
+      ));
+      engine.record(createCapture(
+        id: 'req_body',
+        statusCode: 200,
+        url: 'https://api.example.com/payload',
+        responseBody: '{"order_status":"COMPLETED_OK"}',
+      ));
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      // Match header
+      final headerSearch =
+          await InterceptlyServiceExtensions.handleListRequests(
+        engine: engine,
+        parameters: {'search': 'token-auth-xyz'},
+      );
+      final headerList = headerSearch['requests'] as List;
+      expect(headerList.length, 1);
+      expect(headerList.first['id'], 'req_hdr');
+      expect(headerList.first['matchScopes'], contains('headers'));
+
+      // Match body
+      final bodySearch = await InterceptlyServiceExtensions.handleListRequests(
+        engine: engine,
+        parameters: {'search': 'COMPLETED_OK'},
+      );
+      final bodyList = bodySearch['requests'] as List;
+      expect(bodyList.length, 1);
+      expect(bodyList.first['id'], 'req_body');
+      expect(bodyList.first['matchScopes'], contains('body'));
+
+      // Skips body when search_body is false
+      final noBodySearch =
+          await InterceptlyServiceExtensions.handleListRequests(
+        engine: engine,
+        parameters: {'search': 'COMPLETED_OK', 'search_body': 'false'},
+      );
+      expect(noBodySearch['requests'], isEmpty);
     });
 
     test(

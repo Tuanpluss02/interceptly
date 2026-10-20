@@ -168,26 +168,72 @@ class InterceptlyServiceExtensions {
   ///
   /// Query parameters:
   /// - `status_filter`: 'all' | 'failed' | '2xx' | '3xx' | '4xx' | '5xx'
-  /// - `search`: search substring across URL and method
+  /// - `search`: search substring across URL, method, headers, error, and body
+  /// - `search_body`: whether to search body content ('true' | 'false', default: 'true')
   /// - `since_id`: cursor pagination (returns only entries created after [since_id])
   /// - `limit`: maximum number of entries to return (default 20, max 100)
-  static Map<String, dynamic> handleListRequests({
+  static Future<Map<String, dynamic>> handleListRequests({
     required InterceptlyEngine? engine,
     required Map<String, String> parameters,
     bool isEnabled = true,
-  }) {
+  }) async {
     _checkEnabled(isEnabled);
 
     final entries = engine?.entries ?? <RequestSummary>[];
     final statusFilter = (parameters['status_filter'] ?? 'all').toLowerCase();
-    final search = parameters['search']?.trim().toLowerCase();
+    final search = parameters['search']?.trim();
+    final searchBody = parameters['search_body'] != 'false';
     final sinceId = parameters['since_id'];
     final limit =
         int.tryParse(parameters['limit'] ?? '20')?.clamp(1, 100) ?? 20;
 
+    if (engine == null) {
+      return {
+        'total': 0,
+        'count': 0,
+        'requests': const <Map<String, dynamic>>[],
+      };
+    }
+
+    // 1. When search query is present, delegate to multi-phase engine search
+    if (search != null && search.isNotEmpty) {
+      final searchResults = await engine.search(
+        query: search,
+        searchBody: searchBody,
+        statusFilter: statusFilter,
+        sinceId: sinceId,
+        limit: limit,
+      );
+
+      final mapped = searchResults.map((r) {
+        final e = r.summary;
+        return {
+          'id': e.id,
+          'method': e.method,
+          'url': e.url,
+          'statusCode': e.statusCode,
+          'durationMs': e.durationMs,
+          'requestSizeBytes': e.requestSizeBytes,
+          'responseSizeBytes': e.responseSizeBytes,
+          'timestamp': e.timestamp.toIso8601String(),
+          'hasError': e.hasError,
+          'errorType': e.errorType,
+          'errorMessage': e.errorMessage,
+          'matchScopes': r.matchScopes.map((s) => s.name).toList(),
+        };
+      }).toList();
+
+      return {
+        'total': entries.length,
+        'count': mapped.length,
+        'requests': mapped,
+      };
+    }
+
+    // 2. Fast path when no search query
     var filtered = entries.toList();
 
-    // 1. since_id cursor: find index of sinceId and take entries before it (entries are newest-first)
+    // since_id cursor: find index of sinceId and take entries before it (entries are newest-first)
     if (sinceId != null && sinceId.isNotEmpty) {
       final index = filtered.indexWhere((e) => e.id == sinceId);
       if (index > 0) {
@@ -197,7 +243,7 @@ class InterceptlyServiceExtensions {
       }
     }
 
-    // 2. Status filter
+    // Status filter
     if (statusFilter != 'all') {
       filtered = filtered.where((e) {
         final code = e.statusCode;
@@ -212,15 +258,7 @@ class InterceptlyServiceExtensions {
       }).toList();
     }
 
-    // 3. Search query
-    if (search != null && search.isNotEmpty) {
-      filtered = filtered.where((e) {
-        return e.url.toLowerCase().contains(search) ||
-            e.method.toLowerCase().contains(search);
-      }).toList();
-    }
-
-    // 4. Limit
+    // Limit
     if (filtered.length > limit) {
       filtered = filtered.sublist(0, limit);
     }
@@ -238,6 +276,7 @@ class InterceptlyServiceExtensions {
               'hasError': e.hasError,
               'errorType': e.errorType,
               'errorMessage': e.errorMessage,
+              'matchScopes': const <String>[],
             })
         .toList();
 
