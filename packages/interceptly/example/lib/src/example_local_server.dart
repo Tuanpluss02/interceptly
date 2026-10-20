@@ -48,6 +48,11 @@ class ExampleLocalServer {
   Future<void> _handleRequest(HttpRequest request) async {
     final path = request.uri.path;
 
+    if (path.startsWith('/socket.io')) {
+      await _handleSocketIoRequest(request);
+      return;
+    }
+
     if (path == '/ws/chat' && WebSocketTransformer.isUpgradeRequest(request)) {
       try {
         final socket = await WebSocketTransformer.upgrade(request);
@@ -764,6 +769,199 @@ class ExampleLocalServer {
       },
       onDone: () {
         heartbeatTimer.cancel();
+      },
+    );
+  }
+
+  Future<void> _handleSocketIoRequest(HttpRequest request) async {
+    if (WebSocketTransformer.isUpgradeRequest(request)) {
+      try {
+        final socket = await WebSocketTransformer.upgrade(request);
+        _handleSocketIoSocket(socket);
+      } catch (_) {
+        // Upgrade failed
+      }
+      return;
+    }
+
+    // Handle HTTP polling fallback or handshake
+    final response = request.response;
+    response.headers
+      ..set('Access-Control-Allow-Origin', '*')
+      ..set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+      ..set('Access-Control-Allow-Headers', '*');
+
+    if (request.method == 'OPTIONS') {
+      response.statusCode = HttpStatus.ok;
+      await response.close();
+      return;
+    }
+
+    if (request.method == 'GET') {
+      final sid = 'sio_${DateTime.now().millisecondsSinceEpoch}';
+      response.statusCode = HttpStatus.ok;
+      response.headers.contentType = ContentType.text;
+      response.write('0${jsonEncode({
+            "sid": sid,
+            "upgrades": <String>['websocket'],
+            "pingInterval": 25000,
+            "pingTimeout": 20000,
+          })}');
+      await response.close();
+      return;
+    }
+
+    if (request.method == 'POST') {
+      response.statusCode = HttpStatus.ok;
+      response.write('ok');
+      await response.close();
+      return;
+    }
+  }
+
+  void _handleSocketIoSocket(WebSocket socket) {
+    final sid = 'sio_${DateTime.now().millisecondsSinceEpoch}';
+    // 1. Send Engine.IO Open packet immediately upon WebSocket connection
+    socket.add('0${jsonEncode({
+          "sid": sid,
+          "upgrades": <String>[],
+          "pingInterval": 25000,
+          "pingTimeout": 20000,
+        })}');
+
+    socket.listen(
+      (dynamic rawMessage) {
+        final text = rawMessage.toString();
+        if (text.isEmpty) return;
+
+        // Engine.IO PING ("2" or "2probe") -> PONG ("3" or "3probe")
+        if (text == '2' || text.startsWith('2probe')) {
+          if (text == '2probe') {
+            socket.add('3probe');
+          } else {
+            socket.add('3');
+          }
+          return;
+        }
+
+        // Engine.IO UPGRADE ("5")
+        if (text == '5') {
+          return;
+        }
+
+        // Socket.IO CONNECT packet ("40" or "40/nsp,")
+        if (text.startsWith('40')) {
+          socket.add('40${jsonEncode({"sid": sid})}');
+
+          // Send welcome system notice
+          Timer(const Duration(milliseconds: 100), () {
+            if (socket.readyState != WebSocket.open) return;
+            socket.add('42${jsonEncode([
+                  'chat_message',
+                  {
+                    'type': 'system',
+                    'from': 'System',
+                    'message':
+                        'Đã kết nối Socket.IO thành công với StormX Support Bot.',
+                    'timestamp': DateTime.now().millisecondsSinceEpoch,
+                  }
+                ])}');
+
+            // Send agent greeting
+            Timer(const Duration(milliseconds: 300), () {
+              if (socket.readyState != WebSocket.open) return;
+              socket.add('42${jsonEncode([
+                    'chat_message',
+                    {
+                      'type': 'agent_message',
+                      'from': 'StormX (Socket.IO Bot)',
+                      'message':
+                          'Xin chào! Tôi là StormX trên kết nối Socket.IO. Hãy thử gửi tin nhắn hoặc mở Interceptly Inspector để xem các event Socket.IO nhé!',
+                      'timestamp': DateTime.now().millisecondsSinceEpoch,
+                    }
+                  ])}');
+            });
+          });
+          return;
+        }
+
+        // Socket.IO DISCONNECT packet ("41")
+        if (text.startsWith('41')) {
+          socket.close(WebSocketStatus.normalClosure, 'Client disconnected');
+          return;
+        }
+
+        // Socket.IO EVENT packet ("42[...]")
+        if (text.startsWith('42')) {
+          final jsonStr = text.substring(2);
+          try {
+            final dynamic parsed = jsonDecode(jsonStr);
+            if (parsed is List && parsed.isNotEmpty) {
+              final eventName = parsed[0].toString();
+              final eventData = parsed.length > 1 ? parsed[1] : null;
+
+              if (eventName == 'chat_message') {
+                String userQuery = '';
+                if (eventData is Map && eventData['message'] != null) {
+                  userQuery = eventData['message'].toString();
+                } else if (eventData != null) {
+                  userQuery = eventData.toString();
+                }
+
+                // Send typing indicator after 150ms
+                Timer(const Duration(milliseconds: 150), () {
+                  if (socket.readyState != WebSocket.open) return;
+                  socket.add('42${jsonEncode([
+                        'typing',
+                        {
+                          'from': 'StormX (Socket.IO Bot)',
+                          'status': true,
+                        }
+                      ])}');
+
+                  // Send reply after 400ms
+                  Timer(const Duration(milliseconds: 400), () {
+                    if (socket.readyState != WebSocket.open) return;
+
+                    final lower = userQuery.toLowerCase();
+                    String reply;
+                    if (lower.contains('ping')) {
+                      reply =
+                          '🏓 Pong từ Socket.IO! Handshake và event frame hoạt động chuẩn xác.';
+                    } else if (lower.contains('lỗi') ||
+                        lower.contains('bug') ||
+                        lower.contains('error')) {
+                      reply =
+                          'Mở Interceptly Inspector -> Realtime Tab để xem chi tiết packet Socket.IO nhé!';
+                    } else if (lower.contains('đơn hàng') ||
+                        lower.contains('order')) {
+                      reply =
+                          'Đơn hàng Socket.IO #SIO-20261020 của bạn đang ở trạng thái chuẩn bị giao.';
+                    } else {
+                      reply =
+                          'StormX (Socket.IO) đã nhận được tin nhắn: "$userQuery".';
+                    }
+
+                    socket.add('42${jsonEncode([
+                          'chat_message',
+                          {
+                            'type': 'agent_message',
+                            'from': 'StormX (Socket.IO Bot)',
+                            'message': reply,
+                            'timestamp': DateTime.now().millisecondsSinceEpoch,
+                          }
+                        ])}');
+                  });
+                });
+              }
+            }
+          } catch (_) {
+            // Ignore malformed event JSON
+          }
+        }
+      },
+      onError: (Object _) {
+        socket.close(WebSocketStatus.unsupportedData);
       },
     );
   }

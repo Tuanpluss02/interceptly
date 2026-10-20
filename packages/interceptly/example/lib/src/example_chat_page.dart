@@ -3,7 +3,18 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:interceptly/interceptly.dart';
+import 'package:interceptly_socket_io/interceptly_socket_io.dart';
 import 'package:interceptly_web_socket/interceptly_web_socket.dart';
+import 'package:socket_io_client/socket_io_client.dart' as io;
+
+/// The realtime protocol flavor used by the chat page.
+enum RealtimeProtocolMode {
+  webSocket('WebSocket'),
+  socketIo('Socket.IO');
+
+  const RealtimeProtocolMode(this.label);
+  final String label;
+}
 
 /// Model representing a single chat message in the support room.
 class ChatMessage {
@@ -25,7 +36,8 @@ class ChatMessage {
 }
 
 /// A realistic Customer Support Chat page demonstrating bidirectional
-/// WebSocket traffic, agent responses, typing indicators, and Interceptly inspection.
+/// WebSocket and Socket.IO traffic, agent responses, typing indicators,
+/// and Interceptly inspection.
 class ExampleChatPage extends StatefulWidget {
   final String baseUrl;
   final bool autoConnect;
@@ -43,8 +55,15 @@ class ExampleChatPage extends StatefulWidget {
 }
 
 class _ExampleChatPageState extends State<ExampleChatPage> {
+  RealtimeProtocolMode _protocolMode = RealtimeProtocolMode.webSocket;
+
+  // WebSocket state
   InterceptlyWebSocketChannel? _channel;
   StreamSubscription? _subscription;
+
+  // Socket.IO state
+  io.Socket? _socket;
+  InterceptlySocketIoTracker? _socketTracker;
 
   bool _isConnected = false;
   bool _isConnecting = false;
@@ -64,8 +83,7 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
 
   @override
   void dispose() {
-    _subscription?.cancel();
-    _channel?.sink.close(1000, 'Page disposed');
+    _disconnect(updateState: false);
     _textController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -86,6 +104,34 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
   void _connect() {
     if (_isConnected || _isConnecting) return;
 
+    if (_protocolMode == RealtimeProtocolMode.webSocket) {
+      _connectWebSocket();
+    } else {
+      _connectSocketIo();
+    }
+  }
+
+  void _disconnect({bool updateState = true}) {
+    if (_protocolMode == RealtimeProtocolMode.webSocket) {
+      _disconnectWebSocket(updateState: updateState);
+    } else {
+      _disconnectSocketIo(updateState: updateState);
+    }
+  }
+
+  void _switchProtocolMode(RealtimeProtocolMode mode) {
+    if (_protocolMode == mode) return;
+    _disconnect(updateState: false);
+    setState(() {
+      _protocolMode = mode;
+      _messages.clear();
+    });
+    if (widget.autoConnect) {
+      _connect();
+    }
+  }
+
+  void _connectWebSocket() {
     setState(() {
       _isConnecting = true;
     });
@@ -109,7 +155,7 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
             _messages.add(
               ChatMessage(
                 id: 'err_${DateTime.now().millisecondsSinceEpoch}',
-                text: 'Lỗi kết nối socket: $error',
+                text: 'Lỗi kết nối WebSocket: $error',
                 from: 'System',
                 isMe: false,
                 isSystem: true,
@@ -150,14 +196,153 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
     }
   }
 
-  void _disconnect() {
+  void _disconnectWebSocket({bool updateState = true}) {
     _subscription?.cancel();
+    _subscription = null;
     _channel?.sink.close(1000, 'User disconnected');
+    _channel = null;
+    _isConnected = false;
+    _isConnecting = false;
+    _isTyping = false;
+    if (updateState && mounted) {
+      setState(() {});
+    }
+  }
+
+  void _connectSocketIo() {
     setState(() {
-      _isConnected = false;
-      _isConnecting = false;
-      _isTyping = false;
+      _isConnecting = true;
     });
+
+    try {
+      final socket = io.io(
+        widget.baseUrl,
+        io.OptionBuilder()
+            .setTransports(['websocket'])
+            .disableAutoConnect()
+            .build(),
+      );
+      _socket = socket;
+      _socketTracker = socket.attachInterceptly();
+
+      socket.onConnect((_) {
+        if (!mounted) return;
+        setState(() {
+          _isConnected = true;
+          _isConnecting = false;
+        });
+      });
+
+      socket.onDisconnect((_) {
+        if (!mounted) return;
+        setState(() {
+          _isConnected = false;
+          _isConnecting = false;
+          _isTyping = false;
+        });
+      });
+
+      socket.onConnectError((err) {
+        if (!mounted) return;
+        setState(() {
+          _isConnected = false;
+          _isConnecting = false;
+          _isTyping = false;
+          _messages.add(
+            ChatMessage(
+              id: 'err_${DateTime.now().millisecondsSinceEpoch}',
+              text: 'Lỗi kết nối Socket.IO: $err',
+              from: 'System',
+              isMe: false,
+              isSystem: true,
+            ),
+          );
+        });
+        _scrollToBottom();
+      });
+
+      socket.on('typing', (dynamic data) {
+        if (!mounted) return;
+        bool isTyping = false;
+        if (data is Map && data['status'] == true) {
+          isTyping = true;
+        }
+        setState(() {
+          _isTyping = isTyping;
+        });
+        _scrollToBottom();
+      });
+
+      socket.on('chat_message', (dynamic data) {
+        if (!mounted) return;
+        if (data is Map) {
+          final type = data['type'];
+          final text = data['message']?.toString() ?? data.toString();
+          final from = data['from']?.toString() ?? 'StormX';
+
+          if (type == 'system') {
+            setState(() {
+              _messages.add(
+                ChatMessage(
+                  id: 'sys_${DateTime.now().millisecondsSinceEpoch}',
+                  text: text,
+                  from: 'System',
+                  isMe: false,
+                  isSystem: true,
+                ),
+              );
+            });
+          } else {
+            setState(() {
+              _isTyping = false;
+              _messages.add(
+                ChatMessage(
+                  id: 'agent_${DateTime.now().millisecondsSinceEpoch}',
+                  text: text,
+                  from: from,
+                  isMe: false,
+                ),
+              );
+            });
+          }
+          _scrollToBottom();
+        } else if (data != null) {
+          setState(() {
+            _isTyping = false;
+            _messages.add(
+              ChatMessage(
+                id: 'agent_${DateTime.now().millisecondsSinceEpoch}',
+                text: data.toString(),
+                from: 'StormX',
+                isMe: false,
+              ),
+            );
+          });
+          _scrollToBottom();
+        }
+      });
+
+      socket.connect();
+    } catch (e) {
+      setState(() {
+        _isConnected = false;
+        _isConnecting = false;
+      });
+    }
+  }
+
+  void _disconnectSocketIo({bool updateState = true}) {
+    _socketTracker?.detach();
+    _socketTracker = null;
+    _socket?.disconnect();
+    _socket?.dispose();
+    _socket = null;
+    _isConnected = false;
+    _isConnecting = false;
+    _isTyping = false;
+    if (updateState && mounted) {
+      setState(() {});
+    }
   }
 
   void _handleIncoming(String text) {
@@ -226,22 +411,33 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
     final text = presetText ?? _textController.text.trim();
     if (text.isEmpty) return;
 
-    if (!_isConnected || _channel == null) {
+    if (!_isConnected) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content:
-                Text('Vui lòng kết nối WebSocket trước khi gửi tin nhắn!')),
+        SnackBar(
+          content: Text(
+            'Vui lòng kết nối ${_protocolMode == RealtimeProtocolMode.webSocket ? "WebSocket" : "Socket.IO"} trước khi gửi tin nhắn!',
+          ),
+        ),
       );
       return;
     }
 
-    final payload = jsonEncode({
-      'type': 'chat',
-      'message': text,
-      'timestamp': DateTime.now().toIso8601String(),
-    });
-
-    _channel!.sink.add(payload);
+    if (_protocolMode == RealtimeProtocolMode.webSocket) {
+      if (_channel == null) return;
+      final payload = jsonEncode({
+        'type': 'chat',
+        'message': text,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      _channel!.sink.add(payload);
+    } else {
+      if (_socket == null) return;
+      _socket!.emit('chat_message', {
+        'type': 'chat',
+        'message': text,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+    }
 
     setState(() {
       _messages.add(
@@ -408,6 +604,64 @@ class _ExampleChatPageState extends State<ExampleChatPage> {
                   ],
                 ),
               ),
+
+            // Protocol selector
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14.0, vertical: 6.0),
+              decoration: BoxDecoration(
+                color: Theme.of(context)
+                    .colorScheme
+                    .surfaceContainerHighest
+                    .withValues(alpha: 0.35),
+                border: Border(
+                  bottom: BorderSide(
+                    color:
+                        Theme.of(context).dividerColor.withValues(alpha: 0.15),
+                  ),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    'Protocol:',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: SegmentedButton<RealtimeProtocolMode>(
+                      key: const ValueKey('chat_protocol_selector'),
+                      showSelectedIcon: false,
+                      style: const ButtonStyle(
+                        visualDensity: VisualDensity.compact,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      segments: const [
+                        ButtonSegment(
+                          value: RealtimeProtocolMode.webSocket,
+                          label:
+                              Text('WebSocket', style: TextStyle(fontSize: 12)),
+                          icon: Icon(Icons.cable, size: 14),
+                        ),
+                        ButtonSegment(
+                          value: RealtimeProtocolMode.socketIo,
+                          label:
+                              Text('Socket.IO', style: TextStyle(fontSize: 12)),
+                          icon: Icon(Icons.hub_outlined, size: 14),
+                        ),
+                      ],
+                      selected: {_protocolMode},
+                      onSelectionChanged: (selected) =>
+                          _switchProtocolMode(selected.first),
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
             // Message list
             Expanded(

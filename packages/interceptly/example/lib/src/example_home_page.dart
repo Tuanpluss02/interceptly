@@ -142,7 +142,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
           ),
           NavigationDestination(
             icon: Icon(Icons.chat_bubble_outline),
-            label: 'WebSocket',
+            label: 'Realtime',
           ),
           NavigationDestination(
             icon: Icon(Icons.speed),

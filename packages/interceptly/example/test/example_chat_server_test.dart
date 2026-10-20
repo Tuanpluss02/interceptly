@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:example/src/example_local_server.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:socket_io_client/socket_io_client.dart' as io;
 
 void main() {
   group('ExampleLocalServer /ws/chat tests', () {
@@ -60,6 +61,60 @@ void main() {
 
       await socket.close();
       await sub.cancel();
+    });
+
+    test('connects to Socket.IO endpoint and exchanges chat messages',
+        () async {
+      final socket = io.io(
+        server.baseUrl,
+        io.OptionBuilder()
+            .setTransports(['websocket'])
+            .disableAutoConnect()
+            .build(),
+      );
+
+      final connectCompleter = Completer<void>();
+      final messages = <dynamic>[];
+      final greetingCompleter = Completer<void>();
+
+      socket.onConnect((_) {
+        if (!connectCompleter.isCompleted) {
+          connectCompleter.complete();
+        }
+      });
+
+      socket.on('chat_message', (dynamic data) {
+        messages.add(data);
+        if (messages.length >= 2 && !greetingCompleter.isCompleted) {
+          greetingCompleter.complete();
+        }
+      });
+
+      socket.connect();
+      await connectCompleter.future.timeout(const Duration(seconds: 4));
+      expect(socket.connected, isTrue);
+
+      await greetingCompleter.future.timeout(const Duration(seconds: 4));
+      expect(messages.length, greaterThanOrEqualTo(2));
+      expect(messages[0]['type'], 'system');
+      expect(messages[1]['type'], 'agent_message');
+
+      // Test ping response over Socket.IO
+      final pongCompleter = Completer<void>();
+      socket.on('chat_message', (dynamic data) {
+        if (data is Map &&
+            data['message'] != null &&
+            data['message'].toString().contains('Pong') &&
+            !pongCompleter.isCompleted) {
+          pongCompleter.complete();
+        }
+      });
+
+      socket.emit('chat_message', {'message': 'ping'});
+      await pongCompleter.future.timeout(const Duration(seconds: 4));
+
+      socket.disconnect();
+      socket.dispose();
     });
   });
 }

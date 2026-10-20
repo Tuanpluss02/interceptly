@@ -73,5 +73,29 @@ void main() {
       // Input or message list has ping
       expect(find.textContaining('ping'), findsWidgets);
     });
+
+    testWidgets(
+        'renders protocol selector and switches between WebSocket and Socket.IO',
+        (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ExampleChatPage(
+            baseUrl: server.baseUrl,
+            autoConnect: false,
+          ),
+        ),
+      );
+
+      expect(
+          find.byKey(const ValueKey('chat_protocol_selector')), findsOneWidget);
+      expect(find.text('WebSocket'), findsOneWidget);
+      expect(find.text('Socket.IO'), findsOneWidget);
+
+      await tester.tap(find.text('Socket.IO'));
+      await tester.pumpAndSettle();
+
+      expect(
+          find.byKey(const ValueKey('chat_protocol_selector')), findsOneWidget);
+    });
   });
 }
