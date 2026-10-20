@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../engine/interceptly_engine.dart';
@@ -7,6 +8,7 @@ import '../model/interceptly_settings.dart';
 import '../model/network_simulation.dart';
 import '../model/request_record.dart';
 import '../model/request_summary.dart';
+import '../service_extension/interceptly_service_extensions.dart';
 import '../ui/overlay/floating_overlay_manager.dart';
 import '../ui/screens/interceptly_screen.dart';
 import '../ui/settings/inspector_preferences.dart';
@@ -168,6 +170,10 @@ Future<void> _init({
   unawaited(InterceptlyEngine.instance.initialize().catchError((Object error) {
     debugPrint('[Interceptly] background init failed: $error');
   }));
+
+  if (kDebugMode) {
+    InterceptlyServiceExtensions.register(InterceptlyEngine.instance);
+  }
 }
 
 void _detach() {

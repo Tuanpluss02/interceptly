@@ -129,7 +129,6 @@ class _RealtimeMessageComposerSheetState
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Header
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -165,8 +164,6 @@ class _RealtimeMessageComposerSheetState
                 ],
               ),
               const SizedBox(height: 12),
-
-              // Event Name (if Socket.IO)
               if (isSocketIo) ...[
                 Text(
                   'Event Name',
@@ -203,8 +200,6 @@ class _RealtimeMessageComposerSheetState
                 ),
                 const SizedBox(height: 12),
               ],
-
-              // JSON warning
               if (_jsonWarning != null) ...[
                 Container(
                   padding:
@@ -234,8 +229,6 @@ class _RealtimeMessageComposerSheetState
                 ),
                 const SizedBox(height: 8),
               ],
-
-              // Payload input
               Text(
                 'Payload (JSON or Text)',
                 style: InterceptlyTheme.typography.bodySmallMedium
@@ -273,8 +266,6 @@ class _RealtimeMessageComposerSheetState
                 ),
               ),
               const SizedBox(height: 16),
-
-              // Actions
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [

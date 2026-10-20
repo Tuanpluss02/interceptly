@@ -61,7 +61,6 @@ class DynamicCircularBuffer {
       return;
     }
 
-    // Full at max capacity: overwrite head (oldest element)
     _buffer[_head] = item;
     _head = (_head + 1) % _capacity;
   }
@@ -270,7 +269,6 @@ class RealtimeStore {
   void _enforceMaxSessions({String? incomingSessionId}) {
     if (_buffersBySession.length <= _maxSessions) return;
 
-    // 1. Evict any sessions with count == 0 first (queried empty views)
     final emptyKeys = <String>[];
     for (final entry in _buffersBySession.entries) {
       if (entry.key != incomingSessionId && entry.value.count == 0) {
@@ -282,7 +280,6 @@ class RealtimeStore {
       if (_buffersBySession.length <= _maxSessions) return;
     }
 
-    // 2. Evict closed sessions next
     final closedKeys = <String>[];
     for (final key in _buffersBySession.keys) {
       if (key != incomingSessionId && _closedSessions.contains(key)) {
@@ -294,7 +291,6 @@ class RealtimeStore {
       if (_buffersBySession.length <= _maxSessions) return;
     }
 
-    // 3. Evict oldest sessions (FIFO in linked map)
     while (_buffersBySession.length > _maxSessions) {
       final keyToEvict = _buffersBySession.keys.firstWhere(
         (k) => k != incomingSessionId,
@@ -350,7 +346,6 @@ class RealtimeStore {
     _enforceMaxSessions(incomingSessionId: frame.sessionId);
     _enforceGlobalBudget();
 
-    // Update live counts and mark session notifier as dirty for coalesced update
     final currentCounts =
         _liveCountsBySession[frame.sessionId] ?? const RealtimeFrameCounts();
     _liveCountsBySession[frame.sessionId] =
@@ -461,7 +456,6 @@ class RealtimeStore {
     final deficit = _totalFramesAcrossSessions - _maxTotalRealtimeFrames;
     var remainingDeficit = deficit;
 
-    // 1. Evict from closed sessions first
     for (final closedKey in _closedSessions) {
       if (remainingDeficit <= 0) break;
       final buf = _buffersBySession[closedKey];
@@ -476,7 +470,6 @@ class RealtimeStore {
       }
     }
 
-    // 2. If deficit remains, evict from least-recently-used active sessions (O(1) LRU)
     if (remainingDeficit > 0) {
       for (final key in _buffersBySession.keys) {
         if (remainingDeficit <= 0) break;

@@ -1,0 +1,20 @@
+name: interceptly_mcp
+description: "Model Context Protocol (MCP) server for Interceptly Flutter network inspector."
+version: 1.0.0
+homepage: https://github.com/Tuanpluss02/interceptly
+repository: https://github.com/Tuanpluss02/interceptly
+
+environment:
+  sdk: '>=3.7.0 <4.0.0'
+
+dependencies:
+  dart_mcp: ^0.5.2
+  vm_service: ^15.4.0
+  dtd: ^4.0.0
+  args: ^2.7.0
+  path: ^1.9.1
+
+dev_dependencies:
+  test: ^1.25.0
+  stream_channel: ^2.1.2
+  lints: ^4.0.0

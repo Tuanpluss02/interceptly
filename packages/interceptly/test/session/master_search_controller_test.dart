@@ -9,7 +9,7 @@ import 'package:interceptly/src/model/body_truncation.dart';
 import 'package:interceptly/src/model/index_entry.dart';
 import 'package:interceptly/src/model/search_match_scope.dart';
 import 'package:interceptly/src/engine/body_store.dart';
-import 'package:interceptly/src/engine/master_search_controller.dart';
+import 'package:interceptly/src/ui/search/master_search_controller.dart';
 
 /// Helper to create a packed body buffer compatible with BodyDecodeService.
 Uint8List _createPackedBody({

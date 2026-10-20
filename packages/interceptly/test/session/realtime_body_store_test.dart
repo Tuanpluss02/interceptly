@@ -47,9 +47,9 @@ void main() {
       final payload2 = Uint8List.fromList([10, 20, 30, 40]);
 
       final res1 = await store.append(payload1);
-      expect(res1.$1, equals(0)); // offset
-      expect(res1.$2, equals(5)); // length
-      expect(res1.$3, equals(0)); // rotationCount
+      expect(res1.$1, equals(0));
+      expect(res1.$2, equals(5));
+      expect(res1.$3, equals(0));
 
       final res2 = await store.append(payload2);
       expect(res2.$1, equals(5));
@@ -76,14 +76,12 @@ void main() {
       final payloads =
           List.generate(count, (i) => Uint8List.fromList(List.filled(100, i)));
 
-      // Dispatch 20 simultaneous append calls concurrently
       final futures = payloads.map((p) => store.append(p));
       final results = await Future.wait(futures);
 
       expect(results.length, equals(count));
       expect(store.currentOffset, equals(count * 100));
 
-      // Verify that every single offset is unique, strictly monotonic (increasing by 100), and non-overlapping
       final offsets = results.map((r) => r.$1).toList();
       final sortedOffsets = List<int>.from(offsets)..sort();
       expect(offsets, equals(sortedOffsets),
@@ -102,7 +100,6 @@ void main() {
     test(
         'rotates file when capacity is exceeded, resetting offset and bumping rotationCount',
         () async {
-      // 100 bytes max capacity
       final store = RealtimeBodyStore(maxFileBytes: 100);
       addTearDown(store.dispose);
       await store.initForWrite(tempDir.path);
@@ -115,7 +112,6 @@ void main() {
       expect(res1.$3, equals(0));
       expect(store.rotationCount, equals(0));
 
-      // Appending another 60 bytes exceeds 100 bytes maxFileBytes -> triggers automatic rotation
       final payload2 = Uint8List.fromList(List.filled(60, 99));
       final res2 = await store.append(payload2);
 

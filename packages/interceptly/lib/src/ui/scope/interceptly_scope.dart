@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../engine/interceptly_engine.dart';
-import '../../engine/master_search_controller.dart';
+import '../search/master_search_controller.dart';
 import '../../model/domain_group.dart';
 import '../../model/index_entry.dart';
 import '../../model/interceptly_settings.dart';

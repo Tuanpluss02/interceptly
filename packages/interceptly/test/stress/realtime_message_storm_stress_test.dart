@@ -29,8 +29,6 @@ void main() {
         const sessionCount = 10;
         const framesPerSession = 1000;
 
-        // Concurrently bombard 10 independent sessions with 1,000 frames each
-        // (10,000 frames total)
         await Future.wait(
           List.generate(sessionCount, (sIndex) async {
             final sessionId = 'storm-session-$sIndex';
@@ -46,7 +44,6 @@ void main() {
                 ),
               );
 
-              // Yield periodically to allow interleaved asynchronous scheduling
               if (fIndex % 100 == 0) {
                 await Future<void>.delayed(Duration.zero);
               }
@@ -54,20 +51,17 @@ void main() {
           }),
         );
 
-        // Verify bounds and FIFO preservation across all 10 sessions
         for (var sIndex = 0; sIndex < sessionCount; sIndex++) {
           final sessionId = 'storm-session-$sIndex';
           final frames = session.getRealtimeFrames(sessionId);
 
-          // 1. Buffer bound: never exceeds maxFramesPerSession (500)
           expect(
             frames.length,
             equals(capacity),
             reason: 'Session $sessionId must contain exactly $capacity frames',
           );
 
-          // 2. FIFO eviction: earliest frames (0..499) dropped, latest preserved (500..999)
-          final expectedStartSeq = framesPerSession - capacity; // 500
+          final expectedStartSeq = framesPerSession - capacity;
           expect(
             frames.first.id,
             equals('frame-$sIndex-$expectedStartSeq'),
@@ -80,7 +74,6 @@ void main() {
             reason: 'Latest frame must be preserved',
           );
 
-          // 3. Strict sequential integrity of preserved frames
           for (var i = 0; i < frames.length; i++) {
             final expectedSeq = expectedStartSeq + i;
             expect(frames[i].id, equals('frame-$sIndex-$expectedSeq'));
@@ -146,7 +139,6 @@ void main() {
           var notifyCount = 0;
           session.addListener(() => notifyCount++);
 
-          // 1. Rapid burst of 1,000 frames arriving within 50ms
           for (var i = 0; i < 1000; i++) {
             session.recordRealtimeFrame(
               RealtimeFrame.text(
@@ -163,18 +155,15 @@ void main() {
             }
           }
 
-          // At elapsed 50ms, the 100ms throttle timer has not fired yet
           expect(
             notifyCount,
             equals(0),
             reason: 'Zero notifications during active frame storm burst',
           );
 
-          // Advance to 99ms total: timer still pending
           async.elapse(const Duration(milliseconds: 49));
           expect(notifyCount, equals(0));
 
-          // Cross the 100ms throttle boundary
           async.elapse(const Duration(milliseconds: 15));
           expect(
             notifyCount,
@@ -183,8 +172,6 @@ void main() {
                 'Burst of 1,000 frames must trigger exactly 1 batched notification',
           );
 
-          // 2. High-frequency sustained stream over 500ms
-          // 250 frames spaced every 2ms
           for (var i = 0; i < 250; i++) {
             session.recordRealtimeFrame(
               RealtimeFrame.text(
@@ -197,8 +184,6 @@ void main() {
             async.elapse(const Duration(milliseconds: 2));
           }
 
-          // With ~100ms throttling over 500ms, notifications are batched
-          // to ~5 callbacks rather than 250 individual UI thrashings
           expect(
             notifyCount,
             inInclusiveRange(4, 7),
@@ -206,7 +191,6 @@ void main() {
                 'Sustained storm must batch notifications at ~100ms intervals',
           );
 
-          // 3. Idle period: no spurious notifications after storm ceases
           final countAfterStorm = notifyCount;
           async.elapse(const Duration(milliseconds: 500));
           expect(
@@ -228,7 +212,6 @@ void main() {
         var recording = true;
         var totalRecorded = 0;
 
-        // Background worker tasks continuously bombarding session
         final workers = Future.wait(
           List.generate(5, (workerId) async {
             var seq = 0;
@@ -248,24 +231,18 @@ void main() {
           }),
         );
 
-        // Allow some frames to accumulate
         await Future<void>.delayed(const Duration(milliseconds: 30));
         expect(totalRecorded, greaterThan(0));
 
-        // 1. Concurrent clear() during active in-flight recording
         await expectLater(session.clear(), completes);
 
-        // Allow more recording after clear
         await Future<void>.delayed(const Duration(milliseconds: 30));
 
-        // 2. Concurrent dispose() during active in-flight recording
         await expectLater(session.dispose(), completes);
 
-        // Stop background workers and await completion
         recording = false;
         await workers;
 
-        // 3. Post-dispose safety: recording more frames must not throw
         expect(
           () => session.recordRealtimeFrame(
             RealtimeFrame.text(
@@ -278,7 +255,6 @@ void main() {
           returnsNormally,
         );
 
-        // 4. Querying frames after dispose returns empty list without error
         expect(session.getRealtimeFrames('session-0'), isEmpty);
         expect(session.isDisposed, isTrue);
       },

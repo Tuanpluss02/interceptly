@@ -10,7 +10,7 @@ import '../helpers/mock_http_client.dart';
 import 'package:interceptly/interceptly.dart';
 import 'package:interceptly/src/model/index_entry.dart';
 import 'package:interceptly/src/engine/body_store.dart';
-import 'package:interceptly/src/engine/master_search_controller.dart';
+import 'package:interceptly/src/ui/search/master_search_controller.dart';
 import 'package:interceptly/src/engine/memory_index.dart';
 import 'package:interceptly/src/share/interceptly_share.dart';
 import 'package:interceptly/src/engine/interceptly_engine.dart';
@@ -432,7 +432,6 @@ void main() {
         mimeType: 'application/json',
       );
 
-      // On non-mobile platform test environments, shareFile returns false without error
       expect(success, isFalse);
     });
 

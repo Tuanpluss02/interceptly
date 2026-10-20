@@ -284,7 +284,6 @@ void main() {
       scope.close(code: 1000, reason: 'normal');
       expect(scope.isClosed, isTrue);
 
-      // Safe no-ops after close
       scope.close();
       scope.send('after close');
       scope.receive('after close');
@@ -335,7 +334,6 @@ void main() {
       await scope.sendToServer(draft);
       expect(sender.sentDrafts, contains(draft));
 
-      // When sender is disconnected
       sender.isConnected = false;
       expect(scope.canSend, isFalse);
 

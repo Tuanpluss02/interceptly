@@ -89,14 +89,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Status chip in AppBar
     expect(find.text('CONNECTED'), findsOneWidget);
 
-    // Switch to Overview tab
     await tester.tap(find.text('Overview'));
     await tester.pumpAndSettle();
 
-    // Overview tab content
     expect(find.text('CONNECTED (Open)'), findsOneWidget);
     expect(
       find.text('↓ 8 received, ↑ 3 sent (11 total)'),
@@ -156,14 +153,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Status chip in AppBar
     expect(find.text('CLOSED'), findsOneWidget);
 
-    // Switch to Overview tab
     await tester.tap(find.text('Overview'));
     await tester.pumpAndSettle();
 
-    // Overview tab content
     expect(find.text('CLOSED (1000)'), findsOneWidget);
   });
 
@@ -222,14 +216,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Status chip in AppBar
     expect(find.text('DROPPED'), findsOneWidget);
 
-    // Switch to Overview tab
     await tester.tap(find.text('Overview'));
     await tester.pumpAndSettle();
 
-    // Overview tab content
     expect(find.text('DROPPED (1006)'), findsOneWidget);
   });
 
@@ -287,18 +278,15 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Switch to Overview tab
     await tester.tap(find.text('Overview'));
     await tester.pumpAndSettle();
 
     expect(find.text('0ms'), findsOneWidget);
 
-    // Advance time by 3 seconds and pump ticker
     currentTime = currentTime.add(const Duration(seconds: 3));
     await tester.pump(const Duration(seconds: 1));
     expect(find.text('3s'), findsOneWidget);
 
-    // Advance time by 62 seconds (total 65s -> 1m 5s)
     currentTime = currentTime.add(const Duration(seconds: 62));
     await tester.pump(const Duration(seconds: 1));
     expect(find.text('1m 5s'), findsOneWidget);

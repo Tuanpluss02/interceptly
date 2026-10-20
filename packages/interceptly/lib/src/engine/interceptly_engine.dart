@@ -3,11 +3,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../adapter/realtime_traffic_collector.dart';
-import 'capture_pipeline.dart';
-import 'detail_loader.dart';
-import 'memory_index.dart';
-import 'pending_tracker.dart';
-import 'realtime_store.dart';
 import '../model/index_entry.dart';
 import '../model/interceptly_settings.dart';
 import '../model/network_simulation.dart';
@@ -16,7 +11,14 @@ import '../model/realtime_frame.dart';
 import '../model/realtime_protocol_type.dart';
 import '../model/request_record.dart';
 import '../model/request_summary.dart';
+import '../model/search_result.dart';
 import '../simulation/network_simulation_service.dart';
+import 'capture_pipeline.dart';
+import 'detail_loader.dart';
+import 'memory_index.dart';
+import 'pending_tracker.dart';
+import 'realtime_store.dart';
+import 'search_service.dart';
 
 /// Central headless data engine for Interceptly.
 ///
@@ -435,6 +437,33 @@ class InterceptlyEngine extends ChangeNotifier {
       return _detailLoader.loadDetailByEntry(summary);
     }
     return loadDetailById(summary.id);
+  }
+
+  /// Searches captured network requests across URL, method, headers, error message,
+  /// and (optionally) payload bodies.
+  Future<List<SearchResult>> search({
+    required String query,
+    bool searchBody = true,
+    String statusFilter = 'all',
+    String? sinceId,
+    int limit = 20,
+  }) {
+    return SearchService.search(
+      entries: _memoryIndex.entries.toList(),
+      query: query,
+      filePath: _capturePipeline.tempFilePath,
+      fileRotationCount: _capturePipeline.fileRotationCount,
+      searchBody: searchBody,
+      statusFilter: statusFilter,
+      sinceId: sinceId,
+      limit: limit,
+    );
+  }
+
+  /// Records an entry directly into the memory index for testing.
+  @visibleForTesting
+  void recordEntryForTesting(IndexEntry entry) {
+    _memoryIndex.add(entry);
   }
 
   Future<void> clear() async {

@@ -28,7 +28,7 @@ void main() {
     final engine = InterceptlyEngine.instance;
     engine.configure(
       const InterceptlySettings(
-        maxBodyBytes: 100, // 100 bytes storage cap
+        maxBodyBytes: 100,
       ),
     );
     await engine.initialize();
@@ -52,8 +52,6 @@ void main() {
       () async {
     final engine = InterceptlyEngine.instance;
 
-    // Simulate an adapter that pre-capped the stream to 100 bytes,
-    // but the original stream was 500 bytes.
     final cappedBody = Uint8List(100);
     final capture = RawCapture(
       id: 'trunc-1',
@@ -65,7 +63,7 @@ void main() {
       durationMs: 10,
       timestamp: DateTime.now(),
       responseBodyBytes: RawCapture.wrapBytes(cappedBody),
-      responseSizeBytes: 500, // Original size
+      responseSizeBytes: 500,
       responseContentType: 'application/octet-stream',
     );
 
@@ -79,10 +77,8 @@ void main() {
     expect(engine.entries.length, equals(1));
     final entry = engine.entries.first;
 
-    // Verify responseSizeBytes is the original 500 bytes, NOT the capped 100 bytes
     expect(entry.responseSizeBytes, equals(500));
 
-    // Verify truncation stage is storage
     expect(entry.responseTruncation.isTruncated, isTrue);
     expect(entry.responseTruncation.stage, equals(TruncationStage.storage));
     expect(entry.responseTruncation.originalBytes, equals(500));
@@ -95,12 +91,10 @@ void main() {
     final engine = InterceptlyEngine.instance;
     engine.configure(
       const InterceptlySettings(
-        maxBodyBytes: 5 * 1024 * 1024, // 5 MB default
+        maxBodyBytes: 5 * 1024 * 1024,
       ),
     );
 
-    // Simulate a JSON response where Content-Length was 20480 (20 KB),
-    // but re-encoded JSON body in RAM is 20150 bytes.
     final jsonBody = Uint8List(20150);
     final capture = RawCapture(
       id: 'no-trunc-1',
@@ -115,7 +109,7 @@ void main() {
       durationMs: 15,
       timestamp: DateTime.now(),
       responseBodyBytes: RawCapture.wrapBytes(jsonBody),
-      responseSizeBytes: 20480, // Content-Length
+      responseSizeBytes: 20480,
       responseContentType: 'application/json',
     );
 
@@ -142,7 +136,7 @@ void main() {
     final engine = InterceptlyEngine.instance;
     engine.configure(
       const InterceptlySettings(
-        maxBodyBytes: 5 * 1024 * 1024, // 5 MB
+        maxBodyBytes: 5 * 1024 * 1024,
       ),
     );
 
@@ -152,7 +146,7 @@ void main() {
       url: 'https://api.example.com/large-asset.zip',
       requestHeaders: const {},
       responseHeaders: const {
-        'content-length': '10485760', // 10 MB
+        'content-length': '10485760',
       },
       statusCode: 200,
       durationMs: 5,

@@ -40,11 +40,9 @@ void main() {
       expect(find.text('Filter Requests'), findsOneWidget);
       expect(find.text('Show errors only'), findsNothing);
 
-      // Deselect GET method chip
       await tester.tap(find.text('GET'));
       await tester.pumpAndSettle();
 
-      // Tap Apply Filter button
       await tester.tap(find.textContaining('Apply Filter'));
       await tester.pumpAndSettle();
 
@@ -85,7 +83,6 @@ void main() {
 
       expect(find.text('Search domains...'), findsOneWidget);
 
-      // Type "alpha" in domain search
       await tester.enterText(find.byType(TextField), 'alpha');
       await tester.pumpAndSettle();
 
@@ -154,7 +151,6 @@ void main() {
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
 
-      // Tap 3xx, 4xx, 5xx to uncheck them
       await tester.tap(find.text('3xx Redirect'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('4xx Client Err'));
@@ -162,15 +158,12 @@ void main() {
       await tester.tap(find.text('5xx Server Err'));
       await tester.pumpAndSettle();
 
-      // Now 2xx is the only one selected. Tapping 2xx should NOT deselect it
       await tester.tap(find.text('2xx Success'));
       await tester.pumpAndSettle();
 
-      // Tap "Deselect All" on domains
       await tester.tap(find.text('Deselect All'));
       await tester.pumpAndSettle();
 
-      // Apply button should be disabled
       final applyButton = tester.widget<FilledButton>(
         find.descendant(
           of: find.byType(FilterPanel),

@@ -44,13 +44,11 @@ void main() {
         expect(entry.hasError, isFalse);
         expect(entry.errorType, isNull);
 
-        // Advance 30 seconds - should still be pending without error
         async.elapse(const Duration(seconds: 30));
         entry = engine.entries.first;
         expect(entry.hasError, isFalse);
         expect(entry.errorType, isNull);
 
-        // Advance another 15 seconds (total 45s) - should mark as timeout
         async.elapse(const Duration(seconds: 15));
         entry = engine.entries.first;
         expect(entry.hasError, isTrue);
@@ -79,11 +77,9 @@ void main() {
 
         expect(engine.entries.first.hasError, isFalse);
 
-        // Advance 20 seconds, then close connection normally
         async.elapse(const Duration(seconds: 20));
         engine.closeRealtimeConnection('ws-conn-1', closeCode: 1000);
 
-        // Advance past 45 seconds
         async.elapse(const Duration(seconds: 30));
 
         final entry = engine.entries.first;
@@ -175,7 +171,6 @@ void main() {
           timestamp: DateTime.now(),
         );
 
-        // At t = 45s from start (elapsed 30s more): req-a has lived 45s, req-b has lived 30s
         async.elapse(const Duration(seconds: 30));
 
         final entryA = engine.entries.firstWhere((e) => e.id == 'req-a');
@@ -185,7 +180,6 @@ void main() {
         expect(entryA.errorType, equals('TimeoutException'));
         expect(entryB.hasError, isFalse);
 
-        // At t = 60s (elapsed 15s more): req-b reaches 45s and times out
         async.elapse(const Duration(seconds: 15));
         final entryBAfter = engine.entries.firstWhere((e) => e.id == 'req-b');
         expect(entryBAfter.hasError, isTrue);
@@ -215,7 +209,6 @@ void main() {
         expect(entry.statusCode, equals(0));
         expect(entry.hasError, isFalse);
 
-        // Advance 100 seconds (well past 45s pending timeout)
         async.elapse(const Duration(seconds: 100));
 
         entry = engine.entries.first;

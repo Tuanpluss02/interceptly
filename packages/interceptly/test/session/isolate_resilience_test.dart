@@ -93,7 +93,6 @@ void main() {
 
         expect(pipeline.isDegraded, isTrue);
 
-        // Subsequent records should succeed in-memory without retry storm
         pipeline.record(createCapture(id: 'fallback-1'));
         pipeline.record(createCapture(id: 'fallback-2'));
 

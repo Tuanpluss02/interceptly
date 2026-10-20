@@ -2,7 +2,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
 import 'package:interceptly/src/engine/interceptly_engine.dart';
-import 'package:interceptly/src/engine/master_search_controller.dart';
+import 'package:interceptly/src/ui/search/master_search_controller.dart';
 import 'package:interceptly/src/model/index_entry.dart';
 import 'package:interceptly/src/ui/scope/interceptly_scope.dart';
 
@@ -102,7 +102,6 @@ void main() {
 
       expect(search.results!.length, equals(1));
 
-      // Updated entry resolved without error message
       final resolvedEntry = _createEntry(
         id: 'req-err',
         method: 'GET',
@@ -144,7 +143,6 @@ void main() {
       var notifications = 0;
       search.addListener(() => notifications++);
 
-      // Prune entry 2
       search.pruneMissing({'1'});
 
       expect(search.results?.length, equals(1));
@@ -170,7 +168,6 @@ void main() {
       await scope.startMasterSearch('orders');
       expect(scope.entries, isEmpty);
 
-      // Now a new matching request arrives at the engine
       engine.recordPending(
         id: '2',
         method: 'POST',
@@ -179,7 +176,6 @@ void main() {
       );
       engine.flushPendingNotifications();
 
-      // Entries should dynamically include the new order request
       expect(scope.entries.map((e) => e.id), contains('2'));
     });
 
@@ -197,22 +193,17 @@ void main() {
         bodyLocation: BodyLocation.file,
       );
 
-      // Start search that matches
       await search.start(
         query: 'secret-token',
         allEntries: [],
         filePath: null,
       );
 
-      // Simulate Phase 3 file match having populated search results
       search.recordFileMatchForTesting(fileEntry);
       expect(search.results?.length, equals(1));
 
-      // Now an unrelated traffic update occurs with the pure file-backed entry (url doesn't match query)
-      // but it was previously matched by body
       search.updateOrAddEntry(fileEntry.copyWith(statusCode: 204));
 
-      // The entry should still be in search results because file-body match is preserved
       expect(search.results?.map((e) => e.id), contains('file-1'));
       expect(search.results?.first.statusCode, equals(204));
     });
@@ -236,7 +227,6 @@ void main() {
       await scope.startMasterSearch('test');
       expect(scope.entries.length, equals(1));
 
-      // Record a realtime frame which notifies without changing entriesVersion
       final initialVersion = engine.entriesVersion;
       await engine.recordRealtimeFrame(
         RealtimeFrame(
@@ -270,11 +260,9 @@ void main() {
         timestamp: DateTime(2026, 1, 1),
       );
 
-      // Populate grouped cache
       final initialGroups = scope.getGroupedRecords();
       expect(initialGroups.length, equals(1));
 
-      // Trigger search which should invalidate grouped cache and reflect in entries
       await scope.startMasterSearch('test');
 
       final searchGroups = scope.getGroupedRecords();
@@ -291,7 +279,6 @@ void main() {
         notificationCount++;
       });
 
-      // Rapidly record 10 pending requests
       for (var i = 0; i < 10; i++) {
         engine.recordPending(
           id: 'rapid-$i',
@@ -301,10 +288,8 @@ void main() {
         );
       }
 
-      // Notification should NOT have fired 10 times synchronously
       expect(notificationCount, lessThan(10));
 
-      // Flush notifications
       engine.flushPendingNotifications();
       expect(notificationCount, equals(1));
     });

@@ -68,9 +68,6 @@ class _ExampleChatPageState extends State<ExampleChatPage>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
 
-  // ---------------------------------------------------------------------------
-  // Tab 1: WebSocket Stock Ticker State
-  // ---------------------------------------------------------------------------
   InterceptlyWebSocketChannel? _stockChannel;
   StreamSubscription? _stockSubscription;
   bool _stockConnected = false;
@@ -112,9 +109,6 @@ class _ExampleChatPageState extends State<ExampleChatPage>
   };
   final List<String> _stockTicksLog = [];
 
-  // ---------------------------------------------------------------------------
-  // Tab 2: Socket.IO Support Chat State
-  // ---------------------------------------------------------------------------
   io.Socket? _sioSocket;
   InterceptlySocketIoTracker? _sioTracker;
   bool _sioConnected = false;
@@ -169,9 +163,6 @@ class _ExampleChatPageState extends State<ExampleChatPage>
     });
   }
 
-  // ---------------------------------------------------------------------------
-  // WebSocket Stock Ticker Handlers
-  // ---------------------------------------------------------------------------
   void _connectStockWebSocket() {
     if (_stockConnected || _stockConnecting) return;
 
@@ -304,9 +295,7 @@ class _ExampleChatPageState extends State<ExampleChatPage>
         });
         return;
       }
-    } catch (_) {
-      // Ignore parse errors
-    }
+    } catch (_) {}
   }
 
   void _pingStockWebSocket() {
@@ -331,9 +320,6 @@ class _ExampleChatPageState extends State<ExampleChatPage>
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Socket.IO Support Chat Handlers
-  // ---------------------------------------------------------------------------
   void _connectSocketIo() {
     if (_sioConnected || _sioConnecting) return;
 
@@ -535,7 +521,6 @@ class _ExampleChatPageState extends State<ExampleChatPage>
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Tab selection header
         Material(
           color: Theme.of(context).cardColor,
           elevation: 1,
@@ -551,8 +536,6 @@ class _ExampleChatPageState extends State<ExampleChatPage>
             ],
           ),
         ),
-
-        // Tab Views
         Expanded(
           child: TabBarView(
             controller: _tabController,
@@ -566,13 +549,9 @@ class _ExampleChatPageState extends State<ExampleChatPage>
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // View 1: Stock Live Ticker (WebSocket)
-  // ---------------------------------------------------------------------------
   Widget _buildStockTab() {
     return Column(
       children: [
-        // Tab 1 Dedicated Header
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 8.0),
           decoration: BoxDecoration(
@@ -660,11 +639,7 @@ class _ExampleChatPageState extends State<ExampleChatPage>
             ],
           ),
         ),
-
-        // Live Stock Grid (2x2)
         _buildStockGrid(),
-
-        // Quick Controls
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
           child: SingleChildScrollView(
@@ -711,10 +686,7 @@ class _ExampleChatPageState extends State<ExampleChatPage>
             ),
           ),
         ),
-
         const Divider(height: 12),
-
-        // Stream Log Feed Header
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
           child: Row(
@@ -733,8 +705,6 @@ class _ExampleChatPageState extends State<ExampleChatPage>
             ],
           ),
         ),
-
-        // Log Items
         Expanded(
           child: _stockTicksLog.isEmpty
               ? Center(
@@ -905,13 +875,9 @@ class _ExampleChatPageState extends State<ExampleChatPage>
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // View 2: Support Chat (Socket.IO)
-  // ---------------------------------------------------------------------------
   Widget _buildChatTab() {
     return Column(
       children: [
-        // Tab 2 Dedicated Header
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 8.0),
           decoration: BoxDecoration(
@@ -998,8 +964,6 @@ class _ExampleChatPageState extends State<ExampleChatPage>
             ],
           ),
         ),
-
-        // Message list
         Expanded(
           child: ListView.builder(
             controller: _chatScrollController,
@@ -1143,7 +1107,6 @@ class _ExampleChatPageState extends State<ExampleChatPage>
                 );
               }
 
-              // Agent message
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8.0),
                 child: Row(
@@ -1218,8 +1181,6 @@ class _ExampleChatPageState extends State<ExampleChatPage>
             },
           ),
         ),
-
-        // Quick action chips for chat
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
           child: SingleChildScrollView(
@@ -1259,8 +1220,6 @@ class _ExampleChatPageState extends State<ExampleChatPage>
             ),
           ),
         ),
-
-        // Chat input bar
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0),
           decoration: BoxDecoration(

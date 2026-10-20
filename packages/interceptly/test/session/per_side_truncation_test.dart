@@ -70,7 +70,6 @@ void main() {
       final reqBytes = Uint8List.fromList(utf8.encode(''));
       final resBytes = Uint8List.fromList(utf8.encode('{"partial": true}'));
 
-      // Legacy packed format with trailing flag = 1 (indicating some truncation)
       final packed = _packLegacy(reqBytes, resBytes, isTruncated: true);
       await tempFile.writeAsBytes(packed);
 
@@ -97,11 +96,9 @@ void main() {
 
       final record = await detailLoader.loadDetailByEntry(entry);
 
-      // DetailLoader should trust entry.requestTruncation and NOT override it
       expect(record.requestTruncation.hasDataLoss, isFalse);
       expect(record.requestTruncation.stage, equals(TruncationStage.none));
 
-      // Response truncation remains storage-cut
       expect(record.responseTruncation.hasDataLoss, isTrue);
       expect(record.responseTruncation.stage, equals(TruncationStage.storage));
       expect(record.responseTruncation.originalBytes, equals(1000));
@@ -139,11 +136,9 @@ void main() {
 
       final record = await detailLoader.loadDetailByEntry(entry);
 
-      // Request was truncated in storage
       expect(record.requestTruncation.hasDataLoss, isTrue);
       expect(record.requestTruncation.stage, equals(TruncationStage.storage));
 
-      // Response was NOT truncated in storage
       expect(record.responseTruncation.hasDataLoss, isFalse);
       expect(record.responseTruncation.stage, equals(TruncationStage.none));
     });

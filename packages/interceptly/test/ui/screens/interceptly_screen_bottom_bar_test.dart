@@ -60,7 +60,6 @@ void main() {
       final navBar = tester.widget<NavigationBar>(find.byType(NavigationBar));
       expect(navBar.selectedIndex, equals(0));
 
-      // Switch to Realtime tab
       await tester.tap(find.text('Realtime'));
       await tester.pumpAndSettle();
 
@@ -81,7 +80,6 @@ void main() {
 
       expect(find.byType(NavigationBar), findsNothing);
 
-      // Record a websocket connection
       engine.recordRealtimeConnection(
         id: 'ws_auto_1',
         url: 'wss://realtime.example.com/stream',
@@ -121,10 +119,8 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
 
-      // Tab 0 (REST) is default: /data should be in view, /events should not be rendered in the active view
       expect(find.text('/data'), findsOneWidget);
 
-      // Tap Realtime tab (Tab 1)
       await tester.tap(find.text('Realtime'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
@@ -157,7 +153,6 @@ void main() {
         (tester) async {
       engine.configure(const InterceptlySettings(enableRealtime: true));
 
-      // 1. Open InterceptlyScreen
       await tester.pumpWidget(
         MaterialApp(
           home: InterceptlyScreen(controller: controller),
@@ -171,7 +166,6 @@ void main() {
               .selectedIndex,
           equals(0));
 
-      // 2. User taps 'Realtime' tab
       await tester.tap(find.text('Realtime'));
       await tester.pumpAndSettle();
       expect(
@@ -180,12 +174,10 @@ void main() {
               .selectedIndex,
           equals(1));
 
-      // 3. User exits screen (simulating popping route/closing overlay)
       await tester.pumpWidget(const MaterialApp(home: SizedBox()));
       await tester.pumpAndSettle();
       expect(find.byType(InterceptlyScreen), findsNothing);
 
-      // 4. User opens InterceptlyScreen again with same controller
       await tester.pumpWidget(
         MaterialApp(
           home: InterceptlyScreen(controller: controller),
@@ -193,7 +185,6 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Must restore Realtime tab (index 1), NOT reset to 0 (REST)
       expect(
           tester
               .widget<NavigationBar>(find.byType(NavigationBar))

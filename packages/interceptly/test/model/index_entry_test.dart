@@ -138,7 +138,6 @@ void main() {
       expect(copy.hasError, isTrue);
       expect(copy.errorType, equals('HttpException'));
       expect(copy.errorMessage, equals('Not Found'));
-      // Unchanged fields:
       expect(copy.id, equals(original.id));
       expect(copy.url, equals(original.url));
       expect(copy.domain, equals(original.domain));

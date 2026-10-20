@@ -141,7 +141,6 @@ void main() {
       addTearDown(engine.dispose);
       await engine.initialize();
 
-      // Create an index entry that points to an older fileRotationCount
       final staleEntry = IndexEntry(
         id: 'stale-rot',
         method: 'GET',
@@ -160,7 +159,6 @@ void main() {
         fileRotationCount: 0,
       );
 
-      // Trigger pipeline clear/reset which increments rotation
       await engine.clear();
 
       final record = await engine.loadDetail(staleEntry);

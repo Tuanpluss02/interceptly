@@ -88,7 +88,6 @@ void main() {
         expect(context.requestContentType, equals('application/json'));
         expect(context.id, isNotEmpty);
 
-        // Verify pending entry in engine memory index
         expect(engine.entries.length, equals(1));
         final pending = engine.entries.first;
         expect(pending.id, equals(context.id));
@@ -211,7 +210,6 @@ void main() {
         );
         expect(context, isNotNull);
 
-        // Simulated 20 KB JSON with whitespace differences
         final responseBytes = Uint8List(20150);
         final responseHeaders = {
           'content-type': 'application/json',
@@ -365,7 +363,6 @@ void main() {
         final engine = InterceptlyEngine.instance;
         await engine.initialize();
 
-        // Configure offline simulation
         engine.setNetworkSimulation(
           NetworkSimulationProfile.offlineProfile,
         );
@@ -381,7 +378,6 @@ void main() {
           throwsA(isA<SimulatedNetworkException>()),
         );
 
-        // Verify that the failed capture was recorded in engine
         expect(engine.entries.length, equals(1));
         final failedEntry =
             await _waitForFailedEntry(engine, engine.entries.first.id);
@@ -404,7 +400,6 @@ void main() {
           startedAt: DateTime.now(),
         );
 
-        // Even if engine is disposed, collector completeResponse and failRequest should be safe
         await engine.dispose();
 
         expect(
@@ -456,7 +451,6 @@ void main() {
       await scope.complete(statusCode: 200);
       expect(scope.isSettled, isTrue);
 
-      // Calling complete or fail again should be a no-op
       await scope.complete(statusCode: 500);
       scope.fail('Late error');
       expect(scope.isSettled, isTrue);

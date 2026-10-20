@@ -68,11 +68,9 @@ class RequestFilter {
     final statusCode = entry.statusCode;
     if (statusCode == 0) {
       if (entry.hasError) {
-        // Network connection error: only matches if error status codes are allowed or onlyErrors is active
         final allowsErrors = include4xx || include5xx || onlyErrors;
         if (!allowsErrors) return false;
       } else {
-        // Pending in-flight request: respects includePending
         if (!includePending) return false;
       }
     } else {

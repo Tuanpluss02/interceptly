@@ -111,14 +111,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Verify RealtimeMessagesTab is rendered
     expect(find.byType(RealtimeMessagesTab), findsOneWidget);
 
-    // Verify NO Replay chip or button in AppBar
     expect(find.text('Replay'), findsNothing);
     expect(find.byIcon(Icons.replay), findsNothing);
 
-    // Verify Status chip is CONNECTED
     expect(find.text('CONNECTED'), findsOneWidget);
   });
 
@@ -149,18 +146,15 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Switch to Overview tab
     await tester.tap(find.text('Overview'));
     await tester.pumpAndSettle();
 
-    // Verify connection overview items
     expect(find.text('wss://example.com/ws/chat'), findsOneWidget);
     expect(find.text('WS'), findsOneWidget);
     expect(find.text('CONNECTED (Open)'), findsOneWidget);
     expect(find.text('45s'), findsOneWidget);
     expect(find.text('↓ 12 received, ↑ 5 sent (17 total)'), findsOneWidget);
 
-    // Verify handshake headers
     expect(find.text('Sec-WebSocket-Version'), findsOneWidget);
     expect(find.text('13'), findsOneWidget);
     expect(find.text('websocket'), findsOneWidget);
@@ -192,13 +186,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Switch to Overview tab to view duration
     await tester.tap(find.text('Overview'));
     await tester.pumpAndSettle();
 
     expect(find.text('0ms'), findsOneWidget);
 
-    // Advance 5 seconds and pump ticker
     currentTime = currentTime.add(const Duration(seconds: 5));
     await tester.pump(const Duration(seconds: 1));
     expect(find.text('5s'), findsOneWidget);

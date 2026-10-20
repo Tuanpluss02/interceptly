@@ -40,10 +40,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Should default to decoded mode showing JsonViewer
       expect(find.byType(JsonViewer), findsOneWidget);
 
-      // Toggle buttons exist
       final hexToggle =
           find.byKey(const ValueKey('frame_toggle_hex_frame_bin_json'));
       final decodedToggle =
@@ -51,14 +49,12 @@ void main() {
       expect(hexToggle, findsOneWidget);
       expect(decodedToggle, findsOneWidget);
 
-      // Switch to Hex
       await tester.tap(hexToggle);
       await tester.pumpAndSettle();
 
       expect(find.byType(JsonViewer), findsNothing);
       expect(find.textContaining('[binary:'), findsOneWidget);
 
-      // Switch back to Decoded (JSON)
       await tester.tap(decodedToggle);
       await tester.pumpAndSettle();
 

@@ -42,13 +42,11 @@ void main() {
       expect(find.text('2xx'), findsOneWidget);
       expect(find.text('POST'), findsOneWidget);
 
-      // Tap "Errors" chip
       await tester.tap(find.text('Errors'));
       await tester.pumpAndSettle();
 
       expect(controller.filter.onlyErrors, isTrue);
 
-      // Tap "All" chip
       await tester.tap(find.text('All'));
       await tester.pumpAndSettle();
 
@@ -74,7 +72,6 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Tap "2xx"
       await tester.tap(find.text('2xx'));
       await tester.pumpAndSettle();
 
@@ -83,7 +80,6 @@ void main() {
       expect(controller.filter.include4xx, isFalse);
       expect(controller.filter.include5xx, isFalse);
 
-      // Tap "POST"
       await tester.tap(find.text('POST'));
       await tester.pumpAndSettle();
 

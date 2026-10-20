@@ -42,7 +42,6 @@ void main() {
       expect(cache.length, equals(30));
       expect(cache.containsKey(0), isTrue);
 
-      // Add 31st entry: 0 should be evicted as least recently used
       cache[30] = 'val-30';
       expect(cache.length, equals(30));
       expect(cache.containsKey(0), isFalse);
@@ -57,10 +56,8 @@ void main() {
       cache[2] = 'two';
       cache[3] = 'three';
 
-      // Read key 1 to promote it to most recently used
       expect(cache[1], equals('one'));
 
-      // Adding key 4 should now evict key 2 (which is now the oldest)
       cache[4] = 'four';
       expect(cache.length, equals(3));
       expect(cache.containsKey(2), isFalse);
@@ -90,11 +87,9 @@ void main() {
       cache[2] = 'two';
       cache[3] = 'three';
 
-      // Update key 1
       cache[1] = 'updated-one';
       expect(cache.length, equals(3));
 
-      // Adding key 4 should evict key 2
       cache[4] = 'four';
       expect(cache.containsKey(2), isFalse);
       expect(cache.containsKey(1), isTrue);
@@ -107,11 +102,9 @@ void main() {
       cache[2] = 'two';
       cache[3] = 'three';
 
-      // Access key 1 via putIfAbsent
       final v1 = cache.putIfAbsent(1, () => 'new-one');
       expect(v1, equals('one'));
 
-      // Add key 4: key 2 should be evicted
       cache.putIfAbsent(4, () => 'four');
       expect(cache.containsKey(2), isFalse);
       expect(cache.containsKey(1), isTrue);
@@ -148,12 +141,9 @@ void main() {
         expect(parsed['index'], equals(i));
       }
 
-      // Maximum 30 entries retained
       expect(cache.length, equals(30));
-      // First 5 entries (0-4) should have been evicted
       expect(cache.containsKey('frame_0'), isFalse);
       expect(cache.containsKey('frame_4'), isFalse);
-      // Later entries should still be present
       expect(cache.containsKey('frame_5'), isTrue);
       expect(cache.containsKey('frame_34'), isTrue);
     });
