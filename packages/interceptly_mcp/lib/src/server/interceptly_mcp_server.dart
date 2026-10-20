@@ -86,9 +86,9 @@ base class InterceptlyMcpServer extends MCPServer
         'Lists recorded network requests with optional filtering and cursor pagination.',
     inputSchema: Schema.object(
       properties: {
-        'since_id': Schema.int(
+        'since_id': Schema.string(
           description:
-              'Return only requests with an ID strictly greater than this cursor value for forward pagination.',
+              'Return only requests with an ID cursor strictly after this value for forward pagination.',
         ),
         'status_filter': EnumSchema.untitledSingleSelect(
           description:
@@ -113,8 +113,9 @@ base class InterceptlyMcpServer extends MCPServer
         'Retrieves detailed information (headers, body, timings) for a specific request by ID.',
     inputSchema: Schema.object(
       properties: {
-        'id': Schema.int(
-          description: 'The unique sequence ID of the request to inspect.',
+        'id': Schema.string(
+          description:
+              'The unique ID of the request to inspect (e.g. from list_requests).',
         ),
         'part': EnumSchema.untitledSingleSelect(
           description:
@@ -175,9 +176,9 @@ base class InterceptlyMcpServer extends MCPServer
         'Exports a recorded network request as an executable, replayable cURL command.',
     inputSchema: Schema.object(
       properties: {
-        'id': Schema.int(
+        'id': Schema.string(
           description:
-              'The unique sequence ID of the request to export as cURL.',
+              'The unique ID of the request to export as cURL (e.g. from list_requests).',
         ),
       },
       required: ['id'],
@@ -237,8 +238,8 @@ base class InterceptlyMcpServer extends MCPServer
   Future<CallToolResult> _handleListRequests(CallToolRequest request) async {
     try {
       final args = <String, String>{};
-      if (request.arguments?['since_id'] case final int sinceId) {
-        args['since_id'] = sinceId.toString();
+      if (request.arguments?['since_id'] != null) {
+        args['since_id'] = request.arguments!['since_id'].toString();
       }
       if (request.arguments?['status_filter'] case final String statusFilter) {
         args['status_filter'] = statusFilter;

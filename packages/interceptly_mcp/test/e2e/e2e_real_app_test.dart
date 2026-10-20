@@ -121,7 +121,7 @@ void main() {
       final detailResult = await serverConnection.callTool(
         CallToolRequest(
           name: 'get_request_detail',
-          arguments: {'id': 2, 'max_chars': 15},
+          arguments: {'id': '2', 'max_chars': 15},
         ),
       );
       expect(detailResult.isError, isNot(true));
@@ -134,7 +134,7 @@ void main() {
 
       // 7. Test tool: export_curl
       final curlResult = await serverConnection.callTool(
-        CallToolRequest(name: 'export_curl', arguments: {'id': 1}),
+        CallToolRequest(name: 'export_curl', arguments: {'id': '1'}),
       );
       expect(curlResult.isError, isNot(true));
       final curlText = (curlResult.content.first as TextContent).text;

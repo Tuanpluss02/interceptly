@@ -164,7 +164,7 @@ void main() {
         CallToolRequest(
           name: 'list_requests',
           arguments: {
-            'since_id': 100,
+            'since_id': '100',
             'status_filter': 'failed',
             'search': 'users',
             'limit': 10,
@@ -188,7 +188,7 @@ void main() {
       await setupServer();
       fakeClient.onInvoke = (method, [params]) {
         return {
-          'id': 10,
+          'id': '10',
           'part': 'response_body',
           'responseBody': '{"hello":"world"}',
         };
@@ -198,7 +198,7 @@ void main() {
         CallToolRequest(
           name: 'get_request_detail',
           arguments: {
-            'id': 10,
+            'id': '10',
             'part': 'response_body',
             'offset': 100,
             'max_chars': 500,
