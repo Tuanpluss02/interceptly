@@ -110,6 +110,9 @@ Usage: interceptly_mcp [options]
 | `ping` | Checks connection status, app name, isolate ID, entry count, and version contract compatibility. | No |
 | `list_requests` | Lists recorded requests with optional `status_filter` (`all`, `failed`, `2xx`, `3xx`, `4xx`, `5xx`), `search` query, and `since_id` cursor pagination. | No |
 | `get_request_detail` | Retrieves detailed information (headers, body, timings) with `part` selection, `offset`, and `max_chars` truncation. | No |
+| `list_realtime_frames` | Lists recorded WebSocket and Realtime frames with optional filtering by `session_id`, `direction` (sent/received), `type` (text/binary/ping/pong/close), and `since_id`. | No |
+| `get_realtime_frame_detail` | Retrieves detailed payload content and metadata for a specific WebSocket/Realtime frame with `offset` and `max_chars` pagination. | No |
+| `get_traffic_summary` | Provides a quick snapshot of overall network metrics: total requests, failure rate, status distribution, latency percentiles (p50/p90/p95/p99), bandwidth, and active realtime sessions. | No |
 | `export_curl` | Exports a recorded network request as a replayable cURL command. | No |
 | `connect_app` | Explicitly binds to a loopback VM Service URI when multiple Flutter apps are active. | No |
 | `set_network_simulation` | Simulates network latency and error conditions on the connected app. | **Yes** (`--allow-mutation`) |

@@ -7,14 +7,15 @@ Interceptly is a client-agnostic network and realtime traffic inspector for Flut
 
 ## 1. Monorepo Architecture
 
-This repository is managed with [Melos](https://melos.invertase.dev/). It is organized into 6 publishable packages and 1 example app:
+This repository is managed with [Melos](https://melos.invertase.dev/). It is organized into 7 publishable packages and 1 example app:
 
-- `packages/interceptly`: Core engine (`InterceptlyEngine`), UI overlay (`InterceptlyScope`), background isolate pipeline (`WriterIsolate`), hybrid RAM/disk storage (`BodyStore`, `RealtimeBodyStore`), and public singleton facade (`Interceptly`).
+- `packages/interceptly`: Core engine (`InterceptlyEngine`), UI overlay (`InterceptlyScope`), background isolate pipeline (`WriterIsolate`), hybrid RAM/disk storage (`BodyStore`, `RealtimeBodyStore`), VM Service protocol extensions, and public singleton facade (`Interceptly`).
 - `packages/interceptly_dio`: Adapter interceptor for `Dio`.
 - `packages/interceptly_http`: Adapter client wrapper for `package:http`.
 - `packages/interceptly_chopper`: Adapter interceptor for `Chopper`.
 - `packages/interceptly_web_socket`: Adapter channel wrapper for `web_socket_channel` / raw WebSocket.
 - `packages/interceptly_socket_io`: Adapter tracker for `socket_io_client`.
+- `packages/interceptly_mcp`: Standalone Model Context Protocol (MCP) server & CLI for AI coding assistants (Antigravity, Cursor, Claude Code, Windsurf).
 - `packages/interceptly/example`: Showcase and verification app.
 
 ---
@@ -52,6 +53,22 @@ Always use Melos commands across workspace packages:
 ### Isolation & Performance
 - All response body decoding, search indexing, and disk serialization MUST remain off the UI thread via `WriterIsolate` or dedicated isolate pipelines.
 - Never add blocking work to the main Flutter isolate on the network hot path.
+
+### Model Context Protocol (MCP) & VM Service Extensions
+- `packages/interceptly` registers standard Dart VM Service protocol extensions (`ext.interceptly.*`) via `dart:developer`.
+- `packages/interceptly_mcp` acts as an out-of-process bridge between AI coding assistants and running Flutter applications.
+- Registered tools:
+  - `ping`: Connection diagnostic, app name, extension version contract, and traffic count.
+  - `list_requests`: HTTP traffic listing with status filtering, multi-phase search, and cursor pagination.
+  - `get_request_detail`: Request payload inspection with `part`, `offset`, and `max_chars` truncation.
+  - `list_realtime_frames`: WebSocket/Realtime traffic listing with session, direction, and type filters.
+  - `get_realtime_frame_detail`: Frame payload inspection with base64 binary support and offset truncation.
+  - `get_traffic_summary`: Snapshot metrics: total requests, failure rate, status code distribution, latency percentiles (p50/p90/p95/p99), bandwidth, and active realtime sessions.
+  - `export_curl`: Replayable cURL generation for any recorded request.
+  - `connect_app`: Loopback VM Service URI connection.
+  - `set_network_simulation` & `clear_traffic`: State mutations guarded by `--allow-mutation`.
+- **Hot Restart Resilience**: Always handle Dart VM `Sentinel/Collected` isolate death gracefully via `AppDiscovery` and `VmServiceClient._executeWithRecovery()`.
+- **Security**: Only allow loopback addresses (`127.0.0.1`, `localhost`, `::1`). Never expose external network listeners. Redirect all stdout logging to stderr via zoned specifications.
 
 ---
 

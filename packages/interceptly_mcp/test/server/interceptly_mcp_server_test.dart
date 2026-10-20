@@ -114,6 +114,9 @@ void main() {
           'ping',
           'list_requests',
           'get_request_detail',
+          'list_realtime_frames',
+          'get_realtime_frame_detail',
+          'get_traffic_summary',
           'set_network_simulation',
           'clear_traffic',
           'export_curl',
@@ -214,6 +217,125 @@ void main() {
       expect(lastArgs['part'], 'response_body');
       expect(lastArgs['offset'], '100');
       expect(lastArgs['max_chars'], '500');
+    });
+
+    test(
+      'list_realtime_frames forwards session_id, filters, and limit',
+      () async {
+        await setupServer();
+        fakeClient.onInvoke = (method, [params]) {
+          return {
+            'count': 1,
+            'frames': [
+              {
+                'id': 'f_1',
+                'sessionId': 's_abc',
+                'direction': 'sent',
+                'type': 'text',
+              },
+            ],
+          };
+        };
+
+        final result = await serverConnection.callTool(
+          CallToolRequest(
+            name: 'list_realtime_frames',
+            arguments: {
+              'session_id': 's_abc',
+              'direction': 'sent',
+              'type': 'text',
+              'since_id': 'f_0',
+              'limit': 25,
+            },
+          ),
+        );
+
+        expect(result.isError, isNot(true));
+        expect(
+          fakeClient.invokedMethods,
+          contains('ext.interceptly.listRealtimeFrames'),
+        );
+        final lastArgs = fakeClient.invokedArgs.last!;
+        expect(lastArgs['session_id'], 's_abc');
+        expect(lastArgs['direction'], 'sent');
+        expect(lastArgs['type'], 'text');
+        expect(lastArgs['since_id'], 'f_0');
+        expect(lastArgs['limit'], '25');
+      },
+    );
+
+    test(
+      'get_realtime_frame_detail validates args and forwards params',
+      () async {
+        await setupServer();
+
+        // Missing required params
+        final missingResult = await serverConnection.callTool(
+          CallToolRequest(
+            name: 'get_realtime_frame_detail',
+            arguments: {'session_id': 's_abc'},
+          ),
+        );
+        expect(missingResult.isError, isTrue);
+
+        fakeClient.onInvoke = (method, [params]) {
+          return {
+            'sessionId': 's_abc',
+            'frameId': 'f_1',
+            'payload': '{"event":"ping"}',
+          };
+        };
+
+        final okResult = await serverConnection.callTool(
+          CallToolRequest(
+            name: 'get_realtime_frame_detail',
+            arguments: {
+              'session_id': 's_abc',
+              'frame_id': 'f_1',
+              'offset': 0,
+              'max_chars': 1000,
+            },
+          ),
+        );
+        expect(okResult.isError, isNot(true));
+        expect(
+          fakeClient.invokedMethods,
+          contains('ext.interceptly.getRealtimeFrameDetail'),
+        );
+        final lastArgs = fakeClient.invokedArgs.last!;
+        expect(lastArgs['session_id'], 's_abc');
+        expect(lastArgs['frame_id'], 'f_1');
+        expect(lastArgs['offset'], '0');
+        expect(lastArgs['max_chars'], '1000');
+      },
+    );
+
+    test('get_traffic_summary calls extension and returns metrics', () async {
+      await setupServer();
+      fakeClient.onInvoke = (method, [params]) {
+        return {
+          'totalRequests': 50,
+          'failedRequests': 2,
+          'errorRate': 0.04,
+          'statusDistribution': {'2xx': 48, '5xx': 2},
+          'latencyMs': {'avgMs': 45.0, 'p95Ms': 120.0},
+          'bandwidth': {'totalBytes': 102400},
+          'realtime': {'activeSessions': 1, 'totalFramesSent': 10},
+        };
+      };
+
+      final result = await serverConnection.callTool(
+        CallToolRequest(name: 'get_traffic_summary'),
+      );
+      expect(result.isError, isNot(true));
+      expect(
+        fakeClient.invokedMethods,
+        contains('ext.interceptly.getTrafficSummary'),
+      );
+      final text = (result.content.first as TextContent).text;
+      expect(text, contains('"totalRequests":50'));
+      expect(text, contains('"errorRate":0.04'));
+      expect(text, contains('"p95Ms":120.0'));
     });
 
     test(

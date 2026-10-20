@@ -30,7 +30,8 @@ Interceptly is organized as a modular monorepo managed with [Melos](https://melo
 │   ├── interceptly_http         # Adapter for package:http (InterceptlyHttpClient)
 │   ├── interceptly_chopper      # Adapter for Chopper (InterceptlyChopperInterceptor)
 │   ├── interceptly_web_socket   # Adapter for WebSocketChannel (InterceptlyWebSocketChannel)
-│   └── interceptly_socket_io    # Adapter for socket_io_client (InterceptlySocketIo)
+│   ├── interceptly_socket_io    # Adapter for socket_io_client (InterceptlySocketIo)
+│   └── interceptly_mcp          # Model Context Protocol server for AI coding assistants
 └── packages/interceptly/example # Interactive Flutter showcase app
 ```
 
@@ -44,6 +45,7 @@ Interceptly is organized as a modular monorepo managed with [Melos](https://melo
 | [`interceptly_chopper`](packages/interceptly_chopper) | [![pub package](https://img.shields.io/pub/v/interceptly_chopper.svg)](https://pub.dev/packages/interceptly_chopper) | **Chopper Adapter**: `ResponseInterceptor` and `RequestInterceptor` capturing Chopper network traffic. |
 | [`interceptly_web_socket`](packages/interceptly_web_socket) | [![pub package](https://img.shields.io/pub/v/interceptly_web_socket.svg)](https://pub.dev/packages/interceptly_web_socket) | **WebSocket Adapter**: `WebSocketChannel` wrapper capturing bidirectional text/binary frames in real time. |
 | [`interceptly_socket_io`](packages/interceptly_socket_io) | [![pub package](https://img.shields.io/pub/v/interceptly_socket_io.svg)](https://pub.dev/packages/interceptly_socket_io) | **Socket.IO Adapter**: `socket_io_client` tracker capturing events and enabling composer emission. |
+| [`interceptly_mcp`](packages/interceptly_mcp) | [![pub package](https://img.shields.io/pub/v/interceptly_mcp.svg)](https://pub.dev/packages/interceptly_mcp) | **MCP Server & CLI**: Model Context Protocol server connecting AI assistants (Antigravity, Cursor, Claude Code) to Flutter VM Service. |
 
 ---
 
@@ -156,6 +158,18 @@ socket.attachInterceptly();
 socket.connect();
 socket.emit('chat_message', {'text': 'Hello Interceptly!'});
 ```
+
+#### AI Agent & MCP Server (`interceptly_mcp`)
+
+Connect AI coding assistants (Antigravity, Cursor, Claude Code, Windsurf) directly to your running Flutter app to inspect HTTP and WebSocket traffic, retrieve metrics summaries, and simulate network conditions via Model Context Protocol:
+
+```bash
+dart pub global activate interceptly_mcp
+# Or run within the monorepo workspace:
+dart run packages/interceptly_mcp/bin/interceptly_mcp.dart
+```
+
+See [`packages/interceptly_mcp/README.md`](packages/interceptly_mcp/README.md) for tool schema and setup guides.
 
 ---
 

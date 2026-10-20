@@ -38,6 +38,9 @@ base class InterceptlyMcpServer extends MCPServer
     registerTool(_pingTool, _handlePing);
     registerTool(_listRequestsTool, _handleListRequests);
     registerTool(_getRequestDetailTool, _handleGetRequestDetail);
+    registerTool(_listRealtimeFramesTool, _handleListRealtimeFrames);
+    registerTool(_getRealtimeFrameDetailTool, _handleGetRealtimeFrameDetail);
+    registerTool(_getTrafficSummaryTool, _handleGetTrafficSummary);
     registerTool(_setNetworkSimulationTool, _handleSetNetworkSimulation);
     registerTool(_clearTrafficTool, _handleClearTraffic);
     registerTool(_exportCurlTool, _handleExportCurl);
@@ -143,6 +146,69 @@ base class InterceptlyMcpServer extends MCPServer
       },
       required: ['id'],
     ),
+  );
+
+  final Tool _listRealtimeFramesTool = Tool(
+    name: 'list_realtime_frames',
+    description:
+        'Lists recorded WebSocket and Realtime frames with optional filtering by session, direction, type, and cursor pagination.',
+    inputSchema: Schema.object(
+      properties: {
+        'session_id': Schema.string(
+          description:
+              'Filter frames by WebSocket / Realtime session ID (e.g. from realtime summary or session list).',
+        ),
+        'direction': EnumSchema.untitledSingleSelect(
+          description: 'Filter by frame direction: sent, received, or all.',
+          values: ['all', 'sent', 'received'],
+        ),
+        'type': EnumSchema.untitledSingleSelect(
+          description:
+              'Filter by frame type: text, binary, ping, pong, close, or all.',
+          values: ['all', 'text', 'binary', 'ping', 'pong', 'close'],
+        ),
+        'since_id': Schema.string(
+          description:
+              'Return only frames with an ID cursor strictly after this value for forward pagination.',
+        ),
+        'limit': Schema.int(
+          description:
+              'Maximum number of frames to return (default: 50, max: 200).',
+        ),
+      },
+    ),
+  );
+
+  final Tool _getRealtimeFrameDetailTool = Tool(
+    name: 'get_realtime_frame_detail',
+    description:
+        'Retrieves detailed payload content and metadata for a specific WebSocket / Realtime frame.',
+    inputSchema: Schema.object(
+      properties: {
+        'session_id': Schema.string(
+          description: 'The unique session ID to which the frame belongs.',
+        ),
+        'frame_id': Schema.string(
+          description: 'The unique ID of the frame to inspect.',
+        ),
+        'max_chars': Schema.int(
+          description:
+              'Maximum characters to return for the payload before truncating. Default: 4000.',
+        ),
+        'offset': Schema.int(
+          description:
+              'Starting character offset for reading large or truncated payload content.',
+        ),
+      },
+      required: ['session_id', 'frame_id'],
+    ),
+  );
+
+  final Tool _getTrafficSummaryTool = Tool(
+    name: 'get_traffic_summary',
+    description:
+        'Provides a fast, high-level summary of recorded HTTP and Realtime traffic metrics (total requests, failure rate, status code distribution, latency percentiles p50/p90/p95/p99, bandwidth, active realtime sessions, network simulation state).',
+    inputSchema: Schema.object(),
   );
 
   final Tool _setNetworkSimulationTool = Tool(
@@ -312,6 +378,101 @@ base class InterceptlyMcpServer extends MCPServer
     } catch (e) {
       return CallToolResult(
         content: [TextContent(text: 'Error in get_request_detail: $e')],
+        isError: true,
+      );
+    }
+  }
+
+  Future<CallToolResult> _handleListRealtimeFrames(
+    CallToolRequest request,
+  ) async {
+    try {
+      final args = <String, String>{};
+      if (request.arguments?['session_id'] case final String sessionId) {
+        args['session_id'] = sessionId;
+      }
+      if (request.arguments?['direction'] case final String direction) {
+        if (direction != 'all') {
+          args['direction'] = direction;
+        }
+      }
+      if (request.arguments?['type'] case final String type) {
+        if (type != 'all') {
+          args['type'] = type;
+        }
+      }
+      if (request.arguments?['since_id'] case final String sinceId) {
+        args['since_id'] = sinceId;
+      }
+      if (request.arguments?['limit'] case final int limit) {
+        args['limit'] = limit.toString();
+      }
+
+      final res = await vmServiceClient.invoke(
+        'ext.interceptly.listRealtimeFrames',
+        args,
+      );
+      return CallToolResult(content: [TextContent(text: jsonEncode(res))]);
+    } catch (e) {
+      return CallToolResult(
+        content: [TextContent(text: 'Error in list_realtime_frames: $e')],
+        isError: true,
+      );
+    }
+  }
+
+  Future<CallToolResult> _handleGetRealtimeFrameDetail(
+    CallToolRequest request,
+  ) async {
+    try {
+      final sessionId = request.arguments?['session_id'];
+      final frameId = request.arguments?['frame_id'];
+      if (sessionId == null || frameId == null) {
+        return CallToolResult(
+          content: [
+            TextContent(
+              text: 'Missing required arguments: session_id and frame_id',
+            ),
+          ],
+          isError: true,
+        );
+      }
+
+      final args = <String, String>{
+        'session_id': sessionId.toString(),
+        'frame_id': frameId.toString(),
+      };
+      if (request.arguments?['max_chars'] case final int maxChars) {
+        args['max_chars'] = maxChars.toString();
+      }
+      if (request.arguments?['offset'] case final int offset) {
+        args['offset'] = offset.toString();
+      }
+
+      final res = await vmServiceClient.invoke(
+        'ext.interceptly.getRealtimeFrameDetail',
+        args,
+      );
+      return CallToolResult(content: [TextContent(text: jsonEncode(res))]);
+    } catch (e) {
+      return CallToolResult(
+        content: [TextContent(text: 'Error in get_realtime_frame_detail: $e')],
+        isError: true,
+      );
+    }
+  }
+
+  Future<CallToolResult> _handleGetTrafficSummary(
+    CallToolRequest request,
+  ) async {
+    try {
+      final res = await vmServiceClient.invoke(
+        'ext.interceptly.getTrafficSummary',
+      );
+      return CallToolResult(content: [TextContent(text: jsonEncode(res))]);
+    } catch (e) {
+      return CallToolResult(
+        content: [TextContent(text: 'Error in get_traffic_summary: $e')],
         isError: true,
       );
     }
