@@ -48,10 +48,25 @@ class ExampleLocalServer {
   Future<void> _handleRequest(HttpRequest request) async {
     final path = request.uri.path;
 
+    if (path.startsWith('/socket.io')) {
+      await _handleSocketIoRequest(request);
+      return;
+    }
+
     if (path == '/ws/chat' && WebSocketTransformer.isUpgradeRequest(request)) {
       try {
         final socket = await WebSocketTransformer.upgrade(request);
         _handleChatSocket(socket);
+      } catch (_) {
+        // Upgrade failed
+      }
+      return;
+    }
+
+    if (path == '/ws/stock' && WebSocketTransformer.isUpgradeRequest(request)) {
+      try {
+        final socket = await WebSocketTransformer.upgrade(request);
+        _handleStockSocket(socket);
       } catch (_) {
         // Upgrade failed
       }
@@ -661,6 +676,109 @@ class ExampleLocalServer {
     0x82,
   ]);
 
+  void _handleStockSocket(WebSocket socket) {
+    var vcbPrice = 92500.0;
+    var fptPrice = 138200.0;
+    var hpgPrice = 28600.0;
+    var mwgPrice = 65400.0;
+
+    // Send initial snapshot
+    if (socket.readyState == WebSocket.open) {
+      socket.add(jsonEncode({
+        'type': 'snapshot',
+        'stocks': [
+          {
+            'symbol': 'VCB',
+            'name': 'Vietcombank',
+            'price': vcbPrice,
+            'change': '+1.20%',
+          },
+          {
+            'symbol': 'FPT',
+            'name': 'FPT Corp',
+            'price': fptPrice,
+            'change': '+2.45%',
+          },
+          {
+            'symbol': 'HPG',
+            'name': 'Hòa Phát',
+            'price': hpgPrice,
+            'change': '-0.85%',
+          },
+          {
+            'symbol': 'MWG',
+            'name': 'Thế Giới Di Động',
+            'price': mwgPrice,
+            'change': '+1.71%',
+          },
+        ],
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      }));
+    }
+
+    var tickCount = 0;
+    final tickTimer = Timer.periodic(const Duration(milliseconds: 600), (_) {
+      if (socket.readyState != WebSocket.open) return;
+      tickCount++;
+
+      final symbolIndex = tickCount % 4;
+      String symbol;
+      String name;
+      double price;
+      double changeVal;
+
+      if (symbolIndex == 0) {
+        vcbPrice += (tickCount % 2 == 0 ? 300.0 : -200.0);
+        symbol = 'VCB';
+        name = 'Vietcombank';
+        price = vcbPrice;
+        changeVal = 1.20 + (tickCount % 5) * 0.08;
+      } else if (symbolIndex == 1) {
+        fptPrice += (tickCount % 2 == 0 ? 500.0 : -300.0);
+        symbol = 'FPT';
+        name = 'FPT Corp';
+        price = fptPrice;
+        changeVal = 2.45 + (tickCount % 4) * 0.12;
+      } else if (symbolIndex == 2) {
+        hpgPrice += (tickCount % 2 == 0 ? -150.0 : 100.0);
+        symbol = 'HPG';
+        name = 'Hòa Phát';
+        price = hpgPrice;
+        changeVal = -0.85 - (tickCount % 3) * 0.06;
+      } else {
+        mwgPrice += (tickCount % 2 == 0 ? 400.0 : -250.0);
+        symbol = 'MWG';
+        name = 'Thế Giới Di Động';
+        price = mwgPrice;
+        changeVal = 1.71 + (tickCount % 4) * 0.09;
+      }
+
+      socket.add(jsonEncode({
+        'type': 'tick',
+        'symbol': symbol,
+        'name': name,
+        'price': price,
+        'change':
+            '${changeVal >= 0 ? '+' : ''}${changeVal.toStringAsFixed(2)}%',
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      }));
+    });
+
+    socket.listen(
+      (dynamic message) {
+        final text = message.toString();
+        if (text.contains('ping')) {
+          socket.add(jsonEncode({
+            'type': 'pong',
+            'serverTime': DateTime.now().toIso8601String(),
+          }));
+        }
+      },
+      onError: (_) => tickTimer.cancel(),
+      onDone: () => tickTimer.cancel(),
+    );
+  }
+
   void _handleChatSocket(WebSocket socket) {
     // 1. Initial system welcome
     socket.add(
@@ -704,6 +822,11 @@ class ExampleLocalServer {
     // 4. Handle incoming messages
     socket.listen(
       (dynamic rawMessage) {
+        if (rawMessage is List<int>) {
+          socket.add(rawMessage);
+          return;
+        }
+
         final text = rawMessage.toString().trim();
         String userQuery = text;
         try {
@@ -712,6 +835,21 @@ class ExampleLocalServer {
             userQuery = decoded['message'].toString();
           }
         } catch (_) {}
+
+        if (userQuery == 'ticker') {
+          final price =
+              138200.0 + (DateTime.now().millisecondsSinceEpoch % 1000);
+          socket.add(
+            jsonEncode({
+              'type': 'ticker_quote',
+              'from': 'StormX Ticker',
+              'symbol': 'FPT',
+              'price': '${price.toStringAsFixed(0)} đ',
+              'timestamp': DateTime.now().millisecondsSinceEpoch,
+            }),
+          );
+          return;
+        }
 
         // Send typing indicator after 150ms
         Timer(const Duration(milliseconds: 150), () {
@@ -764,6 +902,249 @@ class ExampleLocalServer {
       },
       onDone: () {
         heartbeatTimer.cancel();
+      },
+    );
+  }
+
+  Future<void> _handleSocketIoRequest(HttpRequest request) async {
+    if (WebSocketTransformer.isUpgradeRequest(request)) {
+      try {
+        final socket = await WebSocketTransformer.upgrade(request);
+        _handleSocketIoSocket(socket);
+      } catch (_) {
+        // Upgrade failed
+      }
+      return;
+    }
+
+    // Handle HTTP polling fallback or handshake
+    final response = request.response;
+    response.headers
+      ..set('Access-Control-Allow-Origin', '*')
+      ..set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+      ..set('Access-Control-Allow-Headers', '*');
+
+    if (request.method == 'OPTIONS') {
+      response.statusCode = HttpStatus.ok;
+      await response.close();
+      return;
+    }
+
+    if (request.method == 'GET') {
+      final sid = 'sio_${DateTime.now().millisecondsSinceEpoch}';
+      response.statusCode = HttpStatus.ok;
+      response.headers.contentType = ContentType.text;
+      response.write('0${jsonEncode({
+            "sid": sid,
+            "upgrades": <String>['websocket'],
+            "pingInterval": 25000,
+            "pingTimeout": 20000,
+          })}');
+      await response.close();
+      return;
+    }
+
+    if (request.method == 'POST') {
+      response.statusCode = HttpStatus.ok;
+      response.write('ok');
+      await response.close();
+      return;
+    }
+  }
+
+  void _handleSocketIoSocket(WebSocket socket) {
+    final sid = 'sio_${DateTime.now().millisecondsSinceEpoch}';
+    // 1. Send Engine.IO Open packet immediately upon WebSocket connection
+    socket.add('0${jsonEncode({
+          "sid": sid,
+          "upgrades": <String>[],
+          "pingInterval": 25000,
+          "pingTimeout": 20000,
+        })}');
+
+    // 2. Periodic Engine.IO server heartbeat ping (every 20s) to keep client connection alive
+    final pingTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (socket.readyState == WebSocket.open) {
+        socket.add('2');
+      }
+    });
+
+    socket.listen(
+      (dynamic rawMessage) {
+        if (rawMessage is List<int>) {
+          socket.add(rawMessage);
+          return;
+        }
+
+        final text = rawMessage.toString();
+        if (text.isEmpty) return;
+
+        // Engine.IO PONG ("3" or "3probe") from client
+        if (text == '3' || text == '3probe') {
+          return;
+        }
+
+        // Engine.IO PING ("2" or "2probe") -> PONG ("3" or "3probe")
+        if (text == '2' || text.startsWith('2probe')) {
+          if (text == '2probe') {
+            socket.add('3probe');
+          } else {
+            socket.add('3');
+          }
+          return;
+        }
+
+        // Engine.IO UPGRADE ("5")
+        if (text == '5') {
+          return;
+        }
+
+        // Socket.IO CONNECT packet ("40" or "40/nsp,")
+        if (text.startsWith('40')) {
+          socket.add('40${jsonEncode({"sid": sid})}');
+
+          // Send welcome system notice
+          Timer(const Duration(milliseconds: 100), () {
+            if (socket.readyState != WebSocket.open) return;
+            socket.add('42${jsonEncode([
+                  'chat_message',
+                  {
+                    'type': 'system',
+                    'from': 'System',
+                    'message':
+                        'Đã kết nối Socket.IO thành công với StormX Support Bot.',
+                    'timestamp': DateTime.now().millisecondsSinceEpoch,
+                  }
+                ])}');
+
+            // Send agent greeting
+            Timer(const Duration(milliseconds: 300), () {
+              if (socket.readyState != WebSocket.open) return;
+              socket.add('42${jsonEncode([
+                    'chat_message',
+                    {
+                      'type': 'agent_message',
+                      'from': 'StormX (Socket.IO Bot)',
+                      'message':
+                          'Xin chào! Tôi là StormX trên kết nối Socket.IO. Hãy thử gửi tin nhắn hoặc mở Interceptly Inspector để xem các event Socket.IO nhé!',
+                      'timestamp': DateTime.now().millisecondsSinceEpoch,
+                    }
+                  ])}');
+            });
+          });
+          return;
+        }
+
+        // Socket.IO DISCONNECT packet ("41")
+        if (text.startsWith('41')) {
+          socket.close(WebSocketStatus.normalClosure, 'Client disconnected');
+          return;
+        }
+
+        // Socket.IO EVENT packet ("42[...]")
+        if (text.startsWith('42')) {
+          final jsonStr = text.substring(2);
+          try {
+            final dynamic parsed = jsonDecode(jsonStr);
+            if (parsed is List && parsed.isNotEmpty) {
+              final eventName = parsed[0].toString();
+              final eventData = parsed.length > 1 ? parsed[1] : null;
+
+              if (eventName == 'ticker') {
+                final price = 68400.0 +
+                    (DateTime.now().millisecondsSinceEpoch % 1000) / 10;
+                socket.add('42${jsonEncode([
+                      'ticker_quote',
+                      {
+                        'symbol': 'BTC/USDT',
+                        'price': '\$${price.toStringAsFixed(2)}',
+                        'timestamp': DateTime.now().millisecondsSinceEpoch,
+                      }
+                    ])}');
+                return;
+              }
+
+              if (eventName == 'binary_data') {
+                final count = eventData is List ? eventData.length : 1024;
+                socket.add('42${jsonEncode([
+                      'chat_message',
+                      {
+                        'type': 'agent_message',
+                        'from': 'StormX (Socket.IO Bot)',
+                        'message':
+                            'Nhận thành công binary payload ($count bytes) qua Socket.IO!',
+                        'timestamp': DateTime.now().millisecondsSinceEpoch,
+                      }
+                    ])}');
+                return;
+              }
+
+              if (eventName == 'chat_message') {
+                String userQuery = '';
+                if (eventData is Map && eventData['message'] != null) {
+                  userQuery = eventData['message'].toString();
+                } else if (eventData != null) {
+                  userQuery = eventData.toString();
+                }
+
+                // Send typing indicator after 150ms
+                Timer(const Duration(milliseconds: 150), () {
+                  if (socket.readyState != WebSocket.open) return;
+                  socket.add('42${jsonEncode([
+                        'typing',
+                        {
+                          'from': 'StormX (Socket.IO Bot)',
+                          'status': true,
+                        }
+                      ])}');
+
+                  // Send reply after 400ms
+                  Timer(const Duration(milliseconds: 400), () {
+                    if (socket.readyState != WebSocket.open) return;
+
+                    final lower = userQuery.toLowerCase();
+                    String reply;
+                    if (lower.contains('ping')) {
+                      reply =
+                          '🏓 Pong từ Socket.IO! Handshake và event frame hoạt động chuẩn xác.';
+                    } else if (lower.contains('lỗi') ||
+                        lower.contains('bug') ||
+                        lower.contains('error')) {
+                      reply =
+                          'Mở Interceptly Inspector -> Realtime Tab để xem chi tiết packet Socket.IO nhé!';
+                    } else if (lower.contains('đơn hàng') ||
+                        lower.contains('order')) {
+                      reply =
+                          'Đơn hàng Socket.IO #SIO-20261020 của bạn đang ở trạng thái chuẩn bị giao.';
+                    } else {
+                      reply =
+                          'StormX (Socket.IO) đã nhận được tin nhắn: "$userQuery".';
+                    }
+
+                    socket.add('42${jsonEncode([
+                          'chat_message',
+                          {
+                            'type': 'agent_message',
+                            'from': 'StormX (Socket.IO Bot)',
+                            'message': reply,
+                            'timestamp': DateTime.now().millisecondsSinceEpoch,
+                          }
+                        ])}');
+                  });
+                });
+              }
+            }
+          } catch (_) {
+            // Ignore malformed event JSON
+          }
+        }
+      },
+      onError: (Object _) {
+        pingTimer.cancel();
+        socket.close(WebSocketStatus.unsupportedData);
+      },
+      onDone: () {
+        pingTimer.cancel();
       },
     );
   }

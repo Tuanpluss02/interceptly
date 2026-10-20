@@ -43,6 +43,7 @@ packages/
 ├── interceptly_http/               # ADAPTER — http.Client wrapper
 ├── interceptly_chopper/            # ADAPTER — Chopper interceptor
 ├── interceptly_web_socket/         # ADAPTER — WebSocketChannel wrapper
+├── interceptly_socket_io/          # ADAPTER — Socket.IO client tracker
 ├── interceptly_mcp/                # TOOL — Model Context Protocol (MCP) server for AI agents
 └── interceptly/example/            # Showcase app (not published)
 ```
@@ -59,6 +60,7 @@ packages/
 | `interceptly_http` | `http.Client` wrapper (stream-teeing) translating → SPI | ✅ |
 | `interceptly_chopper` | `Chopper` interceptor translating → SPI | ✅ |
 | `interceptly_web_socket` | `WebSocketChannel` wrapper translating → SPI | ✅ |
+| `interceptly_socket_io` | `socket_io_client` tracker translating callbacks → SPI | ✅ |
 | `interceptly/example` | Interactive Flutter showcase (REST + WebSocket) | ❌ |
 
 ---

@@ -29,7 +29,8 @@ Interceptly is organized as a modular monorepo managed with [Melos](https://melo
 │   ├── interceptly_dio          # Adapter for Dio (InterceptlyDioInterceptor)
 │   ├── interceptly_http         # Adapter for package:http (InterceptlyHttpClient)
 │   ├── interceptly_chopper      # Adapter for Chopper (InterceptlyChopperInterceptor)
-│   └── interceptly_web_socket   # Adapter for WebSocketChannel (InterceptlyWebSocketChannel)
+│   ├── interceptly_web_socket   # Adapter for WebSocketChannel (InterceptlyWebSocketChannel)
+│   └── interceptly_socket_io    # Adapter for socket_io_client (InterceptlySocketIo)
 └── packages/interceptly/example # Interactive Flutter showcase app
 ```
 
@@ -42,6 +43,7 @@ Interceptly is organized as a modular monorepo managed with [Melos](https://melo
 | [`interceptly_http`](packages/interceptly_http) | [![pub package](https://img.shields.io/pub/v/interceptly_http.svg)](https://pub.dev/packages/interceptly_http) | **HTTP Adapter**: Stream-teeing `http.Client` wrapper preserving single-subscription response streams. |
 | [`interceptly_chopper`](packages/interceptly_chopper) | [![pub package](https://img.shields.io/pub/v/interceptly_chopper.svg)](https://pub.dev/packages/interceptly_chopper) | **Chopper Adapter**: `ResponseInterceptor` and `RequestInterceptor` capturing Chopper network traffic. |
 | [`interceptly_web_socket`](packages/interceptly_web_socket) | [![pub package](https://img.shields.io/pub/v/interceptly_web_socket.svg)](https://pub.dev/packages/interceptly_web_socket) | **WebSocket Adapter**: `WebSocketChannel` wrapper capturing bidirectional text/binary frames in real time. |
+| [`interceptly_socket_io`](packages/interceptly_socket_io) | [![pub package](https://img.shields.io/pub/v/interceptly_socket_io.svg)](https://pub.dev/packages/interceptly_socket_io) | **Socket.IO Adapter**: `socket_io_client` tracker capturing events and enabling composer emission. |
 
 ---
 
@@ -59,6 +61,7 @@ flutter pub add interceptly_dio
 flutter pub add interceptly_http
 flutter pub add interceptly_chopper
 flutter pub add interceptly_web_socket
+flutter pub add interceptly_socket_io
 ```
 
 For local monorepo development, path dependencies can also be used:
@@ -137,6 +140,21 @@ final channel = InterceptlyWebSocketChannel.connect(
 // Listen and send frames normally — Interceptly captures them live!
 channel.stream.listen((message) => print('Received: $message'));
 channel.sink.add('Hello Interceptly!');
+```
+
+#### Socket.IO (`package:socket_io_client`)
+```dart
+import 'package:interceptly_socket_io/interceptly_socket_io.dart';
+import 'package:socket_io_client/socket_io_client.dart' as io;
+
+final socket = io.io('https://chat.example.com');
+
+// Attach inspector:
+socket.attachInterceptly();
+
+// Connect and emit events normally:
+socket.connect();
+socket.emit('chat_message', {'text': 'Hello Interceptly!'});
 ```
 
 ---

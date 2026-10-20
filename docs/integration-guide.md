@@ -11,7 +11,7 @@ Do NOT edit any code or add dependencies yet. First inspect the codebase, then
 
 Inspect the project:
 - **Networking clients:** Check `pubspec.yaml` for `dio`, `http`, `chopper`,
-  and `web_socket_channel` (note each version). Also search imports for raw
+  `web_socket_channel`, and `socket_io_client` (note each version). Also search imports for raw
   `dart:io` sockets (`Socket`, `WebSocket`, `HttpClient`).
 - **Existing inspectors/loggers:** Search for `alice`, `alice_dio`,
   `alice_lightweight`, `talker`, `talker_dio_logger`, `dio_log`,
@@ -22,7 +22,7 @@ Inspect the project:
 
 **STOP AND ASK THE USER UPFRONT (Do not split this into multiple steps):**
 1. **REST Traffic:** Which detected REST clients (`dio`, `http`, `chopper`) should be intercepted?
-2. **Realtime / Socket Traffic:** Confirm whether to intercept WebSockets/sockets now (default: yes if `web_socket_channel` or `dart:io.WebSocket` detected; ask if none detected).
+2. **Realtime / Socket Traffic:** Confirm whether to intercept WebSockets/sockets or Socket.IO now (default: yes if `web_socket_channel`, `dart:io.WebSocket`, or `socket_io_client` detected; ask if none detected).
 3. **Existing Inspectors:** If any old logger/inspector was detected, ask to remove it (recommended to avoid duplicate capture overhead and UI overlay conflicts) or keep side-by-side.
 4. **Flavors / Environment:** Confirm in which modes to enable (default: everywhere except production release).
 
@@ -40,16 +40,17 @@ versions here so this guide stays correct across releases):
 
 ```bash
 flutter pub add interceptly_dio         # if dio is used
-flutter pub add interceptly_http       # if package:http is used
-flutter pub add interceptly_chopper    # if chopper is used
-flutter pub add interceptly_web_socket # if web_socket_channel is used
+flutter pub add interceptly_http        # if package:http is used
+flutter pub add interceptly_chopper     # if chopper is used
+flutter pub add interceptly_web_socket  # if web_socket_channel is used
+flutter pub add interceptly_socket_io   # if socket_io_client is used
 ```
 
 Rules:
 
 - Never use `path:` dependencies for these packages in a consumer app.
 - Never downgrade the app's existing `dio` / `http` / `chopper` /
-  `web_socket_channel` versions to satisfy adapters; report a conflict instead.
+  `web_socket_channel` / `socket_io_client` versions to satisfy adapters; report a conflict instead.
 
 ## 3. Wire `Interceptly.init` (debug/profile only)
 
@@ -126,6 +127,23 @@ final channel = InterceptlyWebSocketChannel.connect(
 
 // Option B: Wrap an existing WebSocketChannel (or IOWebSocketChannel for dart:io.WebSocket)
 final channel = InterceptlyWebSocketChannel(existingChannel);
+```
+
+Socket.IO (`package:socket_io_client`):
+
+```dart
+import 'package:interceptly_socket_io/interceptly_socket_io.dart';
+import 'package:socket_io_client/socket_io_client.dart' as io;
+
+final socket = io.io('https://example.com/socket.io');
+
+// Option A: Extension method
+socket.attachInterceptly();
+
+// Option B: Static helper
+final tracker = InterceptlySocketIo.attach(socket);
+
+socket.connect();
 ```
 
 Optional: skip noisy URLs so they cost zero memory/disk:

@@ -7,13 +7,14 @@ Interceptly is a client-agnostic network and realtime traffic inspector for Flut
 
 ## 1. Monorepo Architecture
 
-This repository is managed with [Melos](https://melos.invertase.dev/). It is organized into 5 publishable packages and 1 example app:
+This repository is managed with [Melos](https://melos.invertase.dev/). It is organized into 6 publishable packages and 1 example app:
 
 - `packages/interceptly`: Core engine (`InterceptlyEngine`), UI overlay (`InterceptlyScope`), background isolate pipeline (`WriterIsolate`), hybrid RAM/disk storage (`BodyStore`, `RealtimeBodyStore`), and public singleton facade (`Interceptly`).
 - `packages/interceptly_dio`: Adapter interceptor for `Dio`.
 - `packages/interceptly_http`: Adapter client wrapper for `package:http`.
 - `packages/interceptly_chopper`: Adapter interceptor for `Chopper`.
 - `packages/interceptly_web_socket`: Adapter channel wrapper for `web_socket_channel` / raw WebSocket.
+- `packages/interceptly_socket_io`: Adapter tracker for `socket_io_client`.
 - `packages/interceptly/example`: Showcase and verification app.
 
 ---
@@ -23,7 +24,7 @@ This repository is managed with [Melos](https://melos.invertase.dev/). It is org
 Always use Melos commands across workspace packages:
 
 - **Bootstrap**: `melos bootstrap` (links workspace dependencies and runs pub get)
-- **Analyze**: `melos run analyze` (runs `dart analyze` across all 5 packages)
+- **Analyze**: `melos run analyze` (runs `dart analyze` across all packages)
 - **Format check**: `melos run format:check` (verifies Dart formatting)
 - **Apply format**: `melos run format` (auto-formats code with `dart format`)
 - **Run core tests**: `melos run test:core` (runs fast non-stress tests across packages)
