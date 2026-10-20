@@ -1,10 +1,8 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
 import '../adapter/realtime_traffic_collector.dart';
-import '../model/body_location.dart';
 import '../model/index_entry.dart';
 import '../model/interceptly_settings.dart';
 import '../model/network_simulation.dart';
@@ -13,17 +11,14 @@ import '../model/realtime_frame.dart';
 import '../model/realtime_protocol_type.dart';
 import '../model/request_record.dart';
 import '../model/request_summary.dart';
-import '../model/search_match_scope.dart';
 import '../model/search_result.dart';
 import '../simulation/network_simulation_service.dart';
-import 'body_decode_service.dart';
-import 'body_store.dart';
 import 'capture_pipeline.dart';
 import 'detail_loader.dart';
 import 'memory_index.dart';
 import 'pending_tracker.dart';
 import 'realtime_store.dart';
-import 'search_matcher.dart';
+import 'search_service.dart';
 
 /// Central headless data engine for Interceptly.
 ///
@@ -452,120 +447,17 @@ class InterceptlyEngine extends ChangeNotifier {
     String statusFilter = 'all',
     String? sinceId,
     int limit = 20,
-  }) async {
-    final trimmed = query.trim();
-    if (trimmed.isEmpty) return const [];
-
-    final q = trimmed.toLowerCase();
-    final clampedLimit = limit.clamp(1, 100);
-    final normalizedStatus = statusFilter.toLowerCase();
-
-    // 1. Snapshot all memory entries (newest-first)
-    var candidates = _memoryIndex.entries.toList();
-
-    // 2. Cursor pagination (sinceId)
-    if (sinceId != null && sinceId.isNotEmpty) {
-      final index = candidates.indexWhere((e) => e.id == sinceId);
-      if (index > 0) {
-        candidates = candidates.sublist(0, index);
-      } else if (index == 0) {
-        return const [];
-      }
-    }
-
-    // 3. Status filter
-    if (normalizedStatus != 'all') {
-      candidates = candidates.where((e) {
-        final code = e.statusCode;
-        return switch (normalizedStatus) {
-          'failed' => e.hasError || code >= 400,
-          '2xx' => code >= 200 && code < 300,
-          '3xx' => code >= 300 && code < 400,
-          '4xx' => code >= 400 && code < 500,
-          '5xx' => code >= 500 && code < 600,
-          _ => true,
-        };
-      }).toList();
-    }
-
-    final results = <SearchResult>[];
-    final fileCandidates = <(IndexEntry, int, int)>[];
-
-    // 4. Phase 1 & Phase 2 scan
-    for (final e in candidates) {
-      if (results.length >= clampedLimit) break;
-
-      // Phase 1: Structured metadata scan (RAM)
-      final scopes = SearchMatcher.matchStructured(e, q);
-      if (scopes.isNotEmpty) {
-        results.add(SearchResult(summary: e, matchScopes: scopes));
-        continue; // Short-circuit: already matched metadata, skip reading body
-      }
-
-      // If searchBody is disabled, don't check Phase 2 / Phase 3
-      if (!searchBody) continue;
-
-      // Content-type guard: skip when all payloads are binary or empty
-      final reqIsBinaryOrEmpty = (e.requestSizeBytes == 0) ||
-          BodyDecodeService.isBinary(e.requestContentType);
-      final resIsBinaryOrEmpty = (e.responseSizeBytes == 0) ||
-          BodyDecodeService.isBinary(e.responseContentType);
-      if (reqIsBinaryOrEmpty && resIsBinaryOrEmpty) {
-        continue;
-      }
-
-      // Phase 2: In-memory body scan
-      if (e.bodyLocation == BodyLocation.memory &&
-          SearchMatcher.matchInlineBody(e, q)) {
-        results.add(SearchResult(
-          summary: e,
-          matchScopes: const {SearchMatchScope.body},
-        ));
-        continue;
-      }
-
-      // Collect file candidates for Phase 3
-      final isExpiredByRotation = e.fileRotationCount != null &&
-          e.fileRotationCount! < _capturePipeline.fileRotationCount;
-
-      if (!isExpiredByRotation &&
-          e.bodyLocation == BodyLocation.file &&
-          e.fileOffset != null &&
-          e.fileLength != null) {
-        fileCandidates.add((e, e.fileOffset!, e.fileLength!));
-      }
-    }
-
-    // 5. Phase 3: File-backed body scan (if more results needed and file candidates exist)
-    final tempFilePath = _capturePipeline.tempFilePath;
-    if (searchBody &&
-        results.length < clampedLimit &&
-        fileCandidates.isNotEmpty &&
-        tempFilePath != null) {
-      RandomAccessFile? raf;
-      try {
-        raf = await BodyStore.openReadHandle(tempFilePath);
-        for (final (e, offset, length) in fileCandidates) {
-          if (results.length >= clampedLimit) break;
-          final matched =
-              await SearchMatcher.matchFileBody(raf, offset, length, q);
-          if (matched) {
-            results.add(SearchResult(
-              summary: e,
-              matchScopes: const {SearchMatchScope.body},
-            ));
-          }
-        }
-      } catch (e) {
-        if (kDebugMode) {
-          debugPrint('[Interceptly] engine search file read error: $e');
-        }
-      } finally {
-        await raf?.close();
-      }
-    }
-
-    return results;
+  }) {
+    return SearchService.search(
+      entries: _memoryIndex.entries.toList(),
+      query: query,
+      filePath: _capturePipeline.tempFilePath,
+      fileRotationCount: _capturePipeline.fileRotationCount,
+      searchBody: searchBody,
+      statusFilter: statusFilter,
+      sinceId: sinceId,
+      limit: limit,
+    );
   }
 
   /// Records an entry directly into the memory index for testing.
