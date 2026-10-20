@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
 import 'package:interceptly/src/engine/interceptly_engine.dart';
-import 'package:interceptly/src/model/raw_capture.dart';
 import 'package:interceptly/src/service_extension/interceptly_service_extensions.dart';
 
 const MethodChannel _channel =
@@ -256,8 +255,8 @@ void main() {
       expect(InterceptlyServiceExtensions.isEnabled, isTrue);
 
       // Calling register second time does not throw
-      expect(() => InterceptlyServiceExtensions.register(engine),
-          returnsNormally);
+      expect(
+          () => InterceptlyServiceExtensions.register(engine), returnsNormally);
 
       InterceptlyServiceExtensions.disable();
       expect(InterceptlyServiceExtensions.isEnabled, isFalse);
