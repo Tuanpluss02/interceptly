@@ -86,6 +86,7 @@ Stage 2: Package Publishing via OIDC (publish.yml - on: push: tags: '*-v*')
    - `interceptly_http`: `interceptly_http-v{{version}}`
    - `interceptly_chopper`: `interceptly_chopper-v{{version}}`
    - `interceptly_web_socket`: `interceptly_web_socket-v{{version}}`
+   - `interceptly_socket_io`: `interceptly_socket_io-v{{version}}`
 5. Save.
 
 ---
