@@ -18,7 +18,7 @@ class SocketIoSender implements RealtimeConnectionSender {
   SocketIoSender(this.socket, RealtimeSessionScope scope)
       : _scopeGetter = (() => scope);
 
-  /// Creates a [SocketIoSender] binding [socket] and a dynamic [scopeGetter]
+  /// Creates a [SocketIoSender] binding [socket] and a dynamic scope getter function
   /// that tracks session re-openings across reconnections.
   SocketIoSender.dynamic(this.socket, this._scopeGetter);
 
