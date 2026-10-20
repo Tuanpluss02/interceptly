@@ -8,6 +8,7 @@ import '../model/index_entry.dart';
 import '../model/search_match_scope.dart';
 import 'body_decode_service.dart';
 import 'body_store.dart';
+import 'search_matcher.dart';
 
 /// Manages the 3-phase progressive master search over captured entries.
 ///
@@ -178,21 +179,17 @@ class MasterSearchController extends ChangeNotifier {
             var hasNewMatch = false;
             for (final (e, offset, length) in fileEntries) {
               if (gen != _generation || _isDisposed) return;
-              try {
-                final raw = await BodyStore.readWithHandle(raf, offset, length);
-                final decoded = BodyDecodeService.unpackToText(raw);
-                final combined =
-                    '${decoded.$1 ?? ''}\n${decoded.$2 ?? ''}'.toLowerCase();
-                if (combined.contains(q)) {
-                  if (!_matchedIds.contains(e.id)) {
-                    _matchedIds.add(e.id);
-                    _results?.add(e);
-                    hasNewMatch = true;
-                  }
-                  (_matchScopes[e.id] ??= <SearchMatchScope>{})
-                      .add(SearchMatchScope.body);
+              final matched =
+                  await SearchMatcher.matchFileBody(raf, offset, length, q);
+              if (matched) {
+                if (!_matchedIds.contains(e.id)) {
+                  _matchedIds.add(e.id);
+                  _results?.add(e);
+                  hasNewMatch = true;
                 }
-              } catch (_) {}
+                (_matchScopes[e.id] ??= <SearchMatchScope>{})
+                    .add(SearchMatchScope.body);
+              }
             }
             if (hasNewMatch) {
               _notifyThrottled();
@@ -360,45 +357,11 @@ class MasterSearchController extends ChangeNotifier {
     }
   }
 
-  static Set<SearchMatchScope> _checkStructuredScopes(IndexEntry e, String q) {
-    final scopes = <SearchMatchScope>{};
-    if (e.url.toLowerCase().contains(q) || e.method.toLowerCase().contains(q)) {
-      scopes.add(SearchMatchScope.url);
-    }
-    if (e.errorMessage?.toLowerCase().contains(q) ?? false) {
-      scopes.add(SearchMatchScope.error);
-    }
-    for (final h in e.requestHeaders.entries) {
-      if (h.key.toLowerCase().contains(q) ||
-          h.value.toLowerCase().contains(q)) {
-        scopes.add(SearchMatchScope.headers);
-        break;
-      }
-    }
-    if (!scopes.contains(SearchMatchScope.headers)) {
-      for (final h in e.responseHeaders.entries) {
-        if (h.key.toLowerCase().contains(q) ||
-            h.value.toLowerCase().contains(q)) {
-          scopes.add(SearchMatchScope.headers);
-          break;
-        }
-      }
-    }
-    return scopes;
-  }
+  static Set<SearchMatchScope> _checkStructuredScopes(IndexEntry e, String q) =>
+      SearchMatcher.matchStructured(e, q);
 
-  static bool _matchesInlineBody(IndexEntry e, String q) {
-    final req = BodyDecodeService.decode(
-      e.inlineRequestBody,
-      e.requestContentType,
-    )?.toLowerCase();
-    if (req != null && req.contains(q)) return true;
-    final res = BodyDecodeService.decode(
-      e.inlineResponseBody,
-      e.responseContentType,
-    )?.toLowerCase();
-    return res != null && res.contains(q);
-  }
+  static bool _matchesInlineBody(IndexEntry e, String q) =>
+      SearchMatcher.matchInlineBody(e, q);
 
   @override
   void dispose() {
