@@ -11,7 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:interceptly/interceptly.dart';
 import 'package:interceptly/src/model/index_entry.dart';
 import 'package:interceptly/src/engine/body_store.dart';
-import 'package:interceptly/src/engine/master_search_controller.dart';
+import 'package:interceptly/src/ui/search/master_search_controller.dart';
 import 'package:interceptly/src/engine/memory_index.dart';
 import 'package:interceptly/src/ui/widgets/json_viewer/json_viewer.dart';
 

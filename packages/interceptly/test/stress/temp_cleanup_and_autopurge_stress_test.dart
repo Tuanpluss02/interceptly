@@ -12,7 +12,7 @@ import 'package:interceptly/src/model/index_entry.dart';
 import 'package:interceptly/interceptly.dart';
 import 'package:interceptly/src/engine/body_store.dart';
 import 'package:interceptly/src/engine/interceptly_engine.dart';
-import 'package:interceptly/src/engine/master_search_controller.dart';
+import 'package:interceptly/src/ui/search/master_search_controller.dart';
 
 Uint8List _createPackedBody({
   String? requestBody,
