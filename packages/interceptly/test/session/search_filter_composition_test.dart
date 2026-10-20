@@ -43,17 +43,13 @@ void main() {
         timestamp: DateTime(2026, 1, 1),
       );
 
-      // Apply method filter: POST only
       scope.applyFilter(RequestFilter(methods: {'POST'}));
-      expect(scope.entries.length, equals(2)); // id 2 and 3
+      expect(scope.entries.length, equals(2));
 
-      // Start search for "users"
       await scope.startMasterSearch('users');
 
-      // Must return ONLY id 2 (matches POST and "users"), NOT id 1 (GET) and NOT id 3 (posts)
       expect(scope.entries.map((e) => e.id).toList(), equals(['2']));
 
-      // Clear filter: now should return both id 1 and 2 (both match "users")
       scope.clearFilter();
       expect(scope.entries.map((e) => e.id).toSet(), equals({'1', '2'}));
     });
@@ -106,17 +102,14 @@ void main() {
       final pending = base;
       final netErr = base.copyWith(id: '2', hasError: true);
 
-      // Default filter includes pending
       final defaultFilter = RequestFilter();
       expect(defaultFilter.matches(pending), isTrue);
       expect(defaultFilter.matches(netErr), isTrue);
 
-      // Filter without pending
       final noPendingFilter = RequestFilter(includePending: false);
       expect(noPendingFilter.matches(pending), isFalse);
       expect(noPendingFilter.matches(netErr), isTrue);
 
-      // Only errors filter
       final errorFilter = RequestFilter(onlyErrors: true);
       expect(errorFilter.matches(pending), isFalse);
       expect(errorFilter.matches(netErr), isTrue);
@@ -142,7 +135,6 @@ void main() {
       final pending = base;
       final netErr = base.copyWith(id: '2', hasError: true);
 
-      // Filtering for 2xx only without pending
       final filter2xxNoPending = RequestFilter(
         include2xx: true,
         include3xx: false,
@@ -153,7 +145,6 @@ void main() {
       expect(filter2xxNoPending.matches(pending), isFalse);
       expect(filter2xxNoPending.matches(netErr), isFalse);
 
-      // Filtering for 2xx only with default includePending (netErr must never leak into 2xx)
       final filter2xx = RequestFilter(
         include2xx: true,
         include3xx: false,
@@ -163,7 +154,6 @@ void main() {
       expect(filter2xx.matches(pending), isTrue);
       expect(filter2xx.matches(netErr), isFalse);
 
-      // Filtering for 4xx only
       final filter4xx = RequestFilter(
         include2xx: false,
         include3xx: false,

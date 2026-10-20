@@ -163,8 +163,7 @@ void main() {
         });
 
         const channelCount = 10;
-        const messagesPerDirection =
-            500; // 500 out + 500 in = 1,000 per channel
+        const messagesPerDirection = 500;
 
         final fakes = <StressFakeWebSocketChannel>[];
         final channels = <InterceptlyWebSocketChannel>[];
@@ -196,14 +195,12 @@ void main() {
           }
         });
 
-        // Bombard all 10 channels simultaneously
         await Future.wait(
           List.generate(channelCount, (chIndex) async {
             final channel = channels[chIndex];
             final fake = fakes[chIndex];
 
             await Future.wait([
-              // Outgoing bombardment: 500 frames (alternating text & binary)
               () async {
                 for (var m = 0; m < messagesPerDirection; m++) {
                   if (m.isEven) {
@@ -218,7 +215,6 @@ void main() {
                   }
                 }
               }(),
-              // Incoming bombardment: 500 frames (alternating text & binary)
               () async {
                 for (var m = 0; m < messagesPerDirection; m++) {
                   if (m.isEven) {
@@ -237,15 +233,12 @@ void main() {
           }),
         );
 
-        // Allow microtasks to settle
         await pumpEventQueue();
 
-        // Verify across all 10 channels
         for (var chIndex = 0; chIndex < channelCount; chIndex++) {
           final sessionId = 'ws-stress-channel-$chIndex';
           final frames = session.getRealtimeFrames(sessionId);
 
-          // 1. Total frame count = 1,000 per channel (500 in + 500 out)
           expect(
             frames.length,
             equals(1000),
@@ -253,7 +246,6 @@ void main() {
                 'Channel $chIndex must have recorded all 1,000 frames without loss',
           );
 
-          // 2. Exact balance of directions
           final outgoingFrames = frames
               .where((f) => f.direction == FrameDirection.outgoing)
               .toList();
@@ -264,7 +256,6 @@ void main() {
           expect(outgoingFrames.length, equals(messagesPerDirection));
           expect(incomingFrames.length, equals(messagesPerDirection));
 
-          // 3. Payload integrity for outgoing frames
           for (var m = 0; m < messagesPerDirection; m++) {
             final frame = outgoingFrames[m];
             if (m.isEven) {
@@ -280,7 +271,6 @@ void main() {
             }
           }
 
-          // 4. Payload integrity for incoming frames
           for (var m = 0; m < messagesPerDirection; m++) {
             final frame = incomingFrames[m];
             if (m.isEven) {
@@ -295,14 +285,12 @@ void main() {
             }
           }
 
-          // 5. Application layer received all incoming messages
           expect(
             receivedPerChannel[chIndex]!.length,
             equals(messagesPerDirection),
             reason: 'Stream listener must receive all 500 incoming frames',
           );
 
-          // 6. Network socket received all outgoing messages
           expect(
             fakes[chIndex].sentData.length,
             equals(messagesPerDirection),
@@ -350,32 +338,26 @@ void main() {
           }
         });
 
-        // Concurrently operate on all 20 channels under heavy load and varying close triggers
         await Future.wait(
           List.generate(channelCount, (idx) async {
             final channel = channels[idx];
             final fake = fakes[idx];
 
-            // Send in-flight frames
             for (var m = 0; m < 50; m++) {
               channel.sink.add('msg-$m');
               fake.emitIncoming('reply-$m');
             }
 
             if (idx % 4 == 0) {
-              // Scenario A: Client sink close (normal 1000)
               await channel.sink.close(1000, 'client normal closure');
             } else if (idx % 4 == 1) {
-              // Scenario B: Server stream close (1001 going away)
               await fake.closeServer(code: 1001, reason: 'server going away');
             } else if (idx % 4 == 2) {
-              // Scenario C: Simultaneous bidirectional close race condition
               await Future.wait([
                 channel.sink.close(1000, 'client race close'),
                 fake.closeServer(code: 1001, reason: 'server race close'),
               ]);
             } else {
-              // Scenario D: In-flight error injection followed by abnormal close
               fake.emitIncomingError(Exception('remote socket dropped'));
               channel.sink.addError(Exception('local pipe error'));
               await channel.sink.close(1006, 'abnormal closure');
@@ -385,7 +367,6 @@ void main() {
 
         await pumpEventQueue();
 
-        // Verify clean lifecycle termination for every channel
         for (var idx = 0; idx < channelCount; idx++) {
           final sessionId = 'ws-close-$idx';
           final entries =
@@ -405,13 +386,12 @@ void main() {
             expect(entry.hasError, isFalse);
           } else if (idx % 4 == 1) {
             expect(entry.statusCode, equals(1001));
-            expect(entry.hasError, isTrue); // 1001 is server going away
+            expect(entry.hasError, isTrue);
           } else if (idx % 4 == 2) {
-            // One of the close codes was recorded cleanly
             expect([1000, 1001], contains(entry.statusCode));
           } else {
             expect(entry.statusCode, equals(1006));
-            expect(entry.hasError, isTrue); // 1006 is abnormal error closure
+            expect(entry.hasError, isTrue);
           }
         }
       },
@@ -440,7 +420,6 @@ void main() {
         const closedCount = 15;
         const activeCount = 25;
 
-        // Deterministic text generator with embedded key and target size
         String makeTextPayload(String key, int targetBytes) {
           final prefix = 'TAG:$key:LEN:$targetBytes:';
           if (targetBytes <= prefix.length) {
@@ -450,7 +429,6 @@ void main() {
           return '$prefix$fill';
         }
 
-        // Deterministic binary generator with magic header and embedded key
         Uint8List makeBinaryPayload(String key, int targetBytes) {
           final data = Uint8List(targetBytes);
           final bd = ByteData.sublistView(data);
@@ -471,20 +449,19 @@ void main() {
           return data;
         }
 
-        // Mixed payload sizes spanning 100 B to 200 KB (crossing the 32 KB threshold)
         final mixedSizes = <int>[
-          100, // 100 B (in-memory)
-          500, // 500 B (in-memory)
-          2 * 1024, // 2 KB (in-memory)
-          8 * 1024, // 8 KB (in-memory)
-          16 * 1024, // 16 KB (in-memory)
-          35 * 1024, // 35 KB (offloaded to disk)
-          48 * 1024, // 48 KB (offloaded to disk)
-          64 * 1024, // 64 KB (offloaded to disk)
-          100 * 1024, // 100 KB (offloaded to disk)
-          130 * 1024, // 130 KB (offloaded to disk)
-          160 * 1024, // 160 KB (offloaded to disk)
-          200 * 1024, // 200 KB (offloaded to disk)
+          100,
+          500,
+          2 * 1024,
+          8 * 1024,
+          16 * 1024,
+          35 * 1024,
+          48 * 1024,
+          64 * 1024,
+          100 * 1024,
+          130 * 1024,
+          160 * 1024,
+          200 * 1024,
         ];
 
         final payloadStore = <String, dynamic>{};
@@ -495,9 +472,6 @@ void main() {
           }
         });
 
-        // ==========================================
-        // Phase A: Setup and traffic 15 closed connections
-        // ==========================================
         final closedFakes = <StressFakeWebSocketChannel>[];
         final closedChannels = <InterceptlyWebSocketChannel>[];
         var closedIncomingCount = 0;
@@ -524,7 +498,6 @@ void main() {
           }, onError: (_) {}));
         }
 
-        // Send initial traffic through the 15 connections (6 messages each = 90 frames total)
         await Future.wait(
           List.generate(closedCount, (c) async {
             final channel = closedChannels[c];
@@ -554,7 +527,6 @@ void main() {
         await pumpEventQueue();
         await Future<void>.delayed(const Duration(milliseconds: 50));
 
-        // Verify initial frames were recorded
         var closedInitialTotal = 0;
         for (var c = 0; c < closedCount; c++) {
           final count = session.getRealtimeFrames('ws-closed-$c').length;
@@ -566,7 +538,6 @@ void main() {
           equals(closedCount * closedMessagesPerChannel),
         );
 
-        // Close all 15 connections (half via client sink, half via server stream)
         await Future.wait(
           List.generate(closedCount, (c) async {
             if (c.isEven) {
@@ -580,9 +551,6 @@ void main() {
 
         await pumpEventQueue();
 
-        // ==========================================
-        // Phase B: Concurrently bombard 25 active connections
-        // ==========================================
         final activeFakes = <StressFakeWebSocketChannel>[];
         final activeChannels = <InterceptlyWebSocketChannel>[];
         var activeIncomingCount = 0;
@@ -608,17 +576,12 @@ void main() {
           }, onError: (_) {}));
         }
 
-        // Bombard across all 25 active channels concurrently
-        // 24 messages per channel (12 out + 12 in) = 600 frames total.
-        // 90 (closed) + 600 (active) = 690 total frames attempted.
-        // Cap is 400. This exerts heavy eviction pressure!
         await Future.wait(
           List.generate(activeCount, (c) async {
             final channel = activeChannels[c];
             final fake = activeFakes[c];
 
             await Future.wait([
-              // Outgoing bombardment
               () async {
                 for (var m = 0; m < activeMessagesPerDirection; m++) {
                   final size = mixedSizes[m % mixedSizes.length];
@@ -634,7 +597,6 @@ void main() {
                   }
                 }
               }(),
-              // Incoming bombardment
               () async {
                 for (var m = 0; m < activeMessagesPerDirection; m++) {
                   final size = mixedSizes[(m + 6) % mixedSizes.length];
@@ -654,14 +616,9 @@ void main() {
           }),
         );
 
-        // Allow microtasks and sequential disk offloading queue to settle
         await activeIncomingCompleter.future;
         await pumpEventQueue();
         await Future<void>.delayed(const Duration(milliseconds: 100));
-
-        // ==========================================
-        // Phase C: Assertions
-        // ==========================================
 
         var countedAcrossBuffers = 0;
         for (var c = 0; c < closedCount; c++) {
@@ -673,7 +630,6 @@ void main() {
               session.getRealtimeFrames('ws-active-$c').length;
         }
 
-        // 1. Total frame count across the system is strictly capped at maxTotalRealtimeFrames
         expect(
           countedAcrossBuffers,
           lessThanOrEqualTo(maxTotalRealtimeFrames),
@@ -681,8 +637,6 @@ void main() {
               'Global frame count must never exceed coordinator budget ($maxTotalRealtimeFrames)',
         );
 
-        // 2. Closed sessions are evicted first under global memory pressure
-        // Because 690 > 400, all 90 frames of the 15 closed sessions must be fully evicted
         for (var c = 0; c < closedCount; c++) {
           final frames = session.getRealtimeFrames('ws-closed-$c');
           expect(
@@ -693,7 +647,6 @@ void main() {
           );
         }
 
-        // Active sessions retain frames
         for (var c = 0; c < activeCount; c++) {
           final frames = session.getRealtimeFrames('ws-active-$c');
           expect(
@@ -703,8 +656,6 @@ void main() {
           );
         }
 
-        // 3. Zero offset corruption in RealtimeBodyStore:
-        // Reading payloads back via session.loadRealtimePayload yields exact data for all retained frames.
         var memoryFramesVerified = 0;
         var offloadedFramesVerified = 0;
 

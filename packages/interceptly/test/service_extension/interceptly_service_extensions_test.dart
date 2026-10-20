@@ -99,7 +99,7 @@ void main() {
           isA<ServiceExtensionException>().having(
             (e) => e.errorCode,
             'errorCode',
-            equals(-32000), // ServiceExtensionResponse.extensionError
+            equals(-32000),
           ),
         ),
       );
@@ -117,10 +117,8 @@ void main() {
       engine.record(createCapture(
           id: 'req_3', statusCode: 500, url: 'https://api.example.com/crash'));
 
-      // Wait for pipeline processing
       await Future<void>.delayed(const Duration(milliseconds: 100));
 
-      // 1. List all
       final all = await HttpExtensionHandlers.handleListRequests(
         engine: engine,
         parameters: {'status_filter': 'all'},
@@ -128,7 +126,6 @@ void main() {
       final allList = all['requests'] as List;
       expect(allList.length, 3);
 
-      // 2. Filter failed only (4xx, 5xx)
       final failed = await HttpExtensionHandlers.handleListRequests(
         engine: engine,
         parameters: {'status_filter': 'failed'},
@@ -137,7 +134,6 @@ void main() {
       expect(failedList.length, 2);
       expect(failedList.map((e) => e['statusCode']), containsAll([404, 500]));
 
-      // 3. Search query
       final search = await HttpExtensionHandlers.handleListRequests(
         engine: engine,
         parameters: {'search': 'missing'},
@@ -146,7 +142,6 @@ void main() {
       expect(searchList.length, 1);
       expect(searchList.first['id'], 'req_2');
 
-      // 4. Cursor pagination since_id (newest-first, entries after req_2)
       final since = await HttpExtensionHandlers.handleListRequests(
         engine: engine,
         parameters: {'since_id': 'req_2'},
@@ -154,7 +149,6 @@ void main() {
       final sinceList = since['requests'] as List;
       expect(sinceList.any((e) => e['id'] == 'req_2'), isFalse);
 
-      // 5. Cursor since_id for evicted/unknown ID returns empty list instead of repeating
       final evicted = await HttpExtensionHandlers.handleListRequests(
         engine: engine,
         parameters: {'since_id': 'req_non_existent'},
@@ -179,7 +173,6 @@ void main() {
       ));
       await Future<void>.delayed(const Duration(milliseconds: 100));
 
-      // Match header
       final headerSearch = await HttpExtensionHandlers.handleListRequests(
         engine: engine,
         parameters: {'search': 'token-auth-xyz'},
@@ -189,7 +182,6 @@ void main() {
       expect(headerList.first['id'], 'req_hdr');
       expect(headerList.first['matchScopes'], contains('headers'));
 
-      // Match body
       final bodySearch = await HttpExtensionHandlers.handleListRequests(
         engine: engine,
         parameters: {'search': 'COMPLETED_OK'},
@@ -199,7 +191,6 @@ void main() {
       expect(bodyList.first['id'], 'req_body');
       expect(bodyList.first['matchScopes'], contains('body'));
 
-      // Skips body when search_body is false
       final noBodySearch = await HttpExtensionHandlers.handleListRequests(
         engine: engine,
         parameters: {'search': 'COMPLETED_OK', 'search_body': 'false'},
@@ -221,7 +212,6 @@ void main() {
       ));
       await Future<void>.delayed(const Duration(milliseconds: 100));
 
-      // Missing ID -> invalidParams (-32602)
       expect(
         () => HttpExtensionHandlers.handleGetRequestDetail(
           engine: engine,
@@ -231,12 +221,11 @@ void main() {
           isA<ServiceExtensionException>().having(
             (e) => e.errorCode,
             'errorCode',
-            equals(-32602), // ServiceExtensionResponse.invalidParams
+            equals(-32602),
           ),
         ),
       );
 
-      // Part 'all' windows both requestBody and responseBody safely
       final allDetail = await HttpExtensionHandlers.handleGetRequestDetail(
         engine: engine,
         parameters: {
@@ -250,7 +239,6 @@ void main() {
       expect(allDetail['responseBody'], 'abcdefghij');
       expect(allDetail['isTruncated'], isTrue);
 
-      // Full part with slice
       final detail = await HttpExtensionHandlers.handleGetRequestDetail(
         engine: engine,
         parameters: {
@@ -267,7 +255,6 @@ void main() {
       expect(detail['totalChars'], longBody.length);
       expect(detail['remainingChars'], longBody.length - 10);
 
-      // Continuation chunk with offset: 10
       final chunk2 = await HttpExtensionHandlers.handleGetRequestDetail(
         engine: engine,
         parameters: {
@@ -290,7 +277,6 @@ void main() {
       expect(res['networkSimulation'], 'Slow 3G');
       expect(engine.networkSimulation, NetworkSimulationProfile.slow3G);
 
-      // Custom profile by latency_ms
       final resCustom = SimulationExtensionHandlers.handleSetNetworkSimulation(
         engine: engine,
         parameters: {'latency_ms': '250', 'download_kbps': '1000'},
@@ -300,7 +286,6 @@ void main() {
       expect(engine.networkSimulation.latencyMs, 250);
       expect(engine.networkSimulation.downloadKbps, 1000);
 
-      // Disable via enabled: false
       final resDisabled =
           SimulationExtensionHandlers.handleSetNetworkSimulation(
         engine: engine,
@@ -350,7 +335,6 @@ void main() {
       expect(InterceptlyServiceExtensions.isRegistered, isTrue);
       expect(InterceptlyServiceExtensions.isEnabled, isTrue);
 
-      // Calling register second time does not throw
       expect(
           () => InterceptlyServiceExtensions.register(engine), returnsNormally);
 

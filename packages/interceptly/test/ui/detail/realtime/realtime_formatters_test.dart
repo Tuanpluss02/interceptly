@@ -90,7 +90,6 @@ void main() {
       expect(result['status'], 'ok');
       expect(cache['f4'], equals(result));
 
-      // Subsequent call hits cache
       expect(tryParseJsonPayload(frame, cache), equals(result));
     });
 
@@ -138,11 +137,9 @@ void main() {
 
       test('returns null for binary data with null byte or control characters',
           () {
-        // Contains null byte 0x00
         final nullByteData = Uint8List.fromList([0x48, 0x65, 0x00, 0x6C, 0x6F]);
         expect(tryDecodeBinaryToText(nullByteData), isNull);
 
-        // Contains control character 0x07 (bell)
         final controlData = Uint8List.fromList([0x48, 0x07, 0x6C]);
         expect(tryDecodeBinaryToText(controlData), isNull);
       });

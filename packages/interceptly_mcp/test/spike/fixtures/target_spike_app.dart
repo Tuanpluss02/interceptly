@@ -14,10 +14,8 @@ void main() async {
     );
   });
 
-  // Signal ready on stderr
   stderr.writeln('SPIKE_TARGET_READY');
 
-  // Keep event loop active
   final timer = Timer.periodic(const Duration(seconds: 5), (_) {});
   ProcessSignal.sigterm.watch().listen((_) {
     timer.cancel();

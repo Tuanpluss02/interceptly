@@ -20,7 +20,6 @@ void main() {
   test(
     'Full End-to-End integration between Target App, MCP CLI, and MCP Client',
     () async {
-      // 1. Spawn target Flutter/Dart application with active VM service
       final appCompleter = Completer<Uri>();
       appProcess = await Process.start('dart', [
         '--enable-vm-service=0',
@@ -64,7 +63,6 @@ void main() {
 
       expect(vmServiceUri.scheme, 'ws');
 
-      // 2. Spawn interceptly_mcp CLI process connected to target app
       mcpProcess = await Process.start('dart', [
         'bin/interceptly_mcp.dart',
         '--uri',
@@ -82,7 +80,6 @@ void main() {
       );
       final serverConnection = client.connectServer(mcpChannel);
 
-      // 3. Initialize MCP Server
       final initResult = await serverConnection.initialize(
         InitializeRequest(
           protocolVersion: ProtocolVersion.latestSupported,
@@ -92,7 +89,6 @@ void main() {
       );
       expect(initResult.serverInfo.name, 'interceptly_mcp');
 
-      // 4. Test tool: ping
       final pingResult = await serverConnection.callTool(
         CallToolRequest(name: 'ping'),
       );
@@ -102,7 +98,6 @@ void main() {
       expect(pingText, contains('E2ETestApp'));
       expect(pingText, contains('Total Recorded Requests: 2'));
 
-      // 5. Test tool: list_requests with status_filter: failed
       final listResult = await serverConnection.callTool(
         CallToolRequest(
           name: 'list_requests',
@@ -117,7 +112,6 @@ void main() {
       expect(listJson['requests'][0]['id'], '2');
       expect(listJson['requests'][0]['statusCode'], 500);
 
-      // 6. Test tool: get_request_detail with max_chars truncation
       final detailResult = await serverConnection.callTool(
         CallToolRequest(
           name: 'get_request_detail',
@@ -132,7 +126,6 @@ void main() {
       expect(detailJson['isTruncated'], isTrue);
       expect(detailJson['responseBody'].toString().length, 15);
 
-      // 7. Test tool: export_curl
       final curlResult = await serverConnection.callTool(
         CallToolRequest(name: 'export_curl', arguments: {'id': '1'}),
       );
@@ -140,7 +133,6 @@ void main() {
       final curlText = (curlResult.content.first as TextContent).text;
       expect(curlText, contains("curl -X GET 'https://api.example.com/users'"));
 
-      // 8. Test mutation tool: set_network_simulation
       final simResult = await serverConnection.callTool(
         CallToolRequest(
           name: 'set_network_simulation',
@@ -153,13 +145,11 @@ void main() {
               as Map<String, dynamic>;
       expect(simJson['status'], 'ok');
 
-      // 9. Test mutation tool: clear_traffic
       final clearResult = await serverConnection.callTool(
         CallToolRequest(name: 'clear_traffic'),
       );
       expect(clearResult.isError, isNot(true));
 
-      // Verify traffic is now 0 via ping
       final pingAfterClear = await serverConnection.callTool(
         CallToolRequest(name: 'ping'),
       );

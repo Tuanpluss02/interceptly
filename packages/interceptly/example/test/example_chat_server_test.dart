@@ -44,7 +44,6 @@ void main() {
       expect(messages[1]['type'], 'agent_message');
       expect(messages[1]['from'], contains('StormX'));
 
-      // Test ping response
       final pongCompleter = Completer<void>();
       sub.onData((dynamic raw) {
         final decoded = jsonDecode(raw.toString()) as Map<String, dynamic>;
@@ -124,7 +123,6 @@ void main() {
       expect(messages[0]['type'], 'system');
       expect(messages[1]['type'], 'agent_message');
 
-      // Test ping response over Socket.IO
       final pongCompleter = Completer<void>();
       socket.on('chat_message', (dynamic data) {
         if (data is Map &&

@@ -165,19 +165,15 @@ void main() {
     });
 
     test('does not break multi-byte UTF-8 sequences', () {
-      // 'é' is 2 bytes: 0xC3 0xA9
       expect(truncateUtf8('hé', 2), equals('h'));
       expect(truncateUtf8('hé', 3), equals('hé'));
 
-      // 'Việt Nam'
-      // 'V' (1), 'i' (1), 'ệ' (3 bytes: 0xE1 0xBB 0x87), 't' (1)
       expect(truncateUtf8('Việt', 2), equals('Vi'));
       expect(truncateUtf8('Việt', 3), equals('Vi'));
       expect(truncateUtf8('Việt', 4), equals('Vi'));
       expect(truncateUtf8('Việt', 5), equals('Việ'));
       expect(truncateUtf8('Việt', 6), equals('Việt'));
 
-      // Emoji 4 bytes: 😀
       expect(truncateUtf8('a😀b', 3), equals('a'));
       expect(truncateUtf8('a😀b', 5), equals('a😀'));
     });
@@ -396,7 +392,6 @@ void main() {
           [7, 8, 9, 10],
         ]);
 
-        // maxBodyBytes is 4, but stream length is 10
         final bound = scope.bindResponseStream(stream, statusCode: 200);
         await bound.drain<void>();
 

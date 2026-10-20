@@ -63,7 +63,6 @@ abstract final class SearchService {
 
     final q = trimmed.toLowerCase();
 
-    // 1. Cursor pagination (sinceId)
     var candidates = entries;
     if (sinceId != null && sinceId.isNotEmpty) {
       final index = candidates.indexWhere((e) => e.id == sinceId);
@@ -76,7 +75,6 @@ abstract final class SearchService {
       }
     }
 
-    // 2. Status filter
     final normalizedStatus = statusFilter.toLowerCase();
     if (normalizedStatus != 'all') {
       candidates = candidates.where((e) {
@@ -104,7 +102,6 @@ abstract final class SearchService {
     final matchedIds = <String>{};
     final resultIndexMap = <String, int>{};
 
-    // Phase 1: Structured metadata scan
     onPhaseChange?.call(SearchPhase.metadata);
     for (var i = 0; i < candidates.length; i++) {
       if (isCancelled?.call() ?? false) return const [];
@@ -128,7 +125,6 @@ abstract final class SearchService {
       onProgress(List.unmodifiable(results), isDone: false);
     }
 
-    // If searchBody is disabled or limit reached, finish search early
     if (!searchBody || (limit != null && results.length >= limit)) {
       if (isCancelled?.call() ?? false) return const [];
       onPhaseChange?.call(SearchPhase.done);
@@ -138,7 +134,6 @@ abstract final class SearchService {
 
     if (isCancelled?.call() ?? false) return const [];
 
-    // Phase 2: In-memory body scan
     onPhaseChange?.call(SearchPhase.inMemoryBodies);
     var hasNewMatchInPhase2 = false;
     for (var i = 0; i < candidates.length; i++) {
@@ -178,7 +173,6 @@ abstract final class SearchService {
       onProgress(List.unmodifiable(results), isDone: false);
     }
 
-    // If limit reached, finish early
     if (limit != null && results.length >= limit) {
       if (isCancelled?.call() ?? false) return const [];
       onPhaseChange?.call(SearchPhase.done);
@@ -188,7 +182,6 @@ abstract final class SearchService {
 
     if (isCancelled?.call() ?? false) return const [];
 
-    // Phase 3: File-backed body scan
     if (filePath != null) {
       onPhaseChange?.call(SearchPhase.fileBodies);
 
@@ -352,19 +345,16 @@ abstract final class SearchService {
   ) {
     final scopes = <SearchMatchScope>{};
 
-    // 1. URL and method
     if (entry.url.toLowerCase().contains(queryLower) ||
         entry.method.toLowerCase().contains(queryLower)) {
       scopes.add(SearchMatchScope.url);
     }
 
-    // 2. Error message and error type
     if ((entry.errorMessage?.toLowerCase().contains(queryLower) ?? false) ||
         (entry.errorType?.toLowerCase().contains(queryLower) ?? false)) {
       scopes.add(SearchMatchScope.error);
     }
 
-    // 3. Request headers (keys and values)
     for (final h in entry.requestHeaders.entries) {
       if (h.key.toLowerCase().contains(queryLower) ||
           h.value.toLowerCase().contains(queryLower)) {
@@ -373,7 +363,6 @@ abstract final class SearchService {
       }
     }
 
-    // 4. Response headers (keys and values)
     if (!scopes.contains(SearchMatchScope.headers)) {
       for (final h in entry.responseHeaders.entries) {
         if (h.key.toLowerCase().contains(queryLower) ||

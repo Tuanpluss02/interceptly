@@ -38,48 +38,48 @@ void main() {
       expect(result.stderr.toString(), contains('Security error'));
     });
 
-    test('zone specification routes print to stderr instead of stdout', () async {
-      final process = await Process.start('dart', [binPath]);
+    test(
+      'zone specification routes print to stderr instead of stdout',
+      () async {
+        final process = await Process.start('dart', [binPath]);
 
-      final stderrLines = <String>[];
-      final stdoutLines = <String>[];
+        final stderrLines = <String>[];
+        final stdoutLines = <String>[];
 
-      process.stdout
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())
-          .listen(stdoutLines.add);
-      process.stderr
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())
-          .listen(stderrLines.add);
+        process.stdout
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())
+            .listen(stdoutLines.add);
+        process.stderr
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())
+            .listen(stderrLines.add);
 
-      // Send MCP initialize request over stdin
-      final initRequest = jsonEncode({
-        'jsonrpc': '2.0',
-        'id': 1,
-        'method': 'initialize',
-        'params': {
-          'protocolVersion': '2024-11-05',
-          'capabilities': {},
-          'clientInfo': {'name': 'test_cli', 'version': '1.0.0'},
-        },
-      });
+        final initRequest = jsonEncode({
+          'jsonrpc': '2.0',
+          'id': 1,
+          'method': 'initialize',
+          'params': {
+            'protocolVersion': '2024-11-05',
+            'capabilities': {},
+            'clientInfo': {'name': 'test_cli', 'version': '1.0.0'},
+          },
+        });
 
-      process.stdin.writeln(initRequest);
+        process.stdin.writeln(initRequest);
 
-      // Wait a moment for processing
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-      process.kill();
-      await process.exitCode;
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+        process.kill();
+        await process.exitCode;
 
-      // Stdout must ONLY contain valid JSON-RPC responses (no raw print strings)
-      for (final line in stdoutLines) {
-        expect(
-          () => jsonDecode(line),
-          returnsNormally,
-          reason: 'Stdout line must be valid JSON: "$line"',
-        );
-      }
-    });
+        for (final line in stdoutLines) {
+          expect(
+            () => jsonDecode(line),
+            returnsNormally,
+            reason: 'Stdout line must be valid JSON: "$line"',
+          );
+        }
+      },
+    );
   });
 }

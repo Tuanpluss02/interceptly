@@ -432,7 +432,6 @@ void main() {
         mimeType: 'application/json',
       );
 
-      // On non-mobile platform test environments, shareFile returns false without error
       expect(success, isFalse);
     });
 

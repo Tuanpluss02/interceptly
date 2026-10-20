@@ -156,21 +156,18 @@ void main() {
 
       final entries = [e1, e2, e3, e4, e5];
 
-      // Match URL
       final resUrl =
           await SearchService.search(entries: entries, query: 'checkout');
       expect(resUrl.length, 1);
       expect(resUrl.first.summary.id, '1');
       expect(resUrl.first.matchScopes, contains(SearchMatchScope.url));
 
-      // Match Method case-insensitively
       final resMethod =
           await SearchService.search(entries: entries, query: 'delete');
       expect(resMethod.length, 1);
       expect(resMethod.first.summary.id, '2');
       expect(resMethod.first.matchScopes, contains(SearchMatchScope.url));
 
-      // Match Request Header
       final resReqHeader =
           await SearchService.search(entries: entries, query: 'acme-corp');
       expect(resReqHeader.length, 1);
@@ -178,7 +175,6 @@ void main() {
       expect(
           resReqHeader.first.matchScopes, contains(SearchMatchScope.headers));
 
-      // Match Response Header
       final resResHeader =
           await SearchService.search(entries: entries, query: 'report.pdf');
       expect(resResHeader.length, 1);
@@ -186,7 +182,6 @@ void main() {
       expect(
           resResHeader.first.matchScopes, contains(SearchMatchScope.headers));
 
-      // Match Error message and type
       final resError = await SearchService.search(
           entries: entries, query: 'socketexception');
       expect(resError.length, 1);
@@ -238,7 +233,6 @@ void main() {
         query: 'PNG',
         searchBody: true,
       );
-      // Query "PNG" should not match because the payload is an image
       expect(res, isEmpty);
     });
 
@@ -451,7 +445,7 @@ void main() {
         entries: [expiredEntry],
         query: 'old_generation',
         filePath: tempFilePath,
-        fileRotationCount: 2, // Current generation is 2, entry was 1
+        fileRotationCount: 2,
       );
       expect(res, isEmpty);
     });
@@ -534,12 +528,11 @@ void main() {
       final entries = List.generate(
         10,
         (i) => _buildEntry(
-          id: '${10 - i}', // Newest first: 10, 9, 8... 1
+          id: '${10 - i}',
           url: 'https://api.example.com/record_${10 - i}',
         ),
       );
 
-      // limit: 3
       final resLimit = await SearchService.search(
         entries: entries,
         query: 'record_',
@@ -548,7 +541,6 @@ void main() {
       expect(resLimit.length, 3);
       expect(resLimit.map((r) => r.summary.id).toList(), ['10', '9', '8']);
 
-      // sinceId: '8' (returns items newer than 8, which are 10, 9)
       final resSince = await SearchService.search(
         entries: entries,
         query: 'record_',
@@ -556,7 +548,6 @@ void main() {
       );
       expect(resSince.map((r) => r.summary.id).toList(), ['10', '9']);
 
-      // sinceId is the newest item ('10') -> returns empty list
       final resSinceNewest = await SearchService.search(
         entries: entries,
         query: 'record_',
@@ -606,7 +597,7 @@ void main() {
 
       expect(results.length, 2);
       expect(progressEvents, isNotEmpty);
-      expect(progressEvents.last.$2, isTrue); // Final event marked done
+      expect(progressEvents.last.$2, isTrue);
       expect(phases, contains(SearchPhase.metadata));
       expect(phases, contains(SearchPhase.inMemoryBodies));
       expect(phases, contains(SearchPhase.fileBodies));
@@ -628,7 +619,7 @@ void main() {
         query: 'test_',
         isCancelled: () {
           checkCount++;
-          return checkCount >= 2; // Cancel after second check
+          return checkCount >= 2;
         },
       );
 

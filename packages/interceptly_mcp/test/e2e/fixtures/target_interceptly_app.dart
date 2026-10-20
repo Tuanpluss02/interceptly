@@ -4,7 +4,6 @@ import 'dart:developer' as developer;
 import 'dart:io';
 
 void main() async {
-  // Mock data store representing traffic inside the app
   final requests = <Map<String, dynamic>>[
     {
       'id': '1',
@@ -46,7 +45,6 @@ void main() async {
 
   var networkSimulation = 'none';
 
-  // 1. Register ext.interceptly.ping
   developer.registerExtension('ext.interceptly.ping', (
     method,
     parameters,
@@ -65,7 +63,6 @@ void main() async {
     );
   });
 
-  // 2. Register ext.interceptly.listRequests
   developer.registerExtension('ext.interceptly.listRequests', (
     method,
     parameters,
@@ -95,7 +92,6 @@ void main() async {
     );
   });
 
-  // 3. Register ext.interceptly.getRequestDetail
   developer.registerExtension('ext.interceptly.getRequestDetail', (
     method,
     parameters,
@@ -134,7 +130,6 @@ void main() async {
     );
   });
 
-  // 4. Register ext.interceptly.setNetworkSimulation
   developer.registerExtension('ext.interceptly.setNetworkSimulation', (
     method,
     parameters,
@@ -146,7 +141,6 @@ void main() async {
     );
   });
 
-  // 5. Register ext.interceptly.clearTraffic
   developer.registerExtension('ext.interceptly.clearTraffic', (
     method,
     parameters,
@@ -157,7 +151,6 @@ void main() async {
     );
   });
 
-  // 6. Register ext.interceptly.exportCurl
   developer.registerExtension('ext.interceptly.exportCurl', (
     method,
     parameters,
@@ -169,10 +162,8 @@ void main() async {
     );
   });
 
-  // Signal ready
   stderr.writeln('E2E_TARGET_APP_READY');
 
-  // Keep event loop active
   final timer = Timer.periodic(const Duration(seconds: 1), (_) {});
   ProcessSignal.sigterm.watch().listen((_) {
     timer.cancel();

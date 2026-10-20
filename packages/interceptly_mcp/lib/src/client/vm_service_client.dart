@@ -72,7 +72,6 @@ class DefaultVmServiceClient implements VmServiceClient {
     _vmService = service;
     _connectedUri = wsUri;
 
-    // Automatically reset connection state when remote host closes WebSocket
     unawaited(
       service.onDone
           .then((_) {
@@ -90,10 +89,8 @@ class DefaultVmServiceClient implements VmServiceClient {
           }),
     );
 
-    // Discover target isolate
     await _refreshIsolate();
 
-    // Verify version contract
     await _checkVersionContract();
   }
 

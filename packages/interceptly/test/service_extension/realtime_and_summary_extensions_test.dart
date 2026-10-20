@@ -100,7 +100,6 @@ void main() {
       await engine.recordRealtimeFrame(f2);
       await engine.recordRealtimeFrame(f3);
 
-      // List all
       final allRes = await RealtimeExtensionHandlers.handleListRealtimeFrames(
         engine: engine,
         parameters: {'session_id': sessionId},
@@ -108,7 +107,6 @@ void main() {
       expect(allRes['total'], 3);
       expect(allRes['count'], 3);
 
-      // Filter by direction: incoming & received
       final incomingRes =
           await RealtimeExtensionHandlers.handleListRealtimeFrames(
         engine: engine,
@@ -123,7 +121,6 @@ void main() {
       );
       expect(receivedRes['count'], 2);
 
-      // Filter by direction: outgoing & sent
       final sentRes = await RealtimeExtensionHandlers.handleListRealtimeFrames(
         engine: engine,
         parameters: {'session_id': sessionId, 'direction': 'sent'},
@@ -131,7 +128,6 @@ void main() {
       expect(sentRes['count'], 1);
       expect(sentRes['frames'][0]['id'], 'f2');
 
-      // Filter by type: binary
       final binaryRes =
           await RealtimeExtensionHandlers.handleListRealtimeFrames(
         engine: engine,
@@ -140,7 +136,6 @@ void main() {
       expect(binaryRes['count'], 1);
       expect(binaryRes['frames'][0]['id'], 'f3');
 
-      // since_id on last frame returns empty list (does not repeat earlier frames)
       final afterLastRes =
           await RealtimeExtensionHandlers.handleListRealtimeFrames(
         engine: engine,
@@ -184,7 +179,6 @@ void main() {
     test(
         'handleGetTrafficSummary computes accurate percentiles, error rate, and bandwidth',
         () async {
-      // Initially empty
       final emptySummary = SummaryExtensionHandlers.handleGetTrafficSummary(
         engine: engine,
         parameters: {},
@@ -193,7 +187,6 @@ void main() {
       expect(emptySummary['errorRate'], 0.0);
       expect(emptySummary['latency']['p95Ms'], 0);
 
-      // Ingest sample requests
       for (int i = 1; i <= 10; i++) {
         engine.record(createCapture(
           id: 'req_$i',
@@ -211,21 +204,19 @@ void main() {
 
       expect(summary['totalRequests'], 10);
       expect(summary['failedRequests'], 2);
-      expect(summary['errorRate'], 0.2); // 2/10 = 20%
+      expect(summary['errorRate'], 0.2);
       expect(summary['statusDistribution']['2xx'], 8);
       expect(summary['statusDistribution']['5xx'], 2);
       expect(summary['latency']['minMs'], 10);
       expect(summary['latency']['maxMs'], 100);
       expect(summary['latency']['p50Ms'], 60);
 
-      // Ingest an in-flight HTTP request (statusCode: 0, hasError: false)
       engine.record(createCapture(
         id: 'req_inflight',
         statusCode: 0,
         durationMs: 0,
       ));
 
-      // Ingest an active SSE session (method: 'SSE', statusCode: 0, hasError: false)
       engine.recordRealtimeConnection(
         id: 'sse_1',
         url: 'https://api.example.com/events',
@@ -239,11 +230,9 @@ void main() {
         parameters: {},
       );
 
-      // In-flight HTTP request should NOT increment failedRequests
       expect(summaryWithSse['failedRequests'], 2);
       expect(summaryWithSse['inFlightRequests'], 1);
       expect(summaryWithSse['completedRequests'], 10);
-      // SSE should be counted under realtime, not as a failed HTTP request
       expect(summaryWithSse['realtime']['activeSessions'], 1);
     });
   });

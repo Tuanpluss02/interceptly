@@ -59,9 +59,7 @@ class InterceptlySocketIo {
         }
         return parsed;
       }
-    } catch (_) {
-      // socket.io may be uninitialized or throw in test doubles
-    }
+    } catch (_) {}
 
     try {
       final nsp = socket.nsp;

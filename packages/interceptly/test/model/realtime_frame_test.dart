@@ -251,7 +251,6 @@ void main() {
       expect(frame1 == frame2, isTrue);
       expect(frame1.hashCode, equals(frame2.hashCode));
 
-      // Distinct Uint8List instances are not identical
       expect(frame1 == frame3, isFalse);
     });
   });

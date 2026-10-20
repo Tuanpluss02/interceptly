@@ -298,7 +298,6 @@ class RealtimeFrame {
     if (text.length <= maxChars) {
       return text;
     }
-    // Prevent splitting a UTF-16 surrogate pair
     if (maxChars > 0 &&
         text.codeUnitAt(maxChars - 1) >= 0xD800 &&
         text.codeUnitAt(maxChars - 1) <= 0xDBFF) {

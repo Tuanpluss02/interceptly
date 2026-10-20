@@ -30,7 +30,6 @@ void main() {
       expect(prefs.selectedProtocol, equals(NetworkProtocol.realtime));
       expect(notifications, equals(1));
 
-      // Duplicate value does not notify
       prefs.setSelectedTabIndex(1);
       expect(notifications, equals(1));
 
@@ -92,7 +91,6 @@ void main() {
       controller1.preferences.setThemeMode(ThemeMode.dark);
       controller1.dispose();
 
-      // Second controller opens (simulating reopening the inspector)
       final controller2 = InterceptlyScopeController(engine: engine);
       addTearDown(controller2.dispose);
 

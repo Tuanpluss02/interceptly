@@ -242,8 +242,6 @@ class FloatingOverlayManager {
     }
 
     if (!entry.mounted) {
-      // Entry was inserted but not yet mounted by the framework.
-      // It is already queued in overlay._entries and will render on top.
       return;
     }
 

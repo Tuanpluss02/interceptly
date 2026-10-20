@@ -63,7 +63,6 @@ void main() {
       final badgeInitial = tester.widget<FilterBadge>(find.byType(FilterBadge));
       expect(badgeInitial.activeFiltersCount, equals(0));
 
-      // Apply filter
       controller
           .applyFilter(RequestFilter(onlyErrors: true, methods: {'POST'}));
       await tester.pumpAndSettle();

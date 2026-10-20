@@ -212,16 +212,13 @@ void main() {
           find.byKey(const ValueKey('realtime_composer_send_button'));
       expect(sendButtonFinder, findsOneWidget);
 
-      // Verify disabled initially with null/empty payload
       final initialButton = tester.widget<FilledButton>(sendButtonFinder);
       expect(initialButton.onPressed, isNull);
 
-      // Attempt to tap disabled send button
       await tester.tap(sendButtonFinder);
       await tester.pump();
       expect(sent, isFalse);
 
-      // Type whitespace only -> still disabled
       await tester.enterText(
         find.byKey(const ValueKey('realtime_composer_payload_input')),
         '   \n\t  ',
@@ -231,7 +228,6 @@ void main() {
       final whitespaceButton = tester.widget<FilledButton>(sendButtonFinder);
       expect(whitespaceButton.onPressed, isNull);
 
-      // Enter valid text -> enabled
       await tester.enterText(
         find.byKey(const ValueKey('realtime_composer_payload_input')),
         '{"action":"ping"}',
@@ -241,7 +237,6 @@ void main() {
       final enabledButton = tester.widget<FilledButton>(sendButtonFinder);
       expect(enabledButton.onPressed, isNotNull);
 
-      // Clear text -> disabled again
       await tester.enterText(
         find.byKey(const ValueKey('realtime_composer_payload_input')),
         '',

@@ -86,7 +86,6 @@ class AppDiscovery {
     Uri? dtdUri,
     ProcessScanner processScanner = _processScanner,
   }) async {
-    // 1. Explicit CLI argument
     if (explicitUri != null) {
       if (!isLoopbackUri(explicitUri)) {
         throw ArgumentError(
@@ -96,7 +95,6 @@ class AppDiscovery {
       return normalizeWsUri(explicitUri);
     }
 
-    // 2. Custom environment variable
     final envUriStr = environment?['INTERCEPTLY_VM_SERVICE_URI'];
     if (envUriStr != null && envUriStr.trim().isNotEmpty) {
       final envUri = Uri.parse(envUriStr.trim());
@@ -108,7 +106,6 @@ class AppDiscovery {
       return normalizeWsUri(envUri);
     }
 
-    // 3. Statically configured Dart Tooling Daemon (DTD)
     final dtdUriStr = dtdUri?.toString() ?? environment?['DTD_URI'];
     if (dtdUriStr != null && dtdUriStr.trim().isNotEmpty) {
       final discoveredFromDtd = await _queryDtdForInterceptlyApp(
@@ -119,7 +116,6 @@ class AppDiscovery {
       }
     }
 
-    // 4. Dynamic local discovery via running processes (unless disabled for tests)
     if (environment?['INTERCEPTLY_DISABLE_PROCESS_SCAN'] != 'true') {
       final dynamicDiscovered = await _discoverViaRunningProcesses(
         processScanner,
@@ -139,14 +135,12 @@ class AppDiscovery {
     final commandLines = await scanner.getRunningCommandLines();
     if (commandLines.isEmpty) return null;
 
-    // 4a. Check active DTD instances
     for (final dtdUri in scanner.extractDtdUris(commandLines)) {
       if (!isLoopbackUri(dtdUri)) continue;
       final uri = await _queryDtdForInterceptlyApp(dtdUri);
       if (uri != null) return uri;
     }
 
-    // 4b. Check active DDS / VM Service instances directly
     for (final ddsUri in scanner.extractDdsUris(commandLines)) {
       if (!isLoopbackUri(ddsUri)) continue;
       final wsUri = normalizeWsUri(ddsUri);
@@ -181,9 +175,7 @@ class AppDiscovery {
           return wsUri;
         }
       }
-    } catch (_) {
-      // DTD instance might be terminating or unreachable
-    }
+    } catch (_) {}
     return null;
   }
 
@@ -222,9 +214,7 @@ class AppDiscovery {
             ),
           );
         }
-      } catch (_) {
-        // Isolate may have exited during inspection
-      }
+      } catch (_) {}
     }
 
     return candidates;

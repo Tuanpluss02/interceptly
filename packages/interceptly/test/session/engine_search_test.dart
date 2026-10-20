@@ -143,7 +143,6 @@ void main() {
         inlineResponseBody: pngBytes,
       ));
 
-      // Query that would match "PNG" if raw bytes were searched as ASCII/UTF-8
       final res = await engine.search(query: 'PNG', searchBody: true);
       expect(res, isEmpty);
     });
@@ -157,26 +156,22 @@ void main() {
         ));
       }
 
-      // Filter by status 5xx
       final resFailed = await engine.search(
         query: 'resource',
         statusFilter: '5xx',
       );
       expect(resFailed.every((r) => r.summary.statusCode == 500), isTrue);
 
-      // Limit clamp
       final resLimited = await engine.search(
         query: 'resource',
         limit: 3,
       );
       expect(resLimited.length, 3);
 
-      // Cursor sinceId (entries are newest-first: 10, 9, 8...)
       final resSince = await engine.search(
         query: 'resource',
         sinceId: '8',
       );
-      // '10' and '9' are newer than '8'
       expect(resSince.map((r) => r.summary.id).toList(), ['10', '9']);
     });
   });

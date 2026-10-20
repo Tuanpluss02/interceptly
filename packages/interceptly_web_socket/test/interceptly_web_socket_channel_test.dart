@@ -156,14 +156,13 @@ void main() {
       expect(channel.inner, equals(fakeChannel));
       await expectLater(channel.ready, completes);
 
-      // Verify connection recorded in engine
       expect(engine.entries.length, equals(1));
       final entry = engine.entries.first;
       expect(entry.id, equals('custom-session-1'));
       expect(entry.method, equals('WS'));
       expect(entry.url, equals('wss://example.com/socket'));
       expect(entry.requestHeaders, equals({'Authorization': 'Bearer test'}));
-      expect(entry.statusCode, equals(0)); // Handshake pending
+      expect(entry.statusCode, equals(0));
     });
 
     test('auto-generates sessionId and assigns fallback uri when omitted', () {
@@ -186,10 +185,8 @@ void main() {
       channel.sink.add('Hello, Server!');
       await pumpEventQueue();
 
-      // Verified forwarded to underlying socket
       expect(fakeChannel.sentData, equals(['Hello, Server!']));
 
-      // Verified captured by Interceptly
       final frames = engine.getRealtimeFrames('ws-out-text');
       expect(frames.length, equals(1));
       final frame = frames.first;
@@ -363,16 +360,13 @@ void main() {
       final completer = Completer<void>();
       channel.stream.listen((_) {}, onDone: completer.complete);
 
-      // Close client sink first
       await channel.sink.close(1000, 'Client closed');
 
-      // Then server closes
       await fakeChannel.closeServer(code: 1006, reason: 'Abnormal');
       await completer.future;
       await pumpEventQueue();
 
       final entry = engine.entries.firstWhere((e) => e.id == 'ws-idempotent');
-      // Should retain client close status
       expect(entry.statusCode, equals(1000));
       expect(entry.errorMessage, equals('Client closed'));
     });
@@ -707,12 +701,10 @@ void main() {
         collector: spyCollector,
       );
 
-      // Sending frames should not throw
       channel.sink.add('safe outgoing');
       await pumpEventQueue();
       expect(fakeChannel.sentData, equals(['safe outgoing']));
 
-      // Receiving frames should not throw
       final received = <dynamic>[];
       final sub = channel.stream.listen(received.add);
       addTearDown(sub.cancel);
@@ -721,7 +713,6 @@ void main() {
       await pumpEventQueue();
       expect(received, equals(['safe incoming']));
 
-      // Closing should not throw
       await channel.sink.close(1000, 'Safe close');
       await pumpEventQueue();
       expect(fakeChannel.sinkClosed, isTrue);

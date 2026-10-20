@@ -269,7 +269,6 @@ void main() {
       () async {
         await setupServer();
 
-        // Missing required params
         final missingResult = await serverConnection.callTool(
           CallToolRequest(
             name: 'get_realtime_frame_detail',

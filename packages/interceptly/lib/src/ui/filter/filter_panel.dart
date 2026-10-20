@@ -162,7 +162,6 @@ class _FilterPanelState extends State<FilterPanel> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Handle bar
             Padding(
               padding: const EdgeInsets.only(top: 10, bottom: 4),
               child: Container(
@@ -174,8 +173,6 @@ class _FilterPanelState extends State<FilterPanel> {
                 ),
               ),
             ),
-
-            // Header
             Padding(
               padding: EdgeInsets.fromLTRB(
                   spacing.lg, spacing.sm, spacing.lg, spacing.sm),
@@ -225,10 +222,7 @@ class _FilterPanelState extends State<FilterPanel> {
                 ],
               ),
             ),
-
             Divider(height: 1, color: InterceptlyTheme.dividerSubtle),
-
-            // Filter content
             Flexible(
               child: SingleChildScrollView(
                 padding: EdgeInsets.fromLTRB(
@@ -240,19 +234,14 @@ class _FilterPanelState extends State<FilterPanel> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Section 1: HTTP Methods
                     _SectionHeader(label: 'HTTP Methods'),
                     SizedBox(height: spacing.sm),
                     _buildMethodChips(),
                     SizedBox(height: spacing.lg),
-
-                    // Section 2: Status Codes
                     _SectionHeader(label: 'Status Code Ranges'),
                     SizedBox(height: spacing.sm),
                     _buildStatusGrid(radius),
                     SizedBox(height: spacing.lg),
-
-                    // Section 3: Domains
                     if (widget.availableDomains.isNotEmpty) ...[
                       _SectionHeader(
                         label: 'Domains',
@@ -266,8 +255,6 @@ class _FilterPanelState extends State<FilterPanel> {
                 ),
               ),
             ),
-
-            // Footer Apply Button
             Container(
               padding: EdgeInsets.fromLTRB(
                 spacing.lg,
@@ -330,7 +317,6 @@ class _FilterPanelState extends State<FilterPanel> {
           onTap: () {
             setState(() {
               if (isSelected) {
-                // Ensure at least 1 method remains selected
                 if (selectedMethods.length > 1) {
                   selectedMethods.remove(method);
                 }
@@ -431,8 +417,6 @@ class _FilterPanelState extends State<FilterPanel> {
           ),
           SizedBox(height: spacing.sm),
         ],
-
-        // Select All row
         Row(
           children: [
             GestureDetector(
@@ -456,8 +440,6 @@ class _FilterPanelState extends State<FilterPanel> {
           ],
         ),
         SizedBox(height: spacing.sm),
-
-        // Domain list card
         Container(
           decoration: BoxDecoration(
             color: InterceptlyTheme.surfaceContainer,

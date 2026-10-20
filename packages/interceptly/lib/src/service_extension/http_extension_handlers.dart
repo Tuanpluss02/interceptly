@@ -38,7 +38,6 @@ abstract final class HttpExtensionHandlers {
       };
     }
 
-    // 1. When search query is present, delegate to multi-phase engine search
     if (search != null && search.isNotEmpty) {
       final searchResults = await engine.search(
         query: search,
@@ -73,10 +72,8 @@ abstract final class HttpExtensionHandlers {
       };
     }
 
-    // 2. Fast path when no search query
     var filtered = entries.toList();
 
-    // since_id cursor: find index of sinceId and take entries before it (entries are newest-first)
     if (sinceId != null && sinceId.isNotEmpty) {
       final index = filtered.indexWhere((e) => e.id == sinceId);
       if (index > 0) {
@@ -84,12 +81,10 @@ abstract final class HttpExtensionHandlers {
       } else if (index == 0) {
         filtered = <RequestSummary>[];
       } else {
-        // Cursor not found in ring buffer (evicted or non-existent)
         filtered = <RequestSummary>[];
       }
     }
 
-    // Status filter
     if (statusFilter != 'all') {
       filtered = filtered.where((e) {
         final code = e.statusCode;
@@ -104,7 +99,6 @@ abstract final class HttpExtensionHandlers {
       }).toList();
     }
 
-    // Limit
     if (filtered.length > limit) {
       filtered = filtered.sublist(0, limit);
     }

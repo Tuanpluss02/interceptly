@@ -52,7 +52,6 @@ void main() {
       expect(session.isRealtimeActive, isTrue);
       expect(notified, equals(1));
 
-      // Idempotent: second call does not notify unnecessarily
       session.markRealtimeActive();
       expect(notified, equals(1));
     });

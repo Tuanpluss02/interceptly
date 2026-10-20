@@ -23,7 +23,6 @@ extension VmServiceErrorClassification on Object {
   bool get isIsolateInvalidated {
     if (this is RPCError) {
       final rpc = this as RPCError;
-      // 105: Isolate must be runnable, 106: Cannot invoke on collected/dead isolate
       if (rpc.code == 105 || rpc.code == 106) return true;
       final msg = rpc.message.toLowerCase();
       if (msg.contains('sentinel') ||

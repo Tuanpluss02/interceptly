@@ -150,14 +150,8 @@ class InterceptlyServiceExtensions {
           );
         }
       });
-    } catch (_) {
-      // In non-VM environments or if registration fails, ignore silently.
-    }
+    } catch (_) {}
   }
-
-  // ===========================================================================
-  // Ping Handler
-  // ===========================================================================
 
   /// Handles `ext.interceptly.ping`.
   static Map<String, dynamic> handlePing({

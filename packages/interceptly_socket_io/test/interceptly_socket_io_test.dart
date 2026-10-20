@@ -62,7 +62,7 @@ void main() {
       expect(entry.url, equals('http://localhost:3000'));
       expect(entry.requestHeaders,
           equals({'Authorization': 'Bearer secret-token'}));
-      expect(entry.statusCode, equals(0)); // Active session
+      expect(entry.statusCode, equals(0));
     });
 
     test('auto-generates sessionId when omitted', () {
@@ -363,12 +363,10 @@ void main() {
       expect(tracker.scope.isClosed, isFalse);
       expect(engine.entries.first.statusCode, equals(0));
 
-      // Simulate connect event
       socket.triggerConnect('socket-conn-123');
       await pumpEventQueue();
       expect(tracker.scope.isClosed, isFalse);
 
-      // Simulate disconnect event
       socket.triggerDisconnect('transport close');
       await pumpEventQueue();
 
@@ -404,18 +402,15 @@ void main() {
       await pumpEventQueue();
       expect(tracker.scope.isClosed, isFalse);
 
-      // Disconnect socket -> closes initial scope
       socket.triggerDisconnect('network down');
       await pumpEventQueue();
       expect(tracker.scope.isClosed, isTrue);
 
-      // Reconnect socket -> opens new scope!
       socket.triggerConnect('new-sid-456');
       await pumpEventQueue();
       expect(tracker.scope.isClosed, isFalse);
       expect(tracker.scope.sessionId, isNot(equals('reconnect-1')));
 
-      // New events are captured in new session!
       socket.triggerIncomingEvent('msg:2', 'second session');
       await pumpEventQueue();
       expect(tracker.scope.isClosed, isFalse);
@@ -432,18 +427,15 @@ void main() {
       final socket = FakeSocket();
       final tracker = InterceptlySocketIo.attach(socket, sessionId: 'detach-1');
 
-      // Initial capture
       socket.triggerIncomingEvent('msg1', 'before-detach');
       socket.emit('msg2', 'before-detach');
       await pumpEventQueue();
 
       expect(engine.getRealtimeFrames('detach-1').length, equals(2));
 
-      // Detach tracker
       tracker.detach();
       expect(tracker.isDetached, isTrue);
 
-      // Subsequent events should NOT be captured
       socket.triggerIncomingEvent('msg1', 'after-detach');
       socket.emit('msg2', 'after-detach');
       socket.triggerDisconnect('should not close scope via tracker');
@@ -478,7 +470,6 @@ void main() {
       expect(sender!.protocolType, equals(RealtimeProtocolType.socketIo));
       expect(sender.canSend, isTrue);
 
-      // Disconnect socket -> canSend becomes false
       socket.connected = false;
       expect(sender.canSend, isFalse);
     });
@@ -503,7 +494,6 @@ void main() {
             {'key': 'val'}
           ]));
 
-      // Default event name 'message' when draft.event is null or empty
       await sender.send(RealtimeMessageDraft(
         payload: 'raw-string-payload',
       ));
@@ -544,11 +534,9 @@ void main() {
       final tracker =
           InterceptlySocketIo.attach(socket, sessionId: 'guarded-1');
 
-      // Close session early
       tracker.scope.close();
       expect(tracker.scope.isClosed, isTrue);
 
-      // Emitting events after session close should be safely ignored and never throw
       expect(() {
         socket.triggerIncomingEvent('event:after:close', 'data');
         socket.emit('event:after:close', 'data');

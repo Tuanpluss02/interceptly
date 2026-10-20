@@ -70,13 +70,10 @@ void main() {
       addTearDown(pipeline.dispose);
       await pipeline.initialize();
 
-      // maxInFlightBytes is 32MB (33,554,432 bytes)
-      // Send two 20MB captures (40MB total) -> exceeds 32MB
       const twentyMb = 20 * 1024 * 1024;
       pipeline.record(createLargeCapture(id: 'large-1', byteSize: twentyMb));
       pipeline.record(createLargeCapture(id: 'large-2', byteSize: twentyMb));
 
-      // 3rd capture should be dropped immediately due to inFlightBytes >= 32MB
       pipeline.record(createLargeCapture(id: 'large-3', byteSize: 1024));
 
       expect(pipeline.droppedCount, greaterThanOrEqualTo(1),
@@ -97,7 +94,6 @@ void main() {
       const thirtyMb = 30 * 1024 * 1024;
       pipeline.record(createLargeCapture(id: 'first-big', byteSize: thirtyMb));
 
-      // Wait for first-big to complete processing
       final deadline = DateTime.now().add(const Duration(seconds: 5));
       while (pipeline.inFlightBytes > 0 && DateTime.now().isBefore(deadline)) {
         await Future<void>.delayed(const Duration(milliseconds: 20));
@@ -105,7 +101,6 @@ void main() {
 
       expect(pipeline.inFlightBytes, equals(0));
 
-      // Now sending another capture should not be dropped
       final initialDropped = pipeline.droppedCount;
       pipeline.record(createLargeCapture(id: 'second-cap', byteSize: 1024));
 

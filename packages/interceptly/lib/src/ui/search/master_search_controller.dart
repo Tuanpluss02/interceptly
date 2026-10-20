@@ -184,7 +184,6 @@ class MasterSearchController extends ChangeNotifier {
         ? Set<SearchMatchScope>.from(matchResult.matchScopes)
         : <SearchMatchScope>{};
 
-    // Preserve existing file-backed body match if entry is file-backed and already matched body
     final existingScopes = _matchScopes[entry.id];
     if (existingScopes != null &&
         existingScopes.contains(SearchMatchScope.body) &&

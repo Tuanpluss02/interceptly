@@ -190,7 +190,6 @@ void main() {
       onFabTap: () {},
     );
 
-    // Call bringToTop before pump (before entry is mounted!)
     FloatingOverlayManager.instance.bringToTop();
 
     await tester.pumpAndSettle();
@@ -214,7 +213,6 @@ void main() {
       ),
     );
 
-    // Rapidly schedule route observer events and bringToTop before frame settles
     final obs = FloatingOverlayManager.instance.navigatorObserver;
     final r1 =
         MaterialPageRoute(builder: (_) => const Scaffold(body: Text('R1')));
@@ -248,7 +246,6 @@ void main() {
       onFabTap: () {},
     );
 
-    // Rapid toggle
     FloatingOverlayManager.instance.setHiddenForSession(true);
     FloatingOverlayManager.instance.setHiddenForSession(false);
     FloatingOverlayManager.instance.setHiddenForSession(true);
@@ -287,7 +284,6 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byIcon(Icons.bug_report), findsOneWidget);
 
-    // Attach to new navigator
     await tester.pumpWidget(
       MaterialApp(
         navigatorKey: navKey2,

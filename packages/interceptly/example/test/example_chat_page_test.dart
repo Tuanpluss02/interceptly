@@ -74,7 +74,6 @@ void main() {
       );
       await tester.pumpAndSettle(const Duration(milliseconds: 300));
 
-      // Switch to Chat tab
       await tester.tap(find.text('Chat (Socket.IO)'));
       await tester.pumpAndSettle();
 
@@ -99,7 +98,6 @@ void main() {
       );
       expect(textField.decoration?.hintText, equals('Send message'));
 
-      // Tap ping chip
       await tester.tap(find.byKey(const ValueKey('chip_ping')));
       for (var i = 0; i < 15; i++) {
         await tester.pump(const Duration(milliseconds: 100));

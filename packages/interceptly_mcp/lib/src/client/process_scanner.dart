@@ -16,9 +16,7 @@ class ProcessScanner {
           return (result.stdout as String).split('\n');
         }
       }
-    } catch (_) {
-      // Process inspection unavailable or non-POSIX host
-    }
+    } catch (_) {}
     return const [];
   }
 

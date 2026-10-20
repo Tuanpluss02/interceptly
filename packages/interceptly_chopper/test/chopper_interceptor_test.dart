@@ -232,7 +232,6 @@ void main() {
       final response = await interceptor.intercept(chain);
       expect(response.statusCode, 200);
 
-      // Verify collector.startRequest
       expect(spy.startRequestCalls.length, 1);
       final startCall = spy.startRequestCalls.first;
       expect(startCall['method'], 'POST');
@@ -243,7 +242,6 @@ void main() {
       expect(
           utf8.decode(startCall['bodyBytes'] as Uint8List), '{"name":"book"}');
 
-      // Verify collector.completeResponse
       expect(spy.completeResponseCalls.length, 1);
       final completeCall = spy.completeResponseCalls.first;
       expect(completeCall['statusCode'], 200);
@@ -252,7 +250,6 @@ void main() {
       expect(completeCall['responseContentType'], 'application/json');
       expect(utf8.decode(completeCall['bodyBytes'] as Uint8List), '{"id":123}');
 
-      // Verify no failure calls
       expect(spy.failRequestCalls, isEmpty);
     });
 

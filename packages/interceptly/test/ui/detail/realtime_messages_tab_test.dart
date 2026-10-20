@@ -156,14 +156,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Empty state should not be visible
       expect(find.text('No WebSocket messages captured.'), findsNothing);
 
-      // Frame cards
       expect(find.byKey(const ValueKey('frame_card_f-1')), findsOneWidget);
       expect(find.byKey(const ValueKey('frame_card_f-2')), findsOneWidget);
 
-      // Direction badges
       expect(
         find.descendant(
           of: find.byKey(const ValueKey('frame_direction_f-1')),
@@ -179,11 +176,9 @@ void main() {
         findsOneWidget,
       );
 
-      // Timestamps in HH:mm:ss.SSS format
       expect(find.text('14:30:15.123'), findsOneWidget);
       expect(find.text('14:30:16.456'), findsOneWidget);
 
-      // Frame type badges
       expect(
         find.descendant(
           of: find.byKey(const ValueKey('frame_type_f-1')),
@@ -199,15 +194,12 @@ void main() {
         findsOneWidget,
       );
 
-      // Size badges
       expect(find.byKey(const ValueKey('frame_size_f-1')), findsOneWidget);
       expect(find.byKey(const ValueKey('frame_size_f-2')), findsOneWidget);
 
-      // Payload previews
       expect(find.textContaining('hello server'), findsWidgets);
       expect(find.textContaining('hello client'), findsWidgets);
 
-      // Copy buttons exist
       expect(find.byKey(const ValueKey('frame_copy_f-1')), findsOneWidget);
       expect(find.byKey(const ValueKey('frame_copy_f-2')), findsOneWidget);
     });
@@ -233,7 +225,6 @@ void main() {
       expect(find.byKey(const ValueKey('frame_card_f-1')), findsOneWidget);
       expect(find.byKey(const ValueKey('frame_card_f-2')), findsNothing);
 
-      // Dynamically add a second frame
       session.addFrame(
         RealtimeFrame.text(
           id: 'f-2',
@@ -297,12 +288,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // All 3 initially rendered
       expect(find.byKey(const ValueKey('frame_card_f-1')), findsOneWidget);
       expect(find.byKey(const ValueKey('frame_card_f-2')), findsOneWidget);
       expect(find.byKey(const ValueKey('frame_card_f-3')), findsOneWidget);
 
-      // 1. Filter by search query
       final searchField = find.descendant(
         of: find.byType(RealtimeFilterHeader),
         matching: find.byType(TextField),
@@ -315,11 +304,9 @@ void main() {
       expect(find.byKey(const ValueKey('frame_card_f-2')), findsNothing);
       expect(find.byKey(const ValueKey('frame_card_f-3')), findsNothing);
 
-      // Clear search query
       await tester.enterText(searchField, '');
       await tester.pumpAndSettle();
 
-      // 2. Filter by direction chip: tap '↑ OUT'
       await tester.tap(find.byKey(const ValueKey('chip_outgoing')));
       await tester.pumpAndSettle();
 
@@ -327,7 +314,6 @@ void main() {
       expect(find.byKey(const ValueKey('frame_card_f-1')), findsNothing);
       expect(find.byKey(const ValueKey('frame_card_f-3')), findsNothing);
 
-      // 3. Filter by type chip: tap 'Binary'
       await tester.tap(find.byKey(const ValueKey('chip_all')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('chip_binary')));
@@ -337,7 +323,6 @@ void main() {
       expect(find.byKey(const ValueKey('frame_card_f-1')), findsNothing);
       expect(find.byKey(const ValueKey('frame_card_f-2')), findsNothing);
 
-      // Reset to all
       await tester.tap(find.byKey(const ValueKey('chip_all')));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('frame_card_f-1')), findsOneWidget);
@@ -387,7 +372,6 @@ void main() {
       expect(find.byKey(const ValueKey('frame_card_frame_offload_other')),
           findsOneWidget);
 
-      // Search for target keyword present only in offloadedMatching.shortPreview
       final searchField = find.descendant(
         of: find.byType(RealtimeFilterHeader),
         matching: find.byType(TextField),
@@ -396,13 +380,11 @@ void main() {
       await tester.enterText(searchField, 'target_preview_keyword');
       await tester.pumpAndSettle();
 
-      // Only matching offloaded frame is visible
       expect(find.byKey(const ValueKey('frame_card_frame_offload_match')),
           findsOneWidget);
       expect(find.byKey(const ValueKey('frame_card_frame_offload_other')),
           findsNothing);
 
-      // loadRealtimePayload was NOT triggered merely by searching
       expect(session.loadPayloadCallCount, equals(0));
     });
 
@@ -438,7 +420,6 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Tap copy button
       await tester.tap(find.byKey(const ValueKey('frame_copy_f-copy')));
       await tester.pump();
       await tester.pump(const Duration(seconds: 3));
@@ -465,17 +446,13 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Before tapping, JsonViewer is not shown
       expect(find.byType(JsonViewer), findsNothing);
 
-      // Tap on the payload preview area to inspect
       await tester.tap(find.byKey(const ValueKey('frame_payload_f-inspect')));
       await tester.pumpAndSettle();
 
-      // Now JsonViewer is mounted for deep inspection
       expect(find.byType(JsonViewer), findsOneWidget);
 
-      // Tap collapse button to collapse back to preview
       await tester.tap(find.byKey(const ValueKey('frame_collapse_f-inspect')));
       await tester.pumpAndSettle();
 
@@ -729,11 +706,9 @@ void main() {
             buildTestWidget(sessionId: 'sess_scroll', session: session));
         await tester.pumpAndSettle();
 
-        // Initially frame_2 is in view
         expect(
             find.byKey(const ValueKey('frame_card_frame_2')), findsOneWidget);
 
-        // Add 15 more frames so it extends downwards and auto-scrolls
         for (var i = 3; i < 18; i++) {
           session.addFrame(
             RealtimeFrame.text(
@@ -747,7 +722,6 @@ void main() {
         }
         await tester.pumpAndSettle();
 
-        // The latest frame_17 should be in view at bottom
         expect(
             find.byKey(const ValueKey('frame_card_frame_17')), findsOneWidget);
         expect(find.byKey(const ValueKey('realtime_jump_to_bottom')),
@@ -775,25 +749,20 @@ void main() {
             buildTestWidget(sessionId: 'sess_scroll_btn', session: session));
         await tester.pumpAndSettle();
 
-        // Drag up to scroll to bottom
         await tester.drag(find.byType(ListView), const Offset(0, -1500));
         await tester.pumpAndSettle();
         expect(
             find.byKey(const ValueKey('frame_card_frame_19')), findsOneWidget);
 
-        // Drag down to scroll up away from bottom
         await tester.drag(find.byType(ListView), const Offset(0, 600));
         await tester.pumpAndSettle();
 
-        // When scrolled up, jump to bottom button appears
         expect(find.byKey(const ValueKey('realtime_jump_to_bottom')),
             findsOneWidget);
 
-        // Tap jump to bottom
         await tester.tap(find.byKey(const ValueKey('realtime_jump_to_bottom')));
         await tester.pumpAndSettle();
 
-        // Now frame_19 is in view again and jump button disappears
         expect(
             find.byKey(const ValueKey('frame_card_frame_19')), findsOneWidget);
         expect(find.byKey(const ValueKey('realtime_jump_to_bottom')),
@@ -821,17 +790,14 @@ void main() {
             buildTestWidget(sessionId: 'sess_send_scroll', session: session));
         await tester.pumpAndSettle();
 
-        // Drag up to scroll to bottom
         await tester.drag(find.byType(ListView), const Offset(0, -1500));
         await tester.pumpAndSettle();
 
-        // Drag down to scroll up away from bottom
         await tester.drag(find.byType(ListView), const Offset(0, 600));
         await tester.pumpAndSettle();
         expect(find.byKey(const ValueKey('realtime_jump_to_bottom')),
             findsOneWidget);
 
-        // Send a message
         await tester.enterText(
             find.byKey(const ValueKey('realtime_chat_input')),
             'my new message');
@@ -840,7 +806,6 @@ void main() {
             .tap(find.byKey(const ValueKey('realtime_chat_send_button')));
         await tester.pumpAndSettle();
 
-        // Should have scrolled to bottom and jump button should disappear
         expect(find.byKey(const ValueKey('realtime_jump_to_bottom')),
             findsNothing);
       });
@@ -870,13 +835,10 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // 1. shortPreview is displayed
         expect(find.text('{"short":"preview only"}'), findsOneWidget);
 
-        // 2. loadRealtimePayload was NOT called
         expect(session.loadPayloadCallCount, equals(0));
 
-        // 3. JsonViewer is NOT mounted
         expect(find.byType(JsonViewer), findsNothing);
       });
 
@@ -906,21 +868,17 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // Tap on payload to inspect
         await tester
             .tap(find.byKey(const ValueKey('frame_payload_frame_offload_2')));
-        await tester.pump(); // Frame scheduled, loading starts
+        await tester.pump();
 
-        // Loading indicator should be visible while awaiting
         expect(find.byType(CircularProgressIndicator), findsOneWidget);
         expect(session.loadPayloadCallCount, equals(1));
 
-        // Complete the future with full JSON payload
         completer.complete(
             '{"full_data":"loaded from disk asynchronously","count":42}');
         await tester.pumpAndSettle();
 
-        // Loading indicator gone, JsonViewer rendered
         expect(find.byType(CircularProgressIndicator), findsNothing);
         expect(find.byType(JsonViewer), findsOneWidget);
         expect(find.textContaining('loaded from disk asynchronously'),
@@ -959,11 +917,9 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 50));
 
-        // Initially 0 IN, 0 OUT
         expect(find.textContaining('↓ 0  ↑ 0'), findsOneWidget);
         final initialBuildCount = buildCount;
 
-        // Record a live frame for this connection
         await engine.recordRealtimeFrame(
           RealtimeFrame.memoryText(
             id: 'live_frame_1',
@@ -973,16 +929,12 @@ void main() {
           ),
         );
 
-        // Pump for throttle interval so coalesced ValueListenable updates
         await tester.pump(const Duration(milliseconds: 100));
 
-        // The counter badge updated to ↓ 1  ↑ 0
         expect(find.textContaining('↓ 1  ↑ 0'), findsOneWidget);
 
-        // The parent widget was NOT rebuilt
         expect(buildCount, equals(initialBuildCount));
 
-        // Drain any remaining throttle timer scheduled by RealtimeStore
         await tester.pump(const Duration(milliseconds: 50));
       });
 
@@ -1023,7 +975,6 @@ void main() {
 
         final cache = BoundedLruCache<String, dynamic>(capacity: 30);
 
-        // Mount RealtimePayloadView directly with frameA
         await tester.pumpWidget(
           MaterialApp(
             home: Scaffold(
@@ -1045,10 +996,8 @@ void main() {
           ),
         );
         await tester.pump();
-        // Frame A is now loading
         expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
-        // Rebuild with frameB before completerA finishes
         await tester.pumpWidget(
           MaterialApp(
             home: Scaffold(
@@ -1071,14 +1020,11 @@ void main() {
         );
         await tester.pump();
 
-        // Now frame A completes late
         completerA.complete('{"payload":"late_A"}');
         await tester.pump();
 
-        // Cache must NOT have frame_B mapped to late_A payload
         expect(cache.containsKey('frame_B'), isFalse);
 
-        // Now frame B completes
         completerB.complete('{"payload":"correct_B"}');
         await tester.pumpAndSettle();
 

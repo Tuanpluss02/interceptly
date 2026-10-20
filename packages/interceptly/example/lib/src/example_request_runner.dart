@@ -764,7 +764,6 @@ mutation UpdateUserStatus(\$id: ID!, \$status: String!) {
         },
       );
 
-      // Send chat message
       channel.sink.add(
         jsonEncode({
           'type': 'chat',
@@ -773,7 +772,6 @@ mutation UpdateUserStatus(\$id: ID!, \$status: String!) {
         }),
       );
 
-      // Await responses (welcome, agent greeting, typing/pong)
       await completer.future.timeout(
         const Duration(seconds: 4),
         onTimeout: () => 'Timeout waiting for chat messages',

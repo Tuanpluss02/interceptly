@@ -72,10 +72,6 @@ base class InterceptlyMcpServer extends MCPServer
     );
   }
 
-  // ==========================================
-  // Tool Definitions
-  // ==========================================
-
   final Tool _pingTool = Tool(
     name: 'ping',
     description:
@@ -278,10 +274,6 @@ base class InterceptlyMcpServer extends MCPServer
       required: ['uri'],
     ),
   );
-
-  // ==========================================
-  // Tool Handlers
-  // ==========================================
 
   Future<CallToolResult> _handlePing(CallToolRequest request) async {
     try {

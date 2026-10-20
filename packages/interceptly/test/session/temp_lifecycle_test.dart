@@ -175,7 +175,6 @@ void main() {
       );
 
       final nextEntry = writer.results.first;
-      // Capture with NO body bytes (e.g. HEAD request), but large responseSizeBytes
       writer.send(RawCapture(
         id: 'head-1',
         method: 'HEAD',

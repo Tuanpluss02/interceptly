@@ -70,24 +70,19 @@ void main() {
       );
       final sender = SocketIoSender(socket, scope);
 
-      // Initially connected and scope open
       expect(sender.protocolType, equals(RealtimeProtocolType.socketIo));
       expect(sender.canSend, isTrue);
 
-      // Socket disconnected
       socket.connected = false;
       expect(sender.canSend, isFalse);
 
-      // Reconnect socket
       socket.connected = true;
       expect(sender.canSend, isTrue);
 
-      // Scope closed
       scope.close();
       expect(scope.isClosed, isTrue);
       expect(sender.canSend, isFalse);
 
-      // Even if socket is connected, closed scope means canSend is false
       expect(socket.connected, isTrue);
       expect(sender.canSend, isFalse);
     });
@@ -102,7 +97,6 @@ void main() {
       );
       final sender = SocketIoSender(socket, scope);
 
-      // Disconnected socket
       socket.connected = false;
       expect(
         () => sender.send(const RealtimeMessageDraft(
@@ -112,7 +106,6 @@ void main() {
         throwsStateError,
       );
 
-      // Reconnect socket, close scope
       socket.connected = true;
       scope.close();
       expect(
@@ -162,7 +155,6 @@ void main() {
       );
       final sender = SocketIoSender(socket, scope);
 
-      // Null event
       await sender.send(const RealtimeMessageDraft(
         payload: 'string-payload-null-event',
       ));
@@ -173,7 +165,6 @@ void main() {
         equals(['message', 'string-payload-null-event']),
       );
 
-      // Empty string event
       await sender.send(const RealtimeMessageDraft(
         event: '',
         payload: {'count': 42},
@@ -224,7 +215,6 @@ void main() {
       );
       final sender = SocketIoSender(socket, scope);
 
-      // JSON Map string from UI composer or resend
       await sender.send(const RealtimeMessageDraft(
         event: 'chat:replay',
         payload: '{"text": "replayed message", "num": 100}',
@@ -239,7 +229,6 @@ void main() {
         ]),
       );
 
-      // JSON List string
       await sender.send(const RealtimeMessageDraft(
         event: 'batch:replay',
         payload: '[1, 2, "three"]',
@@ -256,7 +245,6 @@ void main() {
         ]),
       );
 
-      // Plain string (not JSON object or array) stays as String
       await sender.send(const RealtimeMessageDraft(
         event: 'text:replay',
         payload: 'plain text message',

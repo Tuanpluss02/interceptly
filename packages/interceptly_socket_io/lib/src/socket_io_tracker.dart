@@ -214,7 +214,6 @@ class InterceptlySocketIoTracker {
     if (_isDetached) return;
     guardCapture(() {
       if (_scope.isClosed) {
-        // Reconnection occurred: open a fresh session scope for this connection
         _scope = collector.openSession(
           uri: uri,
           protocolType: RealtimeProtocolType.socketIo,

@@ -57,9 +57,7 @@ class ExampleLocalServer {
       try {
         final socket = await WebSocketTransformer.upgrade(request);
         _handleChatSocket(socket);
-      } catch (_) {
-        // Upgrade failed
-      }
+      } catch (_) {}
       return;
     }
 
@@ -67,9 +65,7 @@ class ExampleLocalServer {
       try {
         final socket = await WebSocketTransformer.upgrade(request);
         _handleStockSocket(socket);
-      } catch (_) {
-        // Upgrade failed
-      }
+      } catch (_) {}
       return;
     }
 
@@ -84,9 +80,7 @@ class ExampleLocalServer {
             socket.close(WebSocketStatus.unsupportedData, error.toString());
           },
         );
-      } catch (_) {
-        // Upgrade failed
-      }
+      } catch (_) {}
       return;
     }
 
@@ -682,7 +676,6 @@ class ExampleLocalServer {
     var hpgPrice = 28600.0;
     var mwgPrice = 65400.0;
 
-    // Send initial snapshot
     if (socket.readyState == WebSocket.open) {
       socket.add(jsonEncode({
         'type': 'snapshot',
@@ -780,7 +773,6 @@ class ExampleLocalServer {
   }
 
   void _handleChatSocket(WebSocket socket) {
-    // 1. Initial system welcome
     socket.add(
       jsonEncode({
         'type': 'system',
@@ -792,7 +784,6 @@ class ExampleLocalServer {
       }),
     );
 
-    // 2. Delayed StormX greeting after 400ms
     Timer(const Duration(milliseconds: 400), () {
       if (socket.readyState == WebSocket.open) {
         socket.add(
@@ -807,7 +798,6 @@ class ExampleLocalServer {
       }
     });
 
-    // 3. Heartbeat every 25 seconds
     final heartbeatTimer = Timer.periodic(const Duration(seconds: 25), (_) {
       if (socket.readyState == WebSocket.open) {
         socket.add(
@@ -819,7 +809,6 @@ class ExampleLocalServer {
       }
     });
 
-    // 4. Handle incoming messages
     socket.listen(
       (dynamic rawMessage) {
         if (rawMessage is List<int>) {
@@ -851,7 +840,6 @@ class ExampleLocalServer {
           return;
         }
 
-        // Send typing indicator after 150ms
         Timer(const Duration(milliseconds: 150), () {
           if (socket.readyState != WebSocket.open) return;
           socket.add(
@@ -862,7 +850,6 @@ class ExampleLocalServer {
             }),
           );
 
-          // Reply after 400ms
           Timer(const Duration(milliseconds: 400), () {
             if (socket.readyState != WebSocket.open) return;
 
@@ -911,13 +898,10 @@ class ExampleLocalServer {
       try {
         final socket = await WebSocketTransformer.upgrade(request);
         _handleSocketIoSocket(socket);
-      } catch (_) {
-        // Upgrade failed
-      }
+      } catch (_) {}
       return;
     }
 
-    // Handle HTTP polling fallback or handshake
     final response = request.response;
     response.headers
       ..set('Access-Control-Allow-Origin', '*')
@@ -954,7 +938,6 @@ class ExampleLocalServer {
 
   void _handleSocketIoSocket(WebSocket socket) {
     final sid = 'sio_${DateTime.now().millisecondsSinceEpoch}';
-    // 1. Send Engine.IO Open packet immediately upon WebSocket connection
     socket.add('0${jsonEncode({
           "sid": sid,
           "upgrades": <String>[],
@@ -962,7 +945,6 @@ class ExampleLocalServer {
           "pingTimeout": 20000,
         })}');
 
-    // 2. Periodic Engine.IO server heartbeat ping (every 20s) to keep client connection alive
     final pingTimer = Timer.periodic(const Duration(seconds: 20), (_) {
       if (socket.readyState == WebSocket.open) {
         socket.add('2');
@@ -979,12 +961,10 @@ class ExampleLocalServer {
         final text = rawMessage.toString();
         if (text.isEmpty) return;
 
-        // Engine.IO PONG ("3" or "3probe") from client
         if (text == '3' || text == '3probe') {
           return;
         }
 
-        // Engine.IO PING ("2" or "2probe") -> PONG ("3" or "3probe")
         if (text == '2' || text.startsWith('2probe')) {
           if (text == '2probe') {
             socket.add('3probe');
@@ -994,16 +974,13 @@ class ExampleLocalServer {
           return;
         }
 
-        // Engine.IO UPGRADE ("5")
         if (text == '5') {
           return;
         }
 
-        // Socket.IO CONNECT packet ("40" or "40/nsp,")
         if (text.startsWith('40')) {
           socket.add('40${jsonEncode({"sid": sid})}');
 
-          // Send welcome system notice
           Timer(const Duration(milliseconds: 100), () {
             if (socket.readyState != WebSocket.open) return;
             socket.add('42${jsonEncode([
@@ -1017,7 +994,6 @@ class ExampleLocalServer {
                   }
                 ])}');
 
-            // Send agent greeting
             Timer(const Duration(milliseconds: 300), () {
               if (socket.readyState != WebSocket.open) return;
               socket.add('42${jsonEncode([
@@ -1035,13 +1011,11 @@ class ExampleLocalServer {
           return;
         }
 
-        // Socket.IO DISCONNECT packet ("41")
         if (text.startsWith('41')) {
           socket.close(WebSocketStatus.normalClosure, 'Client disconnected');
           return;
         }
 
-        // Socket.IO EVENT packet ("42[...]")
         if (text.startsWith('42')) {
           final jsonStr = text.substring(2);
           try {
@@ -1087,7 +1061,6 @@ class ExampleLocalServer {
                   userQuery = eventData.toString();
                 }
 
-                // Send typing indicator after 150ms
                 Timer(const Duration(milliseconds: 150), () {
                   if (socket.readyState != WebSocket.open) return;
                   socket.add('42${jsonEncode([
@@ -1098,7 +1071,6 @@ class ExampleLocalServer {
                         }
                       ])}');
 
-                  // Send reply after 400ms
                   Timer(const Duration(milliseconds: 400), () {
                     if (socket.readyState != WebSocket.open) return;
 
@@ -1134,9 +1106,7 @@ class ExampleLocalServer {
                 });
               }
             }
-          } catch (_) {
-            // Ignore malformed event JSON
-          }
+          } catch (_) {}
         }
       },
       onError: (Object _) {

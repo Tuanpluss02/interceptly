@@ -47,9 +47,7 @@ class SocketIoSender implements RealtimeConnectionSender {
           (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
         try {
           payload = jsonDecode(trimmed);
-        } catch (_) {
-          // If not valid JSON, leave as original string.
-        }
+        } catch (_) {}
       }
     }
 

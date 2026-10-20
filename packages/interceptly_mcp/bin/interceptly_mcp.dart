@@ -14,8 +14,6 @@ void main(List<String> args) {
     },
     zoneSpecification: ZoneSpecification(
       print: (self, parent, zone, line) {
-        // Divert any print statement (including from third-party libraries) to stderr
-        // to strictly protect stdio JSON-RPC protocol messages on stdout.
         stderr.writeln(line);
       },
     ),
@@ -115,7 +113,6 @@ Future<void> _run(List<String> args) async {
     'Interceptly MCP server initialized (allowMutation: $allowMutation)',
   );
 
-  // Clean shutdown on SIGINT / SIGTERM
   ProcessSignal.sigint.watch().listen((_) async {
     logStderr('Received SIGINT, shutting down...');
     await vmServiceClient.disconnect();

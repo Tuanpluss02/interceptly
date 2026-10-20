@@ -341,7 +341,6 @@ class _RealtimePayloadViewState extends State<RealtimePayloadView> {
         );
       }
 
-      // In-memory frame
       final String? decodedBinaryText = widget.frame.binaryPayload != null
           ? tryDecodeBinaryToText(widget.frame.binaryPayload!)
           : null;
@@ -386,7 +385,6 @@ class _RealtimePayloadViewState extends State<RealtimePayloadView> {
       );
     }
 
-    // Collapsed card: display frame.shortPreview with NO disk reads or JSON parsing
     return InkWell(
       key: ValueKey('frame_payload_${widget.frame.id}'),
       borderRadius: BorderRadius.vertical(

@@ -47,7 +47,6 @@ void main() {
       expect(frames[1].id, equals('f-2'));
       expect(frames[1].textPayload, equals('{"action":"subscribe"}'));
 
-      // Unknown session returns empty list
       expect(engine.getRealtimeFrames('ws-unknown'), isEmpty);
     });
 
@@ -183,7 +182,6 @@ void main() {
         var notifyCount = 0;
         engine.addListener(() => notifyCount++);
 
-        // Burst of 500 frames simulated across 50ms
         for (var i = 0; i < 500; i++) {
           engine.recordRealtimeFrame(
             RealtimeFrame.text(
@@ -199,28 +197,22 @@ void main() {
           }
         }
 
-        // Within the 50ms window, zero notifications should have fired yet
         expect(notifyCount, equals(0));
 
-        // Advance to 99ms total: throttler has not fired yet
         async.elapse(const Duration(milliseconds: 49));
         expect(notifyCount, equals(0));
 
-        // Advance past 100ms throttle interval
         async.elapse(const Duration(milliseconds: 15));
         expect(notifyCount, equals(1));
 
-        // No new frames arrive -> remaining idle without extra notifications
         async.elapse(const Duration(milliseconds: 200));
         expect(notifyCount, equals(1));
 
-        // Verify ring buffer capped at 100
         final retainedFrames = engine.getRealtimeFrames('ws-storm');
         expect(retainedFrames.length, equals(100));
         expect(retainedFrames.first.id, equals('storm-400'));
         expect(retainedFrames.last.id, equals('storm-499'));
 
-        // Next burst of frames triggers a new throttled notification cycle
         engine.recordRealtimeFrame(
           RealtimeFrame.text(
             id: 'burst2-1',
@@ -230,11 +222,9 @@ void main() {
           ),
         );
 
-        // Before 100ms
         async.elapse(const Duration(milliseconds: 50));
         expect(notifyCount, equals(1));
 
-        // After 100ms window
         async.elapse(const Duration(milliseconds: 60));
         expect(notifyCount, equals(2));
       });
@@ -260,13 +250,10 @@ void main() {
         var notifyCount = 0;
         engine.addListener(() => notifyCount++);
 
-        // Call clear before the 100ms throttler timer fires
         engine.clear();
         expect(engine.getRealtimeFrames('ws-clear'), isEmpty);
-        expect(
-            notifyCount, equals(1)); // clear() itself calls notifyListeners()
+        expect(notifyCount, equals(1));
 
-        // Advance past throttle window - canceled timer must not fire again
         async.elapse(const Duration(milliseconds: 200));
         expect(notifyCount, equals(1));
       });
@@ -292,7 +279,6 @@ void main() {
         store.dispose();
         expect(store.getRealtimeFrames('ws-dispose'), isEmpty);
 
-        // Advancing time must not throw FlutterError on disposed ChangeNotifier
         expect(
           () => async.elapse(const Duration(milliseconds: 200)),
           returnsNormally,
@@ -371,7 +357,6 @@ void main() {
       addTearDown(engine.dispose);
       final collector = DefaultRealtimeTrafficCollector(engine: engine);
 
-      // Binary payload: 16 bytes truncated to 8
       final binaryData = Uint8List.fromList(List.generate(16, (i) => i));
       collector.recordFrame(
         sessionId: 'ws-trunc',
@@ -380,7 +365,6 @@ void main() {
         payload: binaryData,
       );
 
-      // Text payload: 20 ASCII characters truncated to 8
       collector.recordFrame(
         sessionId: 'ws-trunc',
         direction: FrameDirection.outgoing,
@@ -391,12 +375,10 @@ void main() {
       final frames = engine.getRealtimeFrames('ws-trunc');
       expect(frames.length, equals(2));
 
-      // Binary frame
       expect(frames[0].binaryPayload!.length, equals(8));
       expect(frames[0].payloadSizeBytes, equals(16),
           reason: 'Retains original payload size');
 
-      // Text frame
       expect(frames[1].textPayload!.length, equals(8));
       expect(frames[1].payloadSizeBytes, equals(20),
           reason: 'Retains original payload size');
@@ -428,7 +410,6 @@ void main() {
       final engine = InterceptlyEngine();
       addTearDown(engine.dispose);
 
-      // Record frames across 55 distinct sessions
       for (var i = 0; i < 55; i++) {
         engine.recordRealtimeFrame(
           RealtimeFrame.text(
@@ -440,13 +421,11 @@ void main() {
         );
       }
 
-      // First 5 sessions (sess-0 .. sess-4) should be evicted
       for (var i = 0; i < 5; i++) {
         expect(engine.getRealtimeFrames('sess-$i'), isEmpty,
             reason: 'sess-$i should be evicted');
       }
 
-      // Latest 50 sessions (sess-5 .. sess-54) should exist
       for (var i = 5; i < 55; i++) {
         expect(engine.getRealtimeFrames('sess-$i').length, equals(1),
             reason: 'sess-$i should be retained');
@@ -526,7 +505,6 @@ void main() {
       expect(preview.length, equals(128));
       expect(preview, equals('a' * 128));
 
-      // Test with emojis at boundary (each emoji is 2 UTF-16 code units)
       final textWithEmoji = '${'a' * 126}🌍🚀${'b' * 50}';
       final emojiPreview =
           RealtimeFrame.extractShortPreview(textWithEmoji, FrameType.text);
@@ -534,7 +512,6 @@ void main() {
       expect(emojiPreview.endsWith('🌍'), isTrue,
           reason: 'Must not split the surrogate pair of 🚀');
 
-      // Binary preview
       final binaryData =
           Uint8List.fromList([0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x02]);
       final binaryPreview =
@@ -663,12 +640,10 @@ void main() {
       final engine = InterceptlyEngine(settings: settings);
       final collector = DefaultRealtimeTrafficCollector(engine: engine);
 
-      // Disallowed connection
       final droppedScope =
           collector.openSession(uri: Uri.parse('wss://example.com/blocked'));
       expect(checkCount, equals(1));
 
-      // Sending messages on droppedScope should not check predicate again and should not record frames
       droppedScope.send('hello');
       droppedScope.receive('world');
       expect(checkCount, equals(1),
@@ -676,7 +651,6 @@ void main() {
               'Predicate must be cached and evaluated once per connection handshake');
       expect(engine.getRealtimeFrames(droppedScope.sessionId), isEmpty);
 
-      // Allowed connection
       final allowedScope =
           collector.openSession(uri: Uri.parse('wss://example.com/allowed'));
       expect(checkCount, equals(2));
@@ -722,7 +696,7 @@ void main() {
         'falls back gracefully to toString() if Map/List contains circular reference or fails to encode',
         () {
       final cyclicList = <dynamic>[];
-      cyclicList.add(cyclicList); // cyclic reference
+      cyclicList.add(cyclicList);
       final normalized = FrameNormalizer.normalize(
         cyclicList,
         offloadThreshold: 32 * 1024,
@@ -774,7 +748,6 @@ void main() {
       );
       addTearDown(store.dispose);
 
-      // Record 20 frames into ws-grow
       for (var i = 0; i < 20; i++) {
         store.recordFrame(RealtimeFrame.text(
           id: 'f-$i',
@@ -789,7 +762,6 @@ void main() {
       expect(frames.first.id, equals('f-0'));
       expect(frames.last.id, equals('f-19'));
 
-      // Verify ring buffer eviction at max capacity (64)
       for (var i = 20; i < 70; i++) {
         store.recordFrame(RealtimeFrame.text(
           id: 'f-$i',
@@ -799,7 +771,7 @@ void main() {
         ));
       }
       expect(frames.length, equals(64));
-      expect(frames.first.id, equals('f-6')); // 70 - 64 = 6
+      expect(frames.first.id, equals('f-6'));
       expect(frames.last.id, equals('f-69'));
     });
 
@@ -843,7 +815,6 @@ void main() {
         text: 'hello',
       ));
 
-      // Live view updates immediately without re-calling getRealtimeFrames
       expect(view1.length, equals(1));
       expect(view1[0].id, equals('f-1'));
       expect(() => view1[0] = view1[0], throwsUnsupportedError);
@@ -859,7 +830,6 @@ void main() {
       );
       addTearDown(store.dispose);
 
-      // Session A (active): record 20 frames
       for (var i = 0; i < 20; i++) {
         store.recordFrame(RealtimeFrame.text(
           id: 'a-$i',
@@ -869,7 +839,6 @@ void main() {
         ));
       }
 
-      // Session B (closed): record 20 frames, then mark closed
       for (var i = 0; i < 20; i++) {
         store.recordFrame(RealtimeFrame.text(
           id: 'b-$i',
@@ -883,7 +852,6 @@ void main() {
       expect(store.getRealtimeFrames('session-a').length, equals(20));
       expect(store.getRealtimeFrames('session-b').length, equals(20));
 
-      // Now add 10 more frames to active Session A (total attempted = 50, cap = 40)
       for (var i = 20; i < 30; i++) {
         store.recordFrame(RealtimeFrame.text(
           id: 'a-$i',
@@ -893,7 +861,6 @@ void main() {
         ));
       }
 
-      // Session B (closed) should be evicted first down to 10 frames to keep active Session A intact at 30 frames!
       expect(store.getRealtimeFrames('session-a').length, equals(30),
           reason: 'Active session frames must be protected');
       expect(store.getRealtimeFrames('session-b').length, equals(10),
@@ -905,7 +872,6 @@ void main() {
           maxFramesPerSession: 10, maxSessions: 3, onThrottledBatch: () {});
       addTearDown(store.dispose);
 
-      // Add frames to s1, s2, s3
       store.recordFrame(RealtimeFrame.text(
           id: '1',
           sessionId: 's1',
@@ -922,10 +888,8 @@ void main() {
           direction: FrameDirection.incoming,
           text: 'm'));
 
-      // Read s1 (oldest). Reading s1 MUST NOT make it the MRU.
       store.getRealtimeFrames('s1');
 
-      // Adding s4 should evict s1 (the least recently WRITTEN session)
       store.recordFrame(RealtimeFrame.text(
           id: '4',
           sessionId: 's4',
@@ -949,7 +913,6 @@ void main() {
       final emptyView = store.getRealtimeFrames('ghost-session');
       expect(emptyView, isEmpty);
 
-      // Now record to s1 and s2
       store.recordFrame(RealtimeFrame.text(
           id: '1',
           sessionId: 's1',
@@ -961,7 +924,6 @@ void main() {
           direction: FrameDirection.incoming,
           text: 'm'));
 
-      // Both s1 and s2 must exist because ghost-session never took a slot
       expect(store.getRealtimeFrames('s1').length, equals(1));
       expect(store.getRealtimeFrames('s2').length, equals(1));
     });
@@ -978,7 +940,6 @@ void main() {
         var notifyCount = 0;
         notifier.addListener(() => notifyCount++);
 
-        // Burst 50 frames
         for (var i = 0; i < 50; i++) {
           store.recordFrame(RealtimeFrame.text(
             id: 'f-$i',
@@ -988,12 +949,10 @@ void main() {
           ));
         }
 
-        // Immediately after burst, getFrameCounts is accurate but notifier has not spammed 50 rebuilds
         expect(store.getFrameCounts('ws-burst').incoming, equals(50));
         expect(notifyCount, equals(0),
             reason: 'Must not synchronously thrash notifier on every frame');
 
-        // After 100ms throttle window elapses
         async.elapse(const Duration(milliseconds: 100));
         expect(notifyCount, equals(1),
             reason: 'Must notify exactly once for the burst batch');
@@ -1059,7 +1018,6 @@ void main() {
         url: 'wss://example.com/ws',
       );
 
-      // Small frame: memory
       await engine.recordRealtimeFrame(RealtimeFrame.text(
         id: 'f-small',
         sessionId: 'ws-offload',
@@ -1067,7 +1025,6 @@ void main() {
         text: smallText,
       ));
 
-      // Large frame: offloaded
       await engine.recordRealtimeFrame(RealtimeFrame.text(
         id: 'f-large',
         sessionId: 'ws-offload',
@@ -1078,19 +1035,16 @@ void main() {
       final frames = engine.getRealtimeFrames('ws-offload');
       expect(frames.length, equals(2));
 
-      // Small frame remains in memory
       expect(frames[0].location, equals(BodyLocation.memory));
       expect(frames[0].textPayload, equals(smallText));
       final loadedSmall = await engine.loadRealtimePayload(frames[0]);
       expect(loadedSmall, equals(smallText));
 
-      // Large frame is offloaded to file
       expect(frames[1].location, equals(BodyLocation.file));
       expect(frames[1].textPayload, isNull);
       expect(frames[1].fileOffset, isNotNull);
       expect(frames[1].fileLength, equals(40 * 1024));
 
-      // Lazy load reads back full payload
       final loadedLarge = await engine.loadRealtimePayload(frames[1]);
       expect(loadedLarge, equals(largeText));
     });
@@ -1159,7 +1113,6 @@ void main() {
       final frame = frames.first;
       expect(frame.location, equals(BodyLocation.file));
 
-      // Force file rotation on the store's RealtimeBodyStore
       await store.bodyStore.rotate();
 
       final result = await store.loadPayload(frame);
