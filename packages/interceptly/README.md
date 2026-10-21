@@ -42,6 +42,7 @@ The agent will detect your HTTP clients, add the right packages, wire up the ins
 - **Master Search**: Filter across URLs, headers, bodies, frames, and errors with instant highlight navigation.
 - **Endpoint Filtering**: Synchronously filter URLs with the `shouldCapture` predicate to bypass analytics or unwanted endpoints.
 - **Export**: Share or export traffic sessions as HAR, cURL commands, or Postman collections.
+- **AI Assistant Integration (MCP)**: Query, inspect, and replay traffic directly inside Cursor, Claude Desktop, and Windsurf via [`interceptly_mcp`](https://pub.dev/packages/interceptly_mcp).
 
 ---
 
@@ -55,6 +56,8 @@ To inspect network traffic, pair `interceptly` with the adapter(s) corresponding
 | [http](https://pub.dev/packages/http) | [`interceptly_http`](https://pub.dev/packages/interceptly_http) | `import 'package:interceptly_http/interceptly_http.dart';` |
 | [Chopper](https://pub.dev/packages/chopper) | [`interceptly_chopper`](https://pub.dev/packages/chopper) | `import 'package:interceptly_chopper/interceptly_chopper.dart';` |
 | [web_socket_channel](https://pub.dev/packages/web_socket_channel) | [`interceptly_web_socket`](https://pub.dev/packages/interceptly_web_socket) | `import 'package:interceptly_web_socket/interceptly_web_socket.dart';` |
+| [socket_io_client](https://pub.dev/packages/socket_io_client) | [`interceptly_socket_io`](https://pub.dev/packages/interceptly_socket_io) | `import 'package:interceptly_socket_io/interceptly_socket_io.dart';` |
+| [Model Context Protocol](https://modelcontextprotocol.io) | [`interceptly_mcp`](https://pub.dev/packages/interceptly_mcp) | Standalone CLI for AI coding assistants |
 
 ---
 
@@ -149,6 +152,43 @@ channel.stream.listen((message) {
 
 channel.sink.add('Hello Interceptly!');
 ```
+
+---
+
+## AI Assistant Integration (MCP)
+
+Interceptly includes an official [Model Context Protocol (MCP)](https://pub.dev/packages/interceptly_mcp) server, allowing AI coding assistants (**Cursor, Claude Desktop, Antigravity, Windsurf**) to inspect your running app's network traffic in real time:
+
+```bash
+dart pub global activate interceptly_mcp
+```
+
+Add to your editor's MCP config:
+
+```json
+{
+  "mcpServers": {
+    "interceptly": {
+      "command": "dart",
+      "args": [
+        "pub",
+        "global",
+        "run",
+        "interceptly_mcp",
+        "--allow-mutation"
+      ]
+    }
+  }
+}
+```
+
+Once connected, ask your AI in natural language:
+- *"Why did the last request fail?"*
+- *"Show me the request and response body for `/api/v1/auth/login`."*
+- *"Export the checkout request as a cURL command."*
+- *"Simulate Slow 3G network conditions."*
+
+See [`interceptly_mcp`](https://pub.dev/packages/interceptly_mcp) for full documentation and options.
 
 ---
 

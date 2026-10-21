@@ -8,15 +8,28 @@ import 'vm_service_errors.dart';
 
 /// Contract for interacting with the Flutter VM Service and Interceptly extension RPCs.
 abstract interface class VmServiceClient {
+  /// Whether the client is currently connected to a running VM Service and has an active isolate.
   bool get isConnected;
+
+  /// The version of the Interceptly extension API reported by the remote app, or `null` if not connected.
   int? get remoteExtensionApiVersion;
+
+  /// The ID of the currently active Flutter isolate.
   String? get activeIsolateId;
+
+  /// The WebSocket URI of the connected VM Service.
   Uri? get connectedUri;
 
+  /// Connects to the VM Service at [wsUri].
   Future<void> connect(Uri wsUri);
+
+  /// Disconnects from the current VM Service session and clears state.
   Future<void> disconnect();
+
+  /// Ensures that a connection is established, discovering candidates if needed.
   Future<void> ensureConnected();
 
+  /// Invokes an extension RPC method with the given [params].
   Future<Map<String, dynamic>> invoke(
     String method, [
     Map<String, String>? params,
@@ -25,6 +38,10 @@ abstract interface class VmServiceClient {
 
 /// Default implementation of [VmServiceClient] connecting over WebSockets.
 class DefaultVmServiceClient implements VmServiceClient {
+  /// Creates a [DefaultVmServiceClient].
+  ///
+  /// Optionally accepts [explicitUri] to bypass auto-discovery, [environment]
+  /// for fallback environment variables, and [dtdUri] for Dart Tooling Daemon discovery.
   DefaultVmServiceClient({
     this.explicitUri,
     this.environment,
@@ -32,9 +49,16 @@ class DefaultVmServiceClient implements VmServiceClient {
     Future<VmService> Function(String)? vmServiceConnectUri,
   }) : vmServiceConnectUri = vmServiceConnectUri ?? vm_io.vmServiceConnectUri;
 
+  /// Explicitly provided VM Service URI, if specified via CLI flags.
   final Uri? explicitUri;
+
+  /// Process environment map used to resolve fallback discovery URIs.
   final Map<String, String>? environment;
+
+  /// Explicitly provided Dart Tooling Daemon (DTD) URI, if specified.
   final Uri? dtdUri;
+
+  /// Factory function for creating a [VmService] connection given a WebSocket URI.
   final Future<VmService> Function(String) vmServiceConnectUri;
 
   VmService? _vmService;
@@ -42,7 +66,10 @@ class DefaultVmServiceClient implements VmServiceClient {
   String? _activeIsolateId;
   int? _remoteExtensionApiVersion;
 
+  /// Minimum supported Interceptly extension API version.
   static const int minCompatibleExtensionApiVersion = 1;
+
+  /// Maximum supported Interceptly extension API version.
   static const int maxCompatibleExtensionApiVersion = 1;
 
   @override
