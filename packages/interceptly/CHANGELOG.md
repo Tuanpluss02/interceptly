@@ -1,6 +1,21 @@
-## 2.2.0
+## 2.3.0
 
- - **FEAT**(interceptly): clear logs per active tab ([#16](https://github.com/Tuanpluss02/interceptly/issues/16)). ([49e78f0d](https://github.com/Tuanpluss02/interceptly/commit/49e78f0d1769cbe69aacc7451afc6935a4232541))
+### Added
+- Dart VM Service Protocol Extensions (`ext.interceptly.*`) registered via `dart:developer` for Model Context Protocol (MCP) server integration:
+  - `ext.interceptly.ping`: Connection diagnostics, protocol contract version, and traffic counters.
+  - `ext.interceptly.listRequests`: Cursor-paginated HTTP requests with status filtering, multi-phase search, and body inspection.
+  - `ext.interceptly.getRequestDetail`: Segmented payload inspection with byte/character truncation.
+  - `ext.interceptly.listRealtimeFrames`: Realtime frames by session ID, direction, and frame type.
+  - `ext.interceptly.getRealtimeFrameDetail`: Realtime message payload inspection with base64 binary support.
+  - `ext.interceptly.getTrafficSummary`: Snapshot metrics (status codes, latency percentiles p50/p90/p95/p99, bandwidth, active realtime sessions).
+  - `ext.interceptly.exportCurl`: Replayable cURL generation for recorded requests.
+  - `ext.interceptly.setNetworkSimulation`: Remote latency, error rate, and offline condition configuration.
+  - `ext.interceptly.clearTraffic`: Remote traffic buffer clearing.
+- Multi-phase `SearchService`: Unified search orchestrator combining fast structured metadata filtering with lazy background-decoded body search.
+- Documentation for AI coding assistants via Model Context Protocol (`interceptly_mcp`) and `interceptly_socket_io`.
+
+### Changed
+- Standardized internal session references to `Interceptly` facade and `InterceptlyEngine`.
 
 ## 2.2.0
 
