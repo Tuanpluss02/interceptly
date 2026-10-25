@@ -23,6 +23,8 @@ class _InitMessage {
     required this.tempDirPath,
     this.fileName = BodyStore.kFileName,
     this.maxFileBytes = BodyStore.kMaxFileBytes,
+    this.preserveExisting = false,
+    this.initialRotationCount = 0,
   });
 
   final SendPort replyPort;
@@ -34,6 +36,8 @@ class _InitMessage {
   final String tempDirPath;
   final String fileName;
   final int maxFileBytes;
+  final bool preserveExisting;
+  final int initialRotationCount;
 }
 
 class _WriteMessage {
@@ -96,6 +100,7 @@ class WriterIsolate {
   ReceivePort? _exitPort;
   Completer<void>? _clearCompleter;
   Completer<void>? _disposeCompleter;
+  int _lastRotationCount = 0;
   bool _isDisposed = false;
 
   final StreamController<IndexEntry> _resultController =
@@ -120,8 +125,15 @@ class WriterIsolate {
     required String tempDirPath,
     String fileName = BodyStore.kFileName,
     int maxFileBytes = BodyStore.kMaxFileBytes,
+    bool preserveExisting = false,
+    int? initialRotationCount,
   }) async {
     _activeTempFilePath = '$tempDirPath/$fileName';
+    final effectiveRotation =
+        initialRotationCount ?? (preserveExisting ? _lastRotationCount : 0);
+    if (!preserveExisting) {
+      _lastRotationCount = effectiveRotation;
+    }
     _receivePort = ReceivePort();
     _errorPort = ReceivePort();
     _exitPort = ReceivePort();
@@ -132,8 +144,13 @@ class WriterIsolate {
       if (message is SendPort && !completer.isCompleted) {
         completer.complete(message);
       } else if (message is IndexEntry) {
+        if (message.fileRotationCount != null &&
+            message.fileRotationCount! > _lastRotationCount) {
+          _lastRotationCount = message.fileRotationCount!;
+        }
         _resultController.add(message);
       } else if (message is _ClearAck) {
+        _lastRotationCount++;
         _clearCompleter?.complete();
         _clearCompleter = null;
       } else if (message is _DisposeAck) {
@@ -172,6 +189,8 @@ class WriterIsolate {
         tempDirPath: tempDirPath,
         fileName: fileName,
         maxFileBytes: maxFileBytes,
+        preserveExisting: preserveExisting,
+        initialRotationCount: effectiveRotation,
       ),
       onError: _errorPort!.sendPort,
       onExit: _exitPort!.sendPort,
@@ -210,6 +229,8 @@ class WriterIsolate {
       tempDirPath: tempDirPath,
       fileName: fileName,
       maxFileBytes: maxFileBytes,
+      preserveExisting: true,
+      initialRotationCount: _lastRotationCount,
     );
   }
 
@@ -342,7 +363,12 @@ Future<void> _isolateEntry(_InitMessage init) async {
   final bodyStore = BodyStore(maxFileBytes: init.maxFileBytes);
 
   try {
-    await bodyStore.initForWrite(init.tempDirPath, fileName: init.fileName);
+    await bodyStore.initForWrite(
+      init.tempDirPath,
+      fileName: init.fileName,
+      preserveExisting: init.preserveExisting,
+      initialRotationCount: init.initialRotationCount,
+    );
   } catch (_) {}
 
   init.replyPort.send(receivePort.sendPort);

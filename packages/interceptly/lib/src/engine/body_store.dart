@@ -37,14 +37,30 @@ class BodyStore {
   ///
   /// [dirPath] must be resolved on the **main isolate** before the
   /// WriterIsolate is spawned, then passed in via the init message.
-  Future<void> initForWrite(String dirPath,
-      {String fileName = kFileName}) async {
+  ///
+  /// When [preserveExisting] is `true` and the backing file already exists,
+  /// writing resumes at the current end-of-file so previously committed byte
+  /// ranges remain valid across isolate restarts.
+  Future<void> initForWrite(
+    String dirPath, {
+    String fileName = kFileName,
+    bool preserveExisting = false,
+    int initialRotationCount = 0,
+  }) async {
     _file = File('$dirPath/$fileName');
+    if (preserveExisting && await _file.exists()) {
+      final existingLength = await _file.length();
+      _raf = await _file.open(mode: FileMode.writeOnlyAppend);
+      _currentOffset = existingLength;
+      _rotationCount = initialRotationCount;
+      return;
+    }
     if (await _file.exists()) await _file.delete();
     await _file.create(recursive: true);
     _raf = await _file.open(mode: FileMode.writeOnlyAppend);
     _currentOffset = 0;
-    _rotationCount = 0;
+    _rotationCount =
+        preserveExisting ? initialRotationCount + 1 : initialRotationCount;
   }
 
   /// Appends [bytes] to the file.

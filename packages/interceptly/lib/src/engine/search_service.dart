@@ -136,6 +136,7 @@ abstract final class SearchService {
 
     onPhaseChange?.call(SearchPhase.inMemoryBodies);
     var hasNewMatchInPhase2 = false;
+    var inlineBytesSinceYield = 0;
     for (var i = 0; i < candidates.length; i++) {
       if (isCancelled?.call() ?? false) return const [];
       if (limit != null && results.length >= limit) break;
@@ -145,7 +146,12 @@ abstract final class SearchService {
 
       if (_isBinaryOrEmpty(e)) continue;
 
-      if (matchInlineBody(e, q)) {
+      final entryInlineBytes = (e.inlineRequestBody?.length ?? 0) +
+          (e.inlineResponseBody?.length ?? 0);
+      final matched = await matchInlineBodyAsync(e, q);
+      if (isCancelled?.call() ?? false) return const [];
+
+      if (matched) {
         if (resultIndexMap.containsKey(e.id)) {
           final idx = resultIndexMap[e.id]!;
           results[idx] = SearchResult(
@@ -164,7 +170,10 @@ abstract final class SearchService {
         }
       }
 
-      if (i > 0 && i % 50 == 0) {
+      inlineBytesSinceYield += entryInlineBytes;
+      if ((i > 0 && i % 50 == 0) ||
+          inlineBytesSinceYield >= BodyDecodeService.computeThreshold) {
+        inlineBytesSinceYield = 0;
         await Future<void>.delayed(Duration.zero);
       }
     }
@@ -242,27 +251,16 @@ abstract final class SearchService {
               if (payload == null) return (false, null);
               final (e, raw) = payload;
               try {
-                final decoded = raw.length > BodyDecodeService.computeThreshold
-                    ? await compute(BodyDecodeService.unpackToText, raw)
-                    : BodyDecodeService.unpackToText(raw);
+                final checkReq =
+                    !BodyDecodeService.isBinary(e.requestContentType);
+                final checkRes =
+                    !BodyDecodeService.isBinary(e.responseContentType);
+                final job = (raw, checkReq, checkRes, q);
+                final matched = raw.length > BodyDecodeService.computeThreshold
+                    ? await compute(_matchPackedPayloadIsolate, job)
+                    : _matchPackedPayloadIsolate(job);
 
-                final reqText =
-                    (!BodyDecodeService.isBinary(e.requestContentType))
-                        ? decoded.$1
-                        : null;
-                final resText =
-                    (!BodyDecodeService.isBinary(e.responseContentType))
-                        ? decoded.$2
-                        : null;
-
-                final reqMatch = reqText != null &&
-                    !BodyDecodeService.isPlaceholder(reqText) &&
-                    reqText.toLowerCase().contains(q);
-                final resMatch = resText != null &&
-                    !BodyDecodeService.isPlaceholder(resText) &&
-                    resText.toLowerCase().contains(q);
-
-                if (reqMatch || resMatch) {
+                if (matched) {
                   return (true, e);
                 }
               } catch (err) {
@@ -376,36 +374,54 @@ abstract final class SearchService {
     return scopes;
   }
 
+  /// Matches text inside inline in-memory bodies asynchronously, offloading
+  /// payloads larger than [BodyDecodeService.computeThreshold] to a background isolate.
+  static Future<bool> matchInlineBodyAsync(
+    IndexEntry entry,
+    String queryLower,
+  ) async {
+    final reqBytes = !BodyDecodeService.isBinary(entry.requestContentType)
+        ? entry.inlineRequestBody
+        : null;
+    final resBytes = !BodyDecodeService.isBinary(entry.responseContentType)
+        ? entry.inlineResponseBody
+        : null;
+    final totalBytes = (reqBytes?.length ?? 0) + (resBytes?.length ?? 0);
+    if (totalBytes == 0) return false;
+
+    final job = (
+      reqBytes,
+      entry.requestContentType,
+      resBytes,
+      entry.responseContentType,
+      queryLower,
+    );
+    if (totalBytes > BodyDecodeService.computeThreshold) {
+      return compute(_matchInlinePayloadsIsolate, job);
+    }
+    return _matchInlinePayloadsIsolate(job);
+  }
+
   /// Matches text inside inline in-memory bodies (both request and response).
   static bool matchInlineBody(
     IndexEntry entry,
     String queryLower,
   ) {
-    if (!BodyDecodeService.isBinary(entry.requestContentType)) {
-      final req = BodyDecodeService.decode(
-        entry.inlineRequestBody,
-        entry.requestContentType,
-      );
-      if (req != null &&
-          !BodyDecodeService.isPlaceholder(req) &&
-          req.toLowerCase().contains(queryLower)) {
-        return true;
-      }
-    }
+    final reqBytes = !BodyDecodeService.isBinary(entry.requestContentType)
+        ? entry.inlineRequestBody
+        : null;
+    final resBytes = !BodyDecodeService.isBinary(entry.responseContentType)
+        ? entry.inlineResponseBody
+        : null;
+    if ((reqBytes?.length ?? 0) + (resBytes?.length ?? 0) == 0) return false;
 
-    if (!BodyDecodeService.isBinary(entry.responseContentType)) {
-      final res = BodyDecodeService.decode(
-        entry.inlineResponseBody,
-        entry.responseContentType,
-      );
-      if (res != null &&
-          !BodyDecodeService.isPlaceholder(res) &&
-          res.toLowerCase().contains(queryLower)) {
-        return true;
-      }
-    }
-
-    return false;
+    return _matchInlinePayloadsIsolate((
+      reqBytes,
+      entry.requestContentType,
+      resBytes,
+      entry.responseContentType,
+      queryLower,
+    ));
   }
 
   /// Matches text inside a file-backed body chunk using an open [RandomAccessFile] handle.
@@ -417,22 +433,98 @@ abstract final class SearchService {
   ) async {
     try {
       final raw = await BodyStore.readWithHandle(raf, offset, length);
-      final decoded = raw.length > BodyDecodeService.computeThreshold
-          ? await compute(BodyDecodeService.unpackToText, raw)
-          : BodyDecodeService.unpackToText(raw);
-
-      final reqText = decoded.$1;
-      final resText = decoded.$2;
-      final reqMatch = reqText != null &&
-          !BodyDecodeService.isPlaceholder(reqText) &&
-          reqText.toLowerCase().contains(queryLower);
-      final resMatch = resText != null &&
-          !BodyDecodeService.isPlaceholder(resText) &&
-          resText.toLowerCase().contains(queryLower);
-      return reqMatch || resMatch;
+      final job = (raw, true, true, queryLower);
+      return raw.length > BodyDecodeService.computeThreshold
+          ? await compute(_matchPackedPayloadIsolate, job)
+          : _matchPackedPayloadIsolate(job);
     } catch (_) {
       return false;
     }
+  }
+
+  static bool _matchInlinePayloadsIsolate(
+    (Uint8List?, String?, Uint8List?, String?, String) job,
+  ) {
+    final (reqBytes, reqContentType, resBytes, resContentType, queryLower) =
+        job;
+    if (reqBytes != null && reqBytes.isNotEmpty) {
+      final req = BodyDecodeService.decode(reqBytes, reqContentType);
+      if (req != null &&
+          !BodyDecodeService.isPlaceholder(req) &&
+          _containsCaseInsensitive(req, queryLower)) {
+        return true;
+      }
+    }
+
+    if (resBytes != null && resBytes.isNotEmpty) {
+      final res = BodyDecodeService.decode(resBytes, resContentType);
+      if (res != null &&
+          !BodyDecodeService.isPlaceholder(res) &&
+          _containsCaseInsensitive(res, queryLower)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  static bool _matchPackedPayloadIsolate(
+    (Uint8List, bool, bool, String) job,
+  ) {
+    final (raw, checkReq, checkRes, queryLower) = job;
+    final decoded = BodyDecodeService.unpackToText(raw);
+    if (checkReq) {
+      final reqText = decoded.$1;
+      if (reqText != null &&
+          !BodyDecodeService.isPlaceholder(reqText) &&
+          _containsCaseInsensitive(reqText, queryLower)) {
+        return true;
+      }
+    }
+    if (checkRes) {
+      final resText = decoded.$2;
+      if (resText != null &&
+          !BodyDecodeService.isPlaceholder(resText) &&
+          _containsCaseInsensitive(resText, queryLower)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Case-insensitive substring check that avoids allocating a full lowercased
+  /// copy of [text] for ASCII queries.
+  static bool _containsCaseInsensitive(String text, String queryLower) {
+    final qLen = queryLower.length;
+    if (qLen == 0) return true;
+    final tLen = text.length;
+    if (tLen < qLen) return false;
+
+    for (var i = 0; i < qLen; i++) {
+      if (queryLower.codeUnitAt(i) >= 0x80) {
+        return text.toLowerCase().contains(queryLower);
+      }
+    }
+
+    final firstQ = queryLower.codeUnitAt(0);
+    final maxStart = tLen - qLen;
+    for (var i = 0; i <= maxStart; i++) {
+      var c = text.codeUnitAt(i);
+      if (c >= 0x41 && c <= 0x5A) c |= 0x20;
+      if (c != firstQ) continue;
+
+      var matched = true;
+      for (var j = 1; j < qLen; j++) {
+        var tc = text.codeUnitAt(i + j);
+        if (tc >= 0x41 && tc <= 0x5A) tc |= 0x20;
+        if (tc != queryLower.codeUnitAt(j)) {
+          matched = false;
+          break;
+        }
+      }
+      if (matched) return true;
+    }
+    return false;
   }
 
   /// Guard to check if all payloads in [entry] are binary or empty.

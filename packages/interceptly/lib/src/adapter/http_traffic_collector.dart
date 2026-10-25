@@ -166,6 +166,7 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
         requestHeaders: headers ?? const {},
         requestBodyBytes: bodyBytes,
         requestContentType: resolvedContentType,
+        captureGeneration: engine.httpGeneration,
       );
 
       guardCapture(() {
@@ -269,6 +270,7 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
         responseContentType: resolvedContentType,
         requestTruncatedAtStorage: isRequestTruncated,
         responseTruncatedAtStorage: isResponseTruncated,
+        captureGeneration: context.captureGeneration,
       );
 
       engine.record(capture);
@@ -335,6 +337,7 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
         errorMessage: errorMessage ?? error.toString(),
         requestTruncatedAtStorage: isRequestTruncated,
         responseTruncatedAtStorage: isResponseTruncated,
+        captureGeneration: context.captureGeneration,
       );
 
       engine.record(capture);

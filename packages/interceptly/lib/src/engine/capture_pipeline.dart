@@ -174,6 +174,10 @@ class CapturePipeline {
   }
 
   void _processInMemory(RawCapture capture) {
+    if (capture.captureGeneration != null &&
+        capture.captureGeneration != _generation) {
+      return;
+    }
     _onEntryReceived?.call(capture.id);
     final entry = WriterIsolate.processInMemory(
       capture,
@@ -246,27 +250,39 @@ class CapturePipeline {
   /// Enqueues a capture directly to isolate or pre-init queue (zero allocation).
   void record(RawCapture capture) {
     if (_isDisposed) return;
+    if (capture.captureGeneration != null &&
+        capture.captureGeneration != _generation) {
+      return;
+    }
+
+    final stamped = capture.captureGeneration != null
+        ? capture
+        : capture.withGeneration(_generation);
 
     if (_initFailed || _fallbackMode) {
-      _processInMemory(capture);
+      _processInMemory(stamped);
       return;
     }
 
     if (!_initialized) {
-      _preInitQueue.add(capture);
+      _preInitQueue.add(stamped);
       initialize();
       return;
     }
 
     if (_isRespawning || !_writerIsolate.isReady) {
-      _preInitQueue.add(capture);
+      _preInitQueue.add(stamped);
       return;
     }
 
-    _sendCapture(capture);
+    _sendCapture(stamped);
   }
 
   void _sendCapture(RawCapture capture) {
+    final captureGen = capture.captureGeneration ?? _generation;
+    if (captureGen != _generation) {
+      return;
+    }
     if (_inFlight >= _settings.maxQueuedEvents ||
         _inFlightBytes >= maxInFlightBytes) {
       _droppedCount++;
@@ -276,7 +292,7 @@ class CapturePipeline {
     _inFlight++;
     _inFlightBytes += captureBytes;
     _sentBytes[capture.id] = captureBytes;
-    _sentGenerations[capture.id] = _generation;
+    _sentGenerations[capture.id] = captureGen;
 
     final sent = _writerIsolate.send(capture);
     if (!sent) {

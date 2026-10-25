@@ -96,8 +96,13 @@ class InterceptlyEngine extends ChangeNotifier {
   bool _isDisposed = false;
   int _entriesVersion = 0;
   final List<IndexEntry> _recentChangedEntries = [];
+  final Map<String, int> _pendingGenerations = {};
+  final Map<String, _ActiveRealtimeSession> _activeRealtimeSessions = {};
   Timer? _coalesceNotifyTimer;
   bool _hasPendingCoalescedNotify = false;
+
+  /// Current generation number for HTTP capture fencing across clear operations.
+  int get httpGeneration => _capturePipeline.generation;
 
   InterceptlySettings get settings => _settings;
 
@@ -269,6 +274,12 @@ class InterceptlyEngine extends ChangeNotifier {
 
   /// Enqueues [capture] for asynchronous background processing.
   void record(RawCapture capture) {
+    final pendingGen = _pendingGenerations.remove(capture.id);
+    final effectiveGen = capture.captureGeneration ?? pendingGen;
+    if (effectiveGen != null && effectiveGen != _capturePipeline.generation) {
+      return;
+    }
+
     final isPending = _memoryIndex.byId(capture.id)?.statusCode == 0;
     if (!isPending) {
       if (!_enabled) return;
@@ -277,7 +288,9 @@ class InterceptlyEngine extends ChangeNotifier {
         return;
       }
     }
-    _capturePipeline.record(capture);
+    final stamped =
+        effectiveGen != null ? capture.withGeneration(effectiveGen) : capture;
+    _capturePipeline.record(stamped);
   }
 
   /// Inserts an immediate pending request entry before response completion.
@@ -325,6 +338,14 @@ class InterceptlyEngine extends ChangeNotifier {
       requestContentType: requestContentType,
       settings: _settings,
     );
+    if (!entry.isRealtime) {
+      final maxTracked = _settings.maxEntries * 4;
+      if (_pendingGenerations.length >= maxTracked &&
+          _pendingGenerations.isNotEmpty) {
+        _pendingGenerations.remove(_pendingGenerations.keys.first);
+      }
+      _pendingGenerations[id] = _capturePipeline.generation;
+    }
     _recentChangedEntries.add(entry);
     _scheduleCoalescedNotify();
   }
@@ -332,8 +353,19 @@ class InterceptlyEngine extends ChangeNotifier {
   /// Records a captured [RealtimeFrame] into the buffer.
   Future<void> recordRealtimeFrame(RealtimeFrame frame) {
     if (!_enabled || _isDisposed) return Future<void>.value();
-    final predicate = _settings.shouldCapture;
-    if (predicate != null) {
+    final activeSession = _activeRealtimeSessions[frame.sessionId];
+    if (activeSession != null) {
+      if (!activeSession.isCaptured) return Future<void>.value();
+      if (_memoryIndex.byId(frame.sessionId) == null) {
+        _recordPendingEntry(
+          id: activeSession.id,
+          method: activeSession.method,
+          url: activeSession.url,
+          timestamp: activeSession.timestamp,
+          requestHeaders: activeSession.headers,
+        );
+      }
+    } else if (_settings.shouldCapture != null) {
       final entry = _memoryIndex.byId(frame.sessionId);
       if (entry == null) return Future<void>.value();
     }
@@ -377,22 +409,28 @@ class InterceptlyEngine extends ChangeNotifier {
     RealtimeProtocolType protocolType = RealtimeProtocolType.webSocket,
   }) {
     if (!_enabled || _isDisposed) return;
-    if (!isPreValidated &&
-        _settings.shouldCapture != null &&
-        !_settings.shouldCapture!(url)) {
+    final effectiveTimestamp = timestamp ?? DateTime.now();
+    final isCaptured = isPreValidated ||
+        _settings.shouldCapture == null ||
+        _settings.shouldCapture!(url);
+    final active = _ActiveRealtimeSession(
+      id: id,
+      url: url,
+      headers: headers,
+      timestamp: effectiveTimestamp,
+      protocolType: protocolType,
+      isCaptured: isCaptured,
+    );
+    _activeRealtimeSessions[id] = active;
+    if (!isCaptured) {
       return;
     }
     markRealtimeActive();
-    final method = switch (protocolType) {
-      RealtimeProtocolType.webSocket => 'WS',
-      RealtimeProtocolType.socketIo => 'SIO',
-      RealtimeProtocolType.sse => 'SSE',
-    };
     _recordPendingEntry(
       id: id,
-      method: method,
+      method: active.method,
       url: url,
-      timestamp: timestamp ?? DateTime.now(),
+      timestamp: effectiveTimestamp,
       requestHeaders: headers,
     );
   }
@@ -404,6 +442,7 @@ class InterceptlyEngine extends ChangeNotifier {
     String? closeReason,
   }) {
     if (_isDisposed) return;
+    _activeRealtimeSessions.remove(id);
     _entriesVersion++;
     _pendingTracker.closeRealtimeConnection(
       id,
@@ -573,10 +612,36 @@ class InterceptlyEngine extends ChangeNotifier {
     _coalesceNotifyTimer = null;
     _hasPendingCoalescedNotify = false;
     _enabled = false;
+    _pendingGenerations.clear();
+    _activeRealtimeSessions.clear();
     _pendingTracker.dispose();
     _memoryIndex.clear();
     await _capturePipeline.dispose();
     await _realtimeStore.dispose();
     super.dispose();
   }
+}
+
+class _ActiveRealtimeSession {
+  const _ActiveRealtimeSession({
+    required this.id,
+    required this.url,
+    required this.headers,
+    required this.timestamp,
+    required this.protocolType,
+    required this.isCaptured,
+  });
+
+  final String id;
+  final String url;
+  final Map<String, String> headers;
+  final DateTime timestamp;
+  final RealtimeProtocolType protocolType;
+  final bool isCaptured;
+
+  String get method => switch (protocolType) {
+        RealtimeProtocolType.webSocket => 'WS',
+        RealtimeProtocolType.socketIo => 'SIO',
+        RealtimeProtocolType.sse => 'SSE',
+      };
 }

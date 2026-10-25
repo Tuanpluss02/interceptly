@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../../engine/body_decode_service.dart';
 import '../../engine/search_service.dart';
 import '../../model/body_location.dart';
 import '../../model/index_entry.dart';
@@ -179,7 +180,16 @@ class MasterSearchController extends ChangeNotifier {
       return;
     }
 
-    final matchResult = SearchService.matchEntry(entry, query);
+    final inlineBytes = (entry.inlineRequestBody?.length ?? 0) +
+        (entry.inlineResponseBody?.length ?? 0);
+    final offloadInline = entry.bodyLocation == BodyLocation.memory &&
+        inlineBytes > BodyDecodeService.computeThreshold;
+
+    final matchResult = SearchService.matchEntry(
+      entry,
+      query,
+      searchBody: !offloadInline,
+    );
     final scopes = matchResult != null
         ? Set<SearchMatchScope>.from(matchResult.matchScopes)
         : <SearchMatchScope>{};
@@ -207,13 +217,45 @@ class MasterSearchController extends ChangeNotifier {
       }
       _matchScopes[entry.id] = scopes;
       _notifyThrottled();
-    } else {
+    } else if (!offloadInline) {
       if (isExisting) {
         _results!.removeWhere((e) => e.id == entry.id);
         _matchedIds.remove(entry.id);
         _matchScopes.remove(entry.id);
         _notifyThrottled();
       }
+    }
+
+    if (offloadInline) {
+      final gen = _generation;
+      final queryLower = query.trim().toLowerCase();
+      unawaited(
+        SearchService.matchInlineBodyAsync(entry, queryLower).then((matched) {
+          if (_isDisposed || gen != _generation || _results == null) return;
+          final currentlyExisting = _matchedIds.contains(entry.id);
+          if (matched) {
+            if (currentlyExisting) {
+              final idx = _results!.indexWhere((e) => e.id == entry.id);
+              if (idx >= 0) {
+                _results![idx] = entry;
+              } else {
+                _results!.insert(0, entry);
+              }
+            } else {
+              _results!.insert(0, entry);
+              _matchedIds.add(entry.id);
+            }
+            (_matchScopes[entry.id] ??= <SearchMatchScope>{})
+                .add(SearchMatchScope.body);
+            _notifyThrottled();
+          } else if (scopes.isEmpty && currentlyExisting) {
+            _results!.removeWhere((e) => e.id == entry.id);
+            _matchedIds.remove(entry.id);
+            _matchScopes.remove(entry.id);
+            _notifyThrottled();
+          }
+        }),
+      );
     }
   }
 
