@@ -296,7 +296,10 @@ void main() {
   test('HTTP completing or failing after clear does not resurrect a request',
       () async {
     final engine = InterceptlyEngine(
-      settings: const InterceptlySettings(persistToDisk: false),
+      settings: const InterceptlySettings(
+        persistToDisk: false,
+        maxEntries: 1,
+      ),
     );
     addTearDown(engine.dispose);
     await engine.initialize();
@@ -306,10 +309,21 @@ void main() {
       method: 'GET',
       uri: Uri.parse('https://example.com/1'),
     );
+    scope1.amendRequest(headers: const {'x-amended': 'true'});
     final scope2 = await collector.begin(
       method: 'POST',
       uri: Uri.parse('https://example.com/2'),
     );
+
+    // Exceed _pendingGenerations capacity (maxEntries * 4 = 4) so that
+    // Expando generation on the amended HttpRequestContext is exercised.
+    for (var i = 0; i < 4; i++) {
+      final s = await collector.begin(
+        method: 'GET',
+        uri: Uri.parse('https://example.com/extra_$i'),
+      );
+      await s.complete(statusCode: 200);
+    }
 
     await engine.clear();
 
@@ -427,7 +441,9 @@ void main() {
 
     // 1. Pruned entry while async body check is in flight must not resurrect
     search.updateOrAddEntry(buildEntry('pruned_req', matchingBody));
+    expect(search.pendingAsyncEntryCount, 1);
     search.pruneMissing(const <String>{});
+    expect(search.pendingAsyncEntryCount, 0);
 
     // 2. Newer version of an entry must not be overwritten by stale async body check
     search.updateOrAddEntry(
@@ -440,6 +456,7 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 200));
 
     expect(search.results, isEmpty);
+    expect(search.pendingAsyncEntryCount, 0);
   });
 
   test(

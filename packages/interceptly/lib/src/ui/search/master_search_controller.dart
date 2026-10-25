@@ -17,14 +17,17 @@ class MasterSearchController extends ChangeNotifier {
   List<IndexEntry>? _results;
   final Set<String> _matchedIds = {};
   final Map<String, Set<SearchMatchScope>> _matchScopes = {};
-  final Map<String, int> _entryVersions = {};
-  final Map<String, IndexEntry> _latestEntries = {};
-  final Set<String> _prunedIds = {};
+  final Map<String, IndexEntry> _pendingAsyncEntries = {};
+  Set<String>? _activeSnapshotIds;
   bool _isScanningBodies = false;
   bool _isScanningFiles = false;
   int _generation = 0;
   Timer? _throttleTimer;
   bool _isDisposed = false;
+
+  /// Number of entries currently awaiting asynchronous inline body matching.
+  @visibleForTesting
+  int get pendingAsyncEntryCount => _pendingAsyncEntries.length;
 
   /// The active search query, or `null` if search is inactive.
   String? get query => _query;
@@ -71,9 +74,8 @@ class MasterSearchController extends ChangeNotifier {
     _results = null;
     _matchedIds.clear();
     _matchScopes.clear();
-    _entryVersions.clear();
-    _latestEntries.clear();
-    _prunedIds.clear();
+    _pendingAsyncEntries.clear();
+    _activeSnapshotIds = null;
     _isScanningBodies = false;
     _isScanningFiles = false;
     if (!_isDisposed) {
@@ -90,9 +92,8 @@ class MasterSearchController extends ChangeNotifier {
     _results = null;
     _matchedIds.clear();
     _matchScopes.clear();
-    _entryVersions.clear();
-    _latestEntries.clear();
-    _prunedIds.clear();
+    _pendingAsyncEntries.clear();
+    _activeSnapshotIds = null;
     _isScanningBodies = false;
     _isScanningFiles = false;
   }
@@ -123,13 +124,8 @@ class MasterSearchController extends ChangeNotifier {
     _results = [];
     _matchedIds.clear();
     _matchScopes.clear();
-    _entryVersions.clear();
-    _latestEntries.clear();
-    _prunedIds.clear();
-    for (final e in entriesSnapshot) {
-      _latestEntries[e.id] = e;
-      _entryVersions[e.id] = 0;
-    }
+    _pendingAsyncEntries.clear();
+    _activeSnapshotIds = {for (final e in entriesSnapshot) e.id};
     _isScanningBodies = false;
     _isScanningFiles = false;
     _notifyThrottled(force: true);
@@ -165,16 +161,16 @@ class MasterSearchController extends ChangeNotifier {
         },
         onProgress: (progressiveResults, {required bool isDone}) {
           if (gen != _generation || _isDisposed) return;
+          final snapshotIds = _activeSnapshotIds;
           final updatedList = <IndexEntry>[];
           final seenIds = <String>{};
 
           // Preserve dynamically added/updated entries that occurred after start() snapshot
-          if (_results != null) {
+          if (_results != null && snapshotIds != null) {
             for (final existing in _results!) {
               final id = existing.id;
-              if (_prunedIds.contains(id)) continue;
-              if ((_entryVersions[id] ?? 0) > 0 && _matchedIds.contains(id)) {
-                updatedList.add(_latestEntries[id] ?? existing);
+              if (!snapshotIds.contains(id) && _matchedIds.contains(id)) {
+                updatedList.add(existing);
                 seenIds.add(id);
               }
             }
@@ -183,10 +179,7 @@ class MasterSearchController extends ChangeNotifier {
           for (final res in progressiveResults) {
             if (res.summary case final IndexEntry entry) {
               final id = entry.id;
-              if (_prunedIds.contains(id) || !_latestEntries.containsKey(id)) {
-                continue;
-              }
-              if ((_entryVersions[id] ?? 0) > 0) {
+              if (snapshotIds != null && !snapshotIds.contains(id)) {
                 continue;
               }
               updatedList.add(entry);
@@ -205,6 +198,7 @@ class MasterSearchController extends ChangeNotifier {
       );
     } finally {
       if (gen == _generation && !_isDisposed) {
+        _activeSnapshotIds = null;
         _isScanningBodies = false;
         _isScanningFiles = false;
       }
@@ -218,15 +212,18 @@ class MasterSearchController extends ChangeNotifier {
       return;
     }
 
-    final entryVer = (_entryVersions[entry.id] ?? 0) + 1;
-    _entryVersions[entry.id] = entryVer;
-    _latestEntries[entry.id] = entry;
-    _prunedIds.remove(entry.id);
+    _activeSnapshotIds?.remove(entry.id);
 
     final inlineBytes = (entry.inlineRequestBody?.length ?? 0) +
         (entry.inlineResponseBody?.length ?? 0);
     final offloadInline = entry.bodyLocation == BodyLocation.memory &&
         inlineBytes > BodyDecodeService.computeThreshold;
+
+    if (offloadInline) {
+      _pendingAsyncEntries[entry.id] = entry;
+    } else {
+      _pendingAsyncEntries.remove(entry.id);
+    }
 
     final matchResult = SearchService.matchEntry(
       entry,
@@ -282,11 +279,10 @@ class MasterSearchController extends ChangeNotifier {
           if (_isDisposed ||
               gen != _generation ||
               _results == null ||
-              _prunedIds.contains(entry.id) ||
-              _entryVersions[entry.id] != entryVer ||
-              !identical(_latestEntries[entry.id], entry)) {
+              !identical(_pendingAsyncEntries[entry.id], entry)) {
             return;
           }
+          _pendingAsyncEntries.remove(entry.id);
           final currentlyExisting = _matchedIds.contains(entry.id);
           if (matched) {
             if (currentlyExisting) {
@@ -318,8 +314,6 @@ class MasterSearchController extends ChangeNotifier {
   @visibleForTesting
   void recordFileMatchForTesting(IndexEntry entry) {
     if (_results == null) return;
-    _latestEntries[entry.id] = entry;
-    _prunedIds.remove(entry.id);
     if (!_matchedIds.contains(entry.id)) {
       _matchedIds.add(entry.id);
       _results!.insert(0, entry);
@@ -332,13 +326,8 @@ class MasterSearchController extends ChangeNotifier {
   void pruneMissing(Set<String> validIds) {
     if (_isDisposed || _results == null) return;
 
-    for (final id in _latestEntries.keys.toList()) {
-      if (!validIds.contains(id)) {
-        _latestEntries.remove(id);
-        _prunedIds.add(id);
-        _entryVersions[id] = (_entryVersions[id] ?? 0) + 1;
-      }
-    }
+    _pendingAsyncEntries.removeWhere((id, _) => !validIds.contains(id));
+    _activeSnapshotIds?.removeWhere((id) => !validIds.contains(id));
 
     if (_matchedIds.isEmpty) return;
     final hasMissing = _matchedIds.any((id) => !validIds.contains(id));
@@ -351,8 +340,6 @@ class MasterSearchController extends ChangeNotifier {
         _results!.removeAt(i);
         _matchedIds.remove(id);
         _matchScopes.remove(id);
-        _prunedIds.add(id);
-        _entryVersions[id] = (_entryVersions[id] ?? 0) + 1;
         removed = true;
       }
     }
