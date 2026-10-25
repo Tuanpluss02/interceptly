@@ -300,8 +300,13 @@ class RealtimeStore {
 
     while (_buffersBySession.length > _maxSessions) {
       final keyToEvict = _buffersBySession.keys.firstWhere(
-        (k) => k != incomingSessionId,
-        orElse: () => _buffersBySession.keys.first,
+        (k) =>
+            k != incomingSessionId &&
+            !(_notifiersBySession[k]?.hasActiveListeners ?? false),
+        orElse: () => _buffersBySession.keys.firstWhere(
+          (k) => k != incomingSessionId,
+          orElse: () => _buffersBySession.keys.first,
+        ),
       );
       _evictSession(keyToEvict);
     }
@@ -318,14 +323,16 @@ class RealtimeStore {
     }
     _viewsBySession.remove(sessionId);
     _closedSessions.remove(sessionId);
+    final notifier = _notifiersBySession[sessionId];
+    if (notifier != null && notifier.hasActiveListeners) {
+      return;
+    }
     _dirtyNotifierSessions.remove(sessionId);
     _liveCountsBySession.remove(sessionId);
-    final notifier = _notifiersBySession.remove(sessionId);
     if (notifier != null) {
+      _notifiersBySession.remove(sessionId);
       notifier.value = const RealtimeFrameCounts();
-      if (!notifier.hasActiveListeners) {
-        notifier.dispose();
-      }
+      notifier.dispose();
     }
   }
 
@@ -545,26 +552,40 @@ class RealtimeStore {
           .map((e) => e.key)
           .toList();
       for (final key in orphanKeys) {
+        _liveCountsBySession.remove(key);
         _notifiersBySession.remove(key)?.dispose();
       }
-      while (_notifiersBySession.length >= _maxSessions &&
-          _notifiersBySession.isNotEmpty) {
-        final keyToRemove = _notifiersBySession.keys.firstWhere(
-          (k) => !_buffersBySession.containsKey(k),
-          orElse: () => _notifiersBySession.keys.first,
-        );
-        final removed = _notifiersBySession.remove(keyToRemove);
-        if (removed != null && !removed.hasActiveListeners) {
-          removed.dispose();
-        }
+      final inactiveKeys = _notifiersBySession.entries
+          .where((e) => !e.value.hasActiveListeners)
+          .map((e) => e.key)
+          .toList();
+      for (final key in inactiveKeys) {
+        if (_notifiersBySession.length < _maxSessions) break;
+        _notifiersBySession.remove(key)?.dispose();
       }
     }
 
     final created = _SessionCountsNotifier(
       _liveCountsBySession[sessionId] ?? const RealtimeFrameCounts(),
+      onNoListeners: () => _onNotifierAllListenersRemoved(sessionId),
     );
     _notifiersBySession[sessionId] = created;
     return created;
+  }
+
+  void _onNotifierAllListenersRemoved(String sessionId) {
+    if (_isDisposed) return;
+    final notifier = _notifiersBySession[sessionId];
+    if (notifier == null || notifier.hasActiveListeners) return;
+    if (!_buffersBySession.containsKey(sessionId)) {
+      _dirtyNotifierSessions.remove(sessionId);
+      _liveCountsBySession.remove(sessionId);
+      _notifiersBySession.remove(sessionId);
+      notifier.dispose();
+    } else if (_notifiersBySession.length > _maxSessions) {
+      _notifiersBySession.remove(sessionId);
+      notifier.dispose();
+    }
   }
 
   /// Returns the current total incoming and outgoing frame counts for [sessionId].
@@ -645,7 +666,20 @@ class RealtimeStore {
 }
 
 class _SessionCountsNotifier extends ValueNotifier<RealtimeFrameCounts> {
-  _SessionCountsNotifier(super.value);
+  _SessionCountsNotifier(
+    super.value, {
+    this.onNoListeners,
+  });
+
+  final VoidCallback? onNoListeners;
 
   bool get hasActiveListeners => hasListeners;
+
+  @override
+  void removeListener(VoidCallback listener) {
+    super.removeListener(listener);
+    if (!hasListeners) {
+      onNoListeners?.call();
+    }
+  }
 }

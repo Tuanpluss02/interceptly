@@ -25,7 +25,6 @@ class RawCapture {
     this.errorMessage,
     this.requestTruncatedAtStorage = false,
     this.responseTruncatedAtStorage = false,
-    this.captureGeneration,
   });
 
   final String id;
@@ -56,36 +55,7 @@ class RawCapture {
   final String? errorType;
   final String? errorMessage;
 
-  /// Generation fence captured when the request lifecycle started.
-  final int? captureGeneration;
-
   bool get hasError => errorType != null;
-
-  /// Returns a copy of this capture stamped with [generation].
-  RawCapture withGeneration(int generation) {
-    if (captureGeneration == generation) return this;
-    return RawCapture(
-      id: id,
-      method: method,
-      url: url,
-      requestHeaders: requestHeaders,
-      responseHeaders: responseHeaders,
-      statusCode: statusCode,
-      durationMs: durationMs,
-      timestamp: timestamp,
-      requestBodyBytes: requestBodyBytes,
-      responseBodyBytes: responseBodyBytes,
-      requestSizeBytes: requestSizeBytes,
-      responseSizeBytes: responseSizeBytes,
-      requestContentType: requestContentType,
-      responseContentType: responseContentType,
-      errorType: errorType,
-      errorMessage: errorMessage,
-      requestTruncatedAtStorage: requestTruncatedAtStorage,
-      responseTruncatedAtStorage: responseTruncatedAtStorage,
-      captureGeneration: generation,
-    );
-  }
 
   /// Convenience: wrap [Uint8List] into [TransferableTypedData], optionally capping at [maxBytes].
   static TransferableTypedData? wrapBytes(Uint8List? bytes,

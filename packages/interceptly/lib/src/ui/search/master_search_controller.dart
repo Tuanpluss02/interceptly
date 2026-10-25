@@ -17,6 +17,9 @@ class MasterSearchController extends ChangeNotifier {
   List<IndexEntry>? _results;
   final Set<String> _matchedIds = {};
   final Map<String, Set<SearchMatchScope>> _matchScopes = {};
+  final Map<String, int> _entryVersions = {};
+  final Map<String, IndexEntry> _latestEntries = {};
+  final Set<String> _prunedIds = {};
   bool _isScanningBodies = false;
   bool _isScanningFiles = false;
   int _generation = 0;
@@ -68,6 +71,9 @@ class MasterSearchController extends ChangeNotifier {
     _results = null;
     _matchedIds.clear();
     _matchScopes.clear();
+    _entryVersions.clear();
+    _latestEntries.clear();
+    _prunedIds.clear();
     _isScanningBodies = false;
     _isScanningFiles = false;
     if (!_isDisposed) {
@@ -84,6 +90,9 @@ class MasterSearchController extends ChangeNotifier {
     _results = null;
     _matchedIds.clear();
     _matchScopes.clear();
+    _entryVersions.clear();
+    _latestEntries.clear();
+    _prunedIds.clear();
     _isScanningBodies = false;
     _isScanningFiles = false;
   }
@@ -114,6 +123,13 @@ class MasterSearchController extends ChangeNotifier {
     _results = [];
     _matchedIds.clear();
     _matchScopes.clear();
+    _entryVersions.clear();
+    _latestEntries.clear();
+    _prunedIds.clear();
+    for (final e in entriesSnapshot) {
+      _latestEntries[e.id] = e;
+      _entryVersions[e.id] = 0;
+    }
     _isScanningBodies = false;
     _isScanningFiles = false;
     _notifyThrottled(force: true);
@@ -150,16 +166,38 @@ class MasterSearchController extends ChangeNotifier {
         onProgress: (progressiveResults, {required bool isDone}) {
           if (gen != _generation || _isDisposed) return;
           final updatedList = <IndexEntry>[];
-          _matchedIds.clear();
-          _matchScopes.clear();
-          for (final res in progressiveResults) {
-            if (res.summary case final IndexEntry entry) {
-              updatedList.add(entry);
-              _matchedIds.add(entry.id);
-              _matchScopes[entry.id] =
-                  Set<SearchMatchScope>.from(res.matchScopes);
+          final seenIds = <String>{};
+
+          // Preserve dynamically added/updated entries that occurred after start() snapshot
+          if (_results != null) {
+            for (final existing in _results!) {
+              final id = existing.id;
+              if (_prunedIds.contains(id)) continue;
+              if ((_entryVersions[id] ?? 0) > 0 && _matchedIds.contains(id)) {
+                updatedList.add(_latestEntries[id] ?? existing);
+                seenIds.add(id);
+              }
             }
           }
+
+          for (final res in progressiveResults) {
+            if (res.summary case final IndexEntry entry) {
+              final id = entry.id;
+              if (_prunedIds.contains(id) || !_latestEntries.containsKey(id)) {
+                continue;
+              }
+              if ((_entryVersions[id] ?? 0) > 0) {
+                continue;
+              }
+              updatedList.add(entry);
+              seenIds.add(id);
+              _matchedIds.add(id);
+              _matchScopes[id] = Set<SearchMatchScope>.from(res.matchScopes);
+            }
+          }
+
+          _matchedIds.removeWhere((id) => !seenIds.contains(id));
+          _matchScopes.removeWhere((id, _) => !seenIds.contains(id));
           _results = updatedList;
           _notifyThrottled(force: isDone);
         },
@@ -179,6 +217,11 @@ class MasterSearchController extends ChangeNotifier {
     if (_isDisposed || query == null || query.isEmpty || _results == null) {
       return;
     }
+
+    final entryVer = (_entryVersions[entry.id] ?? 0) + 1;
+    _entryVersions[entry.id] = entryVer;
+    _latestEntries[entry.id] = entry;
+    _prunedIds.remove(entry.id);
 
     final inlineBytes = (entry.inlineRequestBody?.length ?? 0) +
         (entry.inlineResponseBody?.length ?? 0);
@@ -224,6 +267,11 @@ class MasterSearchController extends ChangeNotifier {
         _matchScopes.remove(entry.id);
         _notifyThrottled();
       }
+    } else if (isExisting) {
+      final existingIndex = _results!.indexWhere((e) => e.id == entry.id);
+      if (existingIndex >= 0) {
+        _results![existingIndex] = entry;
+      }
     }
 
     if (offloadInline) {
@@ -231,7 +279,14 @@ class MasterSearchController extends ChangeNotifier {
       final queryLower = query.trim().toLowerCase();
       unawaited(
         SearchService.matchInlineBodyAsync(entry, queryLower).then((matched) {
-          if (_isDisposed || gen != _generation || _results == null) return;
+          if (_isDisposed ||
+              gen != _generation ||
+              _results == null ||
+              _prunedIds.contains(entry.id) ||
+              _entryVersions[entry.id] != entryVer ||
+              !identical(_latestEntries[entry.id], entry)) {
+            return;
+          }
           final currentlyExisting = _matchedIds.contains(entry.id);
           if (matched) {
             if (currentlyExisting) {
@@ -263,6 +318,8 @@ class MasterSearchController extends ChangeNotifier {
   @visibleForTesting
   void recordFileMatchForTesting(IndexEntry entry) {
     if (_results == null) return;
+    _latestEntries[entry.id] = entry;
+    _prunedIds.remove(entry.id);
     if (!_matchedIds.contains(entry.id)) {
       _matchedIds.add(entry.id);
       _results!.insert(0, entry);
@@ -273,7 +330,17 @@ class MasterSearchController extends ChangeNotifier {
 
   /// Prunes any search results whose IDs are not present in [validIds].
   void pruneMissing(Set<String> validIds) {
-    if (_isDisposed || _results == null || _matchedIds.isEmpty) return;
+    if (_isDisposed || _results == null) return;
+
+    for (final id in _latestEntries.keys.toList()) {
+      if (!validIds.contains(id)) {
+        _latestEntries.remove(id);
+        _prunedIds.add(id);
+        _entryVersions[id] = (_entryVersions[id] ?? 0) + 1;
+      }
+    }
+
+    if (_matchedIds.isEmpty) return;
     final hasMissing = _matchedIds.any((id) => !validIds.contains(id));
     if (!hasMissing) return;
 
@@ -284,6 +351,8 @@ class MasterSearchController extends ChangeNotifier {
         _results!.removeAt(i);
         _matchedIds.remove(id);
         _matchScopes.remove(id);
+        _prunedIds.add(id);
+        _entryVersions[id] = (_entryVersions[id] ?? 0) + 1;
         removed = true;
       }
     }

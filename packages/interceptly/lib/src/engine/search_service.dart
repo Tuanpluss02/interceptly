@@ -492,39 +492,10 @@ abstract final class SearchService {
     return false;
   }
 
-  /// Case-insensitive substring check that avoids allocating a full lowercased
-  /// copy of [text] for ASCII queries.
+  /// Case-insensitive substring check preserving full Unicode case-folding semantics.
   static bool _containsCaseInsensitive(String text, String queryLower) {
-    final qLen = queryLower.length;
-    if (qLen == 0) return true;
-    final tLen = text.length;
-    if (tLen < qLen) return false;
-
-    for (var i = 0; i < qLen; i++) {
-      if (queryLower.codeUnitAt(i) >= 0x80) {
-        return text.toLowerCase().contains(queryLower);
-      }
-    }
-
-    final firstQ = queryLower.codeUnitAt(0);
-    final maxStart = tLen - qLen;
-    for (var i = 0; i <= maxStart; i++) {
-      var c = text.codeUnitAt(i);
-      if (c >= 0x41 && c <= 0x5A) c |= 0x20;
-      if (c != firstQ) continue;
-
-      var matched = true;
-      for (var j = 1; j < qLen; j++) {
-        var tc = text.codeUnitAt(i + j);
-        if (tc >= 0x41 && tc <= 0x5A) tc |= 0x20;
-        if (tc != queryLower.codeUnitAt(j)) {
-          matched = false;
-          break;
-        }
-      }
-      if (matched) return true;
-    }
-    return false;
+    if (queryLower.isEmpty) return true;
+    return text.toLowerCase().contains(queryLower);
   }
 
   /// Guard to check if all payloads in [entry] are binary or empty.

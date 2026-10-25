@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../capture/capture_guard.dart';
+import '../engine/capture_pipeline.dart';
 import '../model/network_simulation.dart';
 import '../model/raw_capture.dart';
 import '../engine/interceptly_engine.dart';
@@ -166,8 +167,8 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
         requestHeaders: headers ?? const {},
         requestBodyBytes: bodyBytes,
         requestContentType: resolvedContentType,
-        captureGeneration: engine.httpGeneration,
       );
+      attachCaptureGeneration(context, engine.httpGeneration);
 
       guardCapture(() {
         engine.recordPending(
@@ -270,8 +271,8 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
         responseContentType: resolvedContentType,
         requestTruncatedAtStorage: isRequestTruncated,
         responseTruncatedAtStorage: isResponseTruncated,
-        captureGeneration: context.captureGeneration,
       );
+      attachCaptureGeneration(capture, readCaptureGeneration(context));
 
       engine.record(capture);
     });
@@ -337,8 +338,8 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
         errorMessage: errorMessage ?? error.toString(),
         requestTruncatedAtStorage: isRequestTruncated,
         responseTruncatedAtStorage: isResponseTruncated,
-        captureGeneration: context.captureGeneration,
       );
+      attachCaptureGeneration(capture, readCaptureGeneration(context));
 
       engine.record(capture);
     });

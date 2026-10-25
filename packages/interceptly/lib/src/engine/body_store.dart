@@ -16,9 +16,15 @@ class BodyStore {
   /// Defaults to 100 MB.
   static const int kMaxFileBytes = 100 * 1024 * 1024;
 
-  BodyStore({int maxFileBytes = kMaxFileBytes}) : _maxFileBytes = maxFileBytes;
+  BodyStore({
+    int maxFileBytes = kMaxFileBytes,
+    this.onRotate,
+  }) : _maxFileBytes = maxFileBytes;
 
   final int _maxFileBytes;
+
+  /// Optional callback invoked synchronously whenever [_rotationCount] increments.
+  final void Function(int rotationCount)? onRotate;
   late File _file;
   RandomAccessFile? _raf;
   int _currentOffset = 0;
@@ -61,6 +67,9 @@ class BodyStore {
     _currentOffset = 0;
     _rotationCount =
         preserveExisting ? initialRotationCount + 1 : initialRotationCount;
+    if (preserveExisting) {
+      onRotate?.call(_rotationCount);
+    }
   }
 
   /// Appends [bytes] to the file.
@@ -82,13 +91,14 @@ class BodyStore {
 
   /// Closes the current file and recreates it empty at offset 0.
   Future<void> rotate() async {
+    _currentOffset = 0;
+    _rotationCount++;
+    onRotate?.call(_rotationCount);
     try {
       await _raf?.flush();
     } catch (_) {}
     await _raf?.close();
     _raf = null;
-    _currentOffset = 0;
-    _rotationCount++;
     try {
       if (await _file.exists()) {
         await _file.delete();
@@ -100,17 +110,27 @@ class BodyStore {
 
   /// Resets the file: deletes and recreates it.
   Future<void> resetFile(String dirPath, {String fileName = kFileName}) async {
+    _currentOffset = 0;
+    _rotationCount++;
+    onRotate?.call(_rotationCount);
     try {
       await _raf?.flush();
     } catch (_) {}
     await _raf?.close();
     _raf = null;
-    _currentOffset = 0;
-    _rotationCount++;
     _file = File('$dirPath/$fileName');
     if (await _file.exists()) await _file.delete();
     await _file.create(recursive: true);
     _raf = await _file.open(mode: FileMode.writeOnlyAppend);
+  }
+
+  /// Flushes and closes the open file handle without deleting the backing file.
+  Future<void> close() async {
+    try {
+      await _raf?.flush();
+    } catch (_) {}
+    await _raf?.close();
+    _raf = null;
   }
 
   Future<void> dispose() async {

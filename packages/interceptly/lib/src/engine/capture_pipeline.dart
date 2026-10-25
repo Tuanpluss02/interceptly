@@ -11,6 +11,21 @@ import 'body_store.dart';
 import 'bounded_event_queue.dart';
 import 'writer_isolate.dart';
 
+final Expando<int> _captureGenerationExpando =
+    Expando<int>('captureGeneration');
+
+/// Associates a capture lifecycle object with the active pipeline [generation].
+@internal
+void attachCaptureGeneration(Object target, int? generation) {
+  if (generation != null) {
+    _captureGenerationExpando[target] = generation;
+  }
+}
+
+/// Reads the pipeline generation previously attached to [target], if any.
+@internal
+int? readCaptureGeneration(Object target) => _captureGenerationExpando[target];
+
 /// Pipeline managing pre-initialization queueing, asynchronous isolate writing,
 /// and generation-fenced entry ingestion.
 @internal
@@ -94,7 +109,10 @@ class CapturePipeline {
   int get generation => _generation;
 
   /// Latest file rotation count observed from the writer isolate.
-  int get fileRotationCount => _fileRotationCount;
+  int get fileRotationCount =>
+      _writerIsolate.lastRotationCount > _fileRotationCount
+          ? _writerIsolate.lastRotationCount
+          : _fileRotationCount;
 
   /// Updates settings propagated from session reconfiguration.
   void updateSettings(InterceptlySettings newSettings) {
@@ -174,8 +192,8 @@ class CapturePipeline {
   }
 
   void _processInMemory(RawCapture capture) {
-    if (capture.captureGeneration != null &&
-        capture.captureGeneration != _generation) {
+    final captureGen = readCaptureGeneration(capture);
+    if (captureGen != null && captureGen != _generation) {
       return;
     }
     _onEntryReceived?.call(capture.id);
@@ -250,36 +268,36 @@ class CapturePipeline {
   /// Enqueues a capture directly to isolate or pre-init queue (zero allocation).
   void record(RawCapture capture) {
     if (_isDisposed) return;
-    if (capture.captureGeneration != null &&
-        capture.captureGeneration != _generation) {
+    final existingGen = readCaptureGeneration(capture);
+    if (existingGen != null && existingGen != _generation) {
       return;
     }
 
-    final stamped = capture.captureGeneration != null
-        ? capture
-        : capture.withGeneration(_generation);
+    if (existingGen == null) {
+      attachCaptureGeneration(capture, _generation);
+    }
 
     if (_initFailed || _fallbackMode) {
-      _processInMemory(stamped);
+      _processInMemory(capture);
       return;
     }
 
     if (!_initialized) {
-      _preInitQueue.add(stamped);
+      _preInitQueue.add(capture);
       initialize();
       return;
     }
 
     if (_isRespawning || !_writerIsolate.isReady) {
-      _preInitQueue.add(stamped);
+      _preInitQueue.add(capture);
       return;
     }
 
-    _sendCapture(stamped);
+    _sendCapture(capture);
   }
 
   void _sendCapture(RawCapture capture) {
-    final captureGen = capture.captureGeneration ?? _generation;
+    final captureGen = readCaptureGeneration(capture) ?? _generation;
     if (captureGen != _generation) {
       return;
     }

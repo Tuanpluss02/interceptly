@@ -15,6 +15,7 @@ import 'package:interceptly/src/engine/search_service.dart';
 import 'package:interceptly/src/engine/writer_isolate.dart';
 import 'package:interceptly/src/model/index_entry.dart';
 import 'package:interceptly/src/service_extension/http_extension_handlers.dart';
+import 'package:interceptly/src/ui/search/master_search_controller.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -104,6 +105,93 @@ void main() {
     );
     final rawB = await BodyStore.readBytes(
       '${dir.path}/restart.tmp',
+      after.fileOffset!,
+      after.fileLength!,
+    );
+    expect(BodyDecodeService.unpackToText(rawA).$2, 'AAAA');
+    expect(BodyDecodeService.unpackToText(rawB).$2, 'BBBB');
+  });
+
+  test(
+      'restart before IndexEntry is confirmed on main isolate preserves rotation and never aliases bodies',
+      () async {
+    final writer = WriterIsolate(
+      const InterceptlySettings(bodyOffloadThreshold: 1),
+    );
+    addTearDown(writer.dispose);
+    // 12 bytes = exact packed length of a 4-byte response body ('0000' or 'AAAA').
+    await writer.start(
+      tempDirPath: dir.path,
+      fileName: 'restart_rot.tmp',
+      maxFileBytes: 12,
+    );
+
+    RawCapture capture(String id, String body) => RawCapture(
+          id: id,
+          method: 'GET',
+          url: 'https://example.com/$id',
+          statusCode: 200,
+          durationMs: 1,
+          timestamp: DateTime.now(),
+          requestHeaders: const {},
+          responseHeaders: const {},
+          responseBodyBytes: RawCapture.wrapBytes(
+            Uint8List.fromList(utf8.encode(body)),
+          ),
+        );
+
+    // Fill initial file at rotation 0.
+    final warmupFuture = writer.results.first;
+    writer.send(capture('0', '0000'));
+    final warmup = await warmupFuture;
+    expect(warmup.fileRotationCount, 0);
+
+    // Send A ('AAAA') which triggers file rotation to 1 in the writer isolate,
+    // and immediately call restart BEFORE awaiting A's IndexEntry!
+    final entries = <IndexEntry>[];
+    final sub = writer.results.listen(entries.add);
+    addTearDown(sub.cancel);
+
+    writer.send(capture('A', 'AAAA'));
+    // Spin synchronously until the background isolate has rotated the file on
+    // disk and written 'AAAA', before the main isolate event loop can deliver
+    // A's IndexEntry over ReceivePort.
+    final tempFile = File('${dir.path}/restart_rot.tmp');
+    final deadline = DateTime.now().add(const Duration(seconds: 5));
+    while (DateTime.now().isBefore(deadline)) {
+      try {
+        if (tempFile.existsSync()) {
+          final bytes = tempFile.readAsBytesSync();
+          if (utf8.decode(bytes, allowMalformed: true).contains('AAAA')) {
+            break;
+          }
+        }
+      } catch (_) {}
+    }
+
+    await writer.restart(
+      tempDirPath: dir.path,
+      fileName: 'restart_rot.tmp',
+      maxFileBytes: 24,
+    );
+
+    writer.send(capture('B', 'BBBB'));
+    while (entries.length < 2) {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+
+    final before = entries.firstWhere((e) => e.id == 'A');
+    final after = entries.firstWhere((e) => e.id == 'B');
+
+    expect(before.fileRotationCount, 1);
+    expect(after.fileRotationCount, 1);
+    final rawA = await BodyStore.readBytes(
+      '${dir.path}/restart_rot.tmp',
+      before.fileOffset!,
+      before.fileLength!,
+    );
+    final rawB = await BodyStore.readBytes(
+      '${dir.path}/restart_rot.tmp',
       after.fileOffset!,
       after.fileLength!,
     );
@@ -232,22 +320,40 @@ void main() {
     expect(engine.entries, isEmpty);
   });
 
-  test('RealtimeStore evicts session counts and notifiers within maxSessions',
-      () {
+  test(
+      'RealtimeStore evicts session counts and notifiers within maxSessions while keeping active listeners live',
+      () async {
     final store = RealtimeStore(
       maxFramesPerSession: 10,
       maxTotalRealtimeFrames: 100,
-      maxSessions: 3,
+      maxSessions: 2,
       onThrottledBatch: () {},
     );
     addTearDown(store.dispose);
 
-    // Keep one active listener on session 0 to verify safe disposal handling
+    // Attach an active listener to s_0
     final session0Notifier = store.getFrameCountsNotifier('s_0');
-    void dummyListener() {}
-    session0Notifier.addListener(dummyListener);
+    var listenerUpdates = 0;
+    void activeListener() {
+      listenerUpdates++;
+    }
 
-    for (var i = 0; i < 10; i++) {
+    session0Notifier.addListener(activeListener);
+
+    store.recordFrameSync(
+      RealtimeFrame(
+        id: 'f_0_1',
+        sessionId: 's_0',
+        direction: FrameDirection.incoming,
+        type: FrameType.text,
+        textPayload: 'first',
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    expect(session0Notifier.value.total, 1);
+
+    // Exceed maxSessions with other sessions and notifiers
+    for (var i = 1; i < 6; i++) {
       final sessionId = 's_$i';
       store.getFrameCountsNotifier(sessionId);
       store.recordFrameSync(
@@ -262,12 +368,102 @@ void main() {
       store.markSessionClosed(sessionId);
     }
 
-    expect(store.trackedCountsSessionCount, lessThanOrEqualTo(3));
-    expect(store.trackedNotifierSessionCount, lessThanOrEqualTo(3));
+    // Recording a second frame on s_0 must still update the existing notifier to 2
+    store.recordFrameSync(
+      RealtimeFrame(
+        id: 'f_0_2',
+        sessionId: 's_0',
+        direction: FrameDirection.incoming,
+        type: FrameType.text,
+        textPayload: 'second',
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    expect(session0Notifier.value.total, 2);
+    expect(listenerUpdates, greaterThanOrEqualTo(2));
 
-    // Removing the listener after session_0 was evicted must not throw
+    // Once the listener is removed and s_0 is evicted, counts/notifiers stay bounded
     expect(
-        () => session0Notifier.removeListener(dummyListener), returnsNormally);
+        () => session0Notifier.removeListener(activeListener), returnsNormally);
+    expect(store.trackedCountsSessionCount, lessThanOrEqualTo(2));
+    expect(store.trackedNotifierSessionCount, lessThanOrEqualTo(2));
+  });
+
+  test(
+      'MasterSearchController async inline body search does not resurrect pruned entries or overwrite newer versions',
+      () async {
+    final search = MasterSearchController();
+    addTearDown(search.dispose);
+
+    await search.start(
+      query: 'needle_token',
+      allEntries: const [],
+      filePath: null,
+    );
+
+    final largePrefix = 'x' * (BodyDecodeService.computeThreshold + 1024);
+    final matchingBody =
+        Uint8List.fromList(utf8.encode('$largePrefix needle_token'));
+    final nonMatchingBody =
+        Uint8List.fromList(utf8.encode('$largePrefix nothing_here'));
+
+    IndexEntry buildEntry(String id, Uint8List body, {int statusCode = 200}) =>
+        IndexEntry(
+          id: id,
+          method: 'POST',
+          url: 'https://example.com/$id',
+          statusCode: statusCode,
+          durationMs: 10,
+          timestamp: DateTime.now(),
+          hasError: false,
+          requestSizeBytes: 0,
+          responseSizeBytes: body.length,
+          bodyLocation: BodyLocation.memory,
+          inlineResponseBody: body,
+          responseContentType: 'text/plain',
+          requestTruncation: const BodyTruncation.complete(0),
+          responseTruncation: BodyTruncation.complete(body.length),
+        );
+
+    // 1. Pruned entry while async body check is in flight must not resurrect
+    search.updateOrAddEntry(buildEntry('pruned_req', matchingBody));
+    search.pruneMissing(const <String>{});
+
+    // 2. Newer version of an entry must not be overwritten by stale async body check
+    search.updateOrAddEntry(
+      buildEntry('updated_req', matchingBody, statusCode: 200),
+    );
+    search.updateOrAddEntry(
+      buildEntry('updated_req', nonMatchingBody, statusCode: 201),
+    );
+
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+
+    expect(search.results, isEmpty);
+  });
+
+  test(
+      'SearchService preserves Unicode case-folding semantics (e.g. Kelvin sign K matches k)',
+      () async {
+    final entry = IndexEntry(
+      id: 'unicode_kelvin',
+      method: 'GET',
+      url: 'https://example.com/temp',
+      statusCode: 200,
+      durationMs: 5,
+      timestamp: DateTime.now(),
+      hasError: false,
+      requestSizeBytes: 0,
+      responseSizeBytes: 10,
+      bodyLocation: BodyLocation.memory,
+      inlineResponseBody: Uint8List.fromList(utf8.encode('300\u212A')),
+      responseContentType: 'text/plain',
+      requestTruncation: const BodyTruncation.complete(0),
+      responseTruncation: const BodyTruncation.complete(6),
+    );
+
+    expect(SearchService.matchInlineBody(entry, 'k'), isTrue);
+    expect(await SearchService.matchInlineBodyAsync(entry, 'k'), isTrue);
   });
 
   test('SearchService offloads large in-memory bodies and matches accurately',

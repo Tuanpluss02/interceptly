@@ -275,7 +275,7 @@ class InterceptlyEngine extends ChangeNotifier {
   /// Enqueues [capture] for asynchronous background processing.
   void record(RawCapture capture) {
     final pendingGen = _pendingGenerations.remove(capture.id);
-    final effectiveGen = capture.captureGeneration ?? pendingGen;
+    final effectiveGen = readCaptureGeneration(capture) ?? pendingGen;
     if (effectiveGen != null && effectiveGen != _capturePipeline.generation) {
       return;
     }
@@ -288,9 +288,10 @@ class InterceptlyEngine extends ChangeNotifier {
         return;
       }
     }
-    final stamped =
-        effectiveGen != null ? capture.withGeneration(effectiveGen) : capture;
-    _capturePipeline.record(stamped);
+    if (effectiveGen != null) {
+      attachCaptureGeneration(capture, effectiveGen);
+    }
+    _capturePipeline.record(capture);
   }
 
   /// Inserts an immediate pending request entry before response completion.

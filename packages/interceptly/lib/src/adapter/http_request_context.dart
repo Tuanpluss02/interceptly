@@ -11,7 +11,6 @@ class HttpRequestContext {
     this.requestHeaders = const {},
     this.requestBodyBytes,
     this.requestContentType,
-    this.captureGeneration,
   });
 
   /// Unique identifier for this request lifecycle.
@@ -35,9 +34,6 @@ class HttpRequestContext {
   /// Content-Type header of the request body, if available.
   final String? requestContentType;
 
-  /// Generation fence captured when this request was initiated.
-  final int? captureGeneration;
-
   /// String representation of [uri].
   String get url => uri.toString();
 
@@ -48,7 +44,6 @@ class HttpRequestContext {
     Map<String, String>? requestHeaders,
     Uint8List? requestBodyBytes,
     String? requestContentType,
-    int? captureGeneration,
   }) {
     return HttpRequestContext(
       id: id,
@@ -58,7 +53,6 @@ class HttpRequestContext {
       requestHeaders: requestHeaders ?? this.requestHeaders,
       requestBodyBytes: requestBodyBytes ?? this.requestBodyBytes,
       requestContentType: requestContentType ?? this.requestContentType,
-      captureGeneration: captureGeneration ?? this.captureGeneration,
     );
   }
 }
