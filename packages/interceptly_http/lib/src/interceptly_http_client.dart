@@ -11,6 +11,9 @@ class InterceptlySimulatedClientException extends http.ClientException
 }
 
 /// A drop-in [http.BaseClient] wrapper that captures requests and streaming responses for Interceptly.
+///
+/// Snapshots request headers on capture so later caller mutations cannot
+/// alias retained traffic records.
 class InterceptlyHttpClient extends http.BaseClient {
   /// Wraps [inner] with Interceptly capture.
   InterceptlyHttpClient(
@@ -35,7 +38,7 @@ class InterceptlyHttpClient extends http.BaseClient {
       scope = await collector.begin(
         method: request.method,
         uri: request.url,
-        headers: request.headers,
+        headers: Map.of(request.headers),
         bodyBytes: bodyBytes,
         contentType: request.headers['content-type'],
       );
