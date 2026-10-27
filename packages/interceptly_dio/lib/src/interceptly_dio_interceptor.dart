@@ -18,6 +18,8 @@ class InterceptlyDioInterceptor extends Interceptor {
   static const String _scopeKey = 'interceptly_http_scope';
 
   /// Captures a pending request and applies pre-request simulation.
+  ///
+  /// Snapshots request headers so later mutations cannot alias captured state.
   @override
   Future<void> onRequest(
     RequestOptions options,
@@ -36,7 +38,7 @@ class InterceptlyDioInterceptor extends Interceptor {
       final scope = await collector.begin(
         method: options.method,
         uri: options.uri,
-        headers: normalizeHeaders(options.headers),
+        headers: normalizeHeaders(Map.of(options.headers)),
         bodyBytes: reqBytes,
         contentType: options.contentType,
       );
@@ -63,6 +65,10 @@ class InterceptlyDioInterceptor extends Interceptor {
   }
 
   /// Captures a successful response and applies post-response simulation.
+  ///
+  /// Sizes throttling from encoded body bytes so Map JSON throttles. The
+  /// captured request remains the original outbound tuple; redirect
+  /// destinations are not substituted into it.
   @override
   Future<void> onResponse(
     Response<dynamic> response,
@@ -85,7 +91,8 @@ class InterceptlyDioInterceptor extends Interceptor {
             method: response.requestOptions.method,
             uri: response.requestOptions.uri,
             startedAt: DateTime.now(),
-            requestHeaders: normalizeHeaders(response.requestOptions.headers),
+            requestHeaders:
+                normalizeHeaders(Map.of(response.requestOptions.headers)),
           ),
         );
     response.requestOptions.extra.remove('interceptly_http_context');
@@ -101,31 +108,22 @@ class InterceptlyDioInterceptor extends Interceptor {
         headers: normalizeHeaders(response.headers.map),
         contentType: resContentType,
       );
-      response.data = ResponseBody(
-        boundStream.map(
-            (chunk) => chunk is Uint8List ? chunk : Uint8List.fromList(chunk)),
-        responseBody.statusCode,
-        headers: responseBody.headers,
-        statusMessage: responseBody.statusMessage,
-        isRedirect: responseBody.isRedirect,
-        redirects: responseBody.redirects,
+      responseBody.stream = boundStream.map(
+        (chunk) => chunk is Uint8List ? chunk : Uint8List.fromList(chunk),
       );
       handler.next(response);
       return;
     }
 
-    var contentLength = 0;
-    final contentLengthHeader =
-        response.headers.value(Headers.contentLengthHeader);
-    if (contentLengthHeader != null) {
-      contentLength = int.tryParse(contentLengthHeader) ?? 0;
-    }
+    final resBytes =
+        guardCapture(() => _toBytes(response.data, resContentType));
+
+    var contentLength = resBytes?.length ?? 0;
     if (contentLength <= 0) {
-      final data = response.data;
-      if (data is List<int>) {
-        contentLength = data.length;
-      } else if (data is String) {
-        contentLength = data.length;
+      final contentLengthHeader =
+          response.headers.value(Headers.contentLengthHeader);
+      if (contentLengthHeader != null) {
+        contentLength = int.tryParse(contentLengthHeader) ?? 0;
       }
     }
 
@@ -143,11 +141,9 @@ class InterceptlyDioInterceptor extends Interceptor {
         : null;
     final statusCode = response.statusCode ?? 200;
     final headers = normalizeHeaders(response.headers.map);
-    final responseData = response.data;
 
     unawaited(
       guardCaptureAsync(() async {
-        final resBytes = _toBytes(responseData, resContentType);
         await effectiveScope.complete(
           statusCode: statusCode,
           headers: headers,
@@ -160,6 +156,9 @@ class InterceptlyDioInterceptor extends Interceptor {
   }
 
   /// Captures a Dio failure response or transport error.
+  ///
+  /// The captured request remains the original outbound tuple; redirect
+  /// destinations are not substituted into it.
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
     if (err.error is SimulatedNetworkException) {
@@ -183,7 +182,8 @@ class InterceptlyDioInterceptor extends Interceptor {
             method: err.requestOptions.method,
             uri: err.requestOptions.uri,
             startedAt: DateTime.now(),
-            requestHeaders: normalizeHeaders(err.requestOptions.headers),
+            requestHeaders:
+                normalizeHeaders(Map.of(err.requestOptions.headers)),
           ),
         );
     err.requestOptions.extra.remove('interceptly_http_context');
@@ -192,9 +192,10 @@ class InterceptlyDioInterceptor extends Interceptor {
     final response = err.response;
     if (err.type == DioExceptionType.badResponse && response != null) {
       final resContentType = response.headers.value(Headers.contentTypeHeader);
+      final resBytes =
+          guardCapture(() => _toBytes(response.data, resContentType));
       unawaited(
         guardCaptureAsync(() async {
-          final resBytes = _toBytes(response.data, resContentType);
           await effectiveScope.complete(
             statusCode: response.statusCode ?? 0,
             headers: normalizeHeaders(response.headers.map),
@@ -204,9 +205,19 @@ class InterceptlyDioInterceptor extends Interceptor {
         }),
       );
     } else {
+      if (collector.shouldCapture(err.requestOptions.uri)) {
+        guardCapture(() {
+          effectiveScope.amendRequest(
+            method: err.requestOptions.method,
+            uri: err.requestOptions.uri,
+            headers: normalizeHeaders(Map.of(err.requestOptions.headers)),
+          );
+        });
+      }
       final resContentType = response?.headers.value(Headers.contentTypeHeader);
-      final responseBodyBytes =
-          response != null ? _toBytes(response.data, resContentType) : null;
+      final responseBodyBytes = response != null
+          ? guardCapture(() => _toBytes(response.data, resContentType))
+          : null;
       final responseHeaders =
           response != null ? normalizeHeaders(response.headers.map) : null;
 
