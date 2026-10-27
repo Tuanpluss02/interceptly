@@ -108,11 +108,16 @@ class AppDiscovery {
 
     final dtdUriStr = dtdUri?.toString() ?? environment?['DTD_URI'];
     if (dtdUriStr != null && dtdUriStr.trim().isNotEmpty) {
-      final discoveredFromDtd = await _queryDtdForInterceptlyApp(
-        Uri.parse(dtdUriStr.trim()),
-      );
-      if (discoveredFromDtd != null) {
-        return discoveredFromDtd;
+      final apps = await _queryDtdCandidates(Uri.parse(dtdUriStr.trim()));
+      final uniqueByUri = <Uri, DiscoveredApp>{};
+      for (final app in apps) {
+        uniqueByUri.putIfAbsent(app.uri, () => app);
+      }
+      if (uniqueByUri.length > 1) {
+        throw MultipleAppsException(apps);
+      }
+      if (uniqueByUri.length == 1) {
+        return uniqueByUri.values.first.uri;
       }
     }
 
@@ -135,59 +140,87 @@ class AppDiscovery {
     final commandLines = await scanner.getRunningCommandLines();
     if (commandLines.isEmpty) return null;
 
+    final candidates = <DiscoveredApp>[];
+    final probedUris = <Uri>{};
+
     for (final dtdUri in scanner.extractDtdUris(commandLines)) {
       if (!isLoopbackUri(dtdUri)) continue;
-      final uri = await _queryDtdForInterceptlyApp(dtdUri);
-      if (uri != null) return uri;
+      final apps = await _queryDtdCandidates(dtdUri);
+      for (final app in apps) {
+        if (probedUris.add(app.uri)) {
+          candidates.add(app);
+        }
+      }
     }
 
     for (final ddsUri in scanner.extractDdsUris(commandLines)) {
       if (!isLoopbackUri(ddsUri)) continue;
       final wsUri = normalizeWsUri(ddsUri);
-      if (await _hasInterceptlyExtension(wsUri)) {
-        logStderr(
-          'Auto-discovered Interceptly app via running DDS process ($wsUri).',
-        );
-        return wsUri;
+      if (probedUris.add(wsUri)) {
+        final apps = await _probeCandidates(wsUri);
+        candidates.addAll(apps);
       }
     }
 
-    return null;
+    if (candidates.isEmpty) return null;
+
+    // Deduplicate distinct apps by URI
+    final uniqueByUri = <Uri, DiscoveredApp>{};
+    for (final c in candidates) {
+      uniqueByUri.putIfAbsent(c.uri, () => c);
+    }
+
+    if (uniqueByUri.length > 1) {
+      throw MultipleAppsException(candidates);
+    }
+
+    final single = uniqueByUri.values.first;
+    logStderr('Auto-discovered Interceptly app (${single.uri}).');
+    return single.uri;
   }
 
   /// Queries a DTD daemon at [dtdUri] for registered VM Services hosting Interceptly.
-  static Future<Uri?> _queryDtdForInterceptlyApp(Uri dtdUri) async {
-    if (!isLoopbackUri(dtdUri)) return null;
+  static Future<List<DiscoveredApp>> _queryDtdCandidates(Uri dtdUri) async {
+    if (!isLoopbackUri(dtdUri)) return const [];
     try {
-      final dtd = await DartToolingDaemon.connect(dtdUri);
-      final response = await dtd.getVmServices();
-      await dtd.close();
-
-      for (final info in response.vmServicesInfos) {
-        final rawUri = Uri.tryParse(info.uri);
-        if (rawUri == null || !isLoopbackUri(rawUri)) continue;
-
-        final wsUri = normalizeWsUri(rawUri);
-        if (await _hasInterceptlyExtension(wsUri)) {
-          logStderr(
-            'Auto-discovered Interceptly app via DTD ($dtdUri -> $wsUri).',
-          );
-          return wsUri;
+      final dtd = await DartToolingDaemon.connect(
+        dtdUri,
+      ).timeout(const Duration(seconds: 2));
+      try {
+        final response = await dtd.getVmServices();
+        final apps = <DiscoveredApp>[];
+        for (final info in response.vmServicesInfos) {
+          final rawUri = Uri.tryParse(info.uri);
+          if (rawUri == null || !isLoopbackUri(rawUri)) continue;
+          final wsUri = normalizeWsUri(rawUri);
+          final candidates = await _probeCandidates(wsUri);
+          apps.addAll(candidates);
         }
+        return apps;
+      } finally {
+        await dtd.close();
       }
-    } catch (_) {}
-    return null;
+    } catch (_) {
+      return const [];
+    }
   }
 
-  /// Verifies if a VM Service at [wsUri] hosts an isolate with `ext.interceptly.ping`.
-  static Future<bool> _hasInterceptlyExtension(Uri wsUri) async {
+  /// Probes [wsUri] to discover isolates advertising `ext.interceptly.ping`.
+  static Future<List<DiscoveredApp>> _probeCandidates(Uri wsUri) async {
     try {
-      final service = await vmServiceConnectUri(wsUri.toString());
-      final candidates = await findCandidates(service, targetUri: wsUri);
-      await service.dispose();
-      return candidates.isNotEmpty;
+      final service = await vmServiceConnectUri(
+        wsUri.toString(),
+      ).timeout(const Duration(seconds: 2));
+      try {
+        return await findCandidates(
+          service,
+          targetUri: wsUri,
+        ).timeout(const Duration(seconds: 2));
+      } finally {
+        await service.dispose();
+      }
     } catch (_) {
-      return false;
+      return const [];
     }
   }
 

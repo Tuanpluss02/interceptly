@@ -102,9 +102,17 @@ base class InterceptlyMcpServer extends MCPServer
           description:
               'Whether to search within request and response bodies (default: true). Set to false for metadata-only search.',
         ),
-        'limit': Schema.int(
-          description:
-              'Maximum number of requests to return (default: 20, max: 100).',
+        'limit': Schema.combined(
+          anyOf: [
+            Schema.int(
+              description:
+                  'Maximum number of requests to return (default: 20, max: 100).',
+            ),
+            Schema.string(
+              description:
+                  'Maximum number of requests to return as a numeric string.',
+            ),
+          ],
         ),
       },
     ),
@@ -131,13 +139,25 @@ base class InterceptlyMcpServer extends MCPServer
             'response_headers',
           ],
         ),
-        'max_chars': Schema.int(
-          description:
-              'Maximum characters to return for body payloads before truncating. Default: 4000.',
+        'max_chars': Schema.combined(
+          anyOf: [
+            Schema.int(
+              description:
+                  'Maximum characters to return for body payloads before truncating. Default: 4000.',
+            ),
+            Schema.string(
+              description: 'Maximum characters as a numeric string.',
+            ),
+          ],
         ),
-        'offset': Schema.int(
-          description:
-              'Starting character offset for reading large or truncated body content.',
+        'offset': Schema.combined(
+          anyOf: [
+            Schema.int(
+              description:
+                  'Starting character offset for reading large or truncated body content.',
+            ),
+            Schema.string(description: 'Starting offset as a numeric string.'),
+          ],
         ),
       },
       required: ['id'],
@@ -168,9 +188,14 @@ base class InterceptlyMcpServer extends MCPServer
           description:
               'Return only frames with an ID cursor strictly after this value for forward pagination.',
         ),
-        'limit': Schema.int(
-          description:
-              'Maximum number of frames to return (default: 50, max: 200).',
+        'limit': Schema.combined(
+          anyOf: [
+            Schema.int(
+              description:
+                  'Maximum number of frames to return (default: 50, max: 200).',
+            ),
+            Schema.string(description: 'Maximum frames as a numeric string.'),
+          ],
         ),
       },
     ),
@@ -188,13 +213,25 @@ base class InterceptlyMcpServer extends MCPServer
         'frame_id': Schema.string(
           description: 'The unique ID of the frame to inspect.',
         ),
-        'max_chars': Schema.int(
-          description:
-              'Maximum characters to return for the payload before truncating. Default: 4000.',
+        'max_chars': Schema.combined(
+          anyOf: [
+            Schema.int(
+              description:
+                  'Maximum characters to return for the payload before truncating. Default: 4000.',
+            ),
+            Schema.string(
+              description: 'Maximum characters as a numeric string.',
+            ),
+          ],
         ),
-        'offset': Schema.int(
-          description:
-              'Starting character offset for reading large or truncated payload content.',
+        'offset': Schema.combined(
+          anyOf: [
+            Schema.int(
+              description:
+                  'Starting character offset for reading large or truncated payload content.',
+            ),
+            Schema.string(description: 'Starting offset as a numeric string.'),
+          ],
         ),
       },
       required: ['session_id', 'frame_id'],
@@ -225,14 +262,25 @@ base class InterceptlyMcpServer extends MCPServer
         'offline': Schema.bool(
           description: 'If true, simulates complete network failure (offline).',
         ),
-        'latency_ms': Schema.int(
-          description: 'Simulated network delay in milliseconds.',
+        'latency_ms': Schema.combined(
+          anyOf: [
+            Schema.int(description: 'Simulated network delay in milliseconds.'),
+            Schema.string(description: 'Latency as a numeric string.'),
+          ],
         ),
-        'download_kbps': Schema.int(
-          description: 'Simulated download bandwidth in Kbps.',
+        'download_kbps': Schema.combined(
+          anyOf: [
+            Schema.int(description: 'Simulated download bandwidth in Kbps.'),
+            Schema.string(
+              description: 'Download bandwidth as a numeric string.',
+            ),
+          ],
         ),
-        'upload_kbps': Schema.int(
-          description: 'Simulated upload bandwidth in Kbps.',
+        'upload_kbps': Schema.combined(
+          anyOf: [
+            Schema.int(description: 'Simulated upload bandwidth in Kbps.'),
+            Schema.string(description: 'Upload bandwidth as a numeric string.'),
+          ],
         ),
       },
     ),
@@ -320,10 +368,14 @@ base class InterceptlyMcpServer extends MCPServer
       if (request.arguments?['search'] case final String search) {
         args['search'] = search;
       }
-      if (request.arguments?['search_body'] case final bool searchBody) {
-        args['search_body'] = searchBody.toString();
+      if (request.arguments?['search_body'] != null) {
+        final raw = request.arguments!['search_body'];
+        args['search_body'] =
+            (raw is bool) ? raw.toString() : raw.toString().toLowerCase();
       }
-      if (request.arguments?['limit'] case final int limit) {
+      final limit = _coerceInt(request.arguments?['limit'], name: 'limit');
+      if (limit != null) {
+        _requireRange(limit, 1, 100, 'limit');
         args['limit'] = limit.toString();
       }
 
@@ -356,10 +408,17 @@ base class InterceptlyMcpServer extends MCPServer
       if (request.arguments?['part'] case final String part) {
         args['part'] = part;
       }
-      if (request.arguments?['max_chars'] case final int maxChars) {
+      final maxChars = _coerceInt(
+        request.arguments?['max_chars'],
+        name: 'max_chars',
+      );
+      if (maxChars != null) {
+        _requireRange(maxChars, 1, 100000, 'max_chars');
         args['max_chars'] = maxChars.toString();
       }
-      if (request.arguments?['offset'] case final int offset) {
+      final offset = _coerceInt(request.arguments?['offset'], name: 'offset');
+      if (offset != null) {
+        _requireRange(offset, 0, 10000000, 'offset');
         args['offset'] = offset.toString();
       }
 
@@ -401,8 +460,10 @@ base class InterceptlyMcpServer extends MCPServer
       if (request.arguments?['since_id'] case final String sinceId) {
         args['since_id'] = sinceId;
       }
-      if (request.arguments?['limit'] case final int limit) {
-        args['limit'] = limit.toString();
+      final frameLimit = _coerceInt(request.arguments?['limit'], name: 'limit');
+      if (frameLimit != null) {
+        _requireRange(frameLimit, 1, 200, 'limit');
+        args['limit'] = frameLimit.toString();
       }
 
       final res = await vmServiceClient.invoke(
@@ -439,11 +500,21 @@ base class InterceptlyMcpServer extends MCPServer
         'session_id': sessionId.toString(),
         'frame_id': frameId.toString(),
       };
-      if (request.arguments?['max_chars'] case final int maxChars) {
-        args['max_chars'] = maxChars.toString();
+      final frameMax = _coerceInt(
+        request.arguments?['max_chars'],
+        name: 'max_chars',
+      );
+      if (frameMax != null) {
+        _requireRange(frameMax, 1, 100000, 'max_chars');
+        args['max_chars'] = frameMax.toString();
       }
-      if (request.arguments?['offset'] case final int offset) {
-        args['offset'] = offset.toString();
+      final frameOffset = _coerceInt(
+        request.arguments?['offset'],
+        name: 'offset',
+      );
+      if (frameOffset != null) {
+        _requireRange(frameOffset, 0, 10000000, 'offset');
+        args['offset'] = frameOffset.toString();
       }
 
       final res = await vmServiceClient.invoke(
@@ -495,20 +566,41 @@ base class InterceptlyMcpServer extends MCPServer
       if (request.arguments?['profile'] case final String profile) {
         args['profile'] = profile;
       }
-      if (request.arguments?['enabled'] case final bool enabled) {
-        args['enabled'] = enabled.toString();
+      if (request.arguments?['enabled'] != null) {
+        final raw = request.arguments!['enabled'];
+        final asBool =
+            raw is bool ? raw : raw.toString().toLowerCase() == 'true';
+        args['enabled'] = asBool.toString();
       }
-      if (request.arguments?['offline'] case final bool offline) {
-        args['offline'] = offline.toString();
+      if (request.arguments?['offline'] != null) {
+        final raw = request.arguments!['offline'];
+        final asBool =
+            raw is bool ? raw : raw.toString().toLowerCase() == 'true';
+        args['offline'] = asBool.toString();
       }
-      if (request.arguments?['latency_ms'] case final int latencyMs) {
-        args['latency_ms'] = latencyMs.toString();
+      final latency = _coerceInt(
+        request.arguments?['latency_ms'],
+        name: 'latency_ms',
+      );
+      if (latency != null) {
+        _requireRange(latency, 0, 60000, 'latency_ms');
+        args['latency_ms'] = latency.toString();
       }
-      if (request.arguments?['download_kbps'] case final int downloadKbps) {
-        args['download_kbps'] = downloadKbps.toString();
+      final down = _coerceInt(
+        request.arguments?['download_kbps'],
+        name: 'download_kbps',
+      );
+      if (down != null) {
+        _requireRange(down, 0, 1000000, 'download_kbps');
+        args['download_kbps'] = down.toString();
       }
-      if (request.arguments?['upload_kbps'] case final int uploadKbps) {
-        args['upload_kbps'] = uploadKbps.toString();
+      final up = _coerceInt(
+        request.arguments?['upload_kbps'],
+        name: 'upload_kbps',
+      );
+      if (up != null) {
+        _requireRange(up, 0, 1000000, 'upload_kbps');
+        args['upload_kbps'] = up.toString();
       }
 
       final res = await vmServiceClient.invoke(
@@ -558,9 +650,12 @@ base class InterceptlyMcpServer extends MCPServer
         );
       }
 
-      final res = await vmServiceClient.invoke('ext.interceptly.exportCurl', {
-        'id': id.toString(),
-      });
+      final args = <String, String>{'id': id.toString()};
+
+      final res = await vmServiceClient.invoke(
+        'ext.interceptly.exportCurl',
+        args,
+      );
       final curl = res['curl'] as String? ?? '';
       return CallToolResult(content: [TextContent(text: curl)]);
     } catch (e) {
@@ -572,8 +667,15 @@ base class InterceptlyMcpServer extends MCPServer
   }
 
   Future<CallToolResult> _handleConnectApp(CallToolRequest request) async {
-    final uriStr = request.arguments?['uri'] as String?;
-    if (uriStr == null || uriStr.trim().isEmpty) {
+    final uriArg = request.arguments?['uri'];
+    if (uriArg == null) {
+      return CallToolResult(
+        content: [TextContent(text: 'Missing required argument: uri')],
+        isError: true,
+      );
+    }
+    final uriStr = uriArg.toString().trim();
+    if (uriStr.isEmpty) {
       return CallToolResult(
         content: [TextContent(text: 'Missing required argument: uri')],
         isError: true,
@@ -608,6 +710,34 @@ base class InterceptlyMcpServer extends MCPServer
       return CallToolResult(
         content: [TextContent(text: 'Failed to connect to $uriStr: $e')],
         isError: true,
+      );
+    }
+  }
+
+  /// Coerces string or numeric MCP arguments to `int`.
+  ///
+  /// Accepts `int`, numeric strings, and doubles with integral values.
+  /// Returns null when [raw] is null so optional arguments stay unset.
+  int? _coerceInt(Object? raw, {required String name}) {
+    if (raw == null) return null;
+    if (raw is int) return raw;
+    if (raw is double) {
+      if (raw == raw.truncateToDouble()) return raw.toInt();
+      throw ArgumentError('Invalid integer for $name: $raw');
+    }
+    final parsed = int.tryParse(raw.toString().trim());
+    if (parsed == null) {
+      throw ArgumentError('Invalid integer for $name: $raw');
+    }
+    return parsed;
+  }
+
+  /// Validates that [value] lies within `[min, max]`.
+  void _requireRange(int value, int min, int max, String name) {
+    if (value < min || value > max) {
+      throw ArgumentError(
+        'Out of range for $name: $value '
+        'expected $min..$max',
       );
     }
   }
