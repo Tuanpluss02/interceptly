@@ -31,6 +31,9 @@ typedef _AnyEventHandler = dynamic Function(
 
 /// Tracks an active [Socket] connection, listening for incoming and outgoing events
 /// and connection lifecycle changes for the Interceptly inspector.
+///
+/// Connection errors are recorded as incoming frames so the session stays
+/// observable and reconnectable instead of closing on transient failures.
 class InterceptlySocketIoTracker {
   /// The underlying Socket.IO client being tracked.
   final Socket socket;
@@ -237,7 +240,10 @@ class InterceptlySocketIoTracker {
     if (_isDetached) return;
     guardCapture(() {
       if (!_scope.isClosed) {
-        _scope.close(code: 1006, reason: error?.toString());
+        _scope.receive(
+          error?.toString() ?? 'connect_error',
+          eventName: 'connect_error',
+        );
       }
     });
   }
