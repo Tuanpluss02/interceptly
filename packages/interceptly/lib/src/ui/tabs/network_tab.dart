@@ -19,6 +19,12 @@ import 'quick_filter_bar.dart';
 
 part 'network_tab_widgets.dart';
 
+/// Maximum rows included in a single bulk Postman export.
+///
+/// Selections larger than this are truncated with a user notice to keep
+/// encoding and file I/O responsive.
+const int kMaxBulkExportItems = 50;
+
 /// REST-only traffic list with search, quick filters, grouping and export.
 class NetworkTab extends StatefulWidget {
   /// Creates a REST-only list.
@@ -40,12 +46,18 @@ class NetworkTab extends StatefulWidget {
 
 class _NetworkTabState extends State<NetworkTab> {
   late TextEditingController _searchController;
+  Timer? _searchDebounce;
 
   bool _isSelectionMode = false;
   final Set<String> _selectedIds = {};
   bool _isExporting = false;
   final Map<String, String> _displayUrlCache = {};
   bool? _cachedUrlDecodeSetting;
+  List<RequestSummary>? _cachedRestSource;
+  List<RequestSummary>? _cachedRestResult;
+
+  /// Maximum number of rows included in a single bulk export.
+  static const int maxBulkExportItems = kMaxBulkExportItems;
 
   @override
   void initState() {
@@ -55,7 +67,11 @@ class _NetworkTabState extends State<NetworkTab> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
+    _searchDebounce = null;
     _displayUrlCache.clear();
+    _cachedRestSource = null;
+    _cachedRestResult = null;
     _searchController.dispose();
     super.dispose();
   }
@@ -120,9 +136,12 @@ class _NetworkTabState extends State<NetworkTab> {
     });
   }
 
-  /// Exports selected rows to Postman in chunks of ten.
-  Future<void> _exportSelectedAsPostman(
-      InterceptlyScopeController scope) async {
+  /// Exports selected rows to Postman, capped at [maxItems].
+  ///
+  /// The cap keeps large selections responsive and avoids blocking the UI
+  /// thread. A notice is shown when the selection exceeds the cap.
+  Future<void> _exportSelectedAsPostman(InterceptlyScopeController scope,
+      {int maxItems = maxBulkExportItems}) async {
     if (_selectedIds.isEmpty || _isExporting) return;
     setState(() => _isExporting = true);
 
@@ -130,12 +149,21 @@ class _NetworkTabState extends State<NetworkTab> {
       final allEntries = scope.entries;
       final selectedEntries =
           allEntries.where((e) => _selectedIds.contains(e.id)).toList();
+      final cappedEntries = selectedEntries.length > maxItems
+          ? selectedEntries.sublist(0, maxItems)
+          : selectedEntries;
+      if (selectedEntries.length > maxItems && mounted) {
+        ToastNotification.show(
+          'Selection capped at $maxItems items',
+          contextHint: context,
+        );
+      }
 
       final List<RequestRecord> records = [];
-      for (var i = 0; i < selectedEntries.length; i += 10) {
+      for (var i = 0; i < cappedEntries.length; i += 10) {
         final end =
-            (i + 10 < selectedEntries.length) ? i + 10 : selectedEntries.length;
-        final chunk = selectedEntries.sublist(i, end);
+            (i + 10 < cappedEntries.length) ? i + 10 : cappedEntries.length;
+        final chunk = cappedEntries.sublist(i, end);
         final chunkRecords = await Future.wait(
           chunk.map((entry) => scope.loadDetailById(entry.id)),
         );
@@ -163,7 +191,8 @@ class _NetworkTabState extends State<NetworkTab> {
   Widget build(BuildContext context) {
     final scope = InterceptlyScope.of(context);
     final queryText = scope.masterQuery ?? '';
-    if (_searchController.text != queryText) {
+    final isDebouncing = _searchDebounce?.isActive ?? false;
+    if (!isDebouncing && _searchController.text != queryText) {
       _searchController.value = TextEditingValue(
         text: queryText,
         selection: TextSelection.collapsed(offset: queryText.length),
@@ -191,12 +220,17 @@ class _NetworkTabState extends State<NetworkTab> {
                 controller: _searchController,
                 activeFiltersCount: scope.filter.activeFilterCount,
                 onChanged: (value) {
-                  final q = value.trim();
-                  if (q.isEmpty) {
-                    scope.cancelMasterSearch();
-                  } else {
-                    scope.startMasterSearch(q);
-                  }
+                  _searchDebounce?.cancel();
+                  _searchDebounce =
+                      Timer(const Duration(milliseconds: 250), () {
+                    if (!mounted) return;
+                    final q = value.trim();
+                    if (q.isEmpty) {
+                      scope.cancelMasterSearch();
+                    } else {
+                      scope.startMasterSearch(q);
+                    }
+                  });
                 },
                 onShowFilter: widget.onShowFilterPanel,
               ),
@@ -222,8 +256,17 @@ class _NetworkTabState extends State<NetworkTab> {
   }
 
   /// Drops realtime connections so only REST exchanges render.
+  ///
+  /// Results are memoized by source identity so repeated builds with an
+  /// unchanged entry list avoid re-filtering on every frame.
   List<RequestSummary> _restOnly(List<RequestSummary> list) {
-    return list.where((e) => !e.isRealtime).toList();
+    if (identical(list, _cachedRestSource) && _cachedRestResult != null) {
+      return _cachedRestResult!;
+    }
+    final result = list.where((e) => !e.isRealtime).toList();
+    _cachedRestSource = list;
+    _cachedRestResult = result;
+    return result;
   }
 
   /// Empty-state copy for the REST-only list.

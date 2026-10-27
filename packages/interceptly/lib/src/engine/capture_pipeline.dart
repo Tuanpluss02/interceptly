@@ -9,22 +9,8 @@ import '../model/interceptly_settings.dart';
 import '../model/raw_capture.dart';
 import 'body_store.dart';
 import 'bounded_event_queue.dart';
+import 'capture_generation.dart';
 import 'writer_isolate.dart';
-
-final Expando<int> _captureGenerationExpando =
-    Expando<int>('captureGeneration');
-
-/// Associates a capture lifecycle object with the active pipeline [generation].
-@internal
-void attachCaptureGeneration(Object target, int? generation) {
-  if (generation != null) {
-    _captureGenerationExpando[target] = generation;
-  }
-}
-
-/// Reads the pipeline generation previously attached to [target], if any.
-@internal
-int? readCaptureGeneration(Object target) => _captureGenerationExpando[target];
 
 /// Pipeline managing pre-initialization queueing, asynchronous isolate writing,
 /// and generation-fenced entry ingestion.
@@ -92,9 +78,13 @@ class CapturePipeline {
   String? get tempFilePath => _tempFilePath;
 
   /// Number of captures dropped due to queue saturation or isolate failure.
+  ///
+  /// Folds the pre-init queue overflow counter and the writer restart
+  /// overflow counter so saturation is visible in one place.
   int get droppedCount =>
       _droppedCount +
-      (_initialized || isDegraded ? 0 : _preInitQueue.droppedCount);
+      _preInitQueue.droppedCount +
+      _writerIsolate.restartDroppedCount;
 
   /// Number of captures currently dispatched to the writer isolate.
   int get inFlight => _inFlight;
@@ -138,7 +128,6 @@ class CapturePipeline {
         final dir = await getTemporaryDirectory();
         if (_isDisposed) return;
         dirPath = dir.path;
-        _tempFilePath = '$dirPath/$fileName';
 
         await BodyStore.purgeOrphanedTempFiles(
           dirPath,
@@ -149,6 +138,8 @@ class CapturePipeline {
       } else {
         dirPath = Directory.systemTemp.path;
       }
+
+      _tempFilePath = '$dirPath/$fileName';
 
       await _writerIsolate.start(tempDirPath: dirPath, fileName: fileName);
       if (_isDisposed) {
@@ -161,8 +152,10 @@ class CapturePipeline {
       _resultSub = _writerIsolate.results.listen(_handleEntryReady);
       _eventSub = _writerIsolate.events.listen(_handleIsolateEvent);
       _initialized = true;
+      _initFailed = false;
 
       _droppedCount += _preInitQueue.droppedCount;
+      _preInitQueue.resetDroppedCount();
       while (true) {
         final pending = _preInitQueue.removeFirstOrNull();
         if (pending == null) break;
@@ -171,6 +164,7 @@ class CapturePipeline {
     } catch (error, stackTrace) {
       if (_isDisposed) return;
       _initFailed = true;
+      _initFuture = null;
       _drainPreInitQueueToFallback();
       if (kDebugMode) {
         debugPrint(
@@ -183,6 +177,7 @@ class CapturePipeline {
   void _drainPreInitQueueToFallback() {
     if (!_initialized) {
       _droppedCount += _preInitQueue.droppedCount;
+      _preInitQueue.resetDroppedCount();
     }
     while (true) {
       final pending = _preInitQueue.removeFirstOrNull();
@@ -212,6 +207,10 @@ class CapturePipeline {
   void _handleIsolateEvent(WriterIsolateEvent event) {
     if (_isDisposed || _isRespawning || _fallbackMode) return;
 
+    _droppedCount += _inFlight;
+    for (final id in _sentGenerations.keys) {
+      _onEntryReceived?.call(id);
+    }
     _inFlight = 0;
     _inFlightBytes = 0;
     _sentBytes.clear();
@@ -237,8 +236,9 @@ class CapturePipeline {
         fileName: fileName,
       );
       if (_isDisposed) return;
-      _isRespawning = false;
 
+      _droppedCount += _preInitQueue.droppedCount;
+      _preInitQueue.resetDroppedCount();
       while (true) {
         final pending = _preInitQueue.removeFirstOrNull();
         if (pending == null) break;
@@ -283,13 +283,19 @@ class CapturePipeline {
     }
 
     if (!_initialized) {
-      _preInitQueue.add(capture);
+      final evicted = _preInitQueue.add(capture);
+      if (evicted != null) {
+        _onEntryReceived?.call(evicted.id);
+      }
       initialize();
       return;
     }
 
     if (_isRespawning || !_writerIsolate.isReady) {
-      _preInitQueue.add(capture);
+      final evicted = _preInitQueue.add(capture);
+      if (evicted != null) {
+        _onEntryReceived?.call(evicted.id);
+      }
       return;
     }
 
@@ -304,6 +310,7 @@ class CapturePipeline {
     if (_inFlight >= _settings.maxQueuedEvents ||
         _inFlightBytes >= maxInFlightBytes) {
       _droppedCount++;
+      _onEntryReceived?.call(capture.id);
       return;
     }
     final captureBytes = _computeCaptureBytes(capture);
@@ -319,10 +326,18 @@ class CapturePipeline {
       _inFlightBytes = rem > 0 ? rem : 0;
       _sentBytes.remove(capture.id);
       _sentGenerations.remove(capture.id);
-      _preInitQueue.add(capture);
+      final evicted = _preInitQueue.add(capture);
+      if (evicted != null) {
+        _onEntryReceived?.call(evicted.id);
+      }
     }
   }
 
+  /// Handles a decoded entry from the writer isolate.
+  ///
+  /// Strict fence: a missing generation means the entry was fenced by
+  /// clear/respawn and must drop. Do NOT relax to a nullable check —
+  /// that resurrects pre-clear entries.
   void _handleEntryReady(IndexEntry entry) {
     if (_inFlight > 0) {
       _inFlight--;
@@ -344,10 +359,23 @@ class CapturePipeline {
     _onEntryReady(entry);
   }
 
-  /// Clears queue and counters synchronously when isolate is not initialized.
+  /// Clears queued and in-flight items, fencing stale entries by generation.
+  ///
+  /// Queued overflow drops and restart overflow drops are folded into
+  /// [_droppedCount] before the queues are discarded, and every discarded
+  /// entry notifies [_onEntryReceived] so pending timers never fire as
+  /// phantom timeouts. The cumulative drop counter is preserved across
+  /// clears as a lifetime diagnostic.
   void clearSync() {
+    _droppedCount += _preInitQueue.droppedCount;
+    _droppedCount += _writerIsolate.restartDroppedCount;
+    while (true) {
+      final pending = _preInitQueue.removeFirstOrNull();
+      if (pending == null) break;
+      _onEntryReceived?.call(pending.id);
+    }
     _preInitQueue.clear();
-    _droppedCount = 0;
+    _writerIsolate.resetRestartDroppedCount();
     _generation++;
     _sentGenerations.clear();
     _sentBytes.clear();
@@ -356,6 +384,10 @@ class CapturePipeline {
   }
 
   /// Clears in-flight and queued items, bumping generation to drop stale entries.
+  ///
+  /// `clear-wins` linearization: writes racing clear are fenced and dropped.
+  /// Double bump is intentional — second fence drops entries recorded during
+  /// `await writer.clear()` so `engine.entries` is empty after `await clear()`.
   Future<void> clear() async {
     clearSync();
     if (_initialized && !_fallbackMode) {
@@ -365,8 +397,20 @@ class CapturePipeline {
   }
 
   /// Disposes background writer isolate and associated stream subscriptions.
+  ///
+  /// Fences a concurrent [initialize] with a generation bump and awaits the
+  /// in-flight init (if any) before teardown, so late init continuations
+  /// cannot resurrect subscriptions or mark the pipeline initialized.
   Future<void> dispose() async {
+    if (_isDisposed) return;
     _isDisposed = true;
+    _generation++;
+    final pendingInit = _initFuture;
+    if (pendingInit != null) {
+      try {
+        await pendingInit;
+      } catch (_) {}
+    }
     _preInitQueue.clear();
     await _eventSub?.cancel();
     _eventSub = null;

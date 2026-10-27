@@ -101,12 +101,14 @@ class MasterSearchController extends ChangeNotifier {
   /// Starts a progressive search over [allEntries].
   ///
   /// [filePath] is the temp file path for file-backed bodies; pass `null` to
-  /// skip Phase 3.
+  /// skip Phase 3. Progressive results preserve dynamically added or updated
+  /// entries that occurred after the `start()` snapshot.
   Future<void> start({
     required String query,
     required List<IndexEntry> allEntries,
     required String? filePath,
     int? currentFileRotationCount,
+    int? Function()? fileRotationCountProvider,
   }) async {
     if (_isDisposed) return;
     final trimmed = query.trim();
@@ -136,6 +138,7 @@ class MasterSearchController extends ChangeNotifier {
         query: trimmed,
         filePath: filePath,
         fileRotationCount: currentFileRotationCount,
+        fileRotationCountProvider: fileRotationCountProvider,
         onPhaseChange: (phase) {
           if (gen != _generation || _isDisposed) return;
           switch (phase) {
@@ -165,7 +168,6 @@ class MasterSearchController extends ChangeNotifier {
           final updatedList = <IndexEntry>[];
           final seenIds = <String>{};
 
-          // Preserve dynamically added/updated entries that occurred after start() snapshot
           if (_results != null && snapshotIds != null) {
             for (final existing in _results!) {
               final id = existing.id;
@@ -251,12 +253,14 @@ class MasterSearchController extends ChangeNotifier {
         } else {
           _results!.insert(0, entry);
         }
+        _matchScopes[entry.id] = scopes;
+        _notifyThrottled(force: true);
       } else {
         _results!.insert(0, entry);
         _matchedIds.add(entry.id);
+        _matchScopes[entry.id] = scopes;
+        _notifyThrottled();
       }
-      _matchScopes[entry.id] = scopes;
-      _notifyThrottled();
     } else if (!offloadInline) {
       if (isExisting) {
         _results!.removeWhere((e) => e.id == entry.id);
@@ -274,39 +278,52 @@ class MasterSearchController extends ChangeNotifier {
     if (offloadInline) {
       final gen = _generation;
       final queryLower = query.trim().toLowerCase();
-      unawaited(
-        SearchService.matchInlineBodyAsync(entry, queryLower).then((matched) {
-          if (_isDisposed ||
-              gen != _generation ||
-              _results == null ||
-              !identical(_pendingAsyncEntries[entry.id], entry)) {
-            return;
+      unawaited(() async {
+        bool matched;
+        try {
+          matched = await SearchService.matchInlineBodyAsync(
+            entry,
+            queryLower,
+          );
+        } catch (e) {
+          if (e is Error && e is! StateError) rethrow;
+          if (!_isDisposed &&
+              gen == _generation &&
+              identical(_pendingAsyncEntries[entry.id], entry)) {
+            _pendingAsyncEntries.remove(entry.id);
           }
-          _pendingAsyncEntries.remove(entry.id);
-          final currentlyExisting = _matchedIds.contains(entry.id);
-          if (matched) {
-            if (currentlyExisting) {
-              final idx = _results!.indexWhere((e) => e.id == entry.id);
-              if (idx >= 0) {
-                _results![idx] = entry;
-              } else {
-                _results!.insert(0, entry);
-              }
+          return;
+        }
+        if (_isDisposed ||
+            gen != _generation ||
+            _results == null ||
+            !identical(_pendingAsyncEntries[entry.id], entry)) {
+          return;
+        }
+        _pendingAsyncEntries.remove(entry.id);
+        final currentlyExisting = _matchedIds.contains(entry.id);
+        if (matched) {
+          if (currentlyExisting) {
+            final idx = _results!.indexWhere((e) => e.id == entry.id);
+            if (idx >= 0) {
+              _results![idx] = entry;
             } else {
               _results!.insert(0, entry);
-              _matchedIds.add(entry.id);
             }
-            (_matchScopes[entry.id] ??= <SearchMatchScope>{})
-                .add(SearchMatchScope.body);
-            _notifyThrottled();
-          } else if (scopes.isEmpty && currentlyExisting) {
-            _results!.removeWhere((e) => e.id == entry.id);
-            _matchedIds.remove(entry.id);
-            _matchScopes.remove(entry.id);
-            _notifyThrottled();
+          } else {
+            _results!.insert(0, entry);
+            _matchedIds.add(entry.id);
           }
-        }),
-      );
+          (_matchScopes[entry.id] ??= <SearchMatchScope>{})
+              .add(SearchMatchScope.body);
+          _notifyThrottled();
+        } else if (scopes.isEmpty && currentlyExisting) {
+          _results!.removeWhere((e) => e.id == entry.id);
+          _matchedIds.remove(entry.id);
+          _matchScopes.remove(entry.id);
+          _notifyThrottled();
+        }
+      }());
     }
   }
 
@@ -354,6 +371,10 @@ class MasterSearchController extends ChangeNotifier {
     _generation++;
     _throttleTimer?.cancel();
     _throttleTimer = null;
+    _pendingAsyncEntries.clear();
+    _activeSnapshotIds = null;
+    _matchScopes.clear();
+    _results = null;
     super.dispose();
   }
 }

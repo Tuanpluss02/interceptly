@@ -43,6 +43,15 @@ class Interceptly {
     Stream<void>? customTrigger,
     InterceptlySettings? settings,
   }) {
+    /// Release guard evaluated before mutating the singleton, so a release
+    /// call without opt-in leaves existing engine settings untouched.
+    if (kReleaseMode) {
+      final allowInRelease =
+          settings?.allowInRelease ?? engine.settings.allowInRelease;
+      if (!allowInRelease) {
+        return Future<void>.value();
+      }
+    }
     if (settings != null) engine.configure(settings);
 
     return _init(

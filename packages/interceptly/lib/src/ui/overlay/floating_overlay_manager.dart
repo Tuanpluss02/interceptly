@@ -85,6 +85,12 @@ class FloatingOverlayManager {
   bool get isAttached => _isAttached;
   bool get isHiddenForSession => _hiddenForSession;
   bool get showFloatingButton => _showFloatingButton;
+
+  /// Observer keeping the floating button above pushed routes.
+  ///
+  /// Install by adding it to MaterialApp navigatorObservers. The manager
+  /// keeps a single overlay insert and reorders the existing entry instead
+  /// of inserting duplicates.
   NavigatorObserver get navigatorObserver => _navigatorObserver;
 
   void _removeFabEntry() {

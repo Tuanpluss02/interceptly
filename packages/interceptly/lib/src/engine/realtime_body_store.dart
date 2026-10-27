@@ -143,17 +143,58 @@ class RealtimeBodyStore {
   }
 
   /// Reads [length] bytes starting at [offset] from the store file.
-  Future<Uint8List> readBytes(int offset, int length) async {
+  ///
+  /// Enqueued on the FIFO [_writeChain] to avoid torn reads during
+  /// concurrent rotate or reset operations. Captures the rotation count
+  /// at call time and fails with a [FileSystemException] when the file
+  /// rotates before or during the read so callers can emit an expired
+  /// placeholder instead of new-session bytes.
+  Future<Uint8List> readBytes(int offset, int length) {
     if (!_isInitialized || _isDisposed) {
       throw StateError('RealtimeBodyStore is not initialized.');
     }
-    final readRaf = await _file.open(mode: FileMode.read);
-    try {
-      await readRaf.setPosition(offset);
-      return await readRaf.read(length);
-    } finally {
-      await readRaf.close();
+    final rotBefore = _rotationCount;
+    final completer = Completer<Uint8List>();
+    Future<void> readOp(_) async {
+      try {
+        if (_rotationCount != rotBefore) {
+          completer.completeError(
+            const FileSystemException('rotated mid-read'),
+          );
+          return;
+        }
+        if (!_isInitialized || _isDisposed || _raf == null) {
+          completer.completeError(
+            StateError('RealtimeBodyStore is not initialized.'),
+          );
+          return;
+        }
+        final readRaf = await _file.open(mode: FileMode.read);
+        try {
+          await readRaf.setPosition(offset);
+          final data = await readRaf.read(length);
+          if (_rotationCount != rotBefore) {
+            completer.completeError(
+              const FileSystemException('rotated mid-read'),
+            );
+            return;
+          }
+          completer.complete(data);
+        } finally {
+          await readRaf.close();
+        }
+      } catch (error, stackTrace) {
+        completer.completeError(error, stackTrace);
+      }
     }
+
+    final prev = _writeChain;
+    if (prev == null) {
+      _writeChain = readOp(null);
+    } else {
+      _writeChain = prev.then(readOp);
+    }
+    return completer.future;
   }
 
   /// Explicitly rotates the store file, resetting offset to 0 and incrementing [rotationCount].
@@ -194,7 +235,8 @@ class RealtimeBodyStore {
     } catch (_) {}
   }
 
-  /// Resets the file on disk: deletes, recreates, and resets offset/rotation.
+  /// Resets the file on disk: deletes, recreates, and resets offset while
+  /// advancing the rotation generation so prior offsets never alias new bytes.
   Future<void> resetFile(String dirPath, {String? fileName}) {
     final completer = Completer<void>();
     Future<void> resetOp(_) async {
@@ -205,7 +247,7 @@ class RealtimeBodyStore {
         await _raf?.close();
         _raf = null;
         _currentOffset = 0;
-        _rotationCount = 0;
+        _rotationCount++;
         final effectiveName =
             fileName ?? _file.path.split(RegExp(r'[/\\]')).last;
         _file = File('$dirPath/$effectiveName');

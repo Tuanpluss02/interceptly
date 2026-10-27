@@ -67,6 +67,13 @@ Future<void> startMasterSearch(String query);
 // Prevents race: clear() while records being written
 ```
 
+Fencing lifecycle: `_pendingGenerations` + `Expando` propagation via
+`copyWith`, `clearSync`/`clear` generation bump, `_sentGenerations` drop in
+`_handleEntryReady` (null means fenced and must drop). Policy is
+`clear-wins`: writes racing clear are dropped. Double bump is intentional —
+second fence drops entries recorded during `await writer.clear()` so
+`engine.entries` is empty after `await clear()`.
+
 ---
 
 ## 3.2 `CapturePipeline` & `WriterIsolate` — Off-Main-Thread Processing

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -5,6 +6,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../../capture/stream_capture.dart';
 import '../../model/raw_capture.dart';
 import '../../model/body_truncation.dart';
 import '../../model/request_record.dart';
@@ -97,8 +99,10 @@ class ReplayHandler {
   /// Retries sending [record] with same headers, URL, and payload.
   ///
   /// Prompts for confirmation before replaying any method when a
-  /// confirmation UI is available.
-  Future<void> retry(RequestRecord record, {bool? confirm}) async {
+  /// confirmation UI is available. When the captured body lost bytes,
+  /// replay is blocked unless [allowTruncatedReplay] is true.
+  Future<void> retry(RequestRecord record,
+      {bool? confirm, bool allowTruncatedReplay = false}) async {
     if (_isUnsupportedMethod(record.method)) {
       ToastNotification.show(
         'Retry is not supported for ${record.method}',
@@ -107,11 +111,18 @@ class ReplayHandler {
       return;
     }
 
+    var effectiveAllowTruncated = allowTruncatedReplay;
     final shouldPrompt =
         confirm ?? (confirmDialog != null || clientFactory == null);
     if (shouldPrompt) {
-      final confirmed = await _confirmNonIdempotent(record.method);
+      final confirmed = await _confirmNonIdempotent(
+        record.method,
+        isTruncated: record.requestTruncation.hasDataLoss,
+      );
       if (!confirmed) return;
+      if (record.requestTruncation.hasDataLoss) {
+        effectiveAllowTruncated = true;
+      }
     }
 
     await _sendRequest(
@@ -121,6 +132,7 @@ class ReplayHandler {
       body: record.requestBodyPreview,
       bodyBytes: record.requestBodyBytes,
       truncation: record.requestTruncation,
+      allowTruncatedReplay: effectiveAllowTruncated,
     );
   }
 
@@ -182,6 +194,7 @@ class ReplayHandler {
     required String? body,
     Uint8List? bodyBytes,
     required BodyTruncation truncation,
+    bool allowTruncatedReplay = false,
   }) async {
     final uri = Uri.tryParse(url);
     if (uri == null) {
@@ -198,9 +211,20 @@ class ReplayHandler {
       return;
     }
 
-    if (_isBlockedHost(uri.host)) {
+    final blocked = await isBlockedHostAsync(uri.host);
+    if (!context.mounted) return;
+    if (blocked) {
       ToastNotification.show(
         'Replay blocked: unsafe target address (${uri.host})',
+        contextHint: context,
+      );
+      return;
+    }
+
+    if (truncation.hasDataLoss && !allowTruncatedReplay) {
+      ToastNotification.show(
+        'Replay blocked: body was truncated during capture. '
+        'Pass allowTruncatedReplay to override.',
         contextHint: context,
       );
       return;
@@ -217,7 +241,7 @@ class ReplayHandler {
     final cleanedHeaders = _sanitizeReplayHeaders(headers);
     final isPlaceholder = _isPlaceholder(body);
 
-    if (truncation.hasDataLoss) {
+    if (truncation.hasDataLoss && allowTruncatedReplay) {
       ToastNotification.show(
         'Warning: Request body was truncated during capture and may be incomplete.',
         contextHint: context,
@@ -264,10 +288,12 @@ class ReplayHandler {
 
     final stopwatch = Stopwatch()..start();
     final start = DateTime.now();
+    var forceClose = false;
 
     try {
       ToastNotification.show('Sending request...', contextHint: context);
       final request = await client.openUrl(upperMethod, uri);
+      request.followRedirects = false;
       headersToSend.forEach((key, value) {
         request.headers.set(key, value);
       });
@@ -276,16 +302,24 @@ class ReplayHandler {
       }
 
       final response = await request.close();
-      final responseBody = await response.fold<List<int>>(
-        <int>[],
-        (previous, element) => previous..addAll(element),
-      );
+      final builder = CappedBytesBuilder(10 * 1024 * 1024);
+      try {
+        await for (final chunk
+            in response.timeout(const Duration(seconds: 15))) {
+          builder.add(chunk);
+        }
+      } catch (_) {
+        forceClose = true;
+        rethrow;
+      }
       stopwatch.stop();
 
       final responseHeaders = <String, String>{};
       response.headers.forEach((name, values) {
         responseHeaders[name] = values.join(', ');
       });
+
+      final accumulatedBytes = builder.toBytesOrNull() ?? Uint8List(0);
 
       engine.record(
         RawCapture(
@@ -300,8 +334,9 @@ class ReplayHandler {
           requestBodyBytes: bodyBytesToSend != null
               ? RawCapture.wrapBytes(bodyBytesToSend)
               : null,
-          responseBodyBytes:
-              RawCapture.wrapBytes(Uint8List.fromList(responseBody)),
+          responseBodyBytes: RawCapture.wrapBytes(accumulatedBytes),
+          responseSizeBytes: builder.totalBytes,
+          responseTruncatedAtStorage: builder.isTruncated,
           responseContentType: response.headers.contentType?.mimeType,
         ),
       );
@@ -315,7 +350,7 @@ class ReplayHandler {
       if (!context.mounted) return;
       ToastNotification.show('Replay failed: $e', contextHint: context);
     } finally {
-      client.close();
+      client.close(force: forceClose);
     }
   }
 
@@ -324,17 +359,20 @@ class ReplayHandler {
     return m == 'WS';
   }
 
-  Future<bool> _confirmNonIdempotent(String method) async {
+  Future<bool> _confirmNonIdempotent(String method,
+      {bool isTruncated = false}) async {
     if (confirmDialog != null) {
       return confirmDialog!(context, method);
     }
+    final message = isTruncated
+        ? 'The captured body was truncated and may be incomplete. Replaying a $method request may modify server state with partial data. Proceed anyway?'
+        : 'Replaying a $method request may modify server state or perform non-idempotent actions. Proceed?';
     final result = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Confirm Replay'),
-        content: Text(
-          'Replaying a $method request may modify server state or perform non-idempotent actions. Proceed?',
-        ),
+        title:
+            Text(isTruncated ? 'Confirm Truncated Replay' : 'Confirm Replay'),
+        content: Text(message),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -385,8 +423,71 @@ class ReplayHandler {
     return second >= 16 && second <= 31;
   }
 
-  bool _isBlockedHost(String host) {
-    return isBlockedHost(host);
+  /// Async host guard combining the literal denylist with DNS resolution.
+  ///
+  /// The literal check runs first as a fast path. When the host is not
+  /// literally blocked, IP literals are directly checked; otherwise DNS is
+  /// consulted and every resolved address is screened for loopback, link-local,
+  /// ULA, or private ranges.
+  static Future<bool> isBlockedHostAsync(String host) async {
+    final clean =
+        host.toLowerCase().trim().replaceAll('[', '').replaceAll(']', '');
+    if (isBlockedHost(clean)) return true;
+    final literal = InternetAddress.tryParse(clean);
+    if (literal != null) {
+      return _isBlockedAddress(literal);
+    }
+    try {
+      final addresses = await InternetAddress.lookup(clean);
+      for (final addr in addresses) {
+        if (_isBlockedAddress(addr)) return true;
+      }
+    } catch (_) {
+      return false;
+    }
+    return false;
+  }
+
+  /// Reports whether a resolved [addr] falls in a non-routable range.
+  static bool _isBlockedAddress(InternetAddress addr) {
+    if (addr.isLoopback || addr.isLinkLocal || addr.isMulticast) return true;
+    final raw = addr.rawAddress;
+    if (raw.length == 4) {
+      return isBlockedHost(addr.address);
+    }
+    if (raw.length == 16) {
+      // IPv4-mapped IPv6 address (::ffff:w.x.y.z)
+      var isMapped = true;
+      for (var i = 0; i < 10; i++) {
+        if (raw[i] != 0) {
+          isMapped = false;
+          break;
+        }
+      }
+      if (isMapped && raw[10] == 0xff && raw[11] == 0xff) {
+        final mappedIpv4 = '${raw[12]}.${raw[13]}.${raw[14]}.${raw[15]}';
+        return isBlockedHost(mappedIpv4);
+      }
+
+      // Loopback ::1 (15 zeroes then 1)
+      var isLoopback = raw[15] == 1;
+      if (isLoopback) {
+        for (var i = 0; i < 15; i++) {
+          if (raw[i] != 0) {
+            isLoopback = false;
+            break;
+          }
+        }
+        if (isLoopback) return true;
+      }
+
+      // ULA: fc00::/7 -> (raw[0] & 0xfe) == 0xfc
+      if ((raw[0] & 0xfe) == 0xfc) return true;
+
+      // Link-Local: fe80::/10 -> raw[0] == 0xfe && (raw[1] & 0xc0) == 0x80
+      if (raw[0] == 0xfe && (raw[1] & 0xc0) == 0x80) return true;
+    }
+    return false;
   }
 
   bool _isPlaceholder(String? body) {

@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -139,17 +141,30 @@ class ShareHandler {
 
   Future<void> _exportPostmanRecords(List<RequestRecord> records) async {
     File? file;
+    var shareInitiated = false;
     try {
-      final collectionJson = PostmanExporter.toJson(records);
+      final collectionMap = PostmanExporter.toMap(records);
+      final collectionJson = await compute(_encodeJsonMap, collectionMap);
 
       final directory = await getTemporaryDirectory();
+      await purgeStaleExports(directory);
       final fileName =
           'interceptly_${DateTime.now().millisecondsSinceEpoch}.postman_collection.json';
       file = File('${directory.path}/$fileName');
 
-      await file.writeAsString(collectionJson);
+      final sink = file.openWrite();
+      const chunkSize = 16 * 1024;
+      for (var i = 0; i < collectionJson.length; i += chunkSize) {
+        final end = (i + chunkSize < collectionJson.length)
+            ? i + chunkSize
+            : collectionJson.length;
+        sink.write(collectionJson.substring(i, end));
+      }
+      await sink.flush();
+      await sink.close();
 
       final origin = await _getSharePositionOrigin();
+      shareInitiated = true;
       await _shareFile(
         file,
         subject: 'Postman Collection Export',
@@ -157,32 +172,36 @@ class ShareHandler {
         origin: origin,
       );
     } catch (e) {
-      ToastNotification.show('Error exporting Postman collection: $e');
-    } finally {
-      if (file != null) {
+      if (!shareInitiated && file != null) {
         try {
-          if (await file.exists()) {
-            await file.delete();
-          }
+          if (await file.exists()) await file.delete();
         } catch (_) {}
       }
+      ToastNotification.show('Error exporting Postman collection: $e');
     }
   }
 
   Future<void> exportHarFile(RequestRecord record) async {
     File? file;
+    var shareInitiated = false;
     try {
-      final harJson = HarExporter.toJson([record]);
+      final harMap = HarExporter.toMap([record]);
+      final harJson = await compute(_encodeJsonMap, harMap);
 
       final directory = await getTemporaryDirectory();
+      await purgeStaleExports(directory);
       final sanitizedMethod = _sanitizeFilename(record.method);
       final fileName =
           'request_${sanitizedMethod}_${DateTime.now().millisecondsSinceEpoch}.har';
       file = File('${directory.path}/$fileName');
 
-      await file.writeAsString(harJson);
+      final sink = file.openWrite();
+      sink.write(harJson);
+      await sink.flush();
+      await sink.close();
 
       final origin = await _getSharePositionOrigin();
+      shareInitiated = true;
       await _shareFile(
         file,
         subject: 'HAR Export',
@@ -190,16 +209,42 @@ class ShareHandler {
         origin: origin,
       );
     } catch (e) {
-      ToastNotification.show('Error exporting HAR: $e');
-    } finally {
-      if (file != null) {
+      if (!shareInitiated && file != null) {
         try {
-          if (await file.exists()) {
-            await file.delete();
-          }
+          if (await file.exists()) await file.delete();
         } catch (_) {}
       }
+      ToastNotification.show('Error exporting HAR: $e');
     }
+  }
+
+  /// Purges old export artifacts from [directory] to keep temp storage bounded.
+  static Future<void> purgeStaleExports(
+    Directory directory, {
+    Duration maxAge = const Duration(hours: 1),
+  }) async {
+    try {
+      if (!await directory.exists()) return;
+      final now = DateTime.now();
+      await for (final entity in directory.list()) {
+        if (entity is File) {
+          final name = entity.uri.pathSegments.last;
+          if (name.startsWith('interceptly_') || name.startsWith('request_')) {
+            if (name.endsWith('.har') ||
+                name.endsWith('.json') ||
+                name.endsWith('.postman_collection') ||
+                name.endsWith('.postman_collection.json')) {
+              try {
+                final stat = await entity.stat();
+                if (now.difference(stat.modified) > maxAge) {
+                  await entity.delete();
+                }
+              } catch (_) {}
+            }
+          }
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _shareFile(
@@ -258,4 +303,9 @@ class ShareHandler {
   static String _sanitizeFilename(String input) {
     return input.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
   }
+}
+
+/// Encodes [map] to JSON on a background isolate for bulk export.
+String _encodeJsonMap(Map<String, Object?> map) {
+  return jsonEncode(map);
 }

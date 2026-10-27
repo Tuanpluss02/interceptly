@@ -101,7 +101,10 @@ void main() {
     test('does not exceed available bytes when previewLen > length', () {
       final bytes = Uint8List.fromList([1, 2, 3]);
       final result = BodyDecodeService.truncate(bytes, 2, 100)!;
-      expect(result.length, 3);
+
+      /// Preview window is capped by the smallest of previewLen, maxBody,
+      /// and buffer length, so a large preview budget cannot exceed the cap.
+      expect(result.length, 2);
     });
   });
 

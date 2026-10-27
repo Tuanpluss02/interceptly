@@ -43,6 +43,7 @@ class FrameNormalizer {
   ///
   /// - Computes [originalSizeBytes] with 0 heap byte allocations for UTF-8 text via [utf8ByteLength].
   /// - Avoids cloning [Uint8List] / [ByteData] buffers (uses [Uint8List.sublistView] when truncating).
+  /// - Caps generic [List<int>] windows with take before copying to avoid full allocation.
   /// - Generates a safe Unicode [shortPreview] (<= 128 chars).
   /// - Flags [shouldOffload] when [originalSizeBytes] >= [offloadThreshold] and [offloadThreshold] > 0.
   /// - Pre-encodes [preEncodedBytes] once when [shouldOffload] is true, eliminating downstream re-encoding.
@@ -85,9 +86,18 @@ class FrameNormalizer {
     } else if (raw is List<int> && explicitType != FrameType.text) {
       type = explicitType ?? FrameType.binary;
       originalSize = raw.length;
-      final bytes = raw is Uint8List ? raw : Uint8List.fromList(raw);
+      final Uint8List bytes;
+      if (raw is Uint8List) {
+        bytes = raw;
+      } else if (maxBodyBytes > 0 && originalSize > maxBodyBytes) {
+        bytes = Uint8List.fromList(raw.take(maxBodyBytes).toList());
+      } else {
+        bytes = Uint8List.fromList(raw);
+      }
       shouldOffload = offloadThreshold > 0 && originalSize >= offloadThreshold;
-      final capped = (maxBodyBytes > 0 && originalSize > maxBodyBytes)
+      final capped = (maxBodyBytes > 0 &&
+              originalSize > maxBodyBytes &&
+              bytes.length > maxBodyBytes)
           ? bytes.sublist(0, maxBodyBytes)
           : bytes;
       payload = capped;

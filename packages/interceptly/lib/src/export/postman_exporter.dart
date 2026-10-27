@@ -1,8 +1,7 @@
 import 'dart:convert';
 
-import '../capture/body_bytes.dart';
-import '../model/request_record.dart';
 import '../engine/body_decode_service.dart';
+import '../model/request_record.dart';
 
 /// Exports captured request records to Postman Collection v2.1 format.
 ///
@@ -70,28 +69,34 @@ class PostmanExporter {
   }
 
   static List<Map<String, String>> _mapHeaders(Map<String, String> headers) {
-    return mapHeaderEntries(headers, keyName: 'key', valueName: 'value');
+    return headers.entries
+        .map((entry) => {'key': entry.key, 'value': entry.value})
+        .toList();
   }
 
   static Map<String, Object?>? _buildBody(RequestRecord r) {
     final contentType = r.requestContentType ?? '';
 
     if (contentType.contains('multipart/form-data')) {
-      final hasBytes =
-          r.requestBodyBytes != null && r.requestBodyBytes!.isNotEmpty;
-      final hasPreview =
-          r.requestBodyPreview != null && r.requestBodyPreview!.isNotEmpty;
-      if (!hasBytes && !hasPreview) {
+      String? rawMultipart;
+      if (r.requestBodyBytes != null && r.requestBodyBytes!.isNotEmpty) {
+        try {
+          rawMultipart = utf8.decode(r.requestBodyBytes!);
+        } catch (_) {}
+      }
+      rawMultipart ??= (r.requestBodyPreview != null &&
+              !BodyDecodeService.isPlaceholder(r.requestBodyPreview!) &&
+              !r.requestBodyPreview!.startsWith('[binary:'))
+          ? r.requestBodyPreview
+          : null;
+
+      if (rawMultipart != null && rawMultipart.isNotEmpty) {
         return {
-          'mode': 'formdata',
-          'formdata': <Map<String, Object?>>[
-            {
-              'key': 'warning',
-              'value': 'Multipart body preview unavailable or empty',
-              'type': 'text',
-              'disabled': true,
-            },
-          ],
+          'mode': 'raw',
+          'raw': rawMultipart,
+          'options': {
+            'raw': {'language': 'text'},
+          },
         };
       }
       return {
@@ -99,7 +104,7 @@ class PostmanExporter {
         'formdata': <Map<String, Object?>>[
           {
             'key': 'warning',
-            'value': 'Multipart body payload preserved from capture',
+            'value': 'Multipart body preview unavailable or binary',
             'type': 'text',
             'disabled': true,
           },
@@ -118,7 +123,10 @@ class PostmanExporter {
       body = r.requestBodyPreview;
     }
 
-    if (body == null || body.isEmpty || BodyDecodeService.isPlaceholder(body)) {
+    if (body == null ||
+        body.isEmpty ||
+        BodyDecodeService.isPlaceholder(body) ||
+        body.startsWith('[binary:')) {
       return null;
     }
 

@@ -2,7 +2,6 @@
 @Tags(['stress'])
 library;
 
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -421,24 +420,29 @@ void main() {
   });
 
   group('Challenger M1 - Area 3: dispose() and Recreation Lifecycles', () {
-    test('Multiple dispose() calls on InspectorSession: verify behavior',
+    test(
+        'Multiple dispose() calls on InspectorSession: verify idempotent cleanup',
         () async {
       final session = _TestSession();
       await session.initialize();
+      session.recordPending(
+        id: 'disp_1',
+        method: 'GET',
+        url: 'https://api.example.com/disp',
+        timestamp: DateTime(2026, 1, 1),
+      );
+      expect(session.entries.length, 1);
       await session.dispose();
+      expect(session.entries, isEmpty);
+      expect(session.engine.isEnabled, isFalse);
 
-      var threw = false;
-      Object? capturedError;
-      try {
-        await session.dispose().timeout(const Duration(seconds: 2));
-      } catch (e) {
-        capturedError = e;
-        threw = true;
-      }
-      expect(threw, isTrue);
-      expect(capturedError is! TimeoutException, isTrue,
-          reason:
-              'Expected dispose to reject immediately, not hang. Actual: $capturedError');
+      // Second dispose is idempotent: completes normally without hanging or throwing.
+      await expectLater(
+        session.dispose().timeout(const Duration(seconds: 2)),
+        completes,
+      );
+      expect(session.entries, isEmpty);
+      expect(session.engine.isEnabled, isFalse);
     });
 
     test(

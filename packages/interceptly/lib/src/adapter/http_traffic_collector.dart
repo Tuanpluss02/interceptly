@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../capture/capture_guard.dart';
-import '../engine/capture_pipeline.dart';
+import '../engine/capture_generation.dart';
 import '../model/network_simulation.dart';
 import '../model/raw_capture.dart';
 import '../engine/interceptly_engine.dart';
@@ -117,7 +117,11 @@ class DefaultHttpTrafficCollector implements HttpTrafficCollector {
     if (uri == null) return true;
     final predicate = engine.settings.shouldCapture;
     if (predicate == null) return true;
-    return predicate(uri.toString());
+    try {
+      return predicate(uri.toString());
+    } catch (_) {
+      return true;
+    }
   }
 
   @override

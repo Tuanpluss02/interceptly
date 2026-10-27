@@ -120,12 +120,25 @@ class WriterIsolate {
   Completer<void>? _stopCompleter;
   Completer<void>? _disposeCompleter;
   final List<_WriteMessage> _queuedDuringRestart = [];
+  int _restartDroppedCount = 0;
   int _lastRotationCount = 0;
   bool _isRestarting = false;
   bool _isDisposed = false;
 
   /// Latest file rotation count observed from the writer isolate.
   int get lastRotationCount => _lastRotationCount;
+
+  /// Captures dropped from the restart buffer on overflow.
+  ///
+  /// Folded into [CapturePipeline.droppedCount] so restart pressure is
+  /// visible instead of silently absorbed by the queue.
+  int get restartDroppedCount => _restartDroppedCount;
+
+  /// Resets the restart overflow counter after its value has been folded
+  /// into an owner counter or after a user-initiated clear.
+  void resetRestartDroppedCount() {
+    _restartDroppedCount = 0;
+  }
 
   final StreamController<IndexEntry> _resultController =
       StreamController<IndexEntry>.broadcast();
@@ -176,7 +189,9 @@ class WriterIsolate {
             message.fileRotationCount! > _lastRotationCount) {
           _lastRotationCount = message.fileRotationCount!;
         }
-        _resultController.add(message);
+        if (!_resultController.isClosed) {
+          _resultController.add(message);
+        }
       } else if (message is _ClearAck) {
         if (message.rotationCount > _lastRotationCount) {
           _lastRotationCount = message.rotationCount;
@@ -228,21 +243,41 @@ class WriterIsolate {
       }
     });
 
-    _isolate = await Isolate.spawn(
-      _isolateEntry,
-      _InitMessage(
-        replyPort: _receivePort!.sendPort,
-        tempDirPath: tempDirPath,
-        fileName: fileName,
-        maxFileBytes: maxFileBytes,
-        preserveExisting: preserveExisting,
-        initialRotationCount: effectiveRotation,
-      ),
-      onError: _errorPort!.sendPort,
-      onExit: _exitPort!.sendPort,
-    );
+    _isolate = null;
+    _sendPort = null;
+    try {
+      _isolate = await Isolate.spawn(
+        _isolateEntry,
+        _InitMessage(
+          replyPort: _receivePort!.sendPort,
+          tempDirPath: tempDirPath,
+          fileName: fileName,
+          maxFileBytes: maxFileBytes,
+          preserveExisting: preserveExisting,
+          initialRotationCount: effectiveRotation,
+        ),
+        onError: _errorPort!.sendPort,
+        onExit: _exitPort!.sendPort,
+      );
 
-    _sendPort = await completer.future;
+      _sendPort = await completer.future;
+    } catch (error) {
+      _sendPort = null;
+      try {
+        _isolate?.kill(priority: Isolate.immediate);
+      } catch (_) {}
+      _isolate = null;
+      _receivePort?.close();
+      _receivePort = null;
+      _errorPort?.close();
+      _errorPort = null;
+      _exitPort?.close();
+      _exitPort = null;
+      if (!completer.isCompleted) {
+        completer.completeError(error);
+      }
+      rethrow;
+    }
   }
 
   /// Restarts the background isolate after an unexpected error or termination.
@@ -298,8 +333,24 @@ class WriterIsolate {
         preserveExisting: true,
         initialRotationCount: _lastRotationCount,
       );
+      if (_isDisposed) {
+        try {
+          _isolate?.kill(priority: Isolate.immediate);
+        } catch (_) {}
+        _isolate = null;
+        _receivePort?.close();
+        _receivePort = null;
+        _errorPort?.close();
+        _errorPort = null;
+        _exitPort?.close();
+        _exitPort = null;
+        _sendPort = null;
+        _queuedDuringRestart.clear();
+        return;
+      }
       if (_sendPort != null && _queuedDuringRestart.isNotEmpty) {
         for (final msg in _queuedDuringRestart) {
+          if (_isDisposed) break;
           _sendPort!.send(msg);
         }
         _queuedDuringRestart.clear();
@@ -325,6 +376,10 @@ class WriterIsolate {
     final port = _sendPort;
     if (port == null) {
       if (_isRestarting) {
+        if (_queuedDuringRestart.length >= _settings.maxQueuedEvents) {
+          _queuedDuringRestart.removeAt(0);
+          _restartDroppedCount++;
+        }
         _queuedDuringRestart.add(message);
         return true;
       }
@@ -336,20 +391,36 @@ class WriterIsolate {
 
   /// Sends a clear request and waits for the isolate to confirm the file has
   /// been reset. Completes only after all previously queued writes are done.
+  ///
+  /// Concurrent callers coalesce onto the in-flight clear instead of
+  /// overwriting each other's waiter, so no caller hangs.
   Future<void> clear() async {
+    if (_isDisposed) return;
     if (_sendPort == null) return;
+    final pending = _clearCompleter;
+    if (pending != null) return pending.future;
     final completer = Completer<void>();
     _clearCompleter = completer;
     _sendPort!.send(const _ClearMessage());
     await completer.future;
   }
 
+  /// Releases isolate resources and deletes the session temp file.
+  ///
+  /// Idempotent: concurrent or repeated calls after the first return
+  /// immediately instead of throwing on already-closed controllers.
   Future<void> dispose() async {
+    if (_isDisposed && _resultController.isClosed) return;
     _isDisposed = true;
     if (_clearCompleter != null && !_clearCompleter!.isCompleted) {
       _clearCompleter!.complete();
     }
     _clearCompleter = null;
+    if (_stopCompleter != null && !_stopCompleter!.isCompleted) {
+      _stopCompleter!.complete();
+    }
+    _stopCompleter = null;
+    _queuedDuringRestart.clear();
     if (_sendPort != null) {
       final completer = Completer<void>();
       _disposeCompleter = completer;
@@ -366,8 +437,12 @@ class WriterIsolate {
     _errorPort = null;
     _exitPort?.close();
     _exitPort = null;
-    await _resultController.close();
-    await _eventController.close();
+    if (!_resultController.isClosed) {
+      await _resultController.close();
+    }
+    if (!_eventController.isClosed) {
+      await _eventController.close();
+    }
 
     final filePath = _activeTempFilePath;
     _activeTempFilePath = null;
@@ -491,7 +566,16 @@ Future<void> _isolateEntry(_InitMessage init) async {
         }
       } else if (message is _ClearMessage) {
         try {
-          await bodyStore.resetFile(init.tempDirPath, fileName: init.fileName);
+          final ok = await bodyStore.resetFile(
+            init.tempDirPath,
+            fileName: init.fileName,
+          );
+          if (!ok && kDebugMode) {
+            debugPrint(
+              '[Interceptly] BodyStore reset failed during clear; '
+              '${bodyStore.isWritable ? "restored prior handle" : "entered degraded state"}',
+            );
+          }
         } catch (_) {}
         init.replyPort.send(_ClearAck(bodyStore.rotationCount));
       } else if (message is _StopMessage) {

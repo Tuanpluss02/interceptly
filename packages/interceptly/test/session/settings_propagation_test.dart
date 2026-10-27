@@ -284,5 +284,56 @@ void main() {
       expect(entry.hasDataLoss, isTrue);
       expect(entry.isTruncated, isTrue);
     });
+
+    test(
+        'persistence false -> true retains readable backing file and offloaded bodies',
+        () async {
+      final session = InterceptlyEngine(
+        settings: const InterceptlySettings(
+          persistToDisk: false,
+          bodyOffloadThreshold: 1024,
+        ),
+      );
+      addTearDown(session.dispose);
+      await session.initialize();
+
+      expect(session.tempFilePath, isNotNull);
+
+      // Reconfigure to enable persistence
+      session.configure(const InterceptlySettings(
+        persistToDisk: true,
+        bodyOffloadThreshold: 1024,
+      ));
+
+      final payload = _textBytes(4096);
+      session.record(RawCapture(
+        id: 'offloaded-trans',
+        method: 'POST',
+        url: 'https://api.example.com/transition',
+        requestHeaders: const {},
+        responseHeaders: const {'content-type': 'application/json'},
+        statusCode: 200,
+        durationMs: 5,
+        timestamp: DateTime(2026),
+        responseBodyBytes: RawCapture.wrapBytes(payload),
+      ));
+
+      final entry = await _waitForEntry(session, 'offloaded-trans');
+      expect(entry.bodyLocation, equals(BodyLocation.file));
+
+      final detail = await session.loadDetail(entry);
+      expect(detail.responseBodyBytes, isNotNull);
+      expect(detail.responseBodyBytes!.length, equals(4096));
+
+      // Reconfigure back to persistToDisk: false; previously stored file body remains readable
+      session.configure(const InterceptlySettings(
+        persistToDisk: false,
+        bodyOffloadThreshold: 1024,
+      ));
+
+      final detailAfterToggle = await session.loadDetail(entry);
+      expect(detailAfterToggle.responseBodyBytes, isNotNull);
+      expect(detailAfterToggle.responseBodyBytes!.length, equals(4096));
+    });
   });
 }

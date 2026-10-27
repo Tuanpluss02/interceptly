@@ -33,6 +33,9 @@ class BodyStore {
   /// Current byte offset in the active file.
   int get currentOffset => _currentOffset;
 
+  /// Whether the store currently holds an open, writable file handle.
+  bool get isWritable => _raf != null;
+
   /// Maximum byte capacity before rotation occurs.
   int get maxFileBytes => _maxFileBytes;
 
@@ -78,22 +81,35 @@ class BodyStore {
   /// the file is automatically rotated (truncated to 0 bytes) and the offset resets to 0.
   /// Returns the (offset, length) needed to read the data back later.
   Future<(int, int)> append(Uint8List bytes) async {
-    assert(_raf != null, 'initForWrite() must be called first');
+    if (_raf == null) {
+      throw const FileSystemException('BodyStore has no open file handle');
+    }
     if (_currentOffset + bytes.length > _maxFileBytes) {
-      await rotate();
+      final ok = await rotate();
+      if (!ok) {
+        throw const FileSystemException('Failed to rotate BodyStore');
+      }
+    }
+    final raf = _raf;
+    if (raf == null) {
+      throw const FileSystemException('BodyStore has no open file handle');
     }
     final offset = _currentOffset;
     final length = bytes.length;
-    await _raf!.writeFrom(bytes);
+    await raf.writeFrom(bytes);
     _currentOffset += length;
     return (offset, length);
   }
 
   /// Closes the current file and recreates it empty at offset 0.
-  Future<void> rotate() async {
-    _currentOffset = 0;
-    _rotationCount++;
-    onRotate?.call(_rotationCount);
+  ///
+  /// Returns `true` when the file was recreated and the rotation counter
+  /// advanced, `false` when recreation failed and the previous dead-handle
+  /// state was left untouched.
+  ///
+  /// When this returns `false` the store is left unusable (no open handle)
+  /// until [resetFile] or [initForWrite] reopens it.
+  Future<bool> rotate() async {
     try {
       await _raf?.flush();
     } catch (_) {}
@@ -105,23 +121,83 @@ class BodyStore {
       }
       await _file.create(recursive: true);
       _raf = await _file.open(mode: FileMode.writeOnlyAppend);
-    } catch (_) {}
-  }
-
-  /// Resets the file: deletes and recreates it.
-  Future<void> resetFile(String dirPath, {String fileName = kFileName}) async {
+    } catch (_) {
+      return false;
+    }
     _currentOffset = 0;
     _rotationCount++;
     onRotate?.call(_rotationCount);
+    return true;
+  }
+
+  /// Resets the file: deletes and recreates it at [dirPath]/[fileName].
+  ///
+  /// Returns `true` when the file was recreated and the rotation counter
+  /// advanced, `false` when recreation failed.
+  ///
+  /// When recreation fails, if the failure was non-destructive (e.g. attempting
+  /// to switch to an invalid directory while the old file remains intact at its
+  /// current length), the previous handle is restored and the store remains writable.
+  ///
+  /// If the failure was destructive (e.g. same-path deletion succeeded or old
+  /// file was modified/missing), the store enters a degraded state with rotation
+  /// advanced to invalidate stale offsets.
+  Future<bool> resetFile(String dirPath, {String fileName = kFileName}) async {
+    File? oldFile;
+    final oldOffset = _currentOffset;
+    try {
+      oldFile = _file;
+    } catch (_) {
+      oldFile = null;
+    }
+    final targetPath = '$dirPath/$fileName';
+    final isSamePath = oldFile != null && oldFile.path == targetPath;
+
     try {
       await _raf?.flush();
     } catch (_) {}
     await _raf?.close();
     _raf = null;
-    _file = File('$dirPath/$fileName');
-    if (await _file.exists()) await _file.delete();
-    await _file.create(recursive: true);
-    _raf = await _file.open(mode: FileMode.writeOnlyAppend);
+
+    final targetFile = File(targetPath);
+    try {
+      if (await targetFile.exists()) {
+        await targetFile.delete();
+      }
+      await targetFile.create(recursive: true);
+      _raf = await targetFile.open(mode: FileMode.writeOnlyAppend);
+      _file = targetFile;
+      _currentOffset = 0;
+      _rotationCount++;
+      onRotate?.call(_rotationCount);
+      return true;
+    } catch (_) {
+      if (oldFile == null) {
+        return false;
+      }
+
+      // Attempt rollback to intact previous file if path was different
+      if (!isSamePath) {
+        try {
+          if (await oldFile.exists()) {
+            final oldLen = await oldFile.length();
+            if (oldLen == oldOffset) {
+              _raf = await oldFile.open(mode: FileMode.writeOnlyAppend);
+              _file = oldFile;
+              _currentOffset = oldOffset;
+              return false;
+            }
+          }
+        } catch (_) {}
+      }
+
+      // Destructive or unrecoverable failure: advance rotation to invalidate
+      // stale offsets and remain in degraded state (no open RAF).
+      _currentOffset = 0;
+      _rotationCount++;
+      onRotate?.call(_rotationCount);
+      return false;
+    }
   }
 
   /// Flushes and closes the open file handle without deleting the backing file.

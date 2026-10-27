@@ -9,6 +9,9 @@ class MockHttpClient extends Fake implements HttpClient {
 
   final void Function(MockHttpClientRequest request)? onRequest;
 
+  bool closed = false;
+  bool forceClosed = false;
+
   @override
   Future<HttpClientRequest> openUrl(String method, Uri url) async {
     final req = MockHttpClientRequest(method, url);
@@ -17,7 +20,10 @@ class MockHttpClient extends Fake implements HttpClient {
   }
 
   @override
-  void close({bool force = false}) {}
+  void close({bool force = false}) {
+    closed = true;
+    if (force) forceClosed = true;
+  }
 }
 
 class MockHttpClientRequest extends Fake implements HttpClientRequest {
@@ -29,6 +35,8 @@ class MockHttpClientRequest extends Fake implements HttpClientRequest {
   final Uri uri;
   @override
   final HttpHeaders headers = MockHttpHeaders();
+  @override
+  bool followRedirects = true;
 
   final List<int> _body = [];
   List<int> get bodyBytes => _body;
@@ -50,8 +58,8 @@ class MockHttpClientRequest extends Fake implements HttpClientRequest {
 class MockHttpClientResponse extends Fake implements HttpClientResponse {
   MockHttpClientResponse({
     this.statusCode = 200,
-    this.bodyStream,
-  });
+    Stream<List<int>>? bodyStream,
+  }) : _stream = bodyStream ?? const Stream<List<int>>.empty();
 
   @override
   final int statusCode;
@@ -59,7 +67,7 @@ class MockHttpClientResponse extends Fake implements HttpClientResponse {
   @override
   final HttpHeaders headers = MockHttpHeaders();
 
-  final Stream<List<int>>? bodyStream;
+  final Stream<List<int>> _stream;
 
   @override
   StreamSubscription<List<int>> listen(
@@ -68,12 +76,18 @@ class MockHttpClientResponse extends Fake implements HttpClientResponse {
     void Function()? onDone,
     bool? cancelOnError,
   }) {
-    return (bodyStream ?? const Stream<List<int>>.empty()).listen(
+    return _stream.listen(
       onData,
       onError: onError,
       onDone: onDone,
       cancelOnError: cancelOnError,
     );
+  }
+
+  @override
+  Stream<List<int>> timeout(Duration timeLimit,
+      {void Function(EventSink<List<int>> sink)? onTimeout}) {
+    return _stream.timeout(timeLimit, onTimeout: onTimeout);
   }
 }
 

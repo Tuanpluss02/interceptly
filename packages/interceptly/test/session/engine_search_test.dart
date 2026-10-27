@@ -174,5 +174,26 @@ void main() {
       );
       expect(resSince.map((r) => r.summary.id).toList(), ['10', '9']);
     });
+
+    test(
+        'search respects live fileRotationCountProvider to skip expired file-backed bodies',
+        () async {
+      engine.recordEntryForTesting(_buildEntry(
+        id: 'file-old',
+        url: 'https://api.example.com/items',
+        bodyLocation: BodyLocation.file,
+        fileOffset: 0,
+        fileLength: 64,
+        fileRotationCount: 0,
+      ));
+
+      // Live provider indicates current rotation is 1 (file-old has expired)
+      final res = await engine.search(
+        query: 'unique_token',
+        searchBody: true,
+        fileRotationCountProvider: () => 1,
+      );
+      expect(res, isEmpty);
+    });
   });
 }

@@ -125,6 +125,12 @@ class _JsonViewerState extends State<JsonViewer> {
 
   Expando<int>? _lineCountMemo;
 
+  bool _isComputingLarge = false;
+  Object? _inFlightData;
+  String? _inFlightQuery;
+
+  int _computeGeneration = 0;
+
   final FocusNode _selectableFocusNode = FocusNode();
 
   final GlobalKey _contentViewportKey = GlobalKey();
@@ -160,11 +166,19 @@ class _JsonViewerState extends State<JsonViewer> {
         widget.matchOffset != oldWidget.matchOffset ||
         widget.activeGlobalIndex != oldWidget.activeGlobalIndex) {
       _memoLines = null;
+      _isComputingLarge = false;
+      _inFlightData = null;
+      _inFlightQuery = null;
+      _computeGeneration++;
     }
   }
 
   @override
   void dispose() {
+    _computeGeneration++;
+    _isComputingLarge = false;
+    _inFlightData = null;
+    _inFlightQuery = null;
     _scroll.dispose();
     _selectableFocusNode.dispose();
     _selectionContainerDelegate.dispose();
@@ -187,7 +201,13 @@ class _JsonViewerState extends State<JsonViewer> {
         _memoQuery == effectiveQuery &&
         _memoMatchOffset == widget.matchOffset &&
         _memoActiveGlobalIndex == widget.activeGlobalIndex &&
-        _memoBrightness == brightness) {
+        _memoBrightness == brightness &&
+        !_isComputingLarge) {
+      return;
+    }
+    if (_isComputingLarge &&
+        identical(_inFlightData, widget.data) &&
+        _inFlightQuery == effectiveQuery) {
       return;
     }
     _lineCountMemo ??= Expando<int>('json_line_counts');
@@ -196,6 +216,17 @@ class _JsonViewerState extends State<JsonViewer> {
       effectiveQuery,
       _lineCountMemo,
     );
+    final isLarge =
+        analysis.lineCount > JsonViewerMetrics.largeDocLineThreshold;
+    if (isLarge) {
+      _startAsyncFlatten(
+        effectiveQuery: effectiveQuery,
+        brightness: brightness,
+        analysisMatchCounts:
+            effectiveQuery == null ? null : analysis.matchCounts,
+      );
+      return;
+    }
     _expansion.forceCollapse =
         analysis.lineCount > JsonViewerMetrics.largeDocLineThreshold;
     _memoMatchCounts = effectiveQuery == null ? null : analysis.matchCounts;
@@ -220,6 +251,7 @@ class _JsonViewerState extends State<JsonViewer> {
     _memoMatchOffset = widget.matchOffset;
     _memoActiveGlobalIndex = widget.activeGlobalIndex;
     _memoBrightness = brightness;
+    _isComputingLarge = false;
     if (lines.isEmpty) {
       _memoLineNumberWidth = 0;
       _memoMaxChars = 0;
@@ -238,6 +270,75 @@ class _JsonViewerState extends State<JsonViewer> {
       }
       _memoMaxChars = maxLen;
     }
+  }
+
+  /// Offloads flattening of large documents to a background isolate.
+  ///
+  /// Shows the previous content or a skeleton while `flattenAsync` runs,
+  /// preventing multi-thousand-line payloads from janking the UI thread.
+  void _startAsyncFlatten({
+    required String? effectiveQuery,
+    required Brightness? brightness,
+    required Map<String, int>? analysisMatchCounts,
+  }) {
+    final generation = ++_computeGeneration;
+    _isComputingLarge = true;
+    _expansion.forceCollapse = true;
+    final data = widget.data;
+    _inFlightData = data;
+    _inFlightQuery = effectiveQuery;
+    final matchOffset = widget.matchOffset;
+    final activeIndex = widget.activeGlobalIndex;
+    final style = _baseTextStyle;
+    JsonLineFlattener.flattenAsync(
+      data: data,
+      expansion: _expansion,
+      baseTextStyle: style,
+      query: effectiveQuery,
+      matchOffset: matchOffset,
+      activeGlobalIndex: activeIndex,
+    ).then((lines) {
+      if (!mounted || generation != _computeGeneration) return;
+      if (!identical(widget.data, data)) return;
+      setState(() {
+        _memoLines = lines;
+        _memoData = data;
+        _memoQuery = effectiveQuery;
+        _memoMatchOffset = matchOffset;
+        _memoActiveGlobalIndex = activeIndex;
+        _memoBrightness = brightness;
+        _memoMatchCounts = analysisMatchCounts;
+        _isComputingLarge = false;
+        _inFlightData = null;
+        _inFlightQuery = null;
+        if (lines.isEmpty) {
+          _memoLineNumberWidth = 0;
+          _memoMaxChars = 0;
+        } else {
+          final digits = lines.last.realLineNumber.toString().length;
+          _memoLineNumberWidth = digits * 8.0 + 8.0;
+          int maxLen = 60;
+          final sampleCount = math.min(lines.length, 200);
+          for (var i = 0; i < sampleCount; i++) {
+            final line = lines[i];
+            var len = line.indentLevel * 2;
+            for (final s in line.spans) {
+              len += (s.text?.length ?? 0);
+            }
+            if (len > maxLen) maxLen = len;
+          }
+          _memoMaxChars = maxLen;
+        }
+      });
+    }).catchError((_) {
+      if (!mounted || generation != _computeGeneration) return null;
+      setState(() {
+        _isComputingLarge = false;
+        _inFlightData = null;
+        _inFlightQuery = null;
+      });
+      return null;
+    });
   }
 
   void _copyToClipboard() async {
@@ -268,7 +369,17 @@ class _JsonViewerState extends State<JsonViewer> {
     }
 
     _ensureLines();
-    final lines = _memoLines!;
+    final lines = _memoLines;
+    if (lines == null) {
+      return const Padding(
+        padding: EdgeInsets.all(16.0),
+        child: Center(
+          child: CircularProgressIndicator(
+            color: InterceptlyTheme.indigo500,
+          ),
+        ),
+      );
+    }
     if (lines.isEmpty) return const SizedBox.shrink();
 
     final lineNumberWidth = _memoLineNumberWidth;

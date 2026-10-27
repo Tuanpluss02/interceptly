@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import '../engine/capture_pipeline.dart';
+import '../engine/capture_generation.dart';
 
 /// Immutable context tracking an ongoing HTTP request capture lifecycle.
 class HttpRequestContext {

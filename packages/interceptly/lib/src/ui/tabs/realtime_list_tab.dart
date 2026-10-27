@@ -24,31 +24,54 @@ class RealtimeListTab extends StatefulWidget {
 }
 
 class _RealtimeListTabState extends State<RealtimeListTab> {
-  Timer? _liveTicker;
   final Map<String, String> _displayUrlCache = {};
   bool? _cachedUrlDecodeSetting;
+  InterceptlyScopeController? _scope;
+  bool _hasActiveConnections = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final next = InterceptlyScope.read(context);
+    if (!identical(next, _scope)) {
+      _scope?.removeListener(_onScopeUpdated);
+      _scope = next;
+      _scope!.addListener(_onScopeUpdated);
+      _refreshActiveFlag();
+    }
+  }
 
   @override
   void dispose() {
-    _liveTicker?.cancel();
-    _liveTicker = null;
+    _scope?.removeListener(_onScopeUpdated);
+    _scope = null;
     _displayUrlCache.clear();
     super.dispose();
   }
 
-  /// Starts a 1s rebuild loop while any connection is still open.
-  void _updateLiveTicker(InterceptlyScopeController scope) {
+  /// Refreshes the cached active-connection flag without a global ticker.
+  ///
+  /// Per-row duration widgets own their 1s timers, so the list itself only
+  /// rebuilds on scope notifications.
+  void _onScopeUpdated() {
+    final scope = _scope;
+    if (scope == null || !mounted) return;
     final hasActive = scope.entries.any(
       (e) => e.isRealtime && e.statusCode == 0 && !e.hasError,
     );
-    if (hasActive) {
-      _liveTicker ??= Timer.periodic(const Duration(seconds: 1), (_) {
-        if (mounted) setState(() {});
-      });
-    } else {
-      _liveTicker?.cancel();
-      _liveTicker = null;
+    if (hasActive != _hasActiveConnections) {
+      _hasActiveConnections = hasActive;
     }
+    if (mounted) setState(() {});
+  }
+
+  /// Recomputes the active-connection flag for the current scope.
+  void _refreshActiveFlag() {
+    final scope = _scope;
+    if (scope == null) return;
+    _hasActiveConnections = scope.entries.any(
+      (e) => e.isRealtime && e.statusCode == 0 && !e.hasError,
+    );
   }
 
   /// Returns the display URL honoring the url-decode preference.
@@ -73,7 +96,6 @@ class _RealtimeListTabState extends State<RealtimeListTab> {
   @override
   Widget build(BuildContext context) {
     final scope = InterceptlyScope.of(context);
-    _updateLiveTicker(scope);
 
     final entries = scope.entries.where((e) => e.isRealtime).toList();
 
@@ -93,19 +115,79 @@ class _RealtimeListTabState extends State<RealtimeListTab> {
         final entry = entries[index];
         return KeyedSubtree(
           key: ValueKey(entry.id),
-          child: _buildRealtimeItem(context, scope, entry),
+          child: _RealtimeRow(
+            entry: entry,
+            scope: scope,
+            nowProvider: widget.nowProvider,
+            displayUrl:
+                _getDisplayUrl(entry, scope.preferences.urlDecodeEnabled),
+          ),
         );
       },
     );
   }
+}
 
-  /// Builds one realtime row with live duration and frame counts.
-  Widget _buildRealtimeItem(
-    BuildContext context,
-    InterceptlyScopeController scope,
-    RequestSummary entry,
-  ) {
-    final isPending = entry.statusCode == 0 && !entry.hasError;
+/// Single realtime row owning its 1s duration timer.
+///
+/// Isolating the ticker per row prevents the entire list from rebuilding
+/// every second while a connection stays open.
+class _RealtimeRow extends StatefulWidget {
+  const _RealtimeRow({
+    required this.entry,
+    required this.scope,
+    required this.displayUrl,
+    this.nowProvider,
+  });
+
+  final RequestSummary entry;
+  final InterceptlyScopeController scope;
+  final String displayUrl;
+  final DateTime Function()? nowProvider;
+
+  @override
+  State<_RealtimeRow> createState() => _RealtimeRowState();
+}
+
+class _RealtimeRowState extends State<_RealtimeRow> {
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isPending) {
+      _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _RealtimeRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_isPending && _ticker == null) {
+      _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    } else if (!_isPending && _ticker != null) {
+      _ticker?.cancel();
+      _ticker = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    _ticker = null;
+    super.dispose();
+  }
+
+  bool get _isPending => widget.entry.statusCode == 0 && !widget.entry.hasError;
+
+  @override
+  Widget build(BuildContext context) {
+    final entry = widget.entry;
+    final isPending = _isPending;
     final String durationText;
     if (isPending) {
       final currentNow = (widget.nowProvider ?? DateTime.now)();
@@ -119,18 +201,19 @@ class _RealtimeListTabState extends State<RealtimeListTab> {
 
     return RealtimeLogItem(
       method: entry.method,
-      url: _getDisplayUrl(entry, scope.preferences.urlDecodeEnabled),
+      url: widget.displayUrl,
       time: time,
       duration: durationText,
       status: entry.statusCode,
       hasError: entry.hasError,
       isPending: isPending,
-      frameCounts: scope.getRealtimeFrameCounts(entry.id),
-      frameCountsNotifier: scope.getRealtimeFrameCountsNotifier(entry.id),
+      frameCounts: widget.scope.getRealtimeFrameCounts(entry.id),
+      frameCountsNotifier:
+          widget.scope.getRealtimeFrameCountsNotifier(entry.id),
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => InterceptlyScope(
-            controller: scope,
+            controller: widget.scope,
             child: RealtimeDetailPage(
               entry: entry,
               nowProvider: widget.nowProvider,

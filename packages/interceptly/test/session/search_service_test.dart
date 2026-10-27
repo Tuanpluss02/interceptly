@@ -554,6 +554,13 @@ void main() {
         sinceId: '10',
       );
       expect(resSinceNewest, isEmpty);
+
+      final resSinceUnknown = await SearchService.search(
+        entries: entries,
+        query: 'record_',
+        sinceId: 'unknown_id_999',
+      );
+      expect(resSinceUnknown, isEmpty);
     });
   });
 

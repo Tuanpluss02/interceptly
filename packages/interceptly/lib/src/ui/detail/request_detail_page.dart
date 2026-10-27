@@ -63,6 +63,7 @@ class _RequestDetailPageState extends State<RequestDetailPage>
 
   final Set<int> _visitedTabs = {0};
   int _detailLoadGeneration = 0;
+  Timer? _searchDebounce;
   final Map<DetailSection, GlobalKey> _sectionKeys = {
     for (final s in DetailSection.values) s: GlobalKey(),
   };
@@ -307,6 +308,8 @@ class _RequestDetailPageState extends State<RequestDetailPage>
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
+    _searchDebounce = null;
     if (_initialized) {
       _scope.removeListener(_onScopeChanged);
     }
@@ -462,13 +465,25 @@ class _RequestDetailPageState extends State<RequestDetailPage>
                           hintText: 'Search in details...',
                           textInputAction: TextInputAction.search,
                           onChanged: (value) {
-                            if (value.trim().isEmpty && _query.isNotEmpty) {
-                              setState(() {
-                                _query = '';
-                                _currentMatchIndex = 0;
-                              });
-                              _recomputeMatchesAsync();
-                            }
+                            _searchDebounce?.cancel();
+                            _searchDebounce =
+                                Timer(const Duration(milliseconds: 300), () {
+                              if (!mounted) return;
+                              final next = value.trim();
+                              if (next.isEmpty && _query.isNotEmpty) {
+                                setState(() {
+                                  _query = '';
+                                  _currentMatchIndex = 0;
+                                });
+                                _recomputeMatchesAsync();
+                              } else if (next.isNotEmpty && next != _query) {
+                                setState(() {
+                                  _query = next;
+                                  _currentMatchIndex = 0;
+                                });
+                                _recomputeMatchesAsync();
+                              }
+                            });
                           },
                           onSubmitted: (value) {
                             setState(() {

@@ -108,7 +108,11 @@ class DefaultRealtimeTrafficCollector implements RealtimeTrafficCollector {
     if (uri == null) return true;
     final predicate = engine.settings.shouldCapture;
     if (predicate == null) return true;
-    return predicate(uri.toString());
+    try {
+      return predicate(uri.toString());
+    } catch (_) {
+      return true;
+    }
   }
 
   @override

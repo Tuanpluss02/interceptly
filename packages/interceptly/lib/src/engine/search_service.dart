@@ -22,6 +22,15 @@ enum SearchPhase {
 /// Unified, self-contained search engine encapsulating multi-phase progressive search,
 /// structured metadata matching, binary guards, and batched disk I/O with isolate offloading.
 abstract final class SearchService {
+  /// Test-only override for [matchInlineBodyAsync].
+  ///
+  /// When set, [matchInlineBodyAsync] delegates to this hook instead of
+  /// running isolate offloading, allowing tests to force per-entry
+  /// success or failure deterministically.
+  @visibleForTesting
+  static Future<bool> Function(IndexEntry entry, String queryLower)?
+      matchInlineBodyAsyncOverride;
+
   /// Executes a multi-phase progressive search over [entries].
   ///
   /// - Phase 1: Structured metadata matching (URL, method, headers, error details).
@@ -31,11 +40,16 @@ abstract final class SearchService {
   /// Callers may supply [onProgress] to receive progressive result updates,
   /// [onPhaseChange] to track the active scanning phase, and [isCancelled]
   /// to abort promptly without leaking resources.
+  ///
+  /// [fileRotationCountProvider] optionally supplies the live file generation;
+  /// when present each batch revalidates entries after awaits so a clear or
+  /// rotation mid-search yields no new-session bytes aliased as old entries.
   static Future<List<SearchResult>> search({
     required List<IndexEntry> entries,
     required String query,
     String? filePath,
     int? fileRotationCount,
+    int? Function()? fileRotationCountProvider,
     bool searchBody = true,
     int? limit,
     String? sinceId,
@@ -68,7 +82,7 @@ abstract final class SearchService {
       final index = candidates.indexWhere((e) => e.id == sinceId);
       if (index > 0) {
         candidates = candidates.sublist(0, index);
-      } else if (index == 0) {
+      } else {
         onPhaseChange?.call(SearchPhase.done);
         onProgress?.call(const [], isDone: true);
         return const [];
@@ -194,12 +208,17 @@ abstract final class SearchService {
     if (filePath != null) {
       onPhaseChange?.call(SearchPhase.fileBodies);
 
+      int? currentRotation() =>
+          fileRotationCountProvider?.call() ?? fileRotationCount;
+
+      bool isExpired(IndexEntry e, int? rotation) =>
+          rotation != null &&
+          e.fileRotationCount != null &&
+          e.fileRotationCount! < rotation;
+
       final fileCandidates = <IndexEntry>[];
       for (final e in candidates) {
-        final isExpiredByRotation = fileRotationCount != null &&
-            e.fileRotationCount != null &&
-            e.fileRotationCount! < fileRotationCount;
-        if (!isExpiredByRotation &&
+        if (!isExpired(e, currentRotation()) &&
             e.bodyLocation == BodyLocation.file &&
             !matchedIds.contains(e.id) &&
             e.fileOffset != null &&
@@ -214,6 +233,7 @@ abstract final class SearchService {
         RandomAccessFile? raf;
         try {
           raf = await BodyStore.openReadHandle(filePath);
+          final rotAfterOpen = currentRotation();
           final batchSize = fileCandidates.length > 100 ? 32 : 16;
           for (var start = 0;
               start < fileCandidates.length;
@@ -229,12 +249,26 @@ abstract final class SearchService {
             final batchPayloads = <(IndexEntry, Uint8List)?>[];
             for (final e in batch) {
               if (isCancelled?.call() ?? false) break;
+              if (isExpired(e, currentRotation()) ||
+                  isExpired(e, rotAfterOpen)) {
+                batchPayloads.add(null);
+                continue;
+              }
               try {
                 final raw = await BodyStore.readWithHandle(
                   raf,
                   e.fileOffset!,
                   e.fileLength!,
                 );
+                final rotAfterRead = currentRotation();
+                if (isExpired(e, rotAfterRead)) {
+                  batchPayloads.add(null);
+                  continue;
+                }
+                if (raw.length < e.fileLength!) {
+                  batchPayloads.add(null);
+                  continue;
+                }
                 batchPayloads.add((e, raw));
               } catch (err) {
                 if (kDebugMode) {
@@ -250,6 +284,10 @@ abstract final class SearchService {
             final futures = batchPayloads.map((payload) async {
               if (payload == null) return (false, null);
               final (e, raw) = payload;
+              final rotBeforeMatch = currentRotation();
+              if (isExpired(e, rotBeforeMatch)) {
+                return (false, null);
+              }
               try {
                 final checkReq =
                     !BodyDecodeService.isBinary(e.requestContentType);
@@ -259,7 +297,10 @@ abstract final class SearchService {
                 final matched = raw.length > BodyDecodeService.computeThreshold
                     ? await compute(_matchPackedPayloadIsolate, job)
                     : _matchPackedPayloadIsolate(job);
-
+                final rotAfterMatch = currentRotation();
+                if (isExpired(e, rotAfterMatch)) {
+                  return (false, null);
+                }
                 if (matched) {
                   return (true, e);
                 }
@@ -380,6 +421,10 @@ abstract final class SearchService {
     IndexEntry entry,
     String queryLower,
   ) async {
+    final override = matchInlineBodyAsyncOverride;
+    if (override != null) {
+      return override(entry, queryLower);
+    }
     final reqBytes = !BodyDecodeService.isBinary(entry.requestContentType)
         ? entry.inlineRequestBody
         : null;
@@ -492,7 +537,7 @@ abstract final class SearchService {
     return false;
   }
 
-  /// Case-insensitive substring check preserving full Unicode case-folding semantics.
+  /// Case-insensitive substring check via toLowerCase (not full casefold).
   static bool _containsCaseInsensitive(String text, String queryLower) {
     if (queryLower.isEmpty) return true;
     return text.toLowerCase().contains(queryLower);

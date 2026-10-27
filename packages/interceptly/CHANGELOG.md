@@ -1,3 +1,12 @@
+## Unreleased
+
+### Fixed
+- Preserve capture generation across `HttpRequestContext.copyWith` so amended scopes stay fenced after `clear()`.
+- Generation-fenced `clear`/`clearRest`/`clearRealtime` with per-scope futures; `clear-wins` linearization documented.
+- Writer restart aliasing via `_StopAck` handshake with `preserveExisting` resume and rotation-count propagation.
+- `getRequestDetail` reads beyond UI preview via full decode and propagates `hasDataLoss` to `isTruncated`; `totalChars` now measures full bodies (previously measured UI-preview truncation).
+- Rotation sync for detail loader and search; active realtime notifier retention; bound restart queue.
+
 ## 2.3.0
 
 ### Added

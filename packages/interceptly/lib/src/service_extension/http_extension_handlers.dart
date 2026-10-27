@@ -136,6 +136,11 @@ abstract final class HttpExtensionHandlers {
   /// - `part`: 'all' | 'request_body' | 'response_body' | 'request_headers' | 'response_headers'
   /// - `max_chars`: maximum character count for body preview (default 4000)
   /// - `offset`: character offset for continuation
+  ///
+  /// Per-part windows for `part=all`: [offset] and [max_chars] apply
+  /// independently to each body, so request and response slices share the same
+  /// window. `totalChars` is the sum of both body lengths and `remainingChars`
+  /// is the sum of each body remainder after its window.
   static Future<Map<String, dynamic>> handleGetRequestDetail({
     required InterceptlyEngine? engine,
     required Map<String, String> parameters,
@@ -272,6 +277,9 @@ abstract final class HttpExtensionHandlers {
   }
 
   /// Handles `ext.interceptly.exportCurl`.
+  ///
+  /// Query parameters:
+  /// - `id`: request ID (required)
   static Future<Map<String, dynamic>> handleExportCurl({
     required InterceptlyEngine? engine,
     required Map<String, String> parameters,

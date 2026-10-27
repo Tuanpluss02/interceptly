@@ -13,6 +13,7 @@ import '../model/request_record.dart';
 import '../model/request_summary.dart';
 import '../model/search_result.dart';
 import '../simulation/network_simulation_service.dart';
+import 'capture_generation.dart';
 import 'capture_pipeline.dart';
 import 'detail_loader.dart';
 import 'memory_index.dart';
@@ -67,6 +68,16 @@ class InterceptlyEngine extends ChangeNotifier {
     return '${time}_$seq';
   }
 
+  /// Release-guard decision shared by the engine gates and tests.
+  ///
+  /// Returns `false` only when [isReleaseMode] is true and the caller has
+  /// not opted in via [InterceptlySettings.allowInRelease].
+  static bool shouldEnableCapture({
+    required bool isReleaseMode,
+    required InterceptlySettings settings,
+  }) =>
+      !(isReleaseMode && !settings.allowInRelease);
+
   static InterceptlyEngine? _instance;
 
   /// Returns the shared default engine singleton.
@@ -92,6 +103,8 @@ class InterceptlyEngine extends ChangeNotifier {
 
   NetworkSimulationProfile _networkSimulation = NetworkSimulationProfile.none;
   Future<void>? _clearFuture;
+  Future<void>? _clearRestFuture;
+  Future<void>? _clearRealtimeFuture;
   bool _enabled = true;
   bool _isDisposed = false;
   int _entriesVersion = 0;
@@ -115,7 +128,13 @@ class InterceptlyEngine extends ChangeNotifier {
   List<IndexEntry> get recentChangedEntries =>
       List.unmodifiable(_recentChangedEntries);
 
-  bool get isEnabled => _enabled;
+  bool get isEnabled =>
+      !_isDisposed &&
+      _enabled &&
+      shouldEnableCapture(
+        isReleaseMode: kReleaseMode,
+        settings: _settings,
+      );
 
   int get droppedCount => _capturePipeline.droppedCount;
 
@@ -157,6 +176,11 @@ class InterceptlyEngine extends ChangeNotifier {
     super.notifyListeners();
   }
 
+  /// Applies [newSettings] without changing the user's capture intent.
+  ///
+  /// Release permission is evaluated dynamically by [isEnabled], so
+  /// `configure` never resumes an explicitly disabled engine. A caller that
+  /// wants to resume capture must call [enable] explicitly.
   void _applySettings(InterceptlySettings newSettings) {
     _settings = newSettings;
     _capturePipeline.updateSettings(newSettings);
@@ -174,7 +198,19 @@ class InterceptlyEngine extends ChangeNotifier {
       _applySettings(newSettings);
 
   /// Initializes background workers and disk storage.
+  ///
+  /// Worker creation is gated by release permission, not by the user's pause
+  /// intent: a paused debug/profile engine may still be initialized
+  /// explicitly, while a denied release engine must not create files or
+  /// isolates. Repeating the call after opt-in retries initialization.
   Future<void> initialize() async {
+    if (_isDisposed ||
+        !shouldEnableCapture(
+          isReleaseMode: kReleaseMode,
+          settings: _settings,
+        )) {
+      return;
+    }
     await _capturePipeline.initialize();
     if (_settings.persistToDisk) {
       await _realtimeStore.ensureDiskStorageInitialized(
@@ -224,7 +260,11 @@ class InterceptlyEngine extends ChangeNotifier {
     _recentChangedEntries.clear();
   }
 
-  /// Enables traffic capture.
+  /// Enables traffic capture intent.
+  ///
+  /// This never grants release permission: [isEnabled] still composes the
+  /// intent with [shouldEnableCapture]. In a denied release build the call
+  /// records the intent for a later opt-in but captures nothing.
   void enable() {
     if (_isDisposed || _enabled) return;
     _enabled = true;
@@ -232,6 +272,8 @@ class InterceptlyEngine extends ChangeNotifier {
   }
 
   /// Disables traffic capture, dropping new captures silently.
+  ///
+  /// The explicit pause survives [configure] until [enable] is called.
   void disable() {
     if (!_enabled) return;
     _enabled = false;
@@ -272,6 +314,20 @@ class InterceptlyEngine extends ChangeNotifier {
         chunkBytes,
       );
 
+  /// Evaluates the user capture predicate fail-open.
+  ///
+  /// A throwing predicate never breaks the host request; the capture
+  /// proceeds as if allowed.
+  bool _predicateAllows(String url) {
+    final predicate = _settings.shouldCapture;
+    if (predicate == null) return true;
+    try {
+      return predicate(url);
+    } catch (_) {
+      return true;
+    }
+  }
+
   /// Enqueues [capture] for asynchronous background processing.
   void record(RawCapture capture) {
     final pendingGen = _pendingGenerations.remove(capture.id);
@@ -280,14 +336,8 @@ class InterceptlyEngine extends ChangeNotifier {
       return;
     }
 
-    final isPending = _memoryIndex.byId(capture.id)?.statusCode == 0;
-    if (!isPending) {
-      if (!_enabled) return;
-      if (_settings.shouldCapture != null &&
-          !_settings.shouldCapture!(capture.url)) {
-        return;
-      }
-    }
+    if (!isEnabled) return;
+    if (!_predicateAllows(capture.url)) return;
     if (effectiveGen != null) {
       attachCaptureGeneration(capture, effectiveGen);
     }
@@ -304,8 +354,8 @@ class InterceptlyEngine extends ChangeNotifier {
     Uint8List? requestBodyBytes,
     String? requestContentType,
   }) {
-    if (!_enabled) return;
-    if (_settings.shouldCapture != null && !_settings.shouldCapture!(url)) {
+    if (!isEnabled) return;
+    if (!_predicateAllows(url)) {
       return;
     }
     _recordPendingEntry(
@@ -353,7 +403,7 @@ class InterceptlyEngine extends ChangeNotifier {
 
   /// Records a captured [RealtimeFrame] into the buffer.
   Future<void> recordRealtimeFrame(RealtimeFrame frame) {
-    if (!_enabled || _isDisposed) return Future<void>.value();
+    if (!isEnabled) return Future<void>.value();
     final activeSession = _activeRealtimeSessions[frame.sessionId];
     if (activeSession != null) {
       if (!activeSession.isCaptured) return Future<void>.value();
@@ -401,6 +451,9 @@ class InterceptlyEngine extends ChangeNotifier {
       RealtimeTrafficCollector.instance.sendMessage(sessionId, draft);
 
   /// Records opening of a realtime connection.
+  ///
+  /// Defensive copy: retention outlives caller map lifetime; also bounds
+  /// active sessions to avoid unbounded growth when close is never called.
   void recordRealtimeConnection({
     required String id,
     required String url,
@@ -409,19 +462,21 @@ class InterceptlyEngine extends ChangeNotifier {
     bool isPreValidated = false,
     RealtimeProtocolType protocolType = RealtimeProtocolType.webSocket,
   }) {
-    if (!_enabled || _isDisposed) return;
+    if (!isEnabled) return;
     final effectiveTimestamp = timestamp ?? DateTime.now();
-    final isCaptured = isPreValidated ||
-        _settings.shouldCapture == null ||
-        _settings.shouldCapture!(url);
+    final isCaptured = isPreValidated || _predicateAllows(url);
     final active = _ActiveRealtimeSession(
       id: id,
       url: url,
-      headers: headers,
+      headers: Map.unmodifiable(Map<String, String>.of(headers)),
       timestamp: effectiveTimestamp,
       protocolType: protocolType,
       isCaptured: isCaptured,
     );
+    if (_activeRealtimeSessions.length >= _settings.maxEntries * 2 &&
+        !_activeRealtimeSessions.containsKey(id)) {
+      _activeRealtimeSessions.remove(_activeRealtimeSessions.keys.first);
+    }
     _activeRealtimeSessions[id] = active;
     if (!isCaptured) {
       return;
@@ -432,7 +487,7 @@ class InterceptlyEngine extends ChangeNotifier {
       method: active.method,
       url: url,
       timestamp: effectiveTimestamp,
-      requestHeaders: headers,
+      requestHeaders: active.headers,
     );
   }
 
@@ -487,12 +542,15 @@ class InterceptlyEngine extends ChangeNotifier {
     String statusFilter = 'all',
     String? sinceId,
     int limit = 20,
+    int? Function()? fileRotationCountProvider,
   }) {
     return SearchService.search(
       entries: _memoryIndex.entries.toList(),
       query: query,
       filePath: _capturePipeline.tempFilePath,
       fileRotationCount: _capturePipeline.fileRotationCount,
+      fileRotationCountProvider:
+          fileRotationCountProvider ?? () => _capturePipeline.fileRotationCount,
       searchBody: searchBody,
       statusFilter: statusFilter,
       sinceId: sinceId,
@@ -506,104 +564,101 @@ class InterceptlyEngine extends ChangeNotifier {
     _memoryIndex.add(entry);
   }
 
-  Future<void> clear() async {
+  /// Clears all entries, coalescing concurrent calls to an identical future.
+  Future<void> clear() {
     if (_clearFuture != null) return _clearFuture!;
     final future = _performClear();
     _clearFuture = future;
-    try {
-      await future;
-    } finally {
+    future.whenComplete(() {
       if (identical(_clearFuture, future)) _clearFuture = null;
-    }
+    }).ignore();
+    return future;
   }
 
-  Future<void> clearRest() async {
-    if (_clearFuture != null) return _clearFuture!;
+  /// Clears REST entries only, coalescing concurrent calls to an identical future.
+  Future<void> clearRest() {
+    if (_clearRestFuture != null) return _clearRestFuture!;
     final future = _performScopedClear(isRealtime: false);
-    _clearFuture = future;
-    try {
-      await future;
-    } finally {
-      if (identical(_clearFuture, future)) _clearFuture = null;
-    }
+    _clearRestFuture = future;
+    future.whenComplete(() {
+      if (identical(_clearRestFuture, future)) _clearRestFuture = null;
+    }).ignore();
+    return future;
   }
 
-  Future<void> clearRealtime() async {
-    if (_clearFuture != null) return _clearFuture!;
+  /// Clears realtime entries only, coalescing concurrent calls to an identical future.
+  Future<void> clearRealtime() {
+    if (_clearRealtimeFuture != null) return _clearRealtimeFuture!;
     final future = _performScopedClear(isRealtime: true);
-    _clearFuture = future;
-    try {
-      await future;
-    } finally {
-      if (identical(_clearFuture, future)) _clearFuture = null;
-    }
+    _clearRealtimeFuture = future;
+    future.whenComplete(() {
+      if (identical(_clearRealtimeFuture, future)) _clearRealtimeFuture = null;
+    }).ignore();
+    return future;
   }
 
   /// Removes entries of one scope while keeping the other intact.
   Future<void> _performScopedClear({required bool isRealtime}) async {
-    try {
-      _coalesceNotifyTimer?.cancel();
-      _coalesceNotifyTimer = null;
-      _hasPendingCoalescedNotify = false;
-      _entriesVersion++;
-      _recentChangedEntries.clear();
-      final ids = _memoryIndex.entries
-          .where((e) => e.isRealtime == isRealtime)
-          .map((e) => e.id)
-          .toList();
-      if (!isRealtime) {
-        if (_capturePipeline.isInitialized) {
-          await _capturePipeline.clear();
-        } else {
-          _capturePipeline.clearSync();
-        }
-      }
-      for (final id in ids) {
-        _pendingTracker.cancel(id);
-      }
-      _memoryIndex.removeWhere((e) => e.isRealtime == isRealtime);
-      if (isRealtime) {
-        _realtimeStore.clear();
-      }
-      if (!_isDisposed) {
-        notifyListeners();
-      }
-      if (isRealtime) {
-        await _realtimeStore.resetDiskStorage();
-      }
-    } finally {
-      _clearFuture = null;
-    }
-  }
-
-  Future<void> _performClear() async {
-    try {
-      _coalesceNotifyTimer?.cancel();
-      _coalesceNotifyTimer = null;
-      _hasPendingCoalescedNotify = false;
-      _entriesVersion++;
-      _recentChangedEntries.clear();
+    _coalesceNotifyTimer?.cancel();
+    _coalesceNotifyTimer = null;
+    _hasPendingCoalescedNotify = false;
+    _entriesVersion++;
+    _recentChangedEntries.clear();
+    final ids = _memoryIndex.entries
+        .where((e) => e.isRealtime == isRealtime)
+        .map((e) => e.id)
+        .toList();
+    if (!isRealtime) {
       if (_capturePipeline.isInitialized) {
         await _capturePipeline.clear();
       } else {
         _capturePipeline.clearSync();
       }
-      _memoryIndex.clear();
-      _pendingTracker.clear();
+    }
+    for (final id in ids) {
+      _pendingTracker.cancel(id);
+    }
+    _memoryIndex.removeWhere((e) => e.isRealtime == isRealtime);
+    if (isRealtime) {
       _realtimeStore.clear();
-      if (!_isDisposed) {
-        notifyListeners();
-      }
+    }
+    if (!_isDisposed) {
+      notifyListeners();
+    }
+    if (isRealtime) {
       await _realtimeStore.resetDiskStorage();
-    } finally {
-      _clearFuture = null;
     }
   }
 
+  Future<void> _performClear() async {
+    _coalesceNotifyTimer?.cancel();
+    _coalesceNotifyTimer = null;
+    _hasPendingCoalescedNotify = false;
+    _entriesVersion++;
+    _recentChangedEntries.clear();
+    if (_capturePipeline.isInitialized) {
+      await _capturePipeline.clear();
+    } else {
+      _capturePipeline.clearSync();
+    }
+    _memoryIndex.clear();
+    _pendingTracker.clear();
+    _realtimeStore.clear();
+    _pendingGenerations.clear();
+    if (!_isDisposed) {
+      notifyListeners();
+    }
+    await _realtimeStore.resetDiskStorage();
+  }
+
+  /// Disposes background workers and storage, idempotent on repeat calls.
+  ///
+  /// Mirrors [CapturePipeline.dispose] early-return semantics: a second call
+  /// is a no-op so test teardown and [resetForTesting] never throw.
   @override
   Future<void> dispose() async {
     if (_isDisposed) {
-      throw StateError('InterceptlyEngine has already been disposed.');
+      return;
     }
     _isDisposed = true;
     if (identical(_instance, this)) {

@@ -419,6 +419,10 @@ class RealtimeStore {
   }
 
   /// Loads full payload for [frame] asynchronously from disk or memory.
+  ///
+  /// Snapshots the body store generation before disk reads and revalidates
+  /// afterwards; a rotation or reset mid-read returns an expired placeholder
+  /// instead of new-session bytes aliased as the old frame.
   Future<dynamic> loadPayload(RealtimeFrame frame) async {
     if (frame.location == BodyLocation.memory) {
       if (frame.type == FrameType.text) {
@@ -443,12 +447,26 @@ class RealtimeStore {
     }
 
     try {
+      final rotBefore = _bodyStore.rotationCount;
       final bytes = await _bodyStore.readBytes(offset, length);
+      final rotAfter = _bodyStore.rotationCount;
+      if (frame.rotationCount != null && frame.rotationCount! < rotAfter) {
+        return '[Payload expired due to file rotation]';
+      }
+      if (rotBefore != rotAfter) {
+        return '[Payload expired due to file rotation]';
+      }
+      if (bytes.length < length) {
+        return '[Payload unavailable: truncated body store]';
+      }
       if (frame.type == FrameType.text) {
         return utf8.decode(bytes, allowMalformed: true);
       }
       return bytes;
     } catch (e) {
+      if (e is FileSystemException && e.message.contains('rotated')) {
+        return '[Payload expired due to file rotation]';
+      }
       return '[Error loading payload: $e]';
     }
   }
@@ -539,6 +557,9 @@ class RealtimeStore {
   }
 
   /// Returns the per-session [ValueListenable] for reactive frame count updates.
+  ///
+  /// Keeps [_liveCountsBySession] when the buffer still exists so a future
+  /// notifier reseeds with correct counts; only drops the dirty flag.
   ValueListenable<RealtimeFrameCounts> getFrameCountsNotifier(
       String sessionId) {
     final existing = _notifiersBySession[sessionId];
@@ -553,6 +574,7 @@ class RealtimeStore {
           .toList();
       for (final key in orphanKeys) {
         _liveCountsBySession.remove(key);
+        _dirtyNotifierSessions.remove(key);
         _notifiersBySession.remove(key)?.dispose();
       }
       final inactiveKeys = _notifiersBySession.entries
@@ -561,6 +583,7 @@ class RealtimeStore {
           .toList();
       for (final key in inactiveKeys) {
         if (_notifiersBySession.length < _maxSessions) break;
+        _dirtyNotifierSessions.remove(key);
         _notifiersBySession.remove(key)?.dispose();
       }
     }
@@ -573,6 +596,10 @@ class RealtimeStore {
     return created;
   }
 
+  /// Handles removal of the last listener on the [sessionId] notifier.
+  ///
+  /// When the buffer is still live, keeps counts for reseed and drops
+  /// the dirty flag only.
   void _onNotifierAllListenersRemoved(String sessionId) {
     if (_isDisposed) return;
     final notifier = _notifiersBySession[sessionId];
@@ -583,6 +610,7 @@ class RealtimeStore {
       _notifiersBySession.remove(sessionId);
       notifier.dispose();
     } else if (_notifiersBySession.length > _maxSessions) {
+      _dirtyNotifierSessions.remove(sessionId);
       _notifiersBySession.remove(sessionId);
       notifier.dispose();
     }
