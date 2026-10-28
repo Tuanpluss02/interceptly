@@ -136,8 +136,10 @@ class JsonLineFlattener {
     String? query,
     int matchOffset = 0,
     int? activeGlobalIndex,
+    int? knownLineCount,
+    Map<String, int>? matchCounts,
   }) async {
-    final lineCount = countExpandedLines(data);
+    final lineCount = knownLineCount ?? countExpandedLines(data);
     if (lineCount > 5000) {
       return compute(
         _flattenWorker,
@@ -150,14 +152,18 @@ class JsonLineFlattener {
           collapsedPaths: expansion.userCollapsedPaths,
           explicitState: expansion.explicitState,
           baseTextStyle: baseTextStyle,
+          matchCounts: matchCounts,
         ),
       );
     }
-    final analysis = countLinesAndMatches(data, query);
+    final effectiveMatchCounts = matchCounts ??
+        (query != null && query.isNotEmpty
+            ? countLinesAndMatches(data, query).matchCounts
+            : null);
     final flattener = JsonLineFlattener(
       expansion: expansion,
       activeGlobalIndex: activeGlobalIndex,
-      matchCounts: query == null ? null : analysis.matchCounts,
+      matchCounts: effectiveMatchCounts,
       lineCountMemo: null,
       baseTextStyle: baseTextStyle,
     );
@@ -662,6 +668,7 @@ class _FlattenWorkerParams {
   final Set<String> collapsedPaths;
   final Map<String, bool> explicitState;
   final TextStyle baseTextStyle;
+  final Map<String, int>? matchCounts;
 
   const _FlattenWorkerParams({
     required this.data,
@@ -672,6 +679,7 @@ class _FlattenWorkerParams {
     required this.collapsedPaths,
     required this.explicitState,
     required this.baseTextStyle,
+    this.matchCounts,
   });
 }
 
@@ -683,14 +691,17 @@ List<JsonLine> _flattenWorker(_FlattenWorkerParams params) {
   for (final entry in params.explicitState.entries) {
     expansion.setExplicitState(entry.key, entry.value);
   }
-  final analysis = JsonLineFlattener.countLinesAndMatches(
-    params.data,
-    params.query,
-  );
+  final matchCounts = params.matchCounts ??
+      (params.query != null && params.query!.isNotEmpty
+          ? JsonLineFlattener.countLinesAndMatches(
+              params.data,
+              params.query,
+            ).matchCounts
+          : null);
   final flattener = JsonLineFlattener(
     expansion: expansion,
     activeGlobalIndex: params.activeGlobalIndex,
-    matchCounts: params.query == null ? null : analysis.matchCounts,
+    matchCounts: matchCounts,
     lineCountMemo: null,
     baseTextStyle: params.baseTextStyle,
   );

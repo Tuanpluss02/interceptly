@@ -224,6 +224,7 @@ class _JsonViewerState extends State<JsonViewer> {
         brightness: brightness,
         analysisMatchCounts:
             effectiveQuery == null ? null : analysis.matchCounts,
+        knownLineCount: analysis.lineCount,
       );
       return;
     }
@@ -280,6 +281,7 @@ class _JsonViewerState extends State<JsonViewer> {
     required String? effectiveQuery,
     required Brightness? brightness,
     required Map<String, int>? analysisMatchCounts,
+    required int knownLineCount,
   }) {
     final generation = ++_computeGeneration;
     _isComputingLarge = true;
@@ -297,6 +299,8 @@ class _JsonViewerState extends State<JsonViewer> {
       query: effectiveQuery,
       matchOffset: matchOffset,
       activeGlobalIndex: activeIndex,
+      knownLineCount: knownLineCount,
+      matchCounts: analysisMatchCounts,
     ).then((lines) {
       if (!mounted || generation != _computeGeneration) return;
       if (!identical(widget.data, data)) return;

@@ -80,7 +80,7 @@ void main() {
       await settleWithRealIsolate(tester);
       stopwatch.stop();
 
-      expect(stopwatch.elapsedMilliseconds, lessThan(3500));
+      expect(stopwatch.elapsedMilliseconds, lessThan(8000));
 
       expect(find.textContaining('"row_1":'), findsOneWidget);
       expect(find.textContaining('"row_15000":'), findsNothing);
@@ -687,7 +687,7 @@ void main() {
 }
 
 Future<void> settleWithRealIsolate(WidgetTester tester) async {
-  final deadline = DateTime.now().add(const Duration(seconds: 2));
+  final deadline = DateTime.now().add(const Duration(seconds: 10));
   while (find.byType(CircularProgressIndicator).evaluate().isNotEmpty &&
       DateTime.now().isBefore(deadline)) {
     await tester

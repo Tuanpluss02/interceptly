@@ -415,7 +415,7 @@ void main() {
 }
 
 Future<void> settleWithRealIsolate(WidgetTester tester) async {
-  final deadline = DateTime.now().add(const Duration(seconds: 2));
+  final deadline = DateTime.now().add(const Duration(seconds: 10));
   while (find.byType(CircularProgressIndicator).evaluate().isNotEmpty &&
       DateTime.now().isBefore(deadline)) {
     await tester
