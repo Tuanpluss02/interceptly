@@ -13,7 +13,7 @@ import 'package:vm_service/vm_service_io.dart';
 ///
 /// Manual Verification Checklist for Flutter App Hot Restart:
 /// 1. Run Flutter example: cd packages/interceptly/example && flutter run
-/// 2. Launch CLI: dart run packages/interceptly_mcp/bin/interceptly_mcp.dart --uri <printed-ws-uri>
+/// 2. Launch CLI: dart run packages/interceptly_mcp/bin/interceptly_mcp.dart --uri `<printed-ws-uri>`
 /// 3. Call tool list_requests -> verify requests appear.
 /// 4. Press 'R' in Flutter console (Hot Restart) -> previous isolate is destroyed, new one created.
 /// 5. Call tool list_requests again -> verify CLI locates new isolate without crashing.

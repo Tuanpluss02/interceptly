@@ -23,7 +23,7 @@ melos:
   repository: https://github.com/Tuanpluss02/interceptly
   command:
     version:
-      message: 'chore(release): publish packages [skip ci]'
+      message: 'chore(release): publish packages'
       linkToCommits: true
       workspaceChangelog: false
       branch: main
