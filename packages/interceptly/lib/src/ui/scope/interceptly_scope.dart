@@ -110,11 +110,19 @@ class InterceptlyScopeController extends ChangeNotifier {
     return result;
   }
 
-  /// Available domains present in the current entries.
+  /// Available domains present in the REST entries.
   Set<String> get availableDomains {
     return _cachedAvailableDomains ??= engine.entries
-        .map((entry) => RequestFilter.extractDomain(entry.url))
+        .where((entry) => !entry.isRealtime)
+        .map((entry) => entry is IndexEntry
+            ? entry.domain
+            : RequestFilter.extractDomain(entry.url))
         .toSet();
+  }
+
+  /// Returns all realtime connection entries from the engine.
+  List<RequestSummary> get realtimeEntries {
+    return engine.entries.where((e) => e.isRealtime).toList(growable: false);
   }
 
   Set<SearchMatchScope> getSearchScopes(String id) => _search.getScopes(id);
@@ -154,10 +162,12 @@ class InterceptlyScopeController extends ChangeNotifier {
         _lastComputedCacheVersion == _cacheVersion) {
       return _cachedGroupedRecords!;
     }
-    final currentEntries = entries;
+    final currentEntries = entries.where((e) => !e.isRealtime);
     final grouped = <String, List<RequestSummary>>{};
     for (final entry in currentEntries) {
-      final domain = RequestFilter.extractDomain(entry.url);
+      final domain = entry is IndexEntry
+          ? entry.domain
+          : RequestFilter.extractDomain(entry.url);
       grouped.putIfAbsent(domain, () => []).add(entry);
     }
     _cachedGroupedRecords = grouped.entries

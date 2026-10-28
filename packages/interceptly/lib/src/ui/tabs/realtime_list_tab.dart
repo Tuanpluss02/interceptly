@@ -56,8 +56,8 @@ class _RealtimeListTabState extends State<RealtimeListTab> {
   void _onScopeUpdated() {
     final scope = _scope;
     if (scope == null || !mounted) return;
-    final hasActive = scope.entries.any(
-      (e) => e.isRealtime && e.statusCode == 0 && !e.hasError,
+    final hasActive = scope.realtimeEntries.any(
+      (e) => e.statusCode == 0 && !e.hasError,
     );
     if (hasActive != _hasActiveConnections) {
       _hasActiveConnections = hasActive;
@@ -69,8 +69,8 @@ class _RealtimeListTabState extends State<RealtimeListTab> {
   void _refreshActiveFlag() {
     final scope = _scope;
     if (scope == null) return;
-    _hasActiveConnections = scope.entries.any(
-      (e) => e.isRealtime && e.statusCode == 0 && !e.hasError,
+    _hasActiveConnections = scope.realtimeEntries.any(
+      (e) => e.statusCode == 0 && !e.hasError,
     );
   }
 
@@ -97,7 +97,7 @@ class _RealtimeListTabState extends State<RealtimeListTab> {
   Widget build(BuildContext context) {
     final scope = InterceptlyScope.of(context);
 
-    final entries = scope.entries.where((e) => e.isRealtime).toList();
+    final entries = scope.realtimeEntries;
 
     if (entries.isEmpty) {
       return const Center(
