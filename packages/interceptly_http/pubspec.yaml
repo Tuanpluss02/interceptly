@@ -1,6 +1,6 @@
 name: interceptly_http
 description: "HTTP client wrapper for Interceptly network inspector."
-version: 1.2.0
+version: 1.2.1
 homepage: https://github.com/Tuanpluss02/interceptly
 repository: https://github.com/Tuanpluss02/interceptly
 issue_tracker: https://github.com/Tuanpluss02/interceptly/issues
@@ -13,7 +13,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  interceptly: ^2.2.0
+  interceptly: ^2.3.1
   http: ^1.0.0
 
 dev_dependencies:

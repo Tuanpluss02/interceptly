@@ -1,3 +1,7 @@
+## 2.3.1
+
+ - **FIX**: comprehensive hardening across engine lifecycle, storage, replay security, and surfaces ([#21](https://github.com/Tuanpluss02/interceptly/issues/21)). ([70f59607](https://github.com/Tuanpluss02/interceptly/commit/70f59607a0d75682ff37919ba13210a925f34b49))
+
 ## Unreleased
 
 ### Fixed
