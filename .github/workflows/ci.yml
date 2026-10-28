@@ -14,6 +14,7 @@ jobs:
   lint-and-format:
     name: Lint & Format
     runs-on: ubuntu-latest
+    if: "!startsWith(github.event.head_commit.message, 'chore(release)')"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -25,7 +26,7 @@ jobs:
           cache: true
 
       - name: Install Melos
-        run: dart pub global activate melos
+        run: dart pub global activate melos 8.10.0
 
       - name: Bootstrap Melos workspace
         run: melos bootstrap
@@ -51,7 +52,7 @@ jobs:
           cache: true
 
       - name: Install Melos
-        run: dart pub global activate melos
+        run: dart pub global activate melos 8.10.0
 
       - name: Bootstrap Melos workspace
         run: melos bootstrap
@@ -83,7 +84,7 @@ jobs:
 
       - name: Install Melos & Pana
         run: |
-          dart pub global activate melos
+          dart pub global activate melos 8.10.0
           dart pub global activate pana
           dart pub global activate dartdoc
           echo "$PUB_CACHE/bin" >> $GITHUB_PATH

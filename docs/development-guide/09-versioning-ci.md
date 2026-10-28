@@ -34,7 +34,7 @@ If you change `HttpTrafficCollector`, `HttpCaptureScope`, `RealtimeTrafficCollec
 
 1. **Bump core version** in `packages/interceptly/pubspec.yaml`
 2. **Update ALL adapters** to match new signatures (same PR — they live in monorepo)
-3. **Update `pubspec_overrides.yaml`** in adapters to point to local core during development
+3. **Check the workspace resolution** — pub workspaces resolve every member together, so a conflicting dependency constraint fails `flutter pub get` for the whole repo
 4. **Run `melos run check`** — all 5 packages must pass
 5. **Document in CHANGELOG.md** under core package
 

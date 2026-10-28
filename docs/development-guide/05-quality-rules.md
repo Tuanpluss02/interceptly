@@ -15,7 +15,7 @@ melos run check
 ### What `check` Runs
 
 ```yaml
-# melos.yaml
+# pubspec.yaml → melos.scripts
 scripts:
   check:
     run: melos run format:check && melos run analyze && melos run test:core

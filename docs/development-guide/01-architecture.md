@@ -94,6 +94,7 @@ Adapters declare `interceptly: ^X.Y.Z` matching the SPI version they implement a
 
 ## Melos Workspace
 
-- `melos.yaml` defines scripts: `bootstrap`, `analyze`, `format`, `test:core`, `check`, `pana`
-- `packages: ['packages/*']` auto-includes all packages
-- `pubspec_overrides.yaml` in each adapter points to local `../interceptly` during development
+- Workspace config and scripts live in the root `pubspec.yaml` under `workspace:` and `melos:`
+  (Melos 8+ no longer reads `melos.yaml`)
+- `workspace:` lists every package, so `dart pub get` / `flutter pub get` resolves them together
+- Each member declares `resolution: workspace`; no per-package `pubspec_overrides.yaml` is needed

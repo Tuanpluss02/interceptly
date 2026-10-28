@@ -386,9 +386,9 @@ claude mcp add -s project interceptly -- dart pub global run interceptly_mcp
   Podfile and the Xcode deployment target.
 - Rows missing for one client: the adapter is attached to a different instance
   than the one making the call (check DI / provider registrations).
-- Developing against a local Interceptly checkout: use
-  `pubspec_overrides.yaml` with `path:` overrides (melos generates these);
-  never commit `path:` deps in a consumer app.
+- Developing against a local Interceptly checkout: add `path:` overrides in your
+  app's own `pubspec_overrides.yaml` (this repo's pub workspace no longer
+  generates them); never commit `path:` deps in a consumer app.
 - AI assistant cannot connect to the app: ensure the Flutter app is running
   with `Interceptly.init()` called and that `127.0.0.1` loopback access is
   available.
