@@ -12,6 +12,9 @@ class InterceptlySimulatedChopperException extends http.ClientException
 }
 
 /// A Chopper interceptor that captures all requests and responses for Interceptly.
+///
+/// Snapshots request headers on capture so later caller mutations cannot
+/// alias retained traffic records.
 class InterceptlyChopperInterceptor implements Interceptor {
   /// Creates an interceptor backed by [collector].
   InterceptlyChopperInterceptor([
@@ -37,7 +40,7 @@ class InterceptlyChopperInterceptor implements Interceptor {
       scope = await collector.begin(
         method: request.method,
         uri: request.url,
-        headers: request.headers,
+        headers: Map.of(request.headers),
         bodyBytes: reqBody,
         contentType: reqContentType,
       );
@@ -55,7 +58,8 @@ class InterceptlyChopperInterceptor implements Interceptor {
 
     final resBody = response.bodyBytes;
     final sent = response.base.request;
-    final sentHeaders = sent?.headers ?? request.headers;
+    final sentHeaders =
+        sent?.headers != null ? Map.of(sent!.headers) : Map.of(request.headers);
     final sentBody = sent is http.Request ? sent.bodyBytes : reqBody;
 
     scope.amendRequest(

@@ -5,8 +5,14 @@ import 'socket_io_sender.dart';
 import 'socket_io_tracker.dart';
 
 /// Entry point for attaching Interceptly network inspection to Socket.IO clients.
+///
+/// Repeated attaches for the same [Socket] return the existing tracker so
+/// a socket never yields duplicate sessions or listeners.
 class InterceptlySocketIo {
   InterceptlySocketIo._();
+
+  static final Expando<InterceptlySocketIoTracker> _trackers =
+      Expando<InterceptlySocketIoTracker>('interceptly_socket_io');
 
   /// Attaches Interceptly network capture to [socket].
   ///
@@ -19,6 +25,10 @@ class InterceptlySocketIo {
     String? sessionId,
     RealtimeTrafficCollector? collector,
   }) {
+    final existing = _trackers[socket];
+    if (existing != null && !existing.isDetached) {
+      return existing;
+    }
     final effectiveCollector = collector ?? RealtimeTrafficCollector.instance;
     final resolvedUri = _resolveUri(socket, uri);
 
@@ -40,6 +50,7 @@ class InterceptlySocketIo {
     final sender = SocketIoSender.dynamic(socket, () => tracker.scope);
     scope.attachSender(sender);
 
+    _trackers[socket] = tracker;
     return tracker;
   }
 

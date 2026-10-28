@@ -22,6 +22,15 @@ enum SearchPhase {
 /// Unified, self-contained search engine encapsulating multi-phase progressive search,
 /// structured metadata matching, binary guards, and batched disk I/O with isolate offloading.
 abstract final class SearchService {
+  /// Test-only override for [matchInlineBodyAsync].
+  ///
+  /// When set, [matchInlineBodyAsync] delegates to this hook instead of
+  /// running isolate offloading, allowing tests to force per-entry
+  /// success or failure deterministically.
+  @visibleForTesting
+  static Future<bool> Function(IndexEntry entry, String queryLower)?
+      matchInlineBodyAsyncOverride;
+
   /// Executes a multi-phase progressive search over [entries].
   ///
   /// - Phase 1: Structured metadata matching (URL, method, headers, error details).
@@ -31,11 +40,16 @@ abstract final class SearchService {
   /// Callers may supply [onProgress] to receive progressive result updates,
   /// [onPhaseChange] to track the active scanning phase, and [isCancelled]
   /// to abort promptly without leaking resources.
+  ///
+  /// [fileRotationCountProvider] optionally supplies the live file generation;
+  /// when present each batch revalidates entries after awaits so a clear or
+  /// rotation mid-search yields no new-session bytes aliased as old entries.
   static Future<List<SearchResult>> search({
     required List<IndexEntry> entries,
     required String query,
     String? filePath,
     int? fileRotationCount,
+    int? Function()? fileRotationCountProvider,
     bool searchBody = true,
     int? limit,
     String? sinceId,
@@ -68,7 +82,7 @@ abstract final class SearchService {
       final index = candidates.indexWhere((e) => e.id == sinceId);
       if (index > 0) {
         candidates = candidates.sublist(0, index);
-      } else if (index == 0) {
+      } else {
         onPhaseChange?.call(SearchPhase.done);
         onProgress?.call(const [], isDone: true);
         return const [];
@@ -136,6 +150,7 @@ abstract final class SearchService {
 
     onPhaseChange?.call(SearchPhase.inMemoryBodies);
     var hasNewMatchInPhase2 = false;
+    var inlineBytesSinceYield = 0;
     for (var i = 0; i < candidates.length; i++) {
       if (isCancelled?.call() ?? false) return const [];
       if (limit != null && results.length >= limit) break;
@@ -145,7 +160,12 @@ abstract final class SearchService {
 
       if (_isBinaryOrEmpty(e)) continue;
 
-      if (matchInlineBody(e, q)) {
+      final entryInlineBytes = (e.inlineRequestBody?.length ?? 0) +
+          (e.inlineResponseBody?.length ?? 0);
+      final matched = await matchInlineBodyAsync(e, q);
+      if (isCancelled?.call() ?? false) return const [];
+
+      if (matched) {
         if (resultIndexMap.containsKey(e.id)) {
           final idx = resultIndexMap[e.id]!;
           results[idx] = SearchResult(
@@ -164,7 +184,10 @@ abstract final class SearchService {
         }
       }
 
-      if (i > 0 && i % 50 == 0) {
+      inlineBytesSinceYield += entryInlineBytes;
+      if ((i > 0 && i % 50 == 0) ||
+          inlineBytesSinceYield >= BodyDecodeService.computeThreshold) {
+        inlineBytesSinceYield = 0;
         await Future<void>.delayed(Duration.zero);
       }
     }
@@ -185,12 +208,17 @@ abstract final class SearchService {
     if (filePath != null) {
       onPhaseChange?.call(SearchPhase.fileBodies);
 
+      int? currentRotation() =>
+          fileRotationCountProvider?.call() ?? fileRotationCount;
+
+      bool isExpired(IndexEntry e, int? rotation) =>
+          rotation != null &&
+          e.fileRotationCount != null &&
+          e.fileRotationCount! < rotation;
+
       final fileCandidates = <IndexEntry>[];
       for (final e in candidates) {
-        final isExpiredByRotation = fileRotationCount != null &&
-            e.fileRotationCount != null &&
-            e.fileRotationCount! < fileRotationCount;
-        if (!isExpiredByRotation &&
+        if (!isExpired(e, currentRotation()) &&
             e.bodyLocation == BodyLocation.file &&
             !matchedIds.contains(e.id) &&
             e.fileOffset != null &&
@@ -205,6 +233,7 @@ abstract final class SearchService {
         RandomAccessFile? raf;
         try {
           raf = await BodyStore.openReadHandle(filePath);
+          final rotAfterOpen = currentRotation();
           final batchSize = fileCandidates.length > 100 ? 32 : 16;
           for (var start = 0;
               start < fileCandidates.length;
@@ -220,12 +249,26 @@ abstract final class SearchService {
             final batchPayloads = <(IndexEntry, Uint8List)?>[];
             for (final e in batch) {
               if (isCancelled?.call() ?? false) break;
+              if (isExpired(e, currentRotation()) ||
+                  isExpired(e, rotAfterOpen)) {
+                batchPayloads.add(null);
+                continue;
+              }
               try {
                 final raw = await BodyStore.readWithHandle(
                   raf,
                   e.fileOffset!,
                   e.fileLength!,
                 );
+                final rotAfterRead = currentRotation();
+                if (isExpired(e, rotAfterRead)) {
+                  batchPayloads.add(null);
+                  continue;
+                }
+                if (raw.length < e.fileLength!) {
+                  batchPayloads.add(null);
+                  continue;
+                }
                 batchPayloads.add((e, raw));
               } catch (err) {
                 if (kDebugMode) {
@@ -241,28 +284,24 @@ abstract final class SearchService {
             final futures = batchPayloads.map((payload) async {
               if (payload == null) return (false, null);
               final (e, raw) = payload;
+              final rotBeforeMatch = currentRotation();
+              if (isExpired(e, rotBeforeMatch)) {
+                return (false, null);
+              }
               try {
-                final decoded = raw.length > BodyDecodeService.computeThreshold
-                    ? await compute(BodyDecodeService.unpackToText, raw)
-                    : BodyDecodeService.unpackToText(raw);
-
-                final reqText =
-                    (!BodyDecodeService.isBinary(e.requestContentType))
-                        ? decoded.$1
-                        : null;
-                final resText =
-                    (!BodyDecodeService.isBinary(e.responseContentType))
-                        ? decoded.$2
-                        : null;
-
-                final reqMatch = reqText != null &&
-                    !BodyDecodeService.isPlaceholder(reqText) &&
-                    reqText.toLowerCase().contains(q);
-                final resMatch = resText != null &&
-                    !BodyDecodeService.isPlaceholder(resText) &&
-                    resText.toLowerCase().contains(q);
-
-                if (reqMatch || resMatch) {
+                final checkReq =
+                    !BodyDecodeService.isBinary(e.requestContentType);
+                final checkRes =
+                    !BodyDecodeService.isBinary(e.responseContentType);
+                final job = (raw, checkReq, checkRes, q);
+                final matched = raw.length > BodyDecodeService.computeThreshold
+                    ? await compute(_matchPackedPayloadIsolate, job)
+                    : _matchPackedPayloadIsolate(job);
+                final rotAfterMatch = currentRotation();
+                if (isExpired(e, rotAfterMatch)) {
+                  return (false, null);
+                }
+                if (matched) {
                   return (true, e);
                 }
               } catch (err) {
@@ -376,36 +415,58 @@ abstract final class SearchService {
     return scopes;
   }
 
+  /// Matches text inside inline in-memory bodies asynchronously, offloading
+  /// payloads larger than [BodyDecodeService.computeThreshold] to a background isolate.
+  static Future<bool> matchInlineBodyAsync(
+    IndexEntry entry,
+    String queryLower,
+  ) async {
+    final override = matchInlineBodyAsyncOverride;
+    if (override != null) {
+      return override(entry, queryLower);
+    }
+    final reqBytes = !BodyDecodeService.isBinary(entry.requestContentType)
+        ? entry.inlineRequestBody
+        : null;
+    final resBytes = !BodyDecodeService.isBinary(entry.responseContentType)
+        ? entry.inlineResponseBody
+        : null;
+    final totalBytes = (reqBytes?.length ?? 0) + (resBytes?.length ?? 0);
+    if (totalBytes == 0) return false;
+
+    final job = (
+      reqBytes,
+      entry.requestContentType,
+      resBytes,
+      entry.responseContentType,
+      queryLower,
+    );
+    if (totalBytes > BodyDecodeService.computeThreshold) {
+      return compute(_matchInlinePayloadsIsolate, job);
+    }
+    return _matchInlinePayloadsIsolate(job);
+  }
+
   /// Matches text inside inline in-memory bodies (both request and response).
   static bool matchInlineBody(
     IndexEntry entry,
     String queryLower,
   ) {
-    if (!BodyDecodeService.isBinary(entry.requestContentType)) {
-      final req = BodyDecodeService.decode(
-        entry.inlineRequestBody,
-        entry.requestContentType,
-      );
-      if (req != null &&
-          !BodyDecodeService.isPlaceholder(req) &&
-          req.toLowerCase().contains(queryLower)) {
-        return true;
-      }
-    }
+    final reqBytes = !BodyDecodeService.isBinary(entry.requestContentType)
+        ? entry.inlineRequestBody
+        : null;
+    final resBytes = !BodyDecodeService.isBinary(entry.responseContentType)
+        ? entry.inlineResponseBody
+        : null;
+    if ((reqBytes?.length ?? 0) + (resBytes?.length ?? 0) == 0) return false;
 
-    if (!BodyDecodeService.isBinary(entry.responseContentType)) {
-      final res = BodyDecodeService.decode(
-        entry.inlineResponseBody,
-        entry.responseContentType,
-      );
-      if (res != null &&
-          !BodyDecodeService.isPlaceholder(res) &&
-          res.toLowerCase().contains(queryLower)) {
-        return true;
-      }
-    }
-
-    return false;
+    return _matchInlinePayloadsIsolate((
+      reqBytes,
+      entry.requestContentType,
+      resBytes,
+      entry.responseContentType,
+      queryLower,
+    ));
   }
 
   /// Matches text inside a file-backed body chunk using an open [RandomAccessFile] handle.
@@ -417,22 +478,69 @@ abstract final class SearchService {
   ) async {
     try {
       final raw = await BodyStore.readWithHandle(raf, offset, length);
-      final decoded = raw.length > BodyDecodeService.computeThreshold
-          ? await compute(BodyDecodeService.unpackToText, raw)
-          : BodyDecodeService.unpackToText(raw);
-
-      final reqText = decoded.$1;
-      final resText = decoded.$2;
-      final reqMatch = reqText != null &&
-          !BodyDecodeService.isPlaceholder(reqText) &&
-          reqText.toLowerCase().contains(queryLower);
-      final resMatch = resText != null &&
-          !BodyDecodeService.isPlaceholder(resText) &&
-          resText.toLowerCase().contains(queryLower);
-      return reqMatch || resMatch;
+      final job = (raw, true, true, queryLower);
+      return raw.length > BodyDecodeService.computeThreshold
+          ? await compute(_matchPackedPayloadIsolate, job)
+          : _matchPackedPayloadIsolate(job);
     } catch (_) {
       return false;
     }
+  }
+
+  static bool _matchInlinePayloadsIsolate(
+    (Uint8List?, String?, Uint8List?, String?, String) job,
+  ) {
+    final (reqBytes, reqContentType, resBytes, resContentType, queryLower) =
+        job;
+    if (reqBytes != null && reqBytes.isNotEmpty) {
+      final req = BodyDecodeService.decode(reqBytes, reqContentType);
+      if (req != null &&
+          !BodyDecodeService.isPlaceholder(req) &&
+          _containsCaseInsensitive(req, queryLower)) {
+        return true;
+      }
+    }
+
+    if (resBytes != null && resBytes.isNotEmpty) {
+      final res = BodyDecodeService.decode(resBytes, resContentType);
+      if (res != null &&
+          !BodyDecodeService.isPlaceholder(res) &&
+          _containsCaseInsensitive(res, queryLower)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  static bool _matchPackedPayloadIsolate(
+    (Uint8List, bool, bool, String) job,
+  ) {
+    final (raw, checkReq, checkRes, queryLower) = job;
+    final decoded = BodyDecodeService.unpackToText(raw);
+    if (checkReq) {
+      final reqText = decoded.$1;
+      if (reqText != null &&
+          !BodyDecodeService.isPlaceholder(reqText) &&
+          _containsCaseInsensitive(reqText, queryLower)) {
+        return true;
+      }
+    }
+    if (checkRes) {
+      final resText = decoded.$2;
+      if (resText != null &&
+          !BodyDecodeService.isPlaceholder(resText) &&
+          _containsCaseInsensitive(resText, queryLower)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Case-insensitive substring check via toLowerCase (not full casefold).
+  static bool _containsCaseInsensitive(String text, String queryLower) {
+    if (queryLower.isEmpty) return true;
+    return text.toLowerCase().contains(queryLower);
   }
 
   /// Guard to check if all payloads in [entry] are binary or empty.

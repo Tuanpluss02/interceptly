@@ -529,6 +529,36 @@ void main() {
       expect(detail.responseBodyPreview, contains('streaming-chunk-data'));
     });
 
+    test('preserves ResponseBody identity, extra, and close hook', () async {
+      final adapter = _LifecycleBodyAdapter();
+      final dio = Dio()..httpClientAdapter = adapter;
+      dio.interceptors.add(InterceptlyDioInterceptor());
+
+      final response = await dio.get<ResponseBody>(
+        'https://api.example.com/lifecycle-stream',
+        options: Options(responseType: ResponseType.stream),
+      );
+
+      final body = response.data!;
+      expect(identical(body, adapter.body), isTrue);
+      expect(body.extra['marker'], equals('kept'));
+
+      final chunks = await body.stream.toList();
+      expect(utf8.decode(chunks.expand((e) => e).toList()),
+          equals('lifecycle-body'));
+
+      final closeCallsBefore = adapter.closeCalls;
+      body.close();
+      expect(adapter.closeCalls, equals(closeCallsBefore + 1));
+
+      await _waitFor(
+        () =>
+            interceptly.entries.isNotEmpty &&
+            interceptly.entries.first.statusCode == 200,
+      );
+      expect(interceptly.entries.length, equals(1));
+    });
+
     test(
         'completes pending request when redirected to a URL that does not match shouldCapture',
         () async {
@@ -599,8 +629,7 @@ void main() {
       expect(entry.errorType, equals(DioExceptionType.connectionError.name));
     });
 
-    test(
-        'settles in-flight request properly when session is disabled mid-flight',
+    test('drops in-flight completion when session is disabled mid-flight',
         () async {
       final dio = Dio()
         ..httpClientAdapter = _MidFlightDisableAdapter(
@@ -612,15 +641,11 @@ void main() {
           await dio.get<dynamic>('https://api.example.com/midflight');
       expect(response.statusCode, equals(200));
 
-      await _waitFor(
-        () =>
-            interceptly.entries.isNotEmpty &&
-            interceptly.entries.first.statusCode == 200,
-      );
+      await Future<void>.delayed(const Duration(milliseconds: 300));
 
       expect(interceptly.entries.length, equals(1));
       final entry = interceptly.entries.first;
-      expect(entry.statusCode, equals(200));
+      expect(entry.statusCode, equals(0));
       expect(entry.hasError, isFalse);
     });
   });
@@ -649,6 +674,33 @@ class _RedirectAdapter implements HttpClientAdapter {
         Headers.contentTypeHeader: ['application/json'],
       },
     );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+class _LifecycleBodyAdapter implements HttpClientAdapter {
+  ResponseBody? body;
+  int closeCalls = 0;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    final responseBody = ResponseBody.fromString(
+      'lifecycle-body',
+      200,
+      headers: {
+        Headers.contentTypeHeader: ['text/plain'],
+      },
+      onClose: () => closeCalls++,
+    );
+    responseBody.extra['marker'] = 'kept';
+    body = responseBody;
+    return responseBody;
   }
 
   @override

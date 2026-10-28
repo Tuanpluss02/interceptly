@@ -73,7 +73,7 @@ void main() {
       expect(curl, contains("-H 'X-Injected: badheader'"));
     });
 
-    test('outputs headers raw without redaction', () {
+    test('outputs headers raw', () {
       final record = _record(
         requestHeaders: {
           'Authorization': 'Bearer secret-token',
@@ -147,7 +147,7 @@ void main() {
       expect(res['statusText'], isNotEmpty);
     });
 
-    test('outputs headers and query parameters raw without redaction', () {
+    test('outputs headers and query parameters raw', () {
       final record = _record(
         url: 'https://api.example.com/data?token=supersecret&page=1',
         requestHeaders: {'Authorization': 'Bearer confidential'},
@@ -220,7 +220,7 @@ void main() {
       expect(first['value'].toString().toLowerCase(), contains('multipart'));
     });
 
-    test('outputs headers raw without redaction', () {
+    test('outputs headers raw', () {
       final record = _record(
         requestHeaders: {
           'Authorization': 'Bearer token-abc',
@@ -492,7 +492,8 @@ void main() {
       }
     });
 
-    testWidgets('ShareHandler deletes temp HAR file after export in finally',
+    testWidgets(
+        'ShareHandler preserves temp HAR file after export for asynchronous sharing sheet',
         (tester) async {
       late BuildContext savedContext;
       final fabKey = GlobalKey();
@@ -532,11 +533,11 @@ void main() {
       });
 
       expect(sharedFilePath, isNotNull);
-      expect(File(sharedFilePath!).existsSync(), isFalse);
+      expect(File(sharedFilePath!).existsSync(), isTrue);
     });
 
     testWidgets(
-        'ShareHandler deletes temp Postman file after export in finally',
+        'ShareHandler preserves temp Postman file after export for asynchronous sharing sheet',
         (tester) async {
       late BuildContext savedContext;
       final fabKey = GlobalKey();
@@ -576,7 +577,7 @@ void main() {
       });
 
       expect(sharedFilePath, isNotNull);
-      expect(File(sharedFilePath!).existsSync(), isFalse);
+      expect(File(sharedFilePath!).existsSync(), isTrue);
     });
   });
 }

@@ -98,9 +98,11 @@ Stream<List<int>> teeStreamCapture(
       Future<void> deliveryChain = Future<void>.value();
 
       void handleChunk(List<int> chunk) {
-        if (settled || controller.isClosed) return;
+        if (controller.isClosed) return;
         controller.add(chunk);
-        buffer.add(chunk);
+        if (!settled) {
+          buffer.add(chunk);
+        }
       }
 
       sub = source.listen(
@@ -133,7 +135,9 @@ Stream<List<int>> teeStreamCapture(
           deliveryChain = deliveryChain.then((_) {
             if (!isCanceled) {
               finishDone();
-              controller.close();
+              if (!controller.isClosed) {
+                controller.close();
+              }
             }
           }).catchError((_) {});
         },
@@ -141,8 +145,9 @@ Stream<List<int>> teeStreamCapture(
           deliveryChain = deliveryChain.then((_) {
             if (!isCanceled) {
               finishError(e, st);
-              controller.addError(e, st);
-              controller.close();
+              if (!controller.isClosed) {
+                controller.addError(e, st);
+              }
             }
           }).catchError((_) {});
         },

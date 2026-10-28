@@ -97,5 +97,51 @@ void main() {
       expect(find.byType(QuickFilterBar), findsOneWidget);
       expect(find.text('/feed'), findsNothing);
     });
+
+    testWidgets(
+        'typing in search field is not wiped by incoming traffic rebuild before debounce fires',
+        (tester) async {
+      final engine = InterceptlyEngine();
+      addTearDown(engine.dispose);
+      final controller = InterceptlyScopeController(engine: engine);
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: InterceptlyScope(
+              controller: controller,
+              child: const NetworkTab(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final searchField = find.byType(TextField);
+      expect(searchField, findsOneWidget);
+
+      await tester.enterText(searchField, 'test-query');
+      expect(find.text('test-query'), findsOneWidget);
+
+      // Trigger scope rebuild while debounce (250ms) is active
+      engine.recordPending(
+        id: 'req_stream_1',
+        method: 'GET',
+        url: 'https://example.com/api',
+        timestamp: DateTime.now(),
+      );
+      await tester.pump();
+
+      // Controller text should NOT be wiped back to empty string
+      expect(find.text('test-query'), findsOneWidget);
+
+      // Settle debounce
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('test-query'), findsOneWidget);
+
+      await engine.dispose();
+      await tester.pump();
+    });
   });
 }

@@ -116,12 +116,14 @@ class BodyDecodeService {
   /// Returns a preview of [bytes] truncated to [previewLen] bytes,
   /// or `null` when [bytes] is null or empty.
   ///
-  /// If [maxBody] <= 0 (unlimited) or [bytes.length] <= [maxBody],
-  /// the full buffer is returned unchanged.
+  /// The retained window is capped by the smallest of [previewLen],
+  /// [maxBody] (when positive), and the buffer length, so a large preview
+  /// budget can never exceed the storage cap.
   static Uint8List? truncate(Uint8List? bytes, int maxBody, int previewLen) {
     if (bytes == null || bytes.isEmpty) return null;
     if (maxBody <= 0 || bytes.length <= maxBody) return bytes;
-    final end = previewLen < bytes.length ? previewLen : bytes.length;
+    var end = previewLen < bytes.length ? previewLen : bytes.length;
+    if (end > maxBody) end = maxBody;
     return bytes.sublist(0, end);
   }
 

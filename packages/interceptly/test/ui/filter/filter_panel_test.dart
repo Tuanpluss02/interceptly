@@ -6,6 +6,61 @@ import 'package:interceptly/src/ui/filter/filter_panel.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  group('FilterPanel domain list layout', () {
+    testWidgets(
+        'domain list container does not inherit bottom safe-area padding from MediaQuery',
+        (tester) async {
+      tester.view.devicePixelRatio = 3.0;
+      tester.view.padding = const FakeViewPadding(bottom: 102);
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () => FilterPanel.show(
+                  context: ctx,
+                  currentFilter: RequestFilter(),
+                  availableDomains: {'api.com'},
+                  onFilterChanged: (_) {},
+                ),
+                child: const Text('Open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+
+      final row = tester.getSize(
+        find
+            .ancestor(
+              of: find.text('api.com'),
+              matching: find.byType(InkWell),
+            )
+            .first,
+      );
+      final card = tester.getSize(
+        find
+            .ancestor(
+              of: find.text('api.com'),
+              matching: find.byType(Container),
+            )
+            .first,
+      );
+
+      expect(
+        card.height,
+        row.height + 2,
+        reason: 'only the 1px borders may add height around the domain row',
+      );
+    });
+  });
+
   group('FilterPanel Redesign', () {
     testWidgets(
         'does not show Show errors only and allows toggling methods and applying filter',

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -53,6 +54,7 @@ class _CustomRequestPageState extends State<CustomRequestPage>
 
   late List<_KeyValuePair> _params;
   late List<_KeyValuePair> _headers;
+  Timer? _bodyRefreshDebounce;
 
   static const _methods = [
     'GET',
@@ -77,14 +79,16 @@ class _CustomRequestPageState extends State<CustomRequestPage>
 
     _methodController.addListener(_refresh);
     _baseUrlController.addListener(_refresh);
-    _bodyController.addListener(_refresh);
+    _bodyController.addListener(_onBodyChanged);
   }
 
   @override
   void dispose() {
+    _bodyRefreshDebounce?.cancel();
+    _bodyRefreshDebounce = null;
     _methodController.removeListener(_refresh);
     _baseUrlController.removeListener(_refresh);
-    _bodyController.removeListener(_refresh);
+    _bodyController.removeListener(_onBodyChanged);
 
     for (final p in _params) {
       p.dispose();
@@ -102,6 +106,15 @@ class _CustomRequestPageState extends State<CustomRequestPage>
 
   void _refresh() {
     if (mounted) setState(() {});
+  }
+
+  /// Debounces body edits so syntax highlighting and line numbers
+  /// do not rebuild on every keystroke.
+  void _onBodyChanged() {
+    _bodyRefreshDebounce?.cancel();
+    _bodyRefreshDebounce = Timer(const Duration(milliseconds: 150), () {
+      _refresh();
+    });
   }
 
   List<_KeyValuePair> _parseQueryParams(String raw) {
@@ -912,6 +925,9 @@ class CustomRequestDraft {
 class _JsonSyntaxController extends TextEditingController {
   _JsonSyntaxController({super.text});
 
+  /// Bodies longer than this skip regex highlighting to keep typing smooth.
+  static const int _highlightLimit = 10000;
+
   static const Color _keyColor = InterceptlyGlobalColor.blue400;
   static const Color _stringColor = InterceptlyGlobalColor.red400;
   static const Color _numberColor = InterceptlyGlobalColor.green400;
@@ -936,6 +952,9 @@ class _JsonSyntaxController extends TextEditingController {
 
     final textValue = text;
     if (textValue.isEmpty) {
+      return TextSpan(style: baseStyle, text: textValue);
+    }
+    if (textValue.length > _highlightLimit) {
       return TextSpan(style: baseStyle, text: textValue);
     }
 

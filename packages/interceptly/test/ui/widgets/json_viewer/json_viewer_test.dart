@@ -533,4 +533,46 @@ void main() {
       );
     });
   });
+
+  group('JsonViewer large document async flatten deduplication', () {
+    testWidgets(
+        'deduplicates in-flight async flatten across multiple parent rebuilds',
+        (tester) async {
+      final largeData = List.generate(1600, (i) => {'index': i});
+
+      var parentBuildCount = 0;
+      late StateSetter parentSetState;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (ctx, setState) {
+                parentSetState = setState;
+                parentBuildCount++;
+                return SizedBox(
+                  height: 400,
+                  width: 400,
+                  child: JsonViewer(data: largeData),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+
+      parentSetState(() {});
+      await tester.pump();
+      parentSetState(() {});
+      await tester.pump();
+
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+      });
+      await tester.pumpAndSettle();
+
+      expect(parentBuildCount, greaterThanOrEqualTo(3));
+      expect(find.byType(JsonViewer), findsOneWidget);
+    });
+  });
 }

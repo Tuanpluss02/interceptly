@@ -1,9 +1,8 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import '../capture/body_bytes.dart';
-import '../model/request_record.dart';
 import '../engine/body_decode_service.dart';
+import '../model/request_record.dart';
 
 /// Exports captured request records to HAR 1.2 compatible maps.
 class HarExporter {
@@ -111,7 +110,9 @@ class HarExporter {
   }
 
   static List<Map<String, String>> _mapHeaders(Map<String, String> headers) {
-    return mapHeaderEntries(headers, keyName: 'name', valueName: 'value');
+    return headers.entries
+        .map((entry) => {'name': entry.key, 'value': entry.value})
+        .toList();
   }
 
   static Map<String, Object?>? _buildPostData(RequestRecord r) {

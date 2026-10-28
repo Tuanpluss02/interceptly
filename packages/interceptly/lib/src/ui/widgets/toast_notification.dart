@@ -1,7 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../interceptly_theme.dart';
 
+/// Singleton toast overlay with queue replacement and disposal.
+///
+/// Only one toast is visible at a time. Each [show] call replaces the
+/// previous entry and restarts the dismiss timer, preventing stacked
+/// overlays during rapid replay or export feedback.
 class ToastNotification extends StatefulWidget {
   final String message;
 
@@ -10,8 +17,24 @@ class ToastNotification extends StatefulWidget {
   /// Set the navigator key globally so toast can be shown without context
   static GlobalKey<NavigatorState>? _navigatorKey;
 
+  static OverlayEntry? _currentEntry;
+  static Timer? _dismissTimer;
+
   static void setNavigatorKey(GlobalKey<NavigatorState> key) {
     _navigatorKey = key;
+  }
+
+  /// Removes any visible toast and cancels its dismiss timer.
+  static void dispose() {
+    _dismissTimer?.cancel();
+    _dismissTimer = null;
+    try {
+      _currentEntry?.remove();
+    } catch (_) {}
+    try {
+      _currentEntry?.dispose();
+    } catch (_) {}
+    _currentEntry = null;
   }
 
   static void show(String message, {BuildContext? contextHint}) {
@@ -22,6 +45,7 @@ class ToastNotification extends StatefulWidget {
     }
 
     try {
+      dispose();
       final overlayState = Overlay.of(context, rootOverlay: true);
       final overlayEntry = OverlayEntry(
         builder: (context) => Positioned(
@@ -31,12 +55,16 @@ class ToastNotification extends StatefulWidget {
           child: ToastNotification(message: message),
         ),
       );
+      _currentEntry = overlayEntry;
 
       overlayState.insert(overlayEntry);
 
-      Future.delayed(const Duration(seconds: 2), () {
+      _dismissTimer = Timer(const Duration(seconds: 2), () {
         if (overlayEntry.mounted) {
           overlayEntry.remove();
+        }
+        if (identical(_currentEntry, overlayEntry)) {
+          _currentEntry = null;
         }
       });
     } catch (e) {

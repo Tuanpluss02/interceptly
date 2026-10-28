@@ -122,5 +122,36 @@ void main() {
 
       expect(find.textContaining('4s'), findsOneWidget);
     });
+
+    testWidgets('cancels duration ticker when connection closes',
+        (tester) async {
+      var currentTime = DateTime(2026, 10, 14, 10, 1, 3);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: InterceptlyScope(
+              controller: controller,
+              child: RealtimeListTab(nowProvider: () => currentTime),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.textContaining('3s'), findsOneWidget);
+
+      // Close the connection
+      engine.closeRealtimeConnection('ws_1');
+      await tester.pump();
+
+      final entry = controller.entries.firstWhere((e) => e.id == 'ws_1');
+      expect(entry.statusCode, equals(1000));
+
+      // Advance time and pump - ticker was cancelled by didUpdateWidget
+      currentTime = currentTime.add(const Duration(seconds: 10));
+      await tester.pump(const Duration(seconds: 2));
+
+      expect(find.textContaining('13s'), findsNothing);
+    });
   });
 }

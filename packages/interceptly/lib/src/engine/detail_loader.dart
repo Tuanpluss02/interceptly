@@ -40,6 +40,10 @@ class DetailLoader {
   }
 
   /// Loads request details for the given index [entry].
+  ///
+  /// Snapshots the file rotation before disk reads and revalidates after
+  /// each await; a rotation mid-read yields an expired placeholder instead
+  /// of new-session bytes aliased as the old entry.
   Future<RequestRecord> loadDetailByEntry(IndexEntry entry) async {
     String? reqPreview;
     String? resPreview;
@@ -55,10 +59,10 @@ class DetailLoader {
       final offset = entry.fileOffset;
       final length = entry.fileLength;
       final filePath = _tempFilePathProvider();
-      final currentRotation = _fileRotationCountProvider?.call();
+      final rotBefore = _fileRotationCountProvider?.call();
       final isExpiredByRotation = entry.fileRotationCount != null &&
-          currentRotation != null &&
-          entry.fileRotationCount! < currentRotation;
+          rotBefore != null &&
+          entry.fileRotationCount! < rotBefore;
 
       if (!isExpiredByRotation &&
           offset != null &&
@@ -66,6 +70,16 @@ class DetailLoader {
           filePath != null) {
         try {
           final raw = await BodyStore.readBytes(filePath, offset, length);
+          final rotAfter = _fileRotationCountProvider?.call();
+          if (rotBefore != null && rotAfter != null && rotBefore != rotAfter) {
+            throw const FileSystemException('rotated mid-read');
+          }
+          final isExpiredAfter = entry.fileRotationCount != null &&
+              rotAfter != null &&
+              entry.fileRotationCount! < rotAfter;
+          if (isExpiredAfter) {
+            throw const FileSystemException('rotated mid-read');
+          }
           if (raw.length < length) {
             throw const FileSystemException('Truncated body read');
           }

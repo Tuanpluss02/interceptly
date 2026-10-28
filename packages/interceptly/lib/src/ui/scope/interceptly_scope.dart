@@ -54,6 +54,17 @@ class InterceptlyScopeController extends ChangeNotifier {
   int _lastReconciledEntriesVersion = -1;
   bool _isDisposed = false;
 
+  /// Notified only when the underlying entry set changes.
+  final ValueNotifier<int> entriesVersionListenable = ValueNotifier<int>(0);
+
+  /// Notified only when the active filter changes.
+  final ValueNotifier<int> filterVersionListenable = ValueNotifier<int>(0);
+
+  List<RequestSummary>? _cachedEntries;
+  int _cachedEntriesVersion = -1;
+  int _cachedFilterHash = -1;
+  bool _cachedEntriesSearchActive = false;
+
   InterceptlyPreferences get preferences => _preferences;
   RequestFilter get filter => _filter;
   InterceptlySettings get settings => engine.settings;
@@ -70,21 +81,48 @@ class InterceptlyScopeController extends ChangeNotifier {
   bool get groupingEnabled => _grouping.enabled;
 
   /// Returns filtered entries based on active search and filters.
+  ///
+  /// Results are memoized by entries version, filter hash, and search state
+  /// so repeated builds without data changes reuse the previous list.
   List<RequestSummary> get entries {
+    final version = engine.entriesVersion;
+    final filterHash = _filter.hashCode;
+    final searchActive = _search.isActive;
+    if (_cachedEntries != null &&
+        _cachedEntriesVersion == version &&
+        _cachedFilterHash == filterHash &&
+        _cachedEntriesSearchActive == searchActive) {
+      return _cachedEntries!;
+    }
     final baseList = _search.isActive
         ? (_search.results ?? const <IndexEntry>[])
         : engine.entries;
+    final List<RequestSummary> result;
     if (_filter.isEmpty) {
-      return baseList.cast<RequestSummary>();
+      result = baseList.cast<RequestSummary>().toList(growable: false);
+    } else {
+      result = baseList.where(_filter.matches).toList().cast<RequestSummary>();
     }
-    return baseList.where(_filter.matches).toList().cast<RequestSummary>();
+    _cachedEntries = result;
+    _cachedEntriesVersion = version;
+    _cachedFilterHash = filterHash;
+    _cachedEntriesSearchActive = searchActive;
+    return result;
   }
 
-  /// Available domains present in the current entries.
+  /// Available domains present in the REST entries.
   Set<String> get availableDomains {
     return _cachedAvailableDomains ??= engine.entries
-        .map((entry) => RequestFilter.extractDomain(entry.url))
+        .where((entry) => !entry.isRealtime)
+        .map((entry) => entry is IndexEntry
+            ? entry.domain
+            : RequestFilter.extractDomain(entry.url))
         .toSet();
+  }
+
+  /// Returns all realtime connection entries from the engine.
+  List<RequestSummary> get realtimeEntries {
+    return engine.entries.where((e) => e.isRealtime).toList(growable: false);
   }
 
   Set<SearchMatchScope> getSearchScopes(String id) => _search.getScopes(id);
@@ -100,12 +138,14 @@ class InterceptlyScopeController extends ChangeNotifier {
     if (_filter == filter) return;
     _filter = filter;
     _invalidateGroupedCache();
+    filterVersionListenable.value++;
     notifyListeners();
   }
 
   void clearFilter() {
     _filter = RequestFilter();
     _invalidateGroupedCache();
+    filterVersionListenable.value++;
     notifyListeners();
   }
 
@@ -122,10 +162,12 @@ class InterceptlyScopeController extends ChangeNotifier {
         _lastComputedCacheVersion == _cacheVersion) {
       return _cachedGroupedRecords!;
     }
-    final currentEntries = entries;
+    final currentEntries = entries.where((e) => !e.isRealtime);
     final grouped = <String, List<RequestSummary>>{};
     for (final entry in currentEntries) {
-      final domain = RequestFilter.extractDomain(entry.url);
+      final domain = entry is IndexEntry
+          ? entry.domain
+          : RequestFilter.extractDomain(entry.url);
       grouped.putIfAbsent(domain, () => []).add(entry);
     }
     _cachedGroupedRecords = grouped.entries
@@ -153,7 +195,51 @@ class InterceptlyScopeController extends ChangeNotifier {
       allEntries: engine.entries.cast<IndexEntry>(),
       filePath: engine.tempFilePath,
       currentFileRotationCount: engine.fileRotationCount,
+      fileRotationCountProvider: () => engine.fileRotationCount,
     );
+  }
+
+  /// Debounced variant of [startMasterSearch] collapsing rapid keystrokes.
+  ///
+  /// A 250ms trailing timer ensures only the final query triggers a search.
+  /// The timer is cancelled by [cancelMasterSearchDebounced] and on dispose.
+  Timer? _masterSearchDebounce;
+  Completer<void>? _masterSearchCompleter;
+
+  Future<void> startMasterSearchDebounced(String query,
+      {Duration delay = const Duration(milliseconds: 250)}) {
+    _masterSearchDebounce?.cancel();
+    if (_masterSearchCompleter != null &&
+        !_masterSearchCompleter!.isCompleted) {
+      _masterSearchCompleter!.complete();
+    }
+    final completer = Completer<void>();
+    _masterSearchCompleter = completer;
+    _masterSearchDebounce = Timer(delay, () async {
+      try {
+        await startMasterSearch(query);
+        if (!completer.isCompleted) completer.complete();
+      } catch (e) {
+        if (!completer.isCompleted) completer.completeError(e);
+      } finally {
+        if (identical(_masterSearchCompleter, completer)) {
+          _masterSearchCompleter = null;
+        }
+      }
+    });
+    return completer.future;
+  }
+
+  /// Cancels any pending debounced search and the active search.
+  void cancelMasterSearchDebounced() {
+    _masterSearchDebounce?.cancel();
+    _masterSearchDebounce = null;
+    if (_masterSearchCompleter != null &&
+        !_masterSearchCompleter!.isCompleted) {
+      _masterSearchCompleter!.complete();
+      _masterSearchCompleter = null;
+    }
+    cancelMasterSearch();
   }
 
   void setNetworkSimulation(NetworkSimulationProfile profile) =>
@@ -213,6 +299,8 @@ class InterceptlyScopeController extends ChangeNotifier {
 
   void _onEngineUpdated() {
     _invalidateGroupedCache();
+    entriesVersionListenable.value++;
+    _cachedEntries = null;
     if (_search.isActive) {
       final currentVersion = engine.entriesVersion;
       if (_lastReconciledEntriesVersion != currentVersion) {
@@ -262,12 +350,22 @@ class InterceptlyScopeController extends ChangeNotifier {
     _cachedGroupedRecords = null;
     _cacheVersion++;
     _cachedAvailableDomains = null;
+    _cachedEntries = null;
   }
 
   @override
   void dispose() {
     if (_isDisposed) return;
     _isDisposed = true;
+    _masterSearchDebounce?.cancel();
+    _masterSearchDebounce = null;
+    if (_masterSearchCompleter != null &&
+        !_masterSearchCompleter!.isCompleted) {
+      _masterSearchCompleter!.complete();
+      _masterSearchCompleter = null;
+    }
+    entriesVersionListenable.dispose();
+    filterVersionListenable.dispose();
     engine.removeListener(_onEngineUpdated);
     _search.removeListener(_onSearchUpdated);
     _search.dispose();

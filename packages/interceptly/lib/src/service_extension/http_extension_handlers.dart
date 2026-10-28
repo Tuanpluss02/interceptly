@@ -1,7 +1,9 @@
 import 'dart:developer' as developer;
 
+import '../engine/body_decode_service.dart';
 import '../engine/interceptly_engine.dart';
 import '../export/curl_generator.dart';
+import '../model/body_truncation.dart';
 import '../model/request_summary.dart';
 import 'service_extension_exception.dart';
 
@@ -134,6 +136,11 @@ abstract final class HttpExtensionHandlers {
   /// - `part`: 'all' | 'request_body' | 'response_body' | 'request_headers' | 'response_headers'
   /// - `max_chars`: maximum character count for body preview (default 4000)
   /// - `offset`: character offset for continuation
+  ///
+  /// Per-part windows for `part=all`: [offset] and [max_chars] apply
+  /// independently to each body, so request and response slices share the same
+  /// window. `totalChars` is the sum of both body lengths and `remainingChars`
+  /// is the sum of each body remainder after its window.
   static Future<Map<String, dynamic>> handleGetRequestDetail({
     required InterceptlyEngine? engine,
     required Map<String, String> parameters,
@@ -164,16 +171,43 @@ abstract final class HttpExtensionHandlers {
     final offset =
         int.tryParse(parameters['offset'] ?? '0')?.clamp(0, 10000000) ?? 0;
 
-    String? reqBody = record.requestBodyPreview;
-    String? resBody = record.responseBodyPreview;
+    String? fullReqBody = record.requestBodyPreview;
+    if ((part == 'request_body' || part == 'all') &&
+        record.requestBodyBytes != null &&
+        (record.requestTruncation.stage == TruncationStage.preview ||
+            record.requestTruncation.stage ==
+                TruncationStage.storageAndPreview)) {
+      fullReqBody = await BodyDecodeService.decodeAsync(
+        record.requestBodyBytes,
+        record.requestContentType,
+      );
+    }
+
+    String? fullResBody = record.responseBodyPreview;
+    if ((part == 'response_body' || part == 'all') &&
+        record.responseBodyBytes != null &&
+        (record.responseTruncation.stage == TruncationStage.preview ||
+            record.responseTruncation.stage ==
+                TruncationStage.storageAndPreview)) {
+      fullResBody = await BodyDecodeService.decodeAsync(
+        record.responseBodyBytes,
+        record.responseContentType,
+      );
+    }
+
+    String? reqBody = fullReqBody;
+    String? resBody = fullResBody;
     bool isTruncated = false;
     int totalChars = 0;
     int remainingChars = 0;
 
     if (part == 'response_body' || part == 'all') {
-      final raw = resBody ?? '';
+      final raw = fullResBody ?? '';
       if (part == 'response_body') {
         totalChars = raw.length;
+        if (record.responseTruncation.hasDataLoss) {
+          isTruncated = true;
+        }
       }
       if (offset < raw.length) {
         final end = (offset + maxChars).clamp(0, raw.length);
@@ -188,9 +222,12 @@ abstract final class HttpExtensionHandlers {
     }
 
     if (part == 'request_body' || part == 'all') {
-      final raw = reqBody ?? '';
+      final raw = fullReqBody ?? '';
       if (part == 'request_body') {
         totalChars = raw.length;
+        if (record.requestTruncation.hasDataLoss) {
+          isTruncated = true;
+        }
       }
       if (offset < raw.length) {
         final end = (offset + maxChars).clamp(0, raw.length);
@@ -205,12 +242,15 @@ abstract final class HttpExtensionHandlers {
     }
 
     if (part == 'all') {
-      final totalReq = (record.requestBodyPreview ?? '').length;
-      final totalRes = (record.responseBodyPreview ?? '').length;
+      final totalReq = (fullReqBody ?? '').length;
+      final totalRes = (fullResBody ?? '').length;
       totalChars = totalReq + totalRes;
       final remReq = (totalReq - offset - maxChars).clamp(0, totalReq);
       final remRes = (totalRes - offset - maxChars).clamp(0, totalRes);
       remainingChars = remReq + remRes;
+      if (record.hasDataLoss) {
+        isTruncated = true;
+      }
     }
 
     return {
@@ -237,6 +277,9 @@ abstract final class HttpExtensionHandlers {
   }
 
   /// Handles `ext.interceptly.exportCurl`.
+  ///
+  /// Query parameters:
+  /// - `id`: request ID (required)
   static Future<Map<String, dynamic>> handleExportCurl({
     required InterceptlyEngine? engine,
     required Map<String, String> parameters,

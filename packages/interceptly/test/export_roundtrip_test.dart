@@ -127,15 +127,13 @@ void main() {
       expect(content['text'], equals('{"id":"usr_123","name":"Alice"}'));
     });
 
-    test(
-        'HAR export outputs authorization and query params raw without redaction',
-        () async {
+    test('HAR export outputs authorization and query params raw', () async {
       final records = [
         sampleRecord(url: 'https://api.example.com/auth?token=999'),
       ];
 
       final harMap = HarExporter.toMap(records);
-      final file = File('${tempDir.path}/unredacted.har');
+      final file = File('${tempDir.path}/export.har');
       await file.writeAsString(jsonEncode(harMap));
 
       final decoded =

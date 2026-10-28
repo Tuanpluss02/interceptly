@@ -461,6 +461,7 @@ class _FilterPanelState extends State<FilterPanel> {
                   ),
                 )
               : ListView.separated(
+                  padding: EdgeInsets.zero,
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: filteredDomains.length,

@@ -2,8 +2,12 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
 
 /// Service for sharing files via platform share sheets.
+///
+/// File paths are validated to reside within the system temporary directory
+/// using canonicalized paths and `isWithin` checks to prevent traversal.
 class InterceptlyShare {
   InterceptlyShare({MethodChannel? channel})
       : _channel = channel ?? const MethodChannel(_channelName);
@@ -16,27 +20,56 @@ class InterceptlyShare {
   static const int defaultMaxFileSizeBytes = 50 * 1024 * 1024;
 
   /// Validates whether [filePath] is contained safely within a temporary directory.
+  ///
+  /// Both candidate and trusted roots are canonicalized with
+  /// `resolveSymbolicLinksSync` and compared with `isWithin`, including a
+  /// trailing separator, so `/tmp2` cannot masquerade as `/tmp`.
   static bool isWithinTempDirectory(String filePath) {
     if (filePath.contains('..')) return false;
 
-    final file = File(filePath);
-    final absPath = file.absolute.path;
-
-    final sysTemp = Directory.systemTemp.path;
-    if (absPath.startsWith(sysTemp)) return true;
-
-    try {
-      final resolvedSysTemp = Directory.systemTemp.resolveSymbolicLinksSync();
-      if (absPath.startsWith(resolvedSysTemp)) return true;
-    } catch (_) {}
-
-    if (absPath.startsWith('/tmp') ||
-        absPath.startsWith('/private/tmp') ||
-        absPath.startsWith('/var/tmp') ||
-        absPath.startsWith('/data/local/tmp')) {
-      return true;
+    /// Resolves [target] to a canonical path, falling back to parent
+    /// resolution when the file itself does not exist yet.
+    ///
+    /// Non-existent export targets cannot be resolved directly, so the
+    /// parent directory symlink (for example `/tmp` to `/private/tmp`
+    /// on macOS) is resolved and joined with the basename.
+    String canonicalOf(String target) {
+      try {
+        return Directory(target).resolveSymbolicLinksSync();
+      } catch (_) {}
+      try {
+        return File(target).resolveSymbolicLinksSync();
+      } catch (_) {}
+      try {
+        final parent = File(target).absolute.parent;
+        final resolvedParent = parent.resolveSymbolicLinksSync();
+        return p.join(resolvedParent, p.basename(target));
+      } catch (_) {
+        return File(target).absolute.path;
+      }
     }
 
+    String withSeparator(String dirPath) {
+      if (dirPath.endsWith(Platform.pathSeparator)) return dirPath;
+      return '$dirPath${Platform.pathSeparator}';
+    }
+
+    final canonicalFile = canonicalOf(filePath);
+    final roots = <String>[
+      Directory.systemTemp.path,
+      '/tmp',
+      '/private/tmp',
+      '/var/tmp',
+      '/data/local/tmp',
+    ];
+    for (final root in roots) {
+      final canonicalRoot = canonicalOf(root);
+      if (canonicalFile == canonicalRoot) return true;
+      if (p.isWithin(withSeparator(canonicalRoot), canonicalFile) ||
+          p.isWithin(canonicalRoot, canonicalFile)) {
+        return true;
+      }
+    }
     return false;
   }
 

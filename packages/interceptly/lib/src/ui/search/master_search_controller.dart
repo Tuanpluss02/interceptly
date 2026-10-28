@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../../engine/body_decode_service.dart';
 import '../../engine/search_service.dart';
 import '../../model/body_location.dart';
 import '../../model/index_entry.dart';
@@ -16,11 +17,17 @@ class MasterSearchController extends ChangeNotifier {
   List<IndexEntry>? _results;
   final Set<String> _matchedIds = {};
   final Map<String, Set<SearchMatchScope>> _matchScopes = {};
+  final Map<String, IndexEntry> _pendingAsyncEntries = {};
+  Set<String>? _activeSnapshotIds;
   bool _isScanningBodies = false;
   bool _isScanningFiles = false;
   int _generation = 0;
   Timer? _throttleTimer;
   bool _isDisposed = false;
+
+  /// Number of entries currently awaiting asynchronous inline body matching.
+  @visibleForTesting
+  int get pendingAsyncEntryCount => _pendingAsyncEntries.length;
 
   /// The active search query, or `null` if search is inactive.
   String? get query => _query;
@@ -67,6 +74,8 @@ class MasterSearchController extends ChangeNotifier {
     _results = null;
     _matchedIds.clear();
     _matchScopes.clear();
+    _pendingAsyncEntries.clear();
+    _activeSnapshotIds = null;
     _isScanningBodies = false;
     _isScanningFiles = false;
     if (!_isDisposed) {
@@ -83,6 +92,8 @@ class MasterSearchController extends ChangeNotifier {
     _results = null;
     _matchedIds.clear();
     _matchScopes.clear();
+    _pendingAsyncEntries.clear();
+    _activeSnapshotIds = null;
     _isScanningBodies = false;
     _isScanningFiles = false;
   }
@@ -90,12 +101,14 @@ class MasterSearchController extends ChangeNotifier {
   /// Starts a progressive search over [allEntries].
   ///
   /// [filePath] is the temp file path for file-backed bodies; pass `null` to
-  /// skip Phase 3.
+  /// skip Phase 3. Progressive results preserve dynamically added or updated
+  /// entries that occurred after the `start()` snapshot.
   Future<void> start({
     required String query,
     required List<IndexEntry> allEntries,
     required String? filePath,
     int? currentFileRotationCount,
+    int? Function()? fileRotationCountProvider,
   }) async {
     if (_isDisposed) return;
     final trimmed = query.trim();
@@ -113,6 +126,8 @@ class MasterSearchController extends ChangeNotifier {
     _results = [];
     _matchedIds.clear();
     _matchScopes.clear();
+    _pendingAsyncEntries.clear();
+    _activeSnapshotIds = {for (final e in entriesSnapshot) e.id};
     _isScanningBodies = false;
     _isScanningFiles = false;
     _notifyThrottled(force: true);
@@ -123,6 +138,7 @@ class MasterSearchController extends ChangeNotifier {
         query: trimmed,
         filePath: filePath,
         fileRotationCount: currentFileRotationCount,
+        fileRotationCountProvider: fileRotationCountProvider,
         onPhaseChange: (phase) {
           if (gen != _generation || _isDisposed) return;
           switch (phase) {
@@ -148,17 +164,35 @@ class MasterSearchController extends ChangeNotifier {
         },
         onProgress: (progressiveResults, {required bool isDone}) {
           if (gen != _generation || _isDisposed) return;
+          final snapshotIds = _activeSnapshotIds;
           final updatedList = <IndexEntry>[];
-          _matchedIds.clear();
-          _matchScopes.clear();
-          for (final res in progressiveResults) {
-            if (res.summary case final IndexEntry entry) {
-              updatedList.add(entry);
-              _matchedIds.add(entry.id);
-              _matchScopes[entry.id] =
-                  Set<SearchMatchScope>.from(res.matchScopes);
+          final seenIds = <String>{};
+
+          if (_results != null && snapshotIds != null) {
+            for (final existing in _results!) {
+              final id = existing.id;
+              if (!snapshotIds.contains(id) && _matchedIds.contains(id)) {
+                updatedList.add(existing);
+                seenIds.add(id);
+              }
             }
           }
+
+          for (final res in progressiveResults) {
+            if (res.summary case final IndexEntry entry) {
+              final id = entry.id;
+              if (snapshotIds != null && !snapshotIds.contains(id)) {
+                continue;
+              }
+              updatedList.add(entry);
+              seenIds.add(id);
+              _matchedIds.add(id);
+              _matchScopes[id] = Set<SearchMatchScope>.from(res.matchScopes);
+            }
+          }
+
+          _matchedIds.removeWhere((id) => !seenIds.contains(id));
+          _matchScopes.removeWhere((id, _) => !seenIds.contains(id));
           _results = updatedList;
           _notifyThrottled(force: isDone);
         },
@@ -166,6 +200,7 @@ class MasterSearchController extends ChangeNotifier {
       );
     } finally {
       if (gen == _generation && !_isDisposed) {
+        _activeSnapshotIds = null;
         _isScanningBodies = false;
         _isScanningFiles = false;
       }
@@ -179,7 +214,24 @@ class MasterSearchController extends ChangeNotifier {
       return;
     }
 
-    final matchResult = SearchService.matchEntry(entry, query);
+    _activeSnapshotIds?.remove(entry.id);
+
+    final inlineBytes = (entry.inlineRequestBody?.length ?? 0) +
+        (entry.inlineResponseBody?.length ?? 0);
+    final offloadInline = entry.bodyLocation == BodyLocation.memory &&
+        inlineBytes > BodyDecodeService.computeThreshold;
+
+    if (offloadInline) {
+      _pendingAsyncEntries[entry.id] = entry;
+    } else {
+      _pendingAsyncEntries.remove(entry.id);
+    }
+
+    final matchResult = SearchService.matchEntry(
+      entry,
+      query,
+      searchBody: !offloadInline,
+    );
     final scopes = matchResult != null
         ? Set<SearchMatchScope>.from(matchResult.matchScopes)
         : <SearchMatchScope>{};
@@ -201,19 +253,77 @@ class MasterSearchController extends ChangeNotifier {
         } else {
           _results!.insert(0, entry);
         }
+        _matchScopes[entry.id] = scopes;
+        _notifyThrottled(force: true);
       } else {
         _results!.insert(0, entry);
         _matchedIds.add(entry.id);
+        _matchScopes[entry.id] = scopes;
+        _notifyThrottled();
       }
-      _matchScopes[entry.id] = scopes;
-      _notifyThrottled();
-    } else {
+    } else if (!offloadInline) {
       if (isExisting) {
         _results!.removeWhere((e) => e.id == entry.id);
         _matchedIds.remove(entry.id);
         _matchScopes.remove(entry.id);
         _notifyThrottled();
       }
+    } else if (isExisting) {
+      final existingIndex = _results!.indexWhere((e) => e.id == entry.id);
+      if (existingIndex >= 0) {
+        _results![existingIndex] = entry;
+      }
+    }
+
+    if (offloadInline) {
+      final gen = _generation;
+      final queryLower = query.trim().toLowerCase();
+      unawaited(() async {
+        bool matched;
+        try {
+          matched = await SearchService.matchInlineBodyAsync(
+            entry,
+            queryLower,
+          );
+        } catch (e) {
+          if (e is Error && e is! StateError) rethrow;
+          if (!_isDisposed &&
+              gen == _generation &&
+              identical(_pendingAsyncEntries[entry.id], entry)) {
+            _pendingAsyncEntries.remove(entry.id);
+          }
+          return;
+        }
+        if (_isDisposed ||
+            gen != _generation ||
+            _results == null ||
+            !identical(_pendingAsyncEntries[entry.id], entry)) {
+          return;
+        }
+        _pendingAsyncEntries.remove(entry.id);
+        final currentlyExisting = _matchedIds.contains(entry.id);
+        if (matched) {
+          if (currentlyExisting) {
+            final idx = _results!.indexWhere((e) => e.id == entry.id);
+            if (idx >= 0) {
+              _results![idx] = entry;
+            } else {
+              _results!.insert(0, entry);
+            }
+          } else {
+            _results!.insert(0, entry);
+            _matchedIds.add(entry.id);
+          }
+          (_matchScopes[entry.id] ??= <SearchMatchScope>{})
+              .add(SearchMatchScope.body);
+          _notifyThrottled();
+        } else if (scopes.isEmpty && currentlyExisting) {
+          _results!.removeWhere((e) => e.id == entry.id);
+          _matchedIds.remove(entry.id);
+          _matchScopes.remove(entry.id);
+          _notifyThrottled();
+        }
+      }());
     }
   }
 
@@ -231,7 +341,12 @@ class MasterSearchController extends ChangeNotifier {
 
   /// Prunes any search results whose IDs are not present in [validIds].
   void pruneMissing(Set<String> validIds) {
-    if (_isDisposed || _results == null || _matchedIds.isEmpty) return;
+    if (_isDisposed || _results == null) return;
+
+    _pendingAsyncEntries.removeWhere((id, _) => !validIds.contains(id));
+    _activeSnapshotIds?.removeWhere((id) => !validIds.contains(id));
+
+    if (_matchedIds.isEmpty) return;
     final hasMissing = _matchedIds.any((id) => !validIds.contains(id));
     if (!hasMissing) return;
 
@@ -256,6 +371,10 @@ class MasterSearchController extends ChangeNotifier {
     _generation++;
     _throttleTimer?.cancel();
     _throttleTimer = null;
+    _pendingAsyncEntries.clear();
+    _activeSnapshotIds = null;
+    _matchScopes.clear();
+    _results = null;
     super.dispose();
   }
 }

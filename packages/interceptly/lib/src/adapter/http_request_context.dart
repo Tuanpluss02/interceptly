@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import '../engine/capture_generation.dart';
+
 /// Immutable context tracking an ongoing HTTP request capture lifecycle.
 class HttpRequestContext {
   /// Creates an immutable [HttpRequestContext].
@@ -45,7 +47,7 @@ class HttpRequestContext {
     Uint8List? requestBodyBytes,
     String? requestContentType,
   }) {
-    return HttpRequestContext(
+    final copy = HttpRequestContext(
       id: id,
       method: method ?? this.method,
       uri: uri ?? this.uri,
@@ -54,5 +56,7 @@ class HttpRequestContext {
       requestBodyBytes: requestBodyBytes ?? this.requestBodyBytes,
       requestContentType: requestContentType ?? this.requestContentType,
     );
+    attachCaptureGeneration(copy, readCaptureGeneration(this));
+    return copy;
   }
 }

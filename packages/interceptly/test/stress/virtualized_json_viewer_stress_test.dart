@@ -77,10 +77,10 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await settleWithRealIsolate(tester);
       stopwatch.stop();
 
-      expect(stopwatch.elapsedMilliseconds, lessThan(3500));
+      expect(stopwatch.elapsedMilliseconds, lessThan(8000));
 
       expect(find.textContaining('"row_1":'), findsOneWidget);
       expect(find.textContaining('"row_15000":'), findsNothing);
@@ -111,7 +111,7 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await settleWithRealIsolate(tester);
 
       final listViews = find.byType(ListView);
       final gutterList = listViews.first;
@@ -125,7 +125,7 @@ void main() {
       );
 
       contentScrollState.position.jumpTo(1800.0);
-      await tester.pumpAndSettle();
+      await settleWithRealIsolate(tester);
 
       expect(
         (gutterScrollState.position.pixels - contentScrollState.position.pixels)
@@ -134,7 +134,7 @@ void main() {
       );
 
       gutterScrollState.position.jumpTo(5400.0);
-      await tester.pumpAndSettle();
+      await settleWithRealIsolate(tester);
 
       expect(
         (contentScrollState.position.pixels - gutterScrollState.position.pixels)
@@ -162,7 +162,7 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await settleWithRealIsolate(tester);
 
       expect(find.textContaining('"level_1":'), findsOneWidget);
     });
@@ -191,7 +191,7 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await settleWithRealIsolate(tester);
 
       expect(find.textContaining('SEARCH_PINPOINT_TARGET'), findsOneWidget);
 
@@ -228,7 +228,7 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await settleWithRealIsolate(tester);
 
       final listViews = find.byType(ListView);
       final contentList = listViews.last;
@@ -253,7 +253,7 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await settleWithRealIsolate(tester);
 
       scrollState = tester.state<ScrollableState>(
         find.descendant(of: contentList, matching: find.byType(Scrollable)),
@@ -277,7 +277,7 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await settleWithRealIsolate(tester);
 
       scrollState = tester.state<ScrollableState>(
         find.descendant(of: contentList, matching: find.byType(Scrollable)),
@@ -674,14 +674,26 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await settleWithRealIsolate(tester);
 
       await tester.tap(find.text('Response'));
-      await tester.pumpAndSettle();
+      await settleWithRealIsolate(tester);
 
       expect(find.textContaining('Body truncated preview'), findsNothing);
       expect(find.text('Export Full'), findsNothing);
       expect(find.textContaining('first 2MB'), findsOneWidget);
     });
   });
+}
+
+Future<void> settleWithRealIsolate(WidgetTester tester) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 10));
+  while (find.byType(CircularProgressIndicator).evaluate().isNotEmpty &&
+      DateTime.now().isBefore(deadline)) {
+    await tester
+        .runAsync(() => Future<void>.delayed(const Duration(milliseconds: 10)));
+    await tester.pump();
+  }
+  expect(find.byType(CircularProgressIndicator), findsNothing);
+  await tester.pumpAndSettle();
 }

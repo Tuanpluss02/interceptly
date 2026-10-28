@@ -212,7 +212,7 @@ void main() {
       );
     });
 
-    test('formdata mode for multipart/form-data', () {
+    test('raw mode with language text for text multipart/form-data', () {
       final col = PostmanExporter.toMap([
         _record(
           requestBodyPreview: 'some content',
@@ -221,7 +221,28 @@ void main() {
       ]);
       final item = (col['item'] as List).first as Map;
       final body = (item['request'] as Map)['body'] as Map;
+      expect(body['mode'], 'raw');
+      expect(body['raw'], 'some content');
+      expect(body['options'], {
+        'raw': {'language': 'text'},
+      });
+    });
+
+    test(
+        'formdata mode with diagnostic warning for binary/missing multipart/form-data',
+        () {
+      final col = PostmanExporter.toMap([
+        _record(
+          requestBodyPreview: '[binary: 10 bytes]',
+          requestContentType: 'multipart/form-data',
+        ),
+      ]);
+      final item = (col['item'] as List).first as Map;
+      final body = (item['request'] as Map)['body'] as Map;
       expect(body['mode'], 'formdata');
+      final formdata = body['formdata'] as List<dynamic>;
+      expect(formdata.first['value'],
+          'Multipart body preview unavailable or binary');
     });
 
     test('body is null when requestBodyPreview is null', () {

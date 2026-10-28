@@ -91,6 +91,9 @@ class RealtimeSessionScope {
     });
   }
 
+  /// Normalizes [data] once and forwards the computed preview and size
+  /// so [RealtimeTrafficCollector.recordFrame] hits its fast path without
+  /// renormalizing the payload.
   void _record(dynamic data, FrameDirection direction, {String? eventName}) {
     if (data == null) return;
     final normalized = FrameNormalizer.normalize(

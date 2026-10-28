@@ -630,6 +630,72 @@ void main() {
         expect(session.sentDrafts.first.payload, '{"action":"heartbeat"}');
       });
 
+      testWidgets(
+          'resending binary frame transmits authentic Uint8List payload',
+          (tester) async {
+        final session = _MockSession();
+        session.activeCanSend = true;
+        session.protocol = RealtimeProtocolType.webSocket;
+        final binaryData =
+            Uint8List.fromList([0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01]);
+        session.addFrame(
+          RealtimeFrame.memoryBinary(
+            id: 'frame_resend_bin',
+            sessionId: 'sess_1',
+            timestamp: DateTime(2026, 1, 1),
+            direction: FrameDirection.outgoing,
+            bytes: binaryData,
+          ),
+        );
+
+        await tester
+            .pumpWidget(buildTestWidget(sessionId: 'sess_1', session: session));
+        await tester.pumpAndSettle();
+
+        await tester
+            .tap(find.byKey(const ValueKey('frame_resend_frame_resend_bin')));
+        await tester.pumpAndSettle();
+
+        expect(session.sentDrafts.length, 1);
+        expect(session.sentDrafts.first.payload, equals(binaryData));
+        expect(session.sentDrafts.first.payload, isA<Uint8List>());
+      });
+
+      testWidgets(
+          'resending offloaded binary frame loads and transmits authentic bytes',
+          (tester) async {
+        final session = _MockSession();
+        session.activeCanSend = true;
+        session.protocol = RealtimeProtocolType.webSocket;
+        final binaryData = Uint8List.fromList([0x01, 0x02, 0x03, 0x04]);
+        session.customLoadPayload = (frame) async => binaryData;
+        session.addFrame(
+          RealtimeFrame.offloaded(
+            id: 'frame_resend_offload_bin',
+            sessionId: 'sess_1',
+            direction: FrameDirection.outgoing,
+            type: FrameType.binary,
+            payloadSizeBytes: 4,
+            shortPreview: '[binary: 4 bytes]',
+            fileOffset: 0,
+            fileLength: 4,
+            rotationCount: 0,
+          ),
+        );
+
+        await tester
+            .pumpWidget(buildTestWidget(sessionId: 'sess_1', session: session));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find
+            .byKey(const ValueKey('frame_resend_frame_resend_offload_bin')));
+        await tester.pumpAndSettle();
+
+        expect(session.sentDrafts.length, 1);
+        expect(session.sentDrafts.first.payload, equals(binaryData));
+        expect(session.sentDrafts.first.payload, isA<Uint8List>());
+      });
+
       testWidgets('typing and tapping send in chat bar sends message',
           (tester) async {
         final session = _MockSession();

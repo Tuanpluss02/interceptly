@@ -83,13 +83,21 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+
+    /// Large documents flatten off the UI thread behind a spinner,
+    /// so allow real async isolates to complete before settling.
+    await tester.pump();
+    await tester.runAsync(() => Future.delayed(const Duration(seconds: 2)));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
 
     expect(tester.takeException(), isNull);
     expect(find.text('URL'), findsOneWidget);
 
     await tester.tap(find.text('Response'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.runAsync(() => Future.delayed(const Duration(seconds: 2)));
+    await tester.pump(const Duration(seconds: 1));
 
     expect(tester.takeException(), isNull);
     expect(find.text('RESPONSE BODY'), findsOneWidget);

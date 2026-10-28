@@ -180,6 +180,24 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
     }
   }
 
+  Future<dynamic> _resolveRawPayload(RealtimeFrame frame) async {
+    if (frame.location == BodyLocation.file) {
+      try {
+        final payload = await _scope.loadRealtimePayload(frame);
+        if (payload != null &&
+            (payload is! String ||
+                (!payload.startsWith('[Payload expired') &&
+                    !payload.startsWith('[Payload unavailable')))) {
+          return payload;
+        }
+      } catch (_) {}
+    }
+    if (frame.type == FrameType.binary) {
+      return frame.binaryPayload ?? Uint8List(0);
+    }
+    return frame.textPayload ?? frame.shortPreview;
+  }
+
   Future<void> _onResendFrame(RealtimeFrame frame) async {
     final canSend = _scope.canSendRealtimeMessage(widget.sessionId);
     if (!canSend) {
@@ -188,10 +206,10 @@ class _RealtimeMessagesTabState extends State<RealtimeMessagesTab> {
       return;
     }
 
-    final text = await _resolvePayloadText(frame);
+    final payload = await _resolveRawPayload(frame);
     final draft = RealtimeMessageDraft(
       event: frame.eventName,
-      payload: text,
+      payload: payload,
     );
 
     try {

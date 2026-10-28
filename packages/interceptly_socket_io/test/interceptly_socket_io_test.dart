@@ -377,7 +377,7 @@ void main() {
       expect(engine.entries.first.durationMs, isNotNull);
     });
 
-    test('records error and closes session on connect_error', () async {
+    test('records connect_error as frame and keeps session open', () async {
       final socket = FakeSocket();
       final tracker =
           InterceptlySocketIo.attach(socket, sessionId: 'conn-err-1');
@@ -385,10 +385,11 @@ void main() {
       socket.triggerConnectError('xhr poll error');
       await pumpEventQueue();
 
-      expect(tracker.scope.isClosed, isTrue);
-      expect(engine.entries.first.statusCode, equals(1006));
-      expect(engine.entries.first.hasError, isTrue);
-      expect(engine.entries.first.errorMessage, equals('xhr poll error'));
+      expect(tracker.scope.isClosed, isFalse);
+      final frames = engine.getRealtimeFrames('conn-err-1');
+      expect(frames.length, equals(1));
+      expect(frames.first.eventName, equals('connect_error'));
+      expect(frames.first.textPayload, contains('xhr poll error'));
     });
 
     test(

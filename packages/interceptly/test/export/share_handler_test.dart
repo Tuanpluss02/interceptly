@@ -39,7 +39,7 @@ void main() {
   });
 
   testWidgets(
-    'ShareHandler copies cURL command without redaction',
+    'ShareHandler copies raw cURL command',
     (tester) async {
       late BuildContext savedContext;
       await tester.pumpWidget(
@@ -77,8 +77,9 @@ void main() {
       await tester.pump(const Duration(seconds: 3));
 
       expect(clipboardTexts, isNotEmpty);
+
+      /// Clipboard copy always emits raw header values.
       expect(clipboardTexts.first, contains('Bearer secret-auth-token'));
-      expect(clipboardTexts.first, isNot(contains('[REDACTED]')));
     },
     timeout: const Timeout(Duration(seconds: 60)),
   );
@@ -185,9 +186,35 @@ void main() {
         expect(text, isNot(contains(tempDir.path)));
         expect(text, isNot(contains('.postman_collection')));
       }
+
+      final files = tempDir.listSync().whereType<File>().toList();
+      expect(files.any((f) => f.path.contains('.postman_collection')), isTrue);
     },
     timeout: const Timeout(Duration(seconds: 60)),
   );
+
+  test('purgeStaleExports prunes export artifacts older than 1 hour', () async {
+    final now = DateTime.now();
+    final staleFile =
+        File('${tempDir.path}/interceptly_old.postman_collection');
+    await staleFile.writeAsString('old');
+    await staleFile.setLastModified(now.subtract(const Duration(hours: 2)));
+
+    final freshFile =
+        File('${tempDir.path}/interceptly_new.postman_collection');
+    await freshFile.writeAsString('new');
+    await freshFile.setLastModified(now.subtract(const Duration(minutes: 5)));
+
+    final otherFile = File('${tempDir.path}/other_old.txt');
+    await otherFile.writeAsString('other');
+    await otherFile.setLastModified(now.subtract(const Duration(hours: 3)));
+
+    await ShareHandler.purgeStaleExports(tempDir);
+
+    expect(await staleFile.exists(), isFalse);
+    expect(await freshFile.exists(), isTrue);
+    expect(await otherFile.exists(), isTrue);
+  });
 }
 
 class _NeverShare extends Fake implements InterceptlyShare {

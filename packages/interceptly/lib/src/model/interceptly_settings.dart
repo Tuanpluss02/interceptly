@@ -15,6 +15,7 @@ class InterceptlySettings {
     this.shouldCapture,
     this.persistToDisk = true,
     this.enableRealtime,
+    this.allowInRelease = false,
   })  : assert(maxEntries > 0, 'maxEntries must be greater than 0'),
         assert(maxQueuedEvents > 0, 'maxQueuedEvents must be greater than 0'),
         assert(
@@ -115,6 +116,13 @@ class InterceptlySettings {
   /// realtime adapters record traffic or open sessions.
   final bool? enableRealtime;
 
+  /// Whether capture and overlay are permitted in release builds.
+  ///
+  /// Defaults to `false`: in release mode `Interceptly.init` returns early
+  /// without attaching the overlay or starting background workers, and the
+  /// engine starts disabled. Opt in explicitly for internal/beta builds.
+  final bool allowInRelease;
+
   InterceptlySettings copyWith({
     int? bodyOffloadThreshold,
     int? realtimeBodyOffloadThreshold,
@@ -130,6 +138,7 @@ class InterceptlySettings {
     bool Function(String url)? shouldCapture,
     bool? persistToDisk,
     bool? enableRealtime,
+    bool? allowInRelease,
   }) {
     return InterceptlySettings(
       bodyOffloadThreshold: bodyOffloadThreshold ?? this.bodyOffloadThreshold,
@@ -149,6 +158,7 @@ class InterceptlySettings {
       shouldCapture: shouldCapture ?? this.shouldCapture,
       persistToDisk: persistToDisk ?? this.persistToDisk,
       enableRealtime: enableRealtime ?? this.enableRealtime,
+      allowInRelease: allowInRelease ?? this.allowInRelease,
     );
   }
 }
