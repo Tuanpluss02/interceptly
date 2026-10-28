@@ -1,3 +1,8 @@
+## 1.2.2
+
+ - **REFACTOR**: InspectorSession to Interceptly and clean up tests ([#17](https://github.com/Tuanpluss02/interceptly/issues/17)). ([3a9020ce](https://github.com/Tuanpluss02/interceptly/commit/3a9020ce7b4de4cd80430ed1836aaa042df4f778))
+ - **FIX**: comprehensive hardening across engine lifecycle, storage, replay security, and surfaces ([#21](https://github.com/Tuanpluss02/interceptly/issues/21)). ([70f59607](https://github.com/Tuanpluss02/interceptly/commit/70f59607a0d75682ff37919ba13210a925f34b49))
+
 ## 1.2.1
 
  - **REFACTOR**: InspectorSession to Interceptly and clean up tests ([#17](https://github.com/Tuanpluss02/interceptly/issues/17)). ([3a9020ce](https://github.com/Tuanpluss02/interceptly/commit/3a9020ce7b4de4cd80430ed1836aaa042df4f778))

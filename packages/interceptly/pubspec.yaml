@@ -1,7 +1,7 @@
 name: interceptly
 resolution: workspace
 description: "Client-agnostic network and realtime inspector for Flutter with overlay UI, replay tools, WebSocket inspection, and HAR/cURL/Postman export."
-version: 2.3.1
+version: 2.3.2
 homepage: https://github.com/Tuanpluss02/interceptly
 repository: https://github.com/Tuanpluss02/interceptly
 issue_tracker: https://github.com/Tuanpluss02/interceptly/issues
