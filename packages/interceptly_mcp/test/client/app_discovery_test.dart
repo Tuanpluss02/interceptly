@@ -77,12 +77,19 @@ void main() {
     test(
       'resolveUri auto-discovers running app via process scanning',
       () async {
-        final uri = await AppDiscovery.resolveUri(
-          explicitUri: null,
-          environment: {},
-        );
-        if (uri != null) {
-          expect(AppDiscovery.isLoopbackUri(uri), isTrue);
+        try {
+          final uri = await AppDiscovery.resolveUri(
+            explicitUri: null,
+            environment: {},
+          );
+          if (uri != null) {
+            expect(AppDiscovery.isLoopbackUri(uri), isTrue);
+          }
+        } on MultipleAppsException catch (e) {
+          expect(e.candidates, isNotEmpty);
+          for (final candidate in e.candidates) {
+            expect(AppDiscovery.isLoopbackUri(candidate.uri), isTrue);
+          }
         }
       },
     );

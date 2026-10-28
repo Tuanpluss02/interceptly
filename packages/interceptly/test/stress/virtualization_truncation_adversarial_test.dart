@@ -219,7 +219,7 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await settleWithRealIsolate(tester);
 
       final listViews = find.byType(ListView);
       expect(listViews, findsNWidgets(2));
@@ -254,7 +254,7 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await settleWithRealIsolate(tester);
 
       expect(find.textContaining('TARGET_VALUE'), findsOneWidget);
     });
@@ -277,7 +277,7 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await settleWithRealIsolate(tester);
 
       final gutterFinder = find.text('1');
       final initialGutterX = tester.getTopLeft(gutterFinder).dx;
@@ -288,7 +288,7 @@ void main() {
         ),
       );
       horizontalScrollable.position.jumpTo(60.0);
-      await tester.pumpAndSettle();
+      await settleWithRealIsolate(tester);
 
       final afterScrollGutterX = tester.getTopLeft(gutterFinder).dx;
       expect(afterScrollGutterX, equals(initialGutterX));
@@ -314,18 +314,18 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await settleWithRealIsolate(tester);
 
       expect(find.textContaining('alpha'), findsOneWidget);
 
       final foldIcon = find.byIcon(Icons.arrow_drop_down).first;
       await tester.tap(foldIcon);
-      await tester.pumpAndSettle();
+      await settleWithRealIsolate(tester);
 
       expect(find.textContaining('alpha'), findsNothing);
 
       await tester.tap(foldIcon);
-      await tester.pumpAndSettle();
+      await settleWithRealIsolate(tester);
 
       expect(find.textContaining('alpha'), findsOneWidget);
     });
@@ -366,10 +366,10 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await settleWithRealIsolate(tester);
 
       await tester.tap(find.text('Response'));
-      await tester.pumpAndSettle();
+      await settleWithRealIsolate(tester);
 
       expect(find.textContaining('Body truncated preview'), findsNothing);
       expect(find.text('Export Full'), findsNothing);
@@ -403,13 +403,25 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await settleWithRealIsolate(tester);
 
       await tester.tap(find.text('Response'));
-      await tester.pumpAndSettle();
+      await settleWithRealIsolate(tester);
 
       expect(find.textContaining('Body truncated preview'), findsNothing);
       expect(find.text('Export Full'), findsNothing);
     });
   });
+}
+
+Future<void> settleWithRealIsolate(WidgetTester tester) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 2));
+  while (find.byType(CircularProgressIndicator).evaluate().isNotEmpty &&
+      DateTime.now().isBefore(deadline)) {
+    await tester
+        .runAsync(() => Future<void>.delayed(const Duration(milliseconds: 10)));
+    await tester.pump();
+  }
+  expect(find.byType(CircularProgressIndicator), findsNothing);
+  await tester.pumpAndSettle();
 }
