@@ -62,63 +62,66 @@ class DetailTabsBuilder {
       durationValue = '${record.durationMs} ms';
     }
 
-    return ListView(
-      padding: const EdgeInsets.all(16.0),
-      children: [
-        _buildOverviewRow('URL', displayUrl, DetailSection.overviewUrl),
-        const SizedBox(height: 16),
-        _buildOverviewRow(
-          'Method',
-          record.method,
-          DetailSection.overviewMethod,
-          valueStyle: InterceptlyTheme.typography.bodyMediumBold.copyWith(
-            color: mStyle.text,
-            fontSize: 12,
-          ),
-        ),
-        const SizedBox(height: 16),
-        _buildOverviewRow(
-          'Status',
-          statusValue,
-          DetailSection.overviewStatus,
-        ),
-        const SizedBox(height: 16),
-        _buildOverviewRow(
-          'Duration',
-          durationValue,
-          DetailSection.overviewDuration,
-        ),
-        const SizedBox(height: 16),
-        _buildOverviewRow(
-          'Request size',
-          formatBytes(record.requestSizeBytes),
-          DetailSection.overviewRequestSize,
-        ),
-        const SizedBox(height: 16),
-        _buildOverviewRow(
-          'Response size',
-          isPending ? 'loading…' : formatBytes(record.responseSizeBytes),
-          DetailSection.overviewResponseSize,
-        ),
-        if (record.hasError) ...[
+    return SelectionArea(
+      child: ListView(
+        padding: const EdgeInsets.all(16.0),
+        children: [
+          _buildOverviewRow('URL', displayUrl, DetailSection.overviewUrl),
           const SizedBox(height: 16),
           _buildOverviewRow(
-            'Error',
-            shortError,
-            DetailSection.overviewError,
-            valueStyle: InterceptlyTheme.typography.bodyMediumRegular.copyWith(
-              color: InterceptlyTheme.yellow400,
+            'Method',
+            record.method,
+            DetailSection.overviewMethod,
+            valueStyle: InterceptlyTheme.typography.bodyMediumBold.copyWith(
+              color: mStyle.text,
               fontSize: 12,
             ),
           ),
+          const SizedBox(height: 16),
+          _buildOverviewRow(
+            'Status',
+            statusValue,
+            DetailSection.overviewStatus,
+          ),
+          const SizedBox(height: 16),
+          _buildOverviewRow(
+            'Duration',
+            durationValue,
+            DetailSection.overviewDuration,
+          ),
+          const SizedBox(height: 16),
+          _buildOverviewRow(
+            'Request size',
+            formatBytes(record.requestSizeBytes),
+            DetailSection.overviewRequestSize,
+          ),
+          const SizedBox(height: 16),
+          _buildOverviewRow(
+            'Response size',
+            isPending ? 'loading…' : formatBytes(record.responseSizeBytes),
+            DetailSection.overviewResponseSize,
+          ),
+          if (record.hasError) ...[
+            const SizedBox(height: 16),
+            _buildOverviewRow(
+              'Error',
+              shortError,
+              DetailSection.overviewError,
+              valueStyle:
+                  InterceptlyTheme.typography.bodyMediumRegular.copyWith(
+                color: InterceptlyTheme.yellow400,
+                fontSize: 12,
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+          _buildOverviewRow(
+            'Time',
+            record.timestamp.toIso8601String(),
+            DetailSection.overviewTime,
+          ),
         ],
-        const SizedBox(height: 16),
-        _buildOverviewRow(
-          'Time',
-          record.timestamp.toIso8601String(),
-          DetailSection.overviewTime,
-        ),
-      ],
+      ),
     );
   }
 
