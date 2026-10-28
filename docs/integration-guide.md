@@ -2,49 +2,96 @@
 
 You are integrating Interceptly, a client-agnostic network & realtime traffic
 inspector for Flutter, into an existing Flutter project. Follow these steps in
-order. Do not skip verification.
+order. Do not skip verification. Reply to the user in the language they are
+writing in.
 
-## 1. Detect & Confirm Setup (MANDATORY STOP GATE)
+## Ground rules
+
+- **Ask with your question tool, not with prose.** Every question in this guide
+  must be asked through your interactive question tool (e.g. `AskUserQuestion`
+  in Claude Code, or your IDE's equivalent choice UI). Plain-text questions in
+  a long reply are easy to miss.
+  - Use selectable options, with the default labelled "(Recommended)".
+  - Use multi-select where several answers can apply.
+  - Batch questions into as few tool calls as the tool allows.
+  - If your environment has no question tool, print a short numbered list of
+    the questions, then **END YOUR TURN and wait**. Never continue with assumed
+    defaults.
+  - If no user is available to answer, change nothing and report what you
+    detected.
+- **Never touch files outside the project** (e.g. `~/.cursor/mcp.json`,
+  `~/.claude.json`) without explicit consent given through the question tool.
+- **Never use `path:` dependencies** for Interceptly packages in a consumer
+  app.
+- **Never downgrade** the app's existing `dio` / `http` / `chopper` /
+  `web_socket_channel` / `socket_io_client` versions to satisfy adapters.
+  Report the conflict instead.
+
+## 1. Detect & confirm (MANDATORY STOP GATE)
 
 Do NOT edit any code or add dependencies yet. First inspect the codebase, then
-**STOP and present your findings to the user in a single unified prompt**.
+stop and ask the user.
 
 Inspect the project:
-- **Networking clients:** Check `pubspec.yaml` for `dio`, `http`, `chopper`,
-  `web_socket_channel`, and `socket_io_client` (note each version). Also search imports for raw
+
+- **Networking clients:** check `pubspec.yaml` for `dio`, `http`, `chopper`,
+  `web_socket_channel`, and `socket_io_client` (note each version). Retrofit
+  runs on top of `dio`, so treat it as `dio`. Also search imports for raw
   `dart:io` sockets (`Socket`, `WebSocket`, `HttpClient`).
-- **Existing inspectors/loggers:** Search for `alice`, `alice_dio`,
+- **Where clients are created:** find the real instantiation points (DI
+  containers such as `get_it` / `injectable`, Riverpod/Bloc providers, API
+  service classes). Adapters in step 5 must be attached there, not to new
+  instances.
+- **Existing inspectors/loggers:** search for `alice`, `alice_dio`,
   `alice_lightweight`, `talker`, `talker_dio_logger`, `dio_log`,
-  `http_logger`, `pretty_dio_logger`, `chopper_logger`, or custom debug overlays.
-  List every match with file paths.
-- **Navigation & Entry:** Find where `runApp` / `MaterialApp` (or `MaterialApp.router` /
-  `GoRouter`) is built and whether a global `navigatorKey` exists.
-- **Active AI Coding Assistant:** Check which AI assistant or IDE is currently in use:
-  - Antigravity: check for `~/.gemini/antigravity-ide/mcp_config.json` or `.agents/`.
-  - Cursor: check for workspace `.cursor/` or `~/.cursor/mcp.json`.
-  - Claude Desktop: check for Claude Desktop config directory.
-  - Claude Code: check for `~/.claude.json` or `claude` CLI.
-  - Windsurf: check for `~/.codeium/windsurf/mcp_config.json`.
-  - VS Code (Cline / Roo Code): check for `.vscode/` or active extension settings.
+  `http_logger`, `pretty_dio_logger`, `chopper_logger`, or custom debug
+  overlays. List every match with file paths.
+- **Navigation & entry:** find where `runApp` / `MaterialApp` (or
+  `MaterialApp.router` / `GoRouter`) is built and whether a global
+  `navigatorKey` exists.
+- **Flavors / environment markers:** look for flavors (dev/staging/prod),
+  `isDev` / `isStaging` flags, or `--dart-define` markers.
+- **Your own host:** you are the AI assistant that will be configured for MCP.
+  Identify which one you are (Cursor, Claude Code, Claude Desktop, Antigravity,
+  Windsurf, VS Code with Cline / Roo Code / Copilot).
 
-**STOP AND ASK THE USER UPFRONT (Do not split this into multiple steps):**
-1. **REST Traffic:** Which detected REST clients (`dio`, `http`, `chopper`) should be intercepted?
-2. **Realtime / Socket Traffic:** Confirm whether to intercept WebSockets/sockets or Socket.IO now (default: yes if `web_socket_channel`, `dart:io.WebSocket`, or `socket_io_client` detected; ask if none detected).
-3. **Existing Inspectors:** If any old logger/inspector was detected, ask to remove it (recommended to avoid duplicate capture overhead and UI overlay conflicts) or keep side-by-side.
-4. **Flavors / Environment:** Confirm in which modes to enable (default: everywhere except production release).
-5. **AI Assistant & MCP Integration (`interceptly_mcp`):** Ask upfront: *"Do you want to enable Model Context Protocol (MCP) so your AI assistant can inspect network traffic, diagnose errors, and export cURL directly in chat?"* If yes, confirm their AI assistant (Cursor, Antigravity, Claude Desktop, Windsurf, VS Code / Cline) so you can automatically configure the MCP settings file for them.
+### Questions (ask them together, via the question tool)
 
-**Only proceed to Step 2 once the user has answered all questions.**
+1. **What to intercept** (multi-select): the detected REST clients (`dio`,
+   `http`, `chopper`) and realtime clients (WebSocket, Socket.IO). Pre-select
+   everything detected. If no realtime client was detected, leave it
+   unselected.
+2. **Where to enable the inspector:** options such as "Everywhere except
+   production store builds (Recommended)", "Debug and profile only", "Specific
+   flavors" (the user names them).
+3. **Existing inspector** (ask only if one was detected): "Remove it
+   (Recommended, avoids duplicate capture and overlay conflicts)" or "Keep it
+   side by side".
+4. **MCP for your AI assistant (`interceptly_mcp`):** "No MCP", "Yes,
+   read-only (Recommended)", "Yes, allow mutations" (lets the AI replay
+   requests and change network simulation, adds `--allow-mutation`). State
+   which assistant you will configure, and let the user pick another via
+   "Other".
 
-## 2. Add dependencies (hosted only)
+**Only proceed to step 2 once the user has answered.**
+
+## 2. Preflight & dependencies
+
+Preflight:
+
+1. Run `flutter analyze` **before changing anything** and note the result as a
+   baseline.
+2. Check iOS: the app needs `platform :ios, '15.0'` in `ios/Podfile` (and a
+   matching deployment target in Xcode). Raise it if lower and tell the user.
+
+Add dependencies (hosted only; `flutter pub add` resolves the latest
+compatible version, so do not pin versions here):
 
 ```bash
 flutter pub add interceptly
 ```
 
-Then add only the adapters for the client list the user confirmed in step 1
-(`flutter pub add` resolves the latest compatible version; do not pin
-versions here so this guide stays correct across releases):
+Then add only the adapters for the clients confirmed in step 1:
 
 ```bash
 flutter pub add interceptly_dio         # if dio is used
@@ -54,43 +101,58 @@ flutter pub add interceptly_web_socket  # if web_socket_channel is used
 flutter pub add interceptly_socket_io   # if socket_io_client is used
 ```
 
-If the user agreed to install MCP in Step 1, also activate the standalone MCP CLI globally:
+If the user chose MCP, activate the standalone MCP CLI globally:
 
 ```bash
 dart pub global activate interceptly_mcp
 ```
 
+## 3. Remove the old inspector (only if the user chose "Remove")
 
-Rules:
+For each match listed in step 1:
 
-- Never use `path:` dependencies for these packages in a consumer app.
-- Never downgrade the app's existing `dio` / `http` / `chopper` /
-  `web_socket_channel` / `socket_io_client` versions to satisfy adapters; report a conflict instead.
+1. Remove its interceptor / wrapper from every client it was attached to.
+2. Remove its overlay, shake/button trigger, and any `navigatorKey` it
+   required, **reusing** the existing key if the app already needs one.
+3. Remove the dependency with `flutter pub remove <package>` and delete
+   now-unused imports and files.
+4. Run `flutter analyze` to confirm nothing still references it.
 
-## 3. Wire `Interceptly.init` (debug/profile only)
+## 4. Wire `Interceptly.init`
 
-Ask the user first: most projects use flavors (dev/staging/prod). Confirm in
-which flavors the inspector should be enabled — default recommendation is
-everywhere except production store builds. If the project defines its own
-`isDev` / `isStaging` flags or `--dart-define` environment markers, use those
-instead of (or in addition to) the `kDebugMode || kProfileMode` check below,
-and state which condition you chose.
+Use the condition the user confirmed in step 1. Define it **once** and reuse it
+for both `init` and adapter attachment:
+
+```dart
+// lib/interceptly_config.dart
+import 'package:flutter/foundation.dart';
+
+/// Default: debug + profile. Replace with the project's own flavor /
+/// --dart-define condition if the user chose a different mode in step 1,
+/// and tell the user which condition you used.
+const bool interceptlyEnabled = kDebugMode || kProfileMode;
+```
 
 - Ensure a global key exists: `final navigatorKey = GlobalKey<NavigatorState>();`
 - Pass it to `MaterialApp` (`navigatorKey:`) or to `GoRouter` (`navigatorKey:`).
-- Only if the floating button disappears after route transitions, additionally set `navigatorObservers: [Interceptly.navigatorObserver]` on `MaterialApp`. Do not present this as the default setup.
-- After `runApp`, initialize only in debug/profile:
+- Only if the floating button disappears after route transitions, additionally
+  set `navigatorObservers: [Interceptly.navigatorObserver]` on `MaterialApp`.
+  Do not present this as the default setup.
+- Initialize after `runApp`:
 
 ```dart
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:interceptly/interceptly.dart';
+
+import 'interceptly_config.dart';
+
+final navigatorKey = GlobalKey<NavigatorState>();
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(MyApp(navigatorKey: navigatorKey));
 
-  if (kDebugMode || kProfileMode) {
+  if (interceptlyEnabled) {
     Interceptly.init(
       navigatorKey: navigatorKey,
       settings: const InterceptlySettings(maxEntries: 1000),
@@ -99,16 +161,30 @@ void main() {
 }
 ```
 
-- The SDK has no release guard: `Interceptly.init` works in any build mode, so always wrap it in `if (kDebugMode || kProfileMode)` or the inspector ships to production users.
+**The SDK has no release guard.** `Interceptly.init` works in any build mode,
+so the `if (interceptlyEnabled)` wrapper is the only thing keeping the
+inspector out of production builds. Never call `init` without it.
 
-## 4. Attach adapters
+## 5. Attach adapters
 
-Dio:
+Attach adapters to the **existing** client instances found in step 1 (DI
+registrations, providers, API classes). Do not create parallel clients. Gate
+each attachment with the same `interceptlyEnabled` flag.
+
+Dio (also covers Retrofit):
 
 ```dart
 import 'package:interceptly_dio/interceptly_dio.dart';
 
-final dio = Dio()..interceptors.add(InterceptlyDioInterceptor());
+final dio = Dio();
+if (interceptlyEnabled) {
+  // Recommended: Transport adapter (order-independent, captures after auth interceptors
+  // and before response transformers mutate data into domain models)
+  dio.useInterceptly();
+
+  // Alternative (if transport adapter cannot be swapped):
+  // dio.interceptors.add(InterceptlyDioInterceptor());
+}
 ```
 
 `package:http`:
@@ -117,7 +193,8 @@ final dio = Dio()..interceptors.add(InterceptlyDioInterceptor());
 import 'package:http/http.dart' as http;
 import 'package:interceptly_http/interceptly_http.dart';
 
-final client = InterceptlyHttpClient(http.Client());
+final http.Client client =
+    interceptlyEnabled ? InterceptlyHttpClient(http.Client()) : http.Client();
 ```
 
 Chopper:
@@ -126,7 +203,9 @@ Chopper:
 import 'package:interceptly_chopper/interceptly_chopper.dart';
 
 final chopper = ChopperClient(
-  interceptors: [InterceptlyChopperInterceptor()],
+  interceptors: [
+    if (interceptlyEnabled) InterceptlyChopperInterceptor(),
+  ],
 );
 ```
 
@@ -135,13 +214,15 @@ WebSocket (`web_socket_channel` or raw `dart:io.WebSocket`):
 ```dart
 import 'package:interceptly_web_socket/interceptly_web_socket.dart';
 
-// Option A: Direct connect
-final channel = InterceptlyWebSocketChannel.connect(
-  Uri.parse('wss://example.com/socket'),
-);
+// Option A: direct connect
+final channel = interceptlyEnabled
+    ? InterceptlyWebSocketChannel.connect(Uri.parse('wss://example.com/socket'))
+    : WebSocketChannel.connect(Uri.parse('wss://example.com/socket'));
 
-// Option B: Wrap an existing WebSocketChannel (or IOWebSocketChannel for dart:io.WebSocket)
-final channel = InterceptlyWebSocketChannel(existingChannel);
+// Option B: wrap an existing WebSocketChannel
+// (or IOWebSocketChannel for dart:io.WebSocket)
+final wrapped =
+    interceptlyEnabled ? InterceptlyWebSocketChannel(existingChannel) : existingChannel;
 ```
 
 Socket.IO (`package:socket_io_client`):
@@ -152,11 +233,13 @@ import 'package:socket_io_client/socket_io_client.dart' as io;
 
 final socket = io.io('https://example.com/socket.io');
 
-// Option A: Extension method
-socket.attachInterceptly();
+if (interceptlyEnabled) {
+  // Option A: extension method
+  socket.attachInterceptly();
 
-// Option B: Static helper
-final tracker = InterceptlySocketIo.attach(socket);
+  // Option B: static helper
+  // final tracker = InterceptlySocketIo.attach(socket);
+}
 
 socket.connect();
 ```
@@ -172,69 +255,115 @@ InterceptlySettings(
 
 `shouldCapture` runs synchronously per request: keep it fast and non-blocking.
 
-## 5. Configure AI Assistant MCP Server (Automatic File Update)
+## 6. Configure the AI assistant's MCP server (only if the user chose MCP)
 
-If the user agreed to install MCP in Step 1, **you (the agent) must automatically update their AI assistant's MCP configuration file**. Do NOT instruct the user to manually edit JSON files unless access is restricted.
+You (the agent) update the MCP configuration file yourself. Do not tell the
+user to edit JSON by hand unless file access is restricted.
 
-### 5.1 Locate the Config File
+### 6.1 Pick the file and scope
 
-Identify the config file path based on the detected or confirmed AI assistant:
+Default to the assistant you are running in. **Prefer project-local config.**
+Only write a global file after the user explicitly agrees (ask with the
+question tool). Some assistants only support global config; for those, ask
+before writing.
 
-| AI Assistant / IDE | Scope | Config File Path |
-|--------------------|-------|------------------|
-| **Cursor** | Workspace | `<project-root>/.cursor/mcp.json` |
+| Assistant | Scope | Config file |
+|-----------|-------|-------------|
+| **Cursor** | Project | `<project-root>/.cursor/mcp.json` |
 | | Global | `~/.cursor/mcp.json` |
-| **Antigravity / Gemini** | Global | `~/.gemini/antigravity-ide/mcp_config.json` |
-| | Workspace | `<project-root>/.agents/mcp_config.json` |
-| **Windsurf** | Global | `~/.codeium/windsurf/mcp_config.json` |
-| | Workspace | `<project-root>/.windsurf/mcp.json` |
-| **Claude Desktop** | macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
-| | Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
-| | Linux | `~/.config/Claude/claude_desktop_config.json` |
-| **Claude Code (CLI)** | Global | Run `claude mcp add interceptly dart pub global run interceptly_mcp --allow-mutation` |
-| **VS Code (Cline)** | Global | `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json` |
-| **VS Code (Roo Code)**| Global | `~/Library/Application Support/Code/User/globalStorage/rooveterinaryinc.roo-cline/settings/cline_mcp_settings.json` |
-| **VS Code (General)** | Workspace | `<project-root>/.vscode/mcp.json` |
+| **Antigravity / Gemini** | Project | `<project-root>/.agents/mcp_config.json` |
+| | Global | `~/.gemini/antigravity-ide/mcp_config.json` |
+| **Windsurf** | Project | `<project-root>/.windsurf/mcp.json` |
+| | Global | `~/.codeium/windsurf/mcp_config.json` |
+| **Claude Desktop** | Global (macOS) | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| | Global (Windows) | `%APPDATA%\Claude\claude_desktop_config.json` |
+| | Global (Linux) | `~/.config/Claude/claude_desktop_config.json` |
+| **Claude Code (CLI)** | Project / user | use the CLI command in 6.3 |
+| **VS Code (native MCP)** | Project | `<project-root>/.vscode/mcp.json` (**different schema**, see 6.3) |
+| **VS Code (Cline)** | Global (macOS) | `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json` |
+| | Global (Windows) | `%APPDATA%\Code\User\globalStorage\saoudrizwan.claude-dev\settings\cline_mcp_settings.json` |
+| | Global (Linux) | `~/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json` |
+| **VS Code (Roo Code)** | Global | same as Cline, with the folder `rooveterinaryinc.roo-cline` instead of `saoudrizwan.claude-dev` |
 
-*Tip: For workspace-specific setups (Cursor, Antigravity, VS Code), preferring project-local files (`.cursor/mcp.json`, `.vscode/mcp.json`) ensures the configuration is immediately available to anyone opening the project.*
+If you write a project-local file, tell the user it is shareable through git:
+teammates also need `dart pub global activate interceptly_mcp`, and the
+`--allow-mutation` choice would apply to them too. Offer to add the file to
+`.gitignore` if they do not want to share it.
 
-### 5.2 Merge Configuration
+### 6.2 Server arguments
 
-1. Read the existing config file (or create it with `{"mcpServers": {}}` if missing).
-2. Cleanly merge the `"interceptly"` server definition into `"mcpServers"` while **preserving all existing servers**:
+- Read-only (default): `dart pub global run interceptly_mcp`
+- Mutations allowed (only if the user chose it in step 1): append
+  `--allow-mutation`
+
+### 6.3 Merge, never overwrite
+
+For JSON files using `mcpServers` (Cursor, Antigravity, Windsurf, Claude
+Desktop, Cline, Roo Code):
+
+1. Read the existing file (create it with `{"mcpServers": {}}` if missing).
+2. Merge the `interceptly` entry while **preserving every existing server**:
 
 ```json
 {
   "mcpServers": {
     "interceptly": {
       "command": "dart",
-      "args": [
-        "pub",
-        "global",
-        "run",
-        "interceptly_mcp",
-        "--allow-mutation"
-      ]
+      "args": ["pub", "global", "run", "interceptly_mcp"]
     }
   }
 }
 ```
 
-3. Save the file and inform the user of the updated file path.
+(Add `"--allow-mutation"` to `args` only if the user chose it.)
 
-## 6. Verify
+For **VS Code native** (`.vscode/mcp.json`), the top-level key is `servers`,
+not `mcpServers`:
 
-1. Run `flutter analyze` — zero new issues from these changes.
-2. Run the app, trigger one request per attached client.
+```json
+{
+  "servers": {
+    "interceptly": {
+      "type": "stdio",
+      "command": "dart",
+      "args": ["pub", "global", "run", "interceptly_mcp"]
+    }
+  }
+}
+```
+
+For **Claude Code**, use the CLI. Note the `--` separator, which stops the
+Claude CLI from parsing the server's own flags:
+
+```bash
+claude mcp add -s project interceptly -- dart pub global run interceptly_mcp
+# with mutations (only if chosen):
+# claude mcp add -s project interceptly -- dart pub global run interceptly_mcp --allow-mutation
+```
+
+(`-s user` for a global entry, only with the user's consent.)
+
+3. Save the file and tell the user the exact path you changed.
+
+## 7. Verify
+
+1. Run `flutter analyze` and compare with the baseline from step 2: **no new
+   issues** from your changes.
+2. Run the app and trigger one request per attached client. If you cannot run
+   the app in your environment, tell the user exactly what to run and check.
 3. Open the inspector via the floating button and confirm one row per request,
    with request/response bodies visible.
-4. If a row is missing, check `shouldCapture` and confirm the right adapter
-   wraps the client that actually performs the call.
-5. If MCP was enabled:
-   - Run `dart pub global run interceptly_mcp --version` to verify CLI installation.
-   - In your AI assistant chat, verify the connection using the `ping` tool or prompt: *"Check if Interceptly is connected"*.
+4. If a row is missing, check `shouldCapture` and confirm the adapter wraps the
+   client instance that actually performs the call.
+5. Confirm a release/production-configured build does not initialize the
+   inspector (the `interceptlyEnabled` condition is false there).
+6. If MCP was enabled:
+   - Run `dart pub global run interceptly_mcp --version` to verify the CLI.
+   - In the assistant chat, verify the connection with the `ping` tool or ask:
+     *"Check if Interceptly is connected"*. Some assistants need a restart or
+     an MCP refresh before the new server appears; tell the user if so.
 
-## 7. Everyday usage (for the developer)
+## 8. Everyday usage (for the developer)
 
 - Browse/filter traffic in the inspector overlay; tap a row for detail tabs.
 - Replay: edit headers/body in the detail page and re-send.
@@ -244,15 +373,24 @@ Identify the config file path based on the detected or confirmed AI assistant:
 - Programmatic control: `Interceptly.showInspector(context)`,
   `Interceptly.hideFloatingButtonForSession()` /
   `Interceptly.showFloatingButtonForSession()`, `Interceptly.detach()`.
-- **AI-Powered Debugging:** Ask your AI assistant to diagnose network errors (*"Why did the last request fail?"*), export cURL commands, inspect realtime WebSocket frames, or simulate network latency directly in chat.
+- **AI-powered debugging:** ask your assistant to diagnose network errors
+  (*"Why did the last request fail?"*), export cURL commands, inspect realtime
+  WebSocket frames, or simulate network latency directly in chat.
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
-- Inspector opens in release builds too if `init` was called there: the SDK has no release guard, so the `kDebugMode || kProfileMode` wrapper at the call site is the only protection.
+- Inspector shows up in release builds: `init` ran without the
+  `interceptlyEnabled` guard (the SDK has no release guard of its own).
 - Floating button disappears after navigation: `navigatorObservers` is missing.
-- iOS simulator build fails on deployment target: the app needs
-  `platform :ios, '15.0'` (current Xcode supports 15.0+ only).
+- iOS build fails on deployment target: set `platform :ios, '15.0'` in the
+  Podfile and the Xcode deployment target.
+- Rows missing for one client: the adapter is attached to a different instance
+  than the one making the call (check DI / provider registrations).
 - Developing against a local Interceptly checkout: use
   `pubspec_overrides.yaml` with `path:` overrides (melos generates these);
   never commit `path:` deps in a consumer app.
-- AI assistant cannot connect to app: ensure the Flutter app is running in debug mode with `Interceptly.init()` called, and that `127.0.0.1` loopback access is available.
+- AI assistant cannot connect to the app: ensure the Flutter app is running
+  with `Interceptly.init()` called and that `127.0.0.1` loopback access is
+  available.
+- MCP server not listed in the assistant: check that `dart` is on the PATH the
+  assistant uses, and restart the assistant after editing its config.
