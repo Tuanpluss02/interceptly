@@ -19,7 +19,7 @@ Interceptly is structured as a monorepo managed with [Melos](https://melos.inver
 │   ├── interceptly_http/         # package:http Client wrapper adapter
 │   ├── interceptly_chopper/      # Chopper interceptor adapter
 │   └── interceptly_web_socket/   # WebSocketChannel adapter
-├── melos.yaml                    # Monorepo workspace configuration & scripts
+├── pubspec.yaml                  # Workspace config (workspace:, melos:) & scripts
 └── .github/workflows/            # CI/CD pipelines
 ```
 
@@ -43,7 +43,7 @@ Interceptly is structured as a monorepo managed with [Melos](https://melos.inver
 
 2. **Install Melos** (if not already installed):
    ```bash
-   dart pub global activate melos
+   dart pub global activate melos 8.10.0
    ```
 
 3. **Bootstrap the workspace**:

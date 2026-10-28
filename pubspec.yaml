@@ -6,6 +6,73 @@ environment:
   sdk: '>=3.5.0 <4.0.0'
   flutter: ">=3.24.0"
 
+workspace:
+  - packages/interceptly
+  - packages/interceptly_chopper
+  - packages/interceptly_dio
+  - packages/interceptly_http
+  - packages/interceptly_mcp
+  - packages/interceptly_socket_io
+  - packages/interceptly_web_socket
+
 dev_dependencies:
   flutter_lints: ^6.0.0
-  melos: ^6.0.0
+  melos: ^8.10.0
+
+melos:
+  repository: https://github.com/Tuanpluss02/interceptly
+  command:
+    version:
+      message: 'chore(release): publish packages [skip ci]'
+      linkToCommits: true
+      workspaceChangelog: false
+      branch: main
+    publish:
+      branch: main
+  scripts:
+    analyze:
+      exec: dart analyze .
+      description: Run analyzer in all packages.
+
+    format:
+      exec: dart format .
+      description: Format Dart files across all packages.
+
+    format:check:
+      exec: dart format --output=none --set-exit-if-changed .
+      description: Verify that code is formatted across all packages.
+
+    test:
+      exec: flutter test
+      concurrency: 1
+      description: Run tests in all packages.
+
+    test:core:
+      exec: flutter test --exclude-tags=stress,perf
+      concurrency: 1
+      description: Run core test suites excluding stress and perf tests.
+
+    test:stress:
+      exec: flutter test --tags=stress
+      packageFilters:
+        dirExists: test/stress
+      description: Run stress test suites.
+
+    coverage:
+      exec: flutter test --coverage
+      description: Run test suites and generate coverage reports.
+
+    pana:
+      exec: pana --no-warning --exit-code-threshold 1
+      concurrency: 1
+      packageFilters:
+        scope: interceptly
+      description: Analyze core package pub health score.
+
+    check:
+      run: melos run format:check && melos run analyze && melos run test:core
+      description: Run fast local pre-commit check (format, analyze, core tests).
+
+    clean:
+      exec: flutter clean
+      description: Clean build artifacts in all packages.
